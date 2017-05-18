@@ -3,6 +3,8 @@ from sys import exit
 from os import getuid
 from pwd import getpwuid
 from netifaces import interfaces
+from random import choice
+from string import lowercase, uppercase, digits
 
 
 class Base:
@@ -45,6 +47,7 @@ class Base:
             print "Your number is not within range (1-" + str(netiface_index) + ")"
             exit(1)
 
+        current_network_interface = ""
         try:
             current_network_interface = str(current_netifaces[int(current_netiface_index) - 1])
         except:
@@ -53,3 +56,7 @@ class Base:
 
         print "You choosed interface: " + current_network_interface
         return current_network_interface
+
+    @staticmethod
+    def make_random_string(length):
+        return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
