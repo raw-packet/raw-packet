@@ -200,3 +200,65 @@ class UDP:
             return 0
 
 
+class DHCP:
+
+    eth = Ethernet()
+    ip = IP()
+    udp = UDP()
+
+    def __init__(self):
+        pass
+
+    def make_discover_packet(self, source_mac, client_mac, request_ip, host_name):
+        request_ip = inet_aton(request_ip)
+        clientmac_list = client_mac.split(":")
+        client_hw_address = ""
+        for part_of_srcmac in clientmac_list:
+            client_hw_address += pack("!" "B", int(part_of_srcmac, 16))
+
+        message_type = 1                            # Request
+        hardware_type = 1                           # Ethernet
+        hardware_address_len = 6                    # Ethernet address len
+        hops = 0                                    # Number of hops
+        transaction_id = randint(1, 4294967295)     # Transaction id
+        seconds_elapsed = 0                         # Seconds elapsed
+        bootp_flags = 0                             # Flags
+
+        CIADDR = 0  # Client IP address
+        YIADDR = 0  # Your client IP address
+        SIADDR = 0  # Next server IP address
+        GIADDR = 0  # Relay agent IP address
+        CHADDR = client_hw_address  # Client hardware address
+
+        dhcp_discover = pack("!" "4B" "L" "2H" "4L",
+                             message_type, hardware_type, hardware_address_len, hops, transaction_id,
+                             seconds_elapsed, bootp_flags, CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+
+        client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
+        server_host_name = ''.join(pack("B", 0) for _ in range(64))     # Server host name
+        boot_file_name = ''.join(pack("B", 0) for _ in range(128))      # Boot file name
+        magic_cookie = pack("!4B", 99, 130, 83, 99)                     # Magic cookie: DHCP
+
+        option_discover = pack("!3B", 53, 1, 1)
+        option_req_ip = pack("!" "2B" "4s", 50, 4, request_ip)
+
+        host_name = bytes(host_name)
+        host_name = pack("!%ds" % (len(host_name)), host_name)
+        option_host_name = pack("!2B", 12, len(host_name)) + host_name
+
+        option_param_req_list = pack("!2B", 55, 254)
+        for param in range(1, 255):
+            option_param_req_list += pack("B", param)
+
+        option_end = pack("B", 255)
+        padding = ''.join(pack("B", 0) for _ in range(24))
+
+        dhcp_discover += client_hw_padding + server_host_name + boot_file_name + magic_cookie
+        dhcp_discover += option_discover + option_req_ip + option_host_name + option_param_req_list + option_end
+        dhcp_discover += padding
+
+        eth_header = self.eth.make_header(source_mac, "ff:ff:ff:ff:ff:ff", 2048)
+        ip_header = self.ip.make_header("0.0.0.0", "255.255.255.255", len(dhcp_discover), 8, 17)
+        udp_header = self.udp.make_header(68, 67, len(dhcp_discover))
+
+        return eth_header + ip_header + udp_header + dhcp_discover

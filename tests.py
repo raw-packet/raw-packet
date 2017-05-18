@@ -1,8 +1,9 @@
-from base import Ethernet, IP, UDP
+from base import Ethernet, IP, UDP, DHCP
 
 eth = Ethernet()
 ip = IP()
 udp = UDP()
+dhcp = DHCP()
 
 print eth.get_random_mac()
 
@@ -14,3 +15,5 @@ print ":".join("{:02x}".format(ord(c)) for c in ip.make_header("127.0.0.1", "127
 
 print ":".join("{:02x}".format(ord(c)) for c in udp.make_header(12345, 53, 0))
 
+print ":".join("{:02x}".format(ord(c)) for c in dhcp.make_discover_packet("aa:aa:aa:aa:aa:aa", "bb:bb:bb:bb:bb:bb",
+                                                                          "10.10.10.10", "test"))
