@@ -3,6 +3,7 @@ from network import Ethernet, IP, UDP, DHCP
 
 Base.check_platform()
 Base.check_user()
+Base.netiface_selection()
 
 eth = Ethernet()
 ip = IP()
