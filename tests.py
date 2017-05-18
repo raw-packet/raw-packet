@@ -1,4 +1,8 @@
-from base import Ethernet, IP, UDP, DHCP
+from base import Base
+from network import Ethernet, IP, UDP, DHCP
+
+Base.check_platform()
+Base.check_user()
 
 eth = Ethernet()
 ip = IP()
