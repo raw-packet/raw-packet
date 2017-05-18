@@ -136,10 +136,10 @@ class Ethernet:
         destination_mac_list = destination_mac.split(":")
         eth_header = ""
         for part_of_destination_mac in destination_mac_list:
-            eth_header += pack("!" "B", int(part_of_destination_mac, 16))
+            eth_header += pack("!" "B", int(part_of_destination_mac, 16))   # Destination mac address
         for part_of_source_mac_list in source_mac_list:
-            eth_header += pack("!" "B", int(part_of_source_mac_list, 16))
-        eth_header += pack("!" "H", network_type)
+            eth_header += pack("!" "B", int(part_of_source_mac_list, 16))   # Source mac address
+        eth_header += pack("!" "H", network_type)                           # Network protocol type
         return eth_header
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -165,17 +165,19 @@ class IP:
         s = ~s
         return (((s >> 8) & 0xff) | s << 8) & 0xffff
 
-    def make_header(self, source_ip, destination_ip, data_length, transport_protocol, ttl=64):
-        srcip = inet_aton(source_ip)
-        dstip = inet_aton(destination_ip)
-        ver = 4
-        ihl = 5
-        dscp_ecn = 0
-        tlen = data_length + 28
-        ident = htons(randint(1, 65535))
-        flg_frgoff = 0
-        ptcl = transport_protocol
-        chksm = 0
+    def make_header(self, source_ip, destination_ip, data_len, transport_protocol_len, transport_protocol, ttl=64):
+        srcip = inet_aton(source_ip)        # Source port
+        dstip = inet_aton(destination_ip)   # Destination port
+        ver = 4                             # IP protocol version
+        ihl = 5                             # Internet Header Length
+        dscp_ecn = 0                        # Differentiated Services Code Point and Explicit Congestion Notification
+
+        tlen = data_len + transport_protocol_len + 20   # Packet length
+        ident = htons(randint(1, 65535))                # Identification
+        flg_frgoff = 0                                  # Flags and fragmentation offset
+        ptcl = transport_protocol                       # Protocol
+        chksm = 0                                       # Checksum
+
         ip_header = pack("!" "2B" "3H" "2B" "H" "4s" "4s",
                          (ver << 4) + ihl, dscp_ecn, tlen, ident,
                          flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
@@ -183,5 +185,18 @@ class IP:
         return pack("!" "2B" "3H" "2B" "H" "4s" "4s",
                     (ver << 4) + ihl, dscp_ecn, tlen, ident,
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
+
+
+class UDP:
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make_header(source_port, destination_port, data_length):
+        if 0 < source_port < 65536 and 0 < destination_port < 65536:
+            return pack("!4H", source_port, destination_port, data_length + 8, 0)
+        else:
+            return 0
 
 
