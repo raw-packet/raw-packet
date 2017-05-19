@@ -26,7 +26,7 @@ if __name__ == "__main__":
         exit(1)
 
     current_network_interface = ""
-    if args.interface is not None:
+    if args.interface is None:
         current_network_interface = Base.netiface_selection()
     else:
         current_network_interface = args.interface
@@ -78,16 +78,17 @@ if __name__ == "__main__":
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
-    print "\r\nNumber of packets:       " + str(args.packets)
-    print "\r\nStart sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print "\r\nSending packets..."
+    print "Number of packets:       " + str(args.packets)
+    print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     start_time = time()
 
     for PACKET in PACKETS:
         SOCK.send(PACKET)
 
     stop_time = time()
-    print "\r\nAll packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     SOCK.close()
     delta_time = stop_time - start_time
     speed = count_max / delta_time
-    print "\r\nSpeed:                   " + str(int(speed)) + " pkt/sec\r\n"
+    print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"
