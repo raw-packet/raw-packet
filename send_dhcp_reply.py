@@ -1,7 +1,9 @@
 from base import Base
+from network import Ethernet
 from sys import exit
 from argparse import ArgumentParser
 from binascii import unhexlify
+from ipaddress import IPv4Address
 from scapy.all import Ether, IP, UDP, BOOTP, DHCP, sniff, sendp
 
 Base.check_user()
@@ -9,8 +11,8 @@ Base.check_user()
 parser = ArgumentParser(description='DHCP Reply (Offer and Ack) sender')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
-parser.add_argument('-t', '--target_mac', type=str, required=True, help='Set target client mac address')
-parser.add_argument('-o', '--offer_ip', type=str, required=True, help='Set client ip for offering')
+parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set first client ip for offering')
+parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set last client ip for offering')
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
@@ -31,23 +33,12 @@ router_ip_address = None
 network_mask = None
 network_broadcast = None
 dns_server_ip_address = None
+number_of_dhcp_request = 0
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
 else:
     current_network_interface = args.interface
-
-if args.target_mac is None:
-    print "Please set client target mac address!"
-    exit(1)
-else:
-    target_mac_address = args.target_mac.lower()
-
-if args.offer_ip is None:
-    print "Please set client IP address for offering!"
-    exit(1)
-else:
-    offer_ip_address = args.offer_ip
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
@@ -100,8 +91,8 @@ else:
     dns_server_ip_address = args.dns
 
 print "\r\nNetwork interface: " + current_network_interface
-print "Target mac address: " + target_mac_address
-print "Offer IP: " + offer_ip_address
+print "First offer IP: " + args.first_offer_ip
+print "Last offer IP:" + args.last_offer_ip
 print "DHCP server mac address: " + dhcp_server_mac_address
 print "DHCP server ip address: " + dhcp_server_ip_address
 print "Router IP address: " + router_ip_address
@@ -143,7 +134,19 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
 
 def dhcp_reply(request):
     if request.haslayer(DHCP):
+        global offer_ip_address
+        global target_mac_address
+        global number_of_dhcp_request
+
+        next_offer_ip_address = IPv4Address(args.first_offer_ip) + number_of_dhcp_request
+        if IPv4Address(next_offer_ip_address) < IPv4Address(args.last_offer_ip):
+            offer_ip_address = next_offer_ip_address
+        else:
+            number_of_dhcp_request = 0
+            offer_ip_address = args.first_offer_ip
+
         transaction_id = request[BOOTP].xid
+        target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
 
         if request[DHCP].options[0][1] == 1:
             print "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id)
@@ -159,7 +162,7 @@ def dhcp_reply(request):
 
 
 if __name__ == "__main__":
-    print "Waiting for a DHCP DISCOVER or DHCP REQUEST from mac: " + target_mac_address + " ..."
-    sniff(lfilter=lambda d: d.src == target_mac_address,
+    print "Waiting for a DHCP DISCOVER or DHCP REQUEST ..."
+    sniff(lfilter=lambda d: d.src != Ethernet.get_mac_for_dhcp_discover(),
           filter="udp and src port 68 and dst port 67 and src host 0.0.0.0 and dst host 255.255.255.255",
           prn=dhcp_reply, iface=current_network_interface)

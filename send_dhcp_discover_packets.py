@@ -56,9 +56,9 @@ if __name__ == "__main__":
 
         if args.notspoofmac:
             SRC_MAC = current_mac_address
-            CLIENT_MAC = eth.get_random_mac()
+            CLIENT_MAC = eth.get_mac_for_dhcp_discover()
         else:
-            SRC_MAC = eth.get_random_mac()
+            SRC_MAC = eth.get_mac_for_dhcp_discover()
             CLIENT_MAC = SRC_MAC
 
         REQ_IP = ip.get_random_ip()

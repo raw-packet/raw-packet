@@ -142,6 +142,10 @@ class Ethernet:
         return mac_prefix + ':' + mac_suffix
 
     @staticmethod
+    def get_mac_for_dhcp_discover():
+        return "00:00:0c:d4:e8:17"
+
+    @staticmethod
     def make_header(source_mac, destination_mac, network_type):
         source_mac_list = source_mac.split(":")
         destination_mac_list = destination_mac.split(":")
