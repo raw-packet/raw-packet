@@ -5,6 +5,7 @@ from pwd import getpwuid
 from netifaces import interfaces
 from random import choice
 from string import lowercase, uppercase, digits
+from netifaces import ifaddresses, AF_LINK, AF_INET
 
 
 class Base:
@@ -56,6 +57,31 @@ class Base:
 
         print "You choosed interface: " + current_network_interface
         return current_network_interface
+
+    @staticmethod
+    def get_netiface_mac_address(interface_name):
+        try:
+            mac_address = str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
+        except:
+            mac_address = None
+        return mac_address
+
+    @staticmethod
+    def get_netiface_ip_address(interface_name):
+        try:
+            ip_address = str(ifaddresses(interface_name)[AF_INET][0]['addr'])
+        except:
+            ip_address = None
+        return ip_address
+
+    @staticmethod
+    def get_netiface_netmask(interface_name):
+        try:
+            netmask = str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
+        except:
+            netmask = None
+        return netmask
+
 
     @staticmethod
     def make_random_string(length):
