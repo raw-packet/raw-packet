@@ -38,7 +38,7 @@ if args.target_mac is None:
     print "Please set client target mac address!"
     exit(1)
 else:
-    target_mac_address = args.mac.lower()
+    target_mac_address = args.target_mac.lower()
 
 if args.offer_ip is None:
     print "Please set client IP address for offering!"
