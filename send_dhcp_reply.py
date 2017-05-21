@@ -2,7 +2,7 @@ from base import Base
 from sys import exit
 from argparse import ArgumentParser
 from binascii import unhexlify
-from scapy.all import *
+from scapy.all import Ether, IP, UDP, BOOTP, DHCP, sniff, sendp
 
 Base.check_user()
 
@@ -111,34 +111,34 @@ print "DNS server IP address: " + dns_server_ip_address + "\r\n"
 
 def make_dhcp_offer_packet(transaction_id):
     return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
-                    IP(src=dhcp_server_ip_address, dst='255.255.255.255') /
-                    UDP(sport=67, dport=68) /
-                    BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
-                          yiaddr=offer_ip_address, siaddr="0.0.0.0", xid=transaction_id) /
-                    DHCP(options=[("message-type", "offer"),
-                                  ('server_id', dhcp_server_ip_address),
-                                  ('subnet_mask', network_mask),
-                                  ('broadcast_address', network_broadcast),
-                                  ('router', router_ip_address),
-                                  ('lease_time', args.lease_time),
-                                  ('name_server', dns_server_ip_address),
-                                  "end"]))
+            IP(src=dhcp_server_ip_address, dst='255.255.255.255') /
+            UDP(sport=67, dport=68) /
+            BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
+                  yiaddr=offer_ip_address, siaddr="0.0.0.0", xid=transaction_id) /
+            DHCP(options=[("message-type", "offer"),
+                          ('server_id', dhcp_server_ip_address),
+                          ('subnet_mask', network_mask),
+                          ('broadcast_address', network_broadcast),
+                          ('router', router_ip_address),
+                          ('lease_time', args.lease_time),
+                          ('name_server', dns_server_ip_address),
+                          "end"]))
 
 
 def make_dhcp_ack_packet(transaction_id, requested_ip):
     return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
-                  IP(src=dhcp_server_ip_address, dst=requested_ip) /
-                  UDP(sport=67, dport=68) /
-                  BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
-                        yiaddr=requested_ip, siaddr="0.0.0.0", xid=transaction_id) /
-                  DHCP(options=[("message-type", "ack"),
-                                ('server_id', dhcp_server_ip_address),
-                                ('subnet_mask', network_mask),
-                                ('broadcast_address', network_broadcast),
-                                ('router', router_ip_address),
-                                ('lease_time', args.lease_time),
-                                ('name_server', dns_server_ip_address),
-                                "end"]))
+            IP(src=dhcp_server_ip_address, dst=requested_ip) /
+            UDP(sport=67, dport=68) /
+            BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
+                  yiaddr=requested_ip, siaddr="0.0.0.0", xid=transaction_id) /
+            DHCP(options=[("message-type", "ack"),
+                          ('server_id', dhcp_server_ip_address),
+                          ('subnet_mask', network_mask),
+                          ('broadcast_address', network_broadcast),
+                          ('router', router_ip_address),
+                          ('lease_time', args.lease_time),
+                          ('name_server', dns_server_ip_address),
+                          "end"]))
 
 
 def dhcp_reply(request):
