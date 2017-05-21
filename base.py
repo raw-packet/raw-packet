@@ -54,8 +54,6 @@ class Base:
         except:
             print "This network interface has some problem"
             exit(1)
-
-        print "You choosed interface: " + current_network_interface
         return current_network_interface
 
     @staticmethod
@@ -81,6 +79,14 @@ class Base:
         except:
             netmask = None
         return netmask
+
+    @staticmethod
+    def get_netiface_broadcast(interface_name):
+        try:
+            broadcast = str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
+        except:
+            broadcast = None
+        return broadcast
 
 
     @staticmethod

