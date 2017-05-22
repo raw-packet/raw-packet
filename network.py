@@ -320,3 +320,31 @@ class DHCP:
                                 bootp_relay_agent_ip="0.0.0.0",
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
+
+    def make_reply_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id,
+                          your_ip, client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2):
+
+        option_operation = pack("!3B", 53, 1, dhcp_operation)
+        option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
+        option_lease_time = pack("!" "2B" "L", 51, 4, lease_time)
+        option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(netmask))
+        option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router))
+        option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns))
+        option_end = pack("B", 255)
+
+        options = option_operation + option_server_id + option_lease_time + option_netmask + \
+                  option_router + option_dns + option_end
+
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
