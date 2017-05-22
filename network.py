@@ -1,5 +1,6 @@
 from random import choice, randint
 from struct import pack
+from binascii import unhexlify
 from array import array
 from socket import inet_aton, htons
 
@@ -146,16 +147,11 @@ class Ethernet:
         return "00:00:0c:d4:e8:17"
 
     @staticmethod
-    def make_header(source_mac, destination_mac, network_type):
-        source_mac_list = source_mac.split(":")
-        destination_mac_list = destination_mac.split(":")
-        eth_header = ""
-        for part_of_destination_mac in destination_mac_list:
-            eth_header += pack("!" "B", int(part_of_destination_mac, 16))   # Destination mac address
-        for part_of_source_mac_list in source_mac_list:
-            eth_header += pack("!" "B", int(part_of_source_mac_list, 16))   # Source mac address
-        eth_header += pack("!" "H", network_type)                           # Network protocol type
-        return eth_header
+    def convert_mac(mac_address):
+        return unhexlify(mac_address.replace(':', ''))
+
+    def make_header(self, source_mac, destination_mac, network_type):
+        return self.convert_mac(destination_mac) + self.convert_mac(source_mac) + pack("!" "H", network_type)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
@@ -252,35 +248,49 @@ class DHCP:
     def __init__(self):
         pass
 
-    def make_discover_packet(self, source_mac, client_mac, request_ip, host_name):
-        request_ip = inet_aton(request_ip)
-        clientmac_list = client_mac.split(":")
-        client_hw_address = ""
-        for part_of_srcmac in clientmac_list:
-            client_hw_address += pack("!" "B", int(part_of_srcmac, 16))
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ip_src, ip_dst, udp_src_port, udp_dst_port,
+                    bootp_message_type, bootp_transaction_id, bootp_flags,
+                    bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
+                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options):
 
-        message_type = 1                            # Request
-        hardware_type = 1                           # Ethernet
-        hardware_address_len = 6                    # Ethernet address len
-        hops = 0                                    # Number of hops
-        transaction_id = randint(1, 4294967295)     # Transaction id
-        seconds_elapsed = 0                         # Seconds elapsed
-        bootp_flags = 0                             # Flags
+        message_type = bootp_message_type       # Boot protocol message type
+        hardware_type = 1                       # Ethernet
+        hardware_address_len = 6                # Ethernet address len
+        hops = 0                                # Number of hops
+        transaction_id = bootp_transaction_id   # Transaction id
+        seconds_elapsed = 0                     # Seconds elapsed
+        flags = bootp_flags                     # Flags
 
-        CIADDR = 0  # Client IP address
-        YIADDR = 0  # Your client IP address
-        SIADDR = 0  # Next server IP address
-        GIADDR = 0  # Relay agent IP address
-        CHADDR = client_hw_address  # Client hardware address
-
-        dhcp_discover = pack("!" "4B" "L" "2H" "4L",
-                             message_type, hardware_type, hardware_address_len, hops, transaction_id,
-                             seconds_elapsed, bootp_flags, CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+        CIADDR = inet_aton(bootp_client_ip)                     # Client IP address
+        YIADDR = inet_aton(bootp_your_client_ip)                # Your client IP address
+        SIADDR = inet_aton(bootp_next_server_ip)                # Next server IP address
+        GIADDR = inet_aton(bootp_relay_agent_ip)                # Relay agent IP address
+        CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
 
         client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
         server_host_name = ''.join(pack("B", 0) for _ in range(64))     # Server host name
         boot_file_name = ''.join(pack("B", 0) for _ in range(128))      # Boot file name
         magic_cookie = pack("!4B", 99, 130, 83, 99)                     # Magic cookie: DHCP
+
+        dhcp_packet = pack("!" "4B" "L" "2H",
+                           message_type, hardware_type, hardware_address_len, hops, transaction_id,
+                           seconds_elapsed, flags)
+
+        dhcp_packet += pack("!" "4s" "4s" "4s" "4s",
+                            CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+
+        dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
+
+        dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
+        ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
+        udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
+
+        return eth_header + ip_header + udp_header + dhcp_packet
+
+    def make_discover_packet(self, source_mac, client_mac, request_ip, host_name):
 
         option_discover = pack("!3B", 53, 1, 1)
         option_req_ip = pack("!" "2B" "4s", 50, 4, request_ip)
@@ -294,14 +304,19 @@ class DHCP:
             option_param_req_list += pack("B", param)
 
         option_end = pack("B", 255)
-        padding = ''.join(pack("B", 0) for _ in range(24))
 
-        dhcp_discover += client_hw_padding + server_host_name + boot_file_name + magic_cookie
-        dhcp_discover += option_discover + option_req_ip + option_host_name + option_param_req_list + option_end
-        dhcp_discover += padding
+        options = option_discover + option_req_ip + option_host_name + option_param_req_list + option_end
 
-        eth_header = self.eth.make_header(source_mac, "ff:ff:ff:ff:ff:ff", 2048)
-        ip_header = self.ip.make_header("0.0.0.0", "255.255.255.255", len(dhcp_discover), 8, 17)
-        udp_header = self.udp.make_header(68, 67, len(dhcp_discover))
-
-        return eth_header + ip_header + udp_header + dhcp_discover
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                ip_src="0.0.0.0", ip_dst="255.255.255.255",
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=randint(1, 4294967295),
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip="0.0.0.0",
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
