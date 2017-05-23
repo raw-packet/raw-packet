@@ -336,9 +336,7 @@ class DHCP_raw:
                   option_router + option_dns
 
         if url is not None:
-            url_bytes = bytes(url)
-            if len(url_bytes) < 255:
-                url = pack("!%ds" % (len(url_bytes)), url_bytes)
+            if len(url) < 255:
                 option_url = pack("!" "2B", 114, len(url)) + url
                 options += option_url
 
