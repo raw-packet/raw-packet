@@ -1,14 +1,14 @@
 from base import Base
-from network import Ethernet, IP, UDP, DHCP
+from network import Ethernet_raw, IP_raw, UDP_raw, DHCP_raw
 
 Base.check_platform()
 Base.check_user()
 Base.netiface_selection()
 
-eth = Ethernet()
-ip = IP()
-udp = UDP()
-dhcp = DHCP()
+eth = Ethernet_raw()
+ip = IP_raw()
+udp = UDP_raw()
+dhcp = DHCP_raw()
 
 print eth.get_random_mac()
 

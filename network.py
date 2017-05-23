@@ -5,7 +5,7 @@ from array import array
 from socket import inet_aton, htons
 
 
-class Ethernet:
+class Ethernet_raw:
 
     # +---------------------------------------------------------------+
     # |       Ethernet destination address (first 32 bits)            |
@@ -157,7 +157,7 @@ class Ethernet:
         del self.macs[:]
 
 
-class IP:
+class IP_raw:
 
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -214,7 +214,7 @@ class IP:
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
 
 
-class UDP:
+class UDP_raw:
     
     #  0                16               31
     #  +-----------------+-----------------+
@@ -239,11 +239,11 @@ class UDP:
             return 0
 
 
-class DHCP:
+class DHCP_raw:
 
-    eth = Ethernet()
-    ip = IP()
-    udp = UDP()
+    eth = Ethernet_raw()
+    ip = IP_raw()
+    udp = UDP_raw()
 
     def __init__(self):
         pass
@@ -321,8 +321,8 @@ class DHCP:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
-    def make_reply_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id,
-                          your_ip, client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2):
+    def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2, url=None):
 
         option_operation = pack("!3B", 53, 1, dhcp_operation)
         option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
@@ -333,7 +333,16 @@ class DHCP:
         option_end = pack("B", 255)
 
         options = option_operation + option_server_id + option_lease_time + option_netmask + \
-                  option_router + option_dns + option_end
+                  option_router + option_dns
+
+        if url is not None:
+            url_bytes = bytes(url)
+            if len(url_bytes) < 255:
+                url = pack("!%ds" % (len(url_bytes)), url_bytes)
+                option_url = pack("!" "2B", 114, len(url)) + url
+                options += option_url
+
+        options += option_end
 
         return self.make_packet(ethernet_src_mac=source_mac,
                                 ethernet_dst_mac=destination_mac,

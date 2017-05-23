@@ -1,7 +1,7 @@
 from base import Base
 from argparse import ArgumentParser
 from netifaces import ifaddresses, AF_LINK
-from network import Ethernet, IP, DHCP
+from network import Ethernet_raw, IP_raw, DHCP_raw
 from sys import stdout
 from socket import socket, AF_PACKET, SOCK_RAW
 from datetime import datetime
@@ -48,9 +48,9 @@ if __name__ == "__main__":
     if args.notspoofmac:
         print " Your MAC address is not spoofed!"
 
-    eth = Ethernet()
-    ip = IP()
-    dhcp = DHCP()
+    eth = Ethernet_raw()
+    ip = IP_raw()
+    dhcp = DHCP_raw()
 
     while count < count_max:
 

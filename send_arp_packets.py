@@ -1,5 +1,5 @@
 from base import Base
-from network import Ethernet
+from network import Ethernet_raw
 from argparse import ArgumentParser
 from scapy.all import Ether, IP, ARP, sendp
 
@@ -20,7 +20,7 @@ current_network_interface = None
 sender_mac_address = None
 sender_ip_address = None
 
-eth = Ethernet()
+eth = Ethernet_raw()
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
