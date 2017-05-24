@@ -185,8 +185,8 @@ def dhcp_reply(request):
         SOCK.bind((current_network_interface, 0))
 
         if request[DHCP].options[0][1] == 1:
-            print "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id) + \
-                  " offer ip:     " + offer_ip_address
+            print "DHCP DISCOVER from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                  " || offer ip: " + offer_ip_address
             offer_packet = make_dhcp_offer_packet(transaction_id)
             SOCK.send(offer_packet)
 
@@ -194,8 +194,8 @@ def dhcp_reply(request):
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
-            print "DHCP REQUEST from:  " + target_mac_address + " transaction id: " + hex(transaction_id) + \
-                  " requested ip: " + requested_ip
+            print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                  " || requested ip: " + requested_ip
             ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
             SOCK.send(ack_packet)
 
