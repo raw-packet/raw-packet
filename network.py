@@ -421,3 +421,59 @@ class DHCP_raw:
                                 bootp_relay_agent_ip="0.0.0.0",
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
+
+
+class DNS_raw:
+
+    eth = Ethernet_raw()
+    ip = IP_raw()
+    udp = UDP_raw()
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make_dns_name(name):
+        name_list = name.split(".")
+        result_name = ""
+        for part_of_name in name_list:
+            if len(part_of_name) > 256:
+                return ""
+            else:
+                result_name += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name), part_of_name)
+        result_name += "\x00"
+        return result_name
+
+    @staticmethod
+    def make_dns_ptr(ip_address):
+        pass
+
+    def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port,
+                            tid, flags, request_name, request_type, request_class):
+        transaction_id = tid
+        dns_flags = flags
+        questions = 1
+        answer_rrs = 0
+        authority_rrs = 0
+        additional_rrs = 0
+        dns_request_type = request_type
+        dns_request_class = request_class
+
+        dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+        dns_packet += request_name
+        dns_packet += pack("!2H", dns_request_type, dns_request_class)
+
+        eth_header = self.eth.make_header(src_mac, dst_mac)
+        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet))
+        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+
+        return eth_header + ip_header + udp_header + dns_packet
+
+    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, request_name):
+        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                        src_ip=src_ip, dst_ip=dst_ip,
+                                        src_port=randint(1024, 65535), dst_port=53,
+                                        tid=randint(1, 65535),
+                                        flags=256,
+                                        request_name=request_name,
+                                        request_type=1, request_class=1)
