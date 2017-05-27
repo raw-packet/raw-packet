@@ -8,6 +8,7 @@ from socket import socket, AF_PACKET, SOCK_RAW
 from base64 import b64encode
 
 Base.check_user()
+Base.check_platform()
 
 parser = ArgumentParser(description='DHCP Reply (Offer and Ack) sender')
 
@@ -19,7 +20,7 @@ parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
 parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bind shell (default=1234)', default=1234)
 parser.add_argument('-r', '--reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
-parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=1234)', default=443)
+parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
