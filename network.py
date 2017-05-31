@@ -469,11 +469,11 @@ class DNS_raw:
 
         return eth_header + ip_header + udp_header + dns_packet
 
-    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, request_name):
+    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, request_name):
         return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
                                         src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=randint(1024, 65535), dst_port=53,
-                                        tid=randint(1, 65535),
+                                        src_port=src_port, dst_port=dst_port,
+                                        tid=tid,
                                         flags=256,
                                         request_name=request_name,
                                         request_type=1, request_class=1)
