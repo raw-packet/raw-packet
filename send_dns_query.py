@@ -143,6 +143,11 @@ if __name__ == "__main__":
             SRC_IP = None
             SRC_PORT = randint(2049, 65535)
 
+            if args.notspoofmac:
+                SRC_MAC = your_mac_address
+            else:
+                SRC_MAC = eth.get_random_mac()
+
             if args.notspoofip:
                 SRC_IP = your_ip_address
             else:
@@ -154,12 +159,6 @@ if __name__ == "__main__":
                     print "Bad spoofed network!"
                     exit(1)
 
-            if args.notspoofmac:
-                SRC_MAC = your_mac_address
-            else:
-                SRC_MAC = eth.get_random_mac()
-
-            SRC = (SRC_IP, SRC_PORT, SRC_MAC)
             TID = randint(1, 65535)
 
             if args.pathtodomainlist is not None:
