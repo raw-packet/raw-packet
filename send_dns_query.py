@@ -3,14 +3,16 @@ from network import Ethernet_raw, DNS_raw
 from argparse import ArgumentParser
 from sys import exit, stdout
 from ipaddress import ip_network, IPv4Interface
-from socket import gethostbyname
+from socket import socket, AF_PACKET, SOCK_RAW, gethostbyname
 from random import randint, choice
+from datetime import datetime
+from time import time
 
 
 if __name__ == "__main__":
 
-    Base.check_user()
     Base.check_platform()
+    Base.check_user()
 
     NAMES = []
     PACKETS = []
@@ -52,7 +54,10 @@ if __name__ == "__main__":
             print "File: " + args.pathtodomainlist + " not found!"
             exit(1)
 
-    current_network_interface = Base.netiface_selection()
+    if args.interface is None:
+        current_network_interface = Base.netiface_selection()
+    else:
+        current_network_interface = args.interface
 
     your_ip_address = Base.get_netiface_ip_address(current_network_interface)
     your_net_mask = Base.get_netiface_netmask(current_network_interface)
@@ -92,26 +97,60 @@ if __name__ == "__main__":
         print "Dst port is not within range 1 - 65535"
         exit(1)
 
-    NAME_ns_str = str(args.nsservers).replace(" ", "")  # remove all spaces
-    NAME_ns_list = NAME_ns_str.split(",")               # make list for ns server names
     NS_list = {}
+    NAME_ns_list = []
+    IP_ns_list = []
 
-    for NAME in NAME_ns_list:
-        NS_list[NAME] = {}
-        NS_list[NAME]["NAME"] = NAME
-        NS_list[NAME]["PORT"] = PORT
+    if args.nsservers is None and args.nsservers_ip is None:
+        print "Please set NS servers ip or domain names!"
+        exit(1)
+    else:
 
-        try:
-            NS_list[NAME]["IP"] = str(gethostbyname(NAME))
-        except:
-            print "Fail to resolving NS Server: " + NAME
-            exit(1)
+        if args.nsservers is not None:
+            ns_servers_str = str(args.nsservers).replace(" ", "")
+            NAME_ns_list = ns_servers_str.split(",")
 
-        try:
-            NS_list[NAME]["MAC"] = Base.get_mac(current_network_interface, NS_list[NAME]["IP"])
-        except:
-            print "Fail to get MAC address for NS Server: " + NAME
-            exit(1)
+        if args.nsservers_ip is not None:
+            ns_servers_str = str(args.nsservers_ip).replace(" ", "")
+            IP_ns_list = ns_servers_str.split(",")
+
+    if len(NAME_ns_list) > 0:
+        for NAME in NAME_ns_list:
+            NS_list[NAME] = {}
+            NS_list[NAME]["NAME"] = NAME
+            NS_list[NAME]["PORT"] = PORT
+
+            try:
+                print "Resolving NS Server: " + NAME
+                NS_list[NAME]["IP"] = str(gethostbyname(NAME))
+                print NAME + ": " + NS_list[NAME]["IP"]
+            except:
+                print "Fail to resolving NS Server: " + NAME
+                exit(1)
+
+            try:
+                print "Receiving mac address for NS Server: " + NS_list[NAME]["IP"]
+                NS_list[NAME]["MAC"] = Base.get_mac(current_network_interface, NS_list[NAME]["IP"])
+                print NS_list[NAME]["IP"] + ": " + NS_list[NAME]["MAC"]
+            except:
+                print "Fail to get MAC address for NS Server: " + NAME
+                exit(1)
+
+    if len(IP_ns_list) > 0:
+        for IP in IP_ns_list:
+            NS_list[IP] = {}
+            NS_list[IP]["IP"] = IP
+            NS_list[IP]["PORT"] = PORT
+
+            try:
+                print "Receiving mac address for NS Server: " + NS_list[IP]["IP"]
+                NS_list[IP]["MAC"] = Base.get_mac(current_network_interface, NS_list[IP]["IP"])
+                print NS_list[IP]["IP"] + ": " + NS_list[IP]["MAC"]
+            except:
+                print "Fail to get MAC address for NS Server: " + IP
+                exit(1)
+
+
 
     DOMAIN = args.domain
     if not DOMAIN.startswith("."):
@@ -182,3 +221,25 @@ if __name__ == "__main__":
             index_percent += 1
             count_percent = (count_max / 100) * index_percent
 
+    NUMBER_OF_PACKETS = int(args.packets)
+    NUMBER_OF_ITERATIONS = int(args.iterations)
+
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
+
+    print "\r\nSending packets..."
+    print "Number of packets:       " + str(args.packets)
+    print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    start_time = time()
+
+    for _ in range(NUMBER_OF_ITERATIONS):
+        for index in range(NUMBER_OF_PACKETS):
+            SOCK.send(PACKETS[index])
+
+    stop_time = time()
+    print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+
+    SOCK.close()
+    delta_time = stop_time - start_time
+    speed = (NUMBER_OF_PACKETS * NUMBER_OF_ITERATIONS) / delta_time
+    print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"

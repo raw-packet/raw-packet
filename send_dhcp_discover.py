@@ -73,11 +73,8 @@ if __name__ == "__main__":
             index_percent += 1
             count_percent = (count_max / 100) * index_percent
 
-    count = 0
-    count_max = int(args.iterations)
-
-    index_percent = 0
-    count_percent = 0
+    NUMBER_OF_PACKETS = int(args.packets)
+    NUMBER_OF_ITERATIONS = int(args.iterations)
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -87,20 +84,13 @@ if __name__ == "__main__":
     print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     start_time = time()
 
-    while count < count_max:
-        count += 1
-        if count > count_percent:
-            stdout.flush()
-            stdout.write("Complete:                " + str(index_percent + 1) + "%   \r")
-            index_percent += 1
-            count_percent = (count_max / 100) * index_percent
-
-        for PACKET in PACKETS:
-            SOCK.send(PACKET)
+    for _ in range(NUMBER_OF_ITERATIONS):
+        for index in range(NUMBER_OF_PACKETS):
+            SOCK.send(PACKETS[index])
 
     stop_time = time()
-    print "\r\nAll packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     SOCK.close()
     delta_time = stop_time - start_time
-    speed = (number_of_packets * number_of_iterations) / delta_time
+    speed = (NUMBER_OF_PACKETS * NUMBER_OF_ITERATIONS) / delta_time
     print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"
