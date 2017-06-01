@@ -2,7 +2,7 @@ from random import choice, randint
 from struct import pack
 from binascii import unhexlify
 from array import array
-from socket import inet_aton, htons
+from socket import inet_aton, htons, IPPROTO_TCP
 from re import search
 
 
@@ -248,6 +248,61 @@ class UDP_raw:
             return 0
 
 
+class TCP_raw:
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def checksum(msg):
+        s = 0
+        for i in range(0, len(msg), 2):
+            w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
+            s = s + w
+        s = (s >> 16) + (s & 0xffff)
+        s = ~s & 0xffff
+        return s
+
+    def make_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, flag, win, opt_exist=False, opt=None):
+
+        reserved = 0
+        window = win
+        chksum = 0
+        urg = 0
+
+        if opt_exist:
+            opt_len = len(opt) / 4
+            offset = 5 + opt_len
+        else:
+            offset = 5
+
+        tcp_header = pack("!" "2H" "2L" "2B" "3H",
+                          port_src, port_dst, seq, ack, (offset << 4) + reserved, flag, window, chksum, urg)
+
+        if opt_exist:
+            tcp_header += opt
+
+        source_address = inet_aton(ip_src)
+        destination_address = inet_aton(ip_dst)
+
+        placeholder = 0
+        protocol = IPPROTO_TCP
+        tcp_length = len(tcp_header)
+
+        psh = pack("!" "4s" "4s" "2B" "H", source_address, destination_address, placeholder, protocol, tcp_length)
+        psh = psh + tcp_header
+
+        chksum = self.checksum(psh)
+
+        tcp_header = pack("!" "2H" "2L" "2B" "3H",
+                          port_src, port_dst, seq, ack, (offset << 4) + reserved, flag, window, chksum, urg)
+
+        if opt_exist:
+            return tcp_header + opt
+        else:
+            return tcp_header
+
+
 class DHCP_raw:
 
    # 0                   1                   2                   3
@@ -469,11 +524,11 @@ class DNS_raw:
         dns_request_class = request_class
 
         dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-        dns_packet += request_name
+        dns_packet += self.make_dns_name(request_name)
         dns_packet += pack("!2H", dns_request_type, dns_request_class)
 
-        eth_header = self.eth.make_header(src_mac, dst_mac)
-        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet))
+        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
+        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
         udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
 
         return eth_header + ip_header + udp_header + dns_packet
