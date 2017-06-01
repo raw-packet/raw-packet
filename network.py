@@ -3,6 +3,7 @@ from struct import pack
 from binascii import unhexlify
 from array import array
 from socket import inet_aton, htons
+from re import search
 
 
 class Ethernet_raw:
@@ -139,7 +140,7 @@ class Ethernet_raw:
 
     def get_random_mac(self):
         mac_prefix = choice(self.macs)
-        mac_suffix = ':'.join(format(randint(0, 255), 'x') for _ in range(3))
+        mac_suffix = ':'.join('{0:02x}'.format(randint(0x00, 0xff), 'x') for _ in range(3))
         return mac_prefix + ':' + mac_suffix
 
     @staticmethod
@@ -148,7 +149,15 @@ class Ethernet_raw:
 
     @staticmethod
     def convert_mac(mac_address):
-        return unhexlify(mac_address.replace(':', ''))
+        if len(mac_address) < 17:
+            print "Too short mac address: " + mac_address
+            exit(1)
+        mac_address = mac_address[:17].lower()
+        if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
+            return unhexlify(mac_address.replace(':', ''))
+        else:
+            print "Bad mac address: " + mac_address
+            exit(1)
 
     def make_header(self, source_mac, destination_mac, network_type):
         return self.convert_mac(destination_mac) + self.convert_mac(source_mac) + pack("!" "H", network_type)
