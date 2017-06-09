@@ -250,12 +250,21 @@ class UDP_raw:
 
 class TCP_raw:
 
+    timestamp_value = 0
+
     def __init__(self):
-        pass
+        with open('/proc/uptime', 'r') as uptime:
+            self.timestamp_value = int(float(uptime.readline().split()[0]))
+
+    def update_timestamp(self):
+        with open('/proc/uptime', 'r') as uptime:
+            self.timestamp_value = int(float(uptime.readline().split()[0]))
 
     @staticmethod
     def checksum(msg):
         s = 0
+        if len(msg) % 2 == 1:
+            msg += "\0"
         for i in range(0, len(msg), 2):
             w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
             s = s + w
@@ -302,6 +311,32 @@ class TCP_raw:
         else:
             return tcp_header
 
+    def make_syn_header(self, ip_src, ip_dst, port_src, port_dst, seq):
+        option_mss = pack("!2B H", 2, 4, 1460)
+        option_sack = pack("!2B", 4, 2)
+        self.update_timestamp()
+        option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, 0)
+        option_nop = pack("!B", 1)
+        option_scale = pack("!3B", 3, 3, 7)
+        options = option_mss + option_sack + option_timestamp + option_nop + option_scale
+
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, 0, 2, 29200, True, options)
+
+    def make_ack_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr):
+        option_nop = pack("!B", 1)
+        self.update_timestamp()
+        option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
+        options = option_nop + option_nop + option_timestamp
+
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 16, 229, True, options)
+
+    def make_psh_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr):
+        option_nop = pack("!B", 1)
+        self.update_timestamp()
+        option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
+        options = option_nop + option_nop + option_timestamp
+
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 24, 229, True, options)
 
 class DHCP_raw:
 
