@@ -184,6 +184,7 @@ def dhcp_reply(request):
                   " || offer ip: " + offer_ip_address
             offer_packet = make_dhcp_offer_packet(transaction_id)
             SOCK.send(offer_packet)
+            print "[INFO] Send offer response!"
 
         if request[DHCP].options[0][1] == 3:
             requested_ip = offer_ip_address
@@ -191,10 +192,11 @@ def dhcp_reply(request):
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
 
-            if IPv4Address(requested_ip) < IPv4Address(args.first_offer_ip) and IPv4Address(requested_ip) > IPv4Address(args.last_offer_ip):
+            if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
+                    and IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
                 nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
                 SOCK.send(nak_packet)
-                print "Send nak response!"
+                print "[INFO] Send nak response!"
 
             net_settings = "/bin/ip addr add " + requested_ip + \
                            "/" + network_mask + " dev eth0;"
@@ -222,6 +224,7 @@ def dhcp_reply(request):
                   " || requested ip: " + requested_ip
             ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
             SOCK.send(ack_packet)
+            print "[INFO] Send ack response!"
 
         SOCK.close()
 
