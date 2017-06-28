@@ -129,13 +129,15 @@ def make_dhcp_offer_packet(transaction_id):
                                      url=None)
 
 
-def make_dhcp_ack_packet(transaction_id, requested_ip):
+def make_dhcp_ack_packet(transaction_id, requested_ip, your_ip=None):
+    if your_ip is None:
+        your_ip = requested_ip
     return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
                                      destination_mac=target_mac_address,
                                      source_ip=dhcp_server_ip_address,
                                      destination_ip=requested_ip,
                                      transaction_id=transaction_id,
-                                     your_ip=requested_ip,
+                                     your_ip=your_ip,
                                      client_mac=target_mac_address,
                                      dhcp_server_id=dhcp_server_ip_address,
                                      lease_time=args.lease_time,
@@ -187,20 +189,22 @@ def dhcp_reply(request):
             SOCK.send(offer_packet)
             print "[INFO] Send offer response!"
 
-        if request[DHCP].options[0][1] == 3 or request[DHCP].options[0][1] == 8:
+        if request[DHCP].options[0][1] == 8:
+            requested_ip = ciaddr
+            print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                  " || requested ip: " + requested_ip
+            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "0.0.0.0")
+            SOCK.send(ack_packet)
+            print "[INFO] Send inform ack response!"
+
+        if request[DHCP].options[0][1] == 3:
             requested_ip = offer_ip_address
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
 
-            if request[DHCP].options[0][1] == 8:
-                requested_ip = ciaddr
-
             if request[DHCP].options[0][1] == 3:
                 print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                      " || requested ip: " + requested_ip
-            if request[DHCP].options[0][1] == 8:
-                print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
                       " || requested ip: " + requested_ip
 
             if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
