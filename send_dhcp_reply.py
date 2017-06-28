@@ -193,7 +193,7 @@ def dhcp_reply(request):
                     requested_ip = str(option[1])
 
             if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
-                    and IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
+                    or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
                 nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
                 SOCK.send(nak_packet)
                 print "[INFO] Send nak response!"
