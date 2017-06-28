@@ -235,7 +235,7 @@ def dhcp_reply(request):
 
 
 if __name__ == "__main__":
-    print "Waiting for a DHCP DISCOVER or DHCP REQUEST ..."
+    print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
     sniff(lfilter=lambda d: d.src != eth.get_random_mac() and
                             d.src != Base.get_netiface_mac_address(current_network_interface),
           filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
