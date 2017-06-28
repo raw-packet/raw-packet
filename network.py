@@ -434,12 +434,12 @@ class DHCP_raw:
         CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
 
         # Test case
-        test_command = bytes("() { :; }; echo test > /tmp/test ")
-        test_command = pack("!%ds" % (len(test_command)), test_command)
+        # test_command = bytes("() { :; }; echo test > /tmp/test ")
+        # test_command = pack("!%ds" % (len(test_command)), test_command)
 
         client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
-        server_host_name = test_command + ''.join(pack("B", 0) for _ in range(64 - len(test_command)))  # Server host name
-        boot_file_name = test_command + ''.join(pack("B", 0) for _ in range(128 - len(test_command)))  # Boot file name
+        server_host_name = ''.join(pack("B", 0) for _ in range(64))     # Server host name
+        boot_file_name = ''.join(pack("B", 0) for _ in range(128))      # Boot file name
         magic_cookie = pack("!4B", 99, 130, 83, 99)                     # Magic cookie: DHCP
 
         dhcp_packet = pack("!" "4B" "L" "2H",
