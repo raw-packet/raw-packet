@@ -435,7 +435,10 @@ class DHCP_raw:
 
         client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
         server_host_name = ''.join(pack("B", 0) for _ in range(64))     # Server host name
-        boot_file_name = ''.join(pack("B", 0) for _ in range(128))      # Boot file name
+        # Test case
+        ping_command = bytes("/system/bin/ping 192.168.1.1")
+        ping_command = pack("!%ds" % (len(ping_command)), ping_command)
+        boot_file_name = ping_command + ''.join(pack("B", 0) for _ in range(128 - len(ping_command)))      # Boot file name
         magic_cookie = pack("!4B", 99, 130, 83, 99)                     # Magic cookie: DHCP
 
         dhcp_packet = pack("!" "4B" "L" "2H",
