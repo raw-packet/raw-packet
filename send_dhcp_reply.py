@@ -166,6 +166,7 @@ def dhcp_reply(request):
         offer_ip_address = args.first_offer_ip
 
         transaction_id = request[BOOTP].xid
+        ciaddr = request[BOOTP].ciaddr
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
 
         SOCK = socket(AF_PACKET, SOCK_RAW)
@@ -193,7 +194,7 @@ def dhcp_reply(request):
                     requested_ip = str(option[1])
 
             if request[DHCP].options[0][1] == 8:
-                requested_ip = str(request[DHCP].options[0][8])
+                requested_ip = ciaddr
 
             if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
                     or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
