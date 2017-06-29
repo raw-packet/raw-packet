@@ -239,7 +239,7 @@ def dhcp_reply(request):
             option_end = pack("B", 255)
 
             dhcp_options = option_operation + option_server_id + option_netmask + option_domain + option_router + \
-                           option_dns + option_end
+                           option_dns + option_lease_time + option_proxy + option_end
 
             ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
                                           ethernet_dst_mac=target_mac_address,
@@ -255,9 +255,8 @@ def dhcp_reply(request):
                                           bootp_relay_agent_ip=giaddr,
                                           bootp_client_hw_address=target_mac_address,
                                           dhcp_options=dhcp_options,
-                                          padding=18)
+                                          padding=0)
 
-            SOCK.send(ack_packet)
             SOCK.send(ack_packet)
             print "[INFO] Send inform double ack response!"
 
