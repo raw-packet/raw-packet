@@ -31,6 +31,7 @@ parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address')
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 parser.add_argument('--domain', type=str, help='Set domain name for search, default=test.com', default="test.com")
+parser.add_argument('--proxy', type=str, help='Set proxy', default=None)
 
 args = parser.parse_args()
 
@@ -226,11 +227,19 @@ def dhcp_reply(request):
             option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router_ip_address))
             option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns_server_ip_address))
             option_lease_time = pack("!" "2B" "L", 51, 4, 60)
+
+            if args.proxy is None:
+                proxy = bytes("http://" + dhcp_server_ip_address + ":8080")
+            else:
+                proxy = bytes(args.proxy)
+            proxy = pack("!%ds" % (len(proxy)), proxy)
+            option_proxy = pack("!2B", 252, len(proxy)) + proxy
+
             option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_ip_address))  # Set server id
             option_end = pack("B", 255)
 
             dhcp_options = option_operation + option_netmask + option_router + option_dns + option_domain + \
-                           option_lease_time + option_server_id + option_end
+                           option_lease_time + option_proxy + option_server_id + option_end
 
             ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
                                           ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
