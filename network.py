@@ -510,7 +510,7 @@ class DHCP_raw:
 
         if domain is not None:
             if len(domain) < 255:
-                option_domain = pack("!" "2B", 252, len(domain)) + domain
+                option_domain = pack("!" "2B", 15, len(domain)) + domain
                 options += option_domain
 
         if proxy is not None:

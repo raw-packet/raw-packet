@@ -208,7 +208,6 @@ def dhcp_reply(request):
             option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
             option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
 
-            global domain
             domain = pack("!%ds" % (len(domain)), domain)
             option_domain = pack("!2B", 15, len(domain)) + domain
 
@@ -281,7 +280,7 @@ def dhcp_reply(request):
 
                 global proxy
                 if args.proxy is None:
-                    proxy = bytes("http://" + dhcp_server_ip_address + ":8080")
+                    proxy = bytes("http://" + dhcp_server_ip_address + ":8080/wpad.dat")
                 else:
                     proxy = bytes(args.proxy)
 
