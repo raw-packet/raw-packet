@@ -254,7 +254,8 @@ def dhcp_reply(request):
                                           bootp_next_server_ip="0.0.0.0",
                                           bootp_relay_agent_ip=giaddr,
                                           bootp_client_hw_address=target_mac_address,
-                                          dhcp_options=dhcp_options)
+                                          dhcp_options=dhcp_options,
+                                          padding=18)
 
             SOCK.send(ack_packet)
             SOCK.send(ack_packet)

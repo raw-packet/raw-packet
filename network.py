@@ -417,7 +417,7 @@ class DHCP_raw:
                     ip_src, ip_dst, udp_src_port, udp_dst_port,
                     bootp_message_type, bootp_transaction_id, bootp_flags,
                     bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
-                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options):
+                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options, padding=0):
 
         message_type = bootp_message_type       # Boot protocol message type
         hardware_type = 1                       # Ethernet
@@ -451,7 +451,10 @@ class DHCP_raw:
 
         dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
 
-        dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
+        if padding != 0:
+            dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(int(padding)))
+        else:
+            dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
 
         eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
         ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
