@@ -139,7 +139,7 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
                                      source_ip=dhcp_server_ip_address,
                                      destination_ip=requested_ip,
                                      transaction_id=transaction_id,
-                                     your_ip=your_ip,
+                                     your_ip=requested_ip,
                                      client_mac=target_mac_address,
                                      dhcp_server_id=dhcp_server_ip_address,
                                      lease_time=args.lease_time,
