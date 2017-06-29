@@ -243,7 +243,7 @@ def dhcp_reply(request):
                                           bootp_your_client_ip="0.0.0.0",
                                           bootp_next_server_ip="0.0.0.0",
                                           bootp_relay_agent_ip=giaddr,
-                                          bootp_client_hw_address=chaddr,
+                                          bootp_client_hw_address=target_mac_address,
                                           dhcp_options=dhcp_options)
             SOCK.send(ack_packet)
             print "[INFO] Send inform ack response!"
