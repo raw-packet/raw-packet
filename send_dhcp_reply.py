@@ -238,25 +238,27 @@ def dhcp_reply(request):
             option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_ip_address))  # Set server id
             option_end = pack("B", 255)
 
-            dhcp_options = option_operation + option_netmask + option_router + option_dns + option_domain + \
-                           option_lease_time + option_proxy + option_server_id + option_end
+            dhcp_options = option_operation + option_server_id + option_netmask + option_domain + option_router + \
+                           option_dns + option_end
 
             ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
-                                          ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                          ethernet_dst_mac=target_mac_address,
                                           ip_src=dhcp_server_ip_address,
-                                          ip_dst="255.255.255.255",
+                                          ip_dst=ciaddr,
                                           udp_src_port=67, udp_dst_port=68,
                                           bootp_message_type=2,
                                           bootp_transaction_id=transaction_id,
                                           bootp_flags=int(flags),
-                                          bootp_client_ip="0.0.0.0",
-                                          bootp_your_client_ip=ciaddr,
-                                          bootp_next_server_ip=dhcp_server_ip_address,
+                                          bootp_client_ip=ciaddr,
+                                          bootp_your_client_ip="0.0.0.0",
+                                          bootp_next_server_ip="0.0.0.0",
                                           bootp_relay_agent_ip=giaddr,
                                           bootp_client_hw_address=target_mac_address,
                                           dhcp_options=dhcp_options)
+
             SOCK.send(ack_packet)
-            print "[INFO] Send inform ack response!"
+            SOCK.send(ack_packet)
+            print "[INFO] Send inform double ack response!"
 
         if request[DHCP].options[0][1] == 3:
             requested_ip = offer_ip_address
