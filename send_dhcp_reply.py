@@ -225,7 +225,7 @@ def dhcp_reply(request):
 
             option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router_ip_address))
             option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns_server_ip_address))
-            option_lease_time = pack("!" "2B" "L", 51, 4, 600)
+            option_lease_time = pack("!" "2B" "L", 51, 4, 60)
             option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_ip_address))  # Set server id
             option_end = pack("B", 255)
 
@@ -233,7 +233,7 @@ def dhcp_reply(request):
                            option_lease_time + option_server_id + option_end
 
             ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
-                                          ethernet_dst_mac=target_mac_address,
+                                          ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
                                           ip_src=dhcp_server_ip_address,
                                           ip_dst="255.255.255.255",
                                           udp_src_port=67, udp_dst_port=68,
