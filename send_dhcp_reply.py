@@ -4,8 +4,9 @@ from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
 from scapy.all import BOOTP, DHCP, sniff
-from socket import socket, AF_PACKET, SOCK_RAW
+from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
+from struct import pack
 
 Base.check_user()
 Base.check_platform()
@@ -29,6 +30,7 @@ parser.add_argument('--netmask', type=str, help='Set network mask, if not set us
 parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not set use your broadcast')
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address')
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
+parser.add_argument('--domain', type=str, help='Set domain name for search, default=test.com', default="test.com")
 
 args = parser.parse_args()
 
@@ -185,7 +187,6 @@ def dhcp_reply(request):
         offer_ip_address = args.first_offer_ip
 
         transaction_id = request[BOOTP].xid
-        ciaddr = request[BOOTP].ciaddr
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
 
         SOCK = socket(AF_PACKET, SOCK_RAW)
@@ -207,10 +208,43 @@ def dhcp_reply(request):
             print "[INFO] Send offer response!"
 
         if request[DHCP].options[0][1] == 8:
-            requested_ip = ciaddr
+            ciaddr = request[BOOTP].ciaddr
+            giaddr = request[BOOTP].giaddr
+            chaddr = request[BOOTP].chaddr
+            flags = request[BOOTP].flags
+
             print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                  " || requested ip: " + requested_ip
-            ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "0.0.0.0", False)
+                  " || requested ip: " + ciaddr
+
+            option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
+            option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_ip_address))  # Set server id
+            option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
+
+            domain = bytes(args.domain)
+            domain = pack("!%ds" % (len(domain)), domain)
+            option_domain = pack("!2B", 15, len(domain)) + domain
+
+            option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router_ip_address))
+            option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns_server_ip_address))
+            option_end = pack("B", 255)
+
+            dhcp_options = option_operation + option_server_id + option_netmask + option_domain + \
+                           option_router + option_dns + option_end
+
+            ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
+                                          ethernet_dst_mac=target_mac_address,
+                                          ip_src=dhcp_server_ip_address,
+                                          ip_dst=ciaddr,
+                                          udp_src_port=67, udp_dst_port=68,
+                                          bootp_message_type=2,
+                                          bootp_transaction_id=transaction_id,
+                                          bootp_flags=int(flags),
+                                          bootp_client_ip=ciaddr,
+                                          bootp_your_client_ip="0.0.0.0",
+                                          bootp_next_server_ip="0.0.0.0",
+                                          bootp_relay_agent_ip=giaddr,
+                                          bootp_client_hw_address=chaddr,
+                                          dhcp_options=dhcp_options)
             SOCK.send(ack_packet)
             print "[INFO] Send inform ack response!"
 
