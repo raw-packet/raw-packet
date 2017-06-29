@@ -50,6 +50,7 @@ dns_server_ip_address = None
 number_of_dhcp_request = 0
 shellshock_url = None
 proxy = None
+domain = None
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -148,7 +149,8 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
                                      dns=dns_server_ip_address,
                                      dhcp_operation=5,
                                      url=shellshock_url,
-                                     proxy=proxy)
+                                     proxy=proxy,
+                                     domain=domain)
 
 
 def make_dhcp_nak_packet(transaction_id, requested_ip):
@@ -168,7 +170,9 @@ def dhcp_reply(request):
         global target_mac_address
         global number_of_dhcp_request
         global shellshock_url
+        global domain
 
+        domain = bytes(args.domain)
         offer_ip_address = args.first_offer_ip
 
         transaction_id = request[BOOTP].xid
@@ -204,7 +208,7 @@ def dhcp_reply(request):
             option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
             option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
 
-            domain = bytes(args.domain)
+            global domain
             domain = pack("!%ds" % (len(domain)), domain)
             option_domain = pack("!2B", 15, len(domain)) + domain
 

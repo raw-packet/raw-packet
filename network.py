@@ -495,7 +495,7 @@ class DHCP_raw:
 
     def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
                              client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2, url=None,
-                             proxy=None):
+                             proxy=None, domain=None):
 
         option_operation = pack("!3B", 53, 1, dhcp_operation)
         option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
@@ -508,15 +508,20 @@ class DHCP_raw:
         options = option_operation + option_server_id + option_lease_time + option_netmask + \
                   option_router + option_dns
 
-        if url is not None:
-            if len(url) < 255:
-                option_url = pack("!" "2B", 114, len(url)) + url
-                options += option_url
+        if domain is not None:
+            if len(domain) < 255:
+                option_domain = pack("!" "2B", 252, len(domain)) + domain
+                options += option_domain
 
         if proxy is not None:
             if len(proxy) < 255:
                 option_proxy = pack("!" "2B", 252, len(proxy)) + proxy
                 options += option_proxy
+
+        if url is not None:
+            if len(url) < 255:
+                option_url = pack("!" "2B", 114, len(url)) + url
+                options += option_url
 
         options += option_end
 
