@@ -258,7 +258,7 @@ def dhcp_reply(request):
                                           padding=0)
 
             SOCK.send(ack_packet)
-            print "[INFO] Send inform double ack response!"
+            print "[INFO] Send inform ack response!"
 
         if request[DHCP].options[0][1] == 3:
             requested_ip = offer_ip_address
