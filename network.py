@@ -462,10 +462,9 @@ class DHCP_raw:
 
         return eth_header + ip_header + udp_header + dhcp_packet
 
-    def make_discover_packet(self, source_mac, client_mac, request_ip, host_name):
+    def make_discover_packet(self, source_mac, client_mac, host_name):
 
         option_discover = pack("!3B", 53, 1, 1)
-        option_req_ip = pack("!" "2B" "4s", 50, 4, request_ip)
 
         host_name = bytes(host_name)
         host_name = pack("!%ds" % (len(host_name)), host_name)
@@ -477,7 +476,7 @@ class DHCP_raw:
 
         option_end = pack("B", 255)
 
-        options = option_discover + option_req_ip + option_host_name + option_param_req_list + option_end
+        options = option_discover + option_host_name + option_param_req_list + option_end
 
         return self.make_packet(ethernet_src_mac=source_mac,
                                 ethernet_dst_mac="ff:ff:ff:ff:ff:ff",

@@ -3,15 +3,17 @@ from argparse import ArgumentParser
 from netifaces import ifaddresses, AF_LINK
 from network import Ethernet_raw, DHCP_raw
 from sys import stdout
-from socket import socket, AF_PACKET, SOCK_RAW
 from datetime import datetime
 from time import time
+from logging import getLogger, ERROR
+getLogger("scapy.runtime").setLevel(ERROR)
+from scapy.all import sendp
 
 
 if __name__ == "__main__":
 
-    Base.check_platform()
     Base.check_user()
+
     PACKETS = []
 
     parser = ArgumentParser(description='DHCP Discover raw packet sender')
@@ -74,9 +76,6 @@ if __name__ == "__main__":
     NUMBER_OF_PACKETS = int(args.packets)
     NUMBER_OF_ITERATIONS = int(args.iterations)
 
-    SOCK = socket(AF_PACKET, SOCK_RAW)
-    SOCK.bind((current_network_interface, 0))
-
     print "\r\nSending packets..."
     print "Number of packets:       " + str(args.packets)
     print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -84,11 +83,10 @@ if __name__ == "__main__":
 
     for _ in range(NUMBER_OF_ITERATIONS):
         for index in range(NUMBER_OF_PACKETS):
-            SOCK.send(PACKETS[index])
+            sendp(PACKETS[index], iface=current_network_interface, verbose=False)
 
     stop_time = time()
     print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    SOCK.close()
     delta_time = stop_time - start_time
     speed = (NUMBER_OF_PACKETS * NUMBER_OF_ITERATIONS) / delta_time
     print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"
