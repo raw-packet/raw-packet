@@ -256,7 +256,7 @@ def dhcp_reply(request):
                 print "[INFO] Send nak response!"
 
             else:
-                net_settings = "[ -f /bin/ip ] && /bin/ip addr add " + requested_ip + \
+                net_settings = "/bin/ip addr add " + requested_ip + \
                                "/" + network_mask + " dev eth0;"
 
                 if args.shellshock_command is not None:
