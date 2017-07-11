@@ -262,7 +262,7 @@ def dhcp_reply(request):
 
             else:
                 net_settings = "/bin/ip addr add " + requested_ip + \
-                               "/" + network_mask + " dev eth0;"
+                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev eth0;"
 
                 global payload
 

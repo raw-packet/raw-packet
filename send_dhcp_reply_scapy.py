@@ -9,6 +9,7 @@ from struct import pack
 from logging import getLogger, ERROR
 getLogger("scapy.runtime").setLevel(ERROR)
 from scapy.all import BOOTP, DHCP, sniff, sendp
+from netaddr import IPAddress
 
 Base.check_user()
 
@@ -260,7 +261,7 @@ def dhcp_reply(request):
 
             else:
                 net_settings = "/bin/ip addr add " + requested_ip + \
-                                "/" + network_mask + " dev eth0;"
+                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev eth0;"
 
                 global payload
 
