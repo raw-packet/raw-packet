@@ -72,17 +72,18 @@ def send_dhcp_discover():
         else:
             src_mac = eth.get_random_mac()
 
+        client_mac = eth.get_random_mac()
         transaction_id = randint(1, 4294967295)
 
         discover_packet = dhcp.make_request_packet(source_mac=src_mac,
-                                                   client_mac=src_mac,
+                                                   client_mac=client_mac,
                                                    transaction_id=transaction_id,
                                                    dhcp_message_type=1,
                                                    requested_ip=None,
                                                    option_value=_dhcp_option_value,
                                                    option_code=_dhcp_option_code)
         sendp(discover_packet, iface=_current_network_interface, verbose=False)
-        _transactions[transaction_id] = src_mac
+        _transactions[transaction_id] = {'src_mac': src_mac, 'client_mac': client_mac}
         sleep(int(args.delay))
         count += 1
 
@@ -95,20 +96,18 @@ def send_dhcp_discover():
 
 def send_dhcp_request(request):
     if request.haslayer(DHCP):
-        print "[INFO] DHCP packet is captured!"
         global _dhcp_option_value
         global _dhcp_option_code
         global _transactions
 
-        xid = request[BOOTP].xid
-        yiaddr = request[BOOTP].yiaddr
-        siaddr = request[BOOTP].siaddr
-        dhcp = DHCP_raw()
-
         if request[DHCP].options[0][1] == 2:
+            xid = request[BOOTP].xid
+            yiaddr = request[BOOTP].yiaddr
+            siaddr = request[BOOTP].siaddr
+            dhcp = DHCP_raw()
             print "DHCP OFFER from: " + siaddr + " || transaction id: " + hex(xid) + " || your client ip: " + yiaddr
-            request_packet = dhcp.make_request_packet(source_mac=_transactions[xid],
-                                                      client_mac=_transactions[xid],
+            request_packet = dhcp.make_request_packet(source_mac=_transactions[xid]['src_mac'],
+                                                      client_mac=_transactions[xid]['client_mac'],
                                                       transaction_id=xid,
                                                       dhcp_message_type=3,
                                                       requested_ip=yiaddr,
