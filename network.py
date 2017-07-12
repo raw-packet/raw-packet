@@ -458,144 +458,141 @@ class DHCP_raw:
 
         return eth_header + ip_header + udp_header + dhcp_packet
 
+    def make_discover_packet(self, source_mac, client_mac, host_name=None):
+        option_discover = pack("!3B", 53, 1, 1)
+        options = option_discover
 
-def make_discover_packet(self, source_mac, client_mac, host_name=None):
-    option_discover = pack("!3B", 53, 1, 1)
-    options = option_discover
+        if host_name is not None:
+            host_name = bytes(host_name)
+            host_name = pack("!%ds" % (len(host_name)), host_name)
+            option_host_name = pack("!2B", 12, len(host_name)) + host_name
+            options += option_host_name
 
-    if host_name is not None:
-        host_name = bytes(host_name)
-        host_name = pack("!%ds" % (len(host_name)), host_name)
-        option_host_name = pack("!2B", 12, len(host_name)) + host_name
-        options += option_host_name
+        option_param_req_list = pack("!2B", 55, 254)
+        for param in range(1, 255):
+            option_param_req_list += pack("B", param)
 
-    option_param_req_list = pack("!2B", 55, 254)
-    for param in range(1, 255):
-        option_param_req_list += pack("B", param)
+        option_end = pack("B", 255)
 
-    option_end = pack("B", 255)
+        options += option_param_req_list + option_end
 
-    options += option_param_req_list + option_end
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                ip_src="0.0.0.0", ip_dst="255.255.255.255",
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=randint(1, 4294967295),
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip="0.0.0.0",
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
 
-    return self.make_packet(ethernet_src_mac=source_mac,
-                            ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
-                            ip_src="0.0.0.0", ip_dst="255.255.255.255",
-                            udp_src_port=68, udp_dst_port=67,
-                            bootp_message_type=1,
-                            bootp_transaction_id=randint(1, 4294967295),
-                            bootp_flags=0,
-                            bootp_client_ip="0.0.0.0",
-                            bootp_your_client_ip="0.0.0.0",
-                            bootp_next_server_ip="0.0.0.0",
-                            bootp_relay_agent_ip="0.0.0.0",
-                            bootp_client_hw_address=client_mac,
-                            dhcp_options=options)
+    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_operation=1, requested_ip=None,
+                            payload=None, payload_option_code=12):
+        option_operation = pack("!3B", 53, 1, dhcp_operation)
+        options = option_operation
 
+        if requested_ip is not None:
+            option_requested_ip = pack("!" "2B" "4s", 50, 4, inet_aton(requested_ip))
+            options += option_requested_ip
 
-def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_operation=1, requested_ip=None,
-                        payload=None, payload_option_code=12):
-    option_operation = pack("!3B", 53, 1, dhcp_operation)
-    options = option_operation
+        if payload is not None:
+            if len(payload) < 255:
+                if 0 < payload_option_code < 256:
+                    option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
+                    options += option_payload
 
-    if requested_ip is not None:
-        option_requested_ip = pack("!" "2B" "4s", 50, 4, inet_aton(requested_ip))
-        options += option_requested_ip
+        option_param_req_list = pack("!2B", 55, 254)
+        for param in range(1, 255):
+            option_param_req_list += pack("B", param)
 
-    if payload is not None:
-        if len(payload) < 255:
-            if 0 < payload_option_code < 256:
-                option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
-                options += option_payload
+        option_end = pack("B", 255)
 
-    option_param_req_list = pack("!2B", 55, 254)
-    for param in range(1, 255):
-        option_param_req_list += pack("B", param)
+        options += option_param_req_list + option_end
 
-    option_end = pack("B", 255)
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                ip_src="0.0.0.0", ip_dst="255.255.255.255",
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip="0.0.0.0",
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
 
-    options += option_param_req_list + option_end
+    def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
+                             payload=None, proxy=None, domain=None, payload_option_code=114):
+        option_operation = pack("!3B", 53, 1, dhcp_operation)
+        option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
+        option_lease_time = pack("!" "2B" "L", 51, 4, lease_time)
+        option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(netmask))
+        option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router))
+        option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns))
+        option_end = pack("B", 255)
 
-    return self.make_packet(ethernet_src_mac=source_mac,
-                            ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
-                            ip_src="0.0.0.0", ip_dst="255.255.255.255",
-                            udp_src_port=68, udp_dst_port=67,
-                            bootp_message_type=1,
-                            bootp_transaction_id=transaction_id,
-                            bootp_flags=0,
-                            bootp_client_ip="0.0.0.0",
-                            bootp_your_client_ip="0.0.0.0",
-                            bootp_next_server_ip="0.0.0.0",
-                            bootp_relay_agent_ip="0.0.0.0",
-                            bootp_client_hw_address=client_mac,
-                            dhcp_options=options)
+        options = option_operation + option_server_id + option_lease_time + option_netmask + \
+                  option_router + option_dns
 
-def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                         client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
-                         payload=None, proxy=None, domain=None, payload_option_code=114):
-    option_operation = pack("!3B", 53, 1, dhcp_operation)
-    option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
-    option_lease_time = pack("!" "2B" "L", 51, 4, lease_time)
-    option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(netmask))
-    option_router = pack("!" "2B" "4s", 3, 4, inet_aton(router))
-    option_dns = pack("!" "2B" "4s", 6, 4, inet_aton(dns))
-    option_end = pack("B", 255)
+        if domain is not None:
+            if len(domain) < 255:
+                option_domain = pack("!" "2B", 15, len(domain)) + domain
+                options += option_domain
 
-    options = option_operation + option_server_id + option_lease_time + option_netmask + \
-              option_router + option_dns
+        if proxy is not None:
+            if len(proxy) < 255:
+                option_proxy = pack("!" "2B", 252, len(proxy)) + proxy
+                options += option_proxy
 
-    if domain is not None:
-        if len(domain) < 255:
-            option_domain = pack("!" "2B", 15, len(domain)) + domain
-            options += option_domain
+        if payload is not None:
+            if len(payload) < 255:
+                if 0 < payload_option_code < 256:
+                    option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
+                    options += option_payload
 
-    if proxy is not None:
-        if len(proxy) < 255:
-            option_proxy = pack("!" "2B", 252, len(proxy)) + proxy
-            options += option_proxy
+        options += option_end
 
-    if payload is not None:
-        if len(payload) < 255:
-            if 0 < payload_option_code < 256:
-                option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
-                options += option_payload
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
 
-    options += option_end
+    def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                        client_mac, dhcp_server_id):
+        option_operation = pack("!3B", 53, 1, 6)
+        option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
+        option_end = pack("B", 255)
+        options = option_operation + option_server_id + option_end
 
-    return self.make_packet(ethernet_src_mac=source_mac,
-                            ethernet_dst_mac=destination_mac,
-                            ip_src=source_ip, ip_dst=destination_ip,
-                            udp_src_port=67, udp_dst_port=68,
-                            bootp_message_type=2,
-                            bootp_transaction_id=transaction_id,
-                            bootp_flags=0,
-                            bootp_client_ip="0.0.0.0",
-                            bootp_your_client_ip=your_ip,
-                            bootp_next_server_ip="0.0.0.0",
-                            bootp_relay_agent_ip="0.0.0.0",
-                            bootp_client_hw_address=client_mac,
-                            dhcp_options=options)
-
-
-def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                    client_mac, dhcp_server_id):
-    option_operation = pack("!3B", 53, 1, 6)
-    option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
-    option_end = pack("B", 255)
-    options = option_operation + option_server_id + option_end
-
-    return self.make_packet(ethernet_src_mac=source_mac,
-                            ethernet_dst_mac=destination_mac,
-                            ip_src=source_ip, ip_dst=destination_ip,
-                            udp_src_port=67, udp_dst_port=68,
-                            bootp_message_type=2,
-                            bootp_transaction_id=transaction_id,
-                            bootp_flags=0,
-                            bootp_client_ip="0.0.0.0",
-                            bootp_your_client_ip=your_ip,
-                            bootp_next_server_ip="0.0.0.0",
-                            bootp_relay_agent_ip="0.0.0.0",
-                            bootp_client_hw_address=client_mac,
-                            dhcp_options=options)
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip="0.0.0.0",
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
 
 
 class DNS_raw:
