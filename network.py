@@ -490,19 +490,19 @@ class DHCP_raw:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
-    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_operation=1, requested_ip=None,
-                            payload=None, payload_option_code=12):
-        option_operation = pack("!3B", 53, 1, dhcp_operation)
-        options = option_operation
+    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, requested_ip=None,
+                            option_value=None, option_code=12):
+        option_message_type = pack("!3B", 53, 1, dhcp_message_type)
+        options = option_message_type
 
         if requested_ip is not None:
             option_requested_ip = pack("!" "2B" "4s", 50, 4, inet_aton(requested_ip))
             options += option_requested_ip
 
-        if payload is not None:
-            if len(payload) < 255:
-                if 0 < payload_option_code < 256:
-                    option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
+        if option_value is not None:
+            if len(option_value) < 255:
+                if 0 < option_code < 256:
+                    option_payload = pack("!" "2B", option_code, len(option_value)) + option_value
                     options += option_payload
 
         option_param_req_list = pack("!2B", 55, 254)
