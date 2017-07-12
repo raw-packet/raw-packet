@@ -338,6 +338,7 @@ class TCP_raw:
 
         return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 24, 229, True, options)
 
+
 class DHCP_raw:
 
    # 0                   1                   2                   3
@@ -493,8 +494,8 @@ class DHCP_raw:
                                 dhcp_options=options)
 
     def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2, url=None,
-                             proxy=None, domain=None):
+                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
+                             payload=None, proxy=None, domain=None, payload_option_code=114):
 
         option_operation = pack("!3B", 53, 1, dhcp_operation)
         option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
@@ -517,10 +518,11 @@ class DHCP_raw:
                 option_proxy = pack("!" "2B", 252, len(proxy)) + proxy
                 options += option_proxy
 
-        if url is not None:
-            if len(url) < 255:
-                option_url = pack("!" "2B", 114, len(url)) + url
-                options += option_url
+        if payload is not None:
+            if len(payload) < 255:
+                if 0 < payload_option_code < 256:
+                    option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
+                    options += option_payload
 
         options += option_end
 
