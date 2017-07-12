@@ -490,8 +490,8 @@ class DHCP_raw:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
-    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, requested_ip=None,
-                            option_value=None, option_code=12):
+    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1,
+                            requested_ip=None, option_value=None, option_code=12, relay_agent_ip="0.0.0.0"):
         option_message_type = pack("!3B", 53, 1, dhcp_message_type)
         options = option_message_type
 
@@ -523,7 +523,7 @@ class DHCP_raw:
                                 bootp_client_ip="0.0.0.0",
                                 bootp_your_client_ip="0.0.0.0",
                                 bootp_next_server_ip="0.0.0.0",
-                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_relay_agent_ip=relay_agent_ip,
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
