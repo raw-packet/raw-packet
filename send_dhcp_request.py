@@ -20,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--notspoofmac', help='Don\'t spoof MAC address', action='store_true')
     parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 100000)', default=100000)
     parser.add_argument('-k', '--iterations', type=int, help='Number of iterations (default: 100)', default=100)
+    parser.add_argument('-r', '--requested_ip', type=str, help='Set requested IP', default=None)
     parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option value', default=None)
     parser.add_argument('-c', '--dhcp_option_code', type=int, help='Set DHCP option code (default: 12)', default=12)
     args = parser.parse_args()
@@ -62,11 +63,16 @@ if __name__ == "__main__":
         else:
             SRC_MAC = eth.get_mac_for_dhcp_discover()
 
+        if args.requested_ip is not None:
+            REQ_IP = args.requested_ip
+        else:
+            REQ_IP = ip.get_random_ip()
+
         current_packet = dhcp.make_request_packet(source_mac=SRC_MAC,
                                                   client_mac=eth.get_random_mac(),
                                                   transaction_id=randint(1, 4294967295),
                                                   dhcp_message_type=3,
-                                                  requested_ip=ip.get_random_ip(),
+                                                  requested_ip=REQ_IP,
                                                   option_value=args.dhcp_option_value,
                                                   option_code=args.dhcp_option_code)
         PACKETS.append(current_packet)
