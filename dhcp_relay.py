@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from netifaces import ifaddresses, AF_LINK, AF_INET
 from network import Ethernet_raw, DHCP_raw
 from datetime import datetime
-from time import time, sleep
+from time import sleep
 from random import randint
 from tm import ThreadManager
 from scapy.all import sniff, DHCP, BOOTP, sendp
@@ -65,7 +65,6 @@ def send_dhcp_discover():
     print "\r\nSending discover packets..."
     print "Number of packets: " + str(_number_of_packets)
     print "Start sending packets: " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    start_time = time()
 
     count = 0
     while count < _number_of_packets:
@@ -86,11 +85,7 @@ def send_dhcp_discover():
         sleep(int(args.delay))
         count += 1
 
-    stop_time = time()
     print "All discover packets sent: " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    delta_time = stop_time - start_time
-    speed = _number_of_packets / delta_time
-    print "Speed: " + str(int(speed)) + " pkt/sec\r\n"
 
 
 def send_dhcp_request(request):
