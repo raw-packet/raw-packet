@@ -464,9 +464,10 @@ class DHCP_raw:
 
         if host_name is not None:
             host_name = bytes(host_name)
-            host_name = pack("!%ds" % (len(host_name)), host_name)
-            option_host_name = pack("!2B", 12, len(host_name)) + host_name
-            options += option_host_name
+            if len(host_name) < 255:
+                host_name = pack("!%ds" % (len(host_name)), host_name)
+                option_host_name = pack("!2B", 12, len(host_name)) + host_name
+                options += option_host_name
 
         option_param_req_list = pack("!2B", 55, 254)
         for param in range(1, 255):
@@ -490,7 +491,7 @@ class DHCP_raw:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
-    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1,
+    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, host_name=None,
                             requested_ip=None, option_value=None, option_code=12, relay_agent_ip="0.0.0.0"):
         option_message_type = pack("!3B", 53, 1, dhcp_message_type)
         options = option_message_type
@@ -498,6 +499,13 @@ class DHCP_raw:
         if requested_ip is not None:
             option_requested_ip = pack("!" "2B" "4s", 50, 4, inet_aton(requested_ip))
             options += option_requested_ip
+
+        if host_name is not None:
+            host_name = bytes(host_name)
+            if len(host_name) < 255:
+                host_name = pack("!%ds" % (len(host_name)), host_name)
+                option_host_name = pack("!2B", 12, len(host_name)) + host_name
+                options += option_host_name
 
         if option_value is not None:
             if len(option_value) < 255:
