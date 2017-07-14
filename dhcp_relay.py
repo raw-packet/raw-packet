@@ -50,7 +50,7 @@ if _current_mac_address is None:
 
 
 def send_dhcp_discover():
-    sleep(2)
+    sleep(1)
 
     eth = Ethernet_raw()
     dhcp = DHCP_raw()
