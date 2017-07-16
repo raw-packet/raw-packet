@@ -16,7 +16,7 @@ _dhcp_option_code = 12
 _transactions = {}
 _current_network_interface = ""
 
-parser = ArgumentParser(description='DHCP Request raw packet sender')
+parser = ArgumentParser(description='DHCP Relay agent script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 100000)', default=100000)
 parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 5)', default=5)
