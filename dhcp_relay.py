@@ -19,6 +19,7 @@ _current_network_interface = ""
 parser = ArgumentParser(description='DHCP Relay agent script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 100000)', default=100000)
+parser.add_argument('-m', '--client_mac', type=str, help='Set client MAC address', default=None)
 parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 5)', default=5)
 parser.add_argument('-n', '--not_send_hostname', action='store_true', help='Do not send hostname in DHCP request')
 parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option value', default=None)
@@ -62,7 +63,10 @@ def send_dhcp_discover():
     count = 0
     while count < _number_of_packets:
 
-        client_mac = eth.get_random_mac()
+        if args.client_mac is None:
+            client_mac = eth.get_random_mac()
+        else:
+            client_mac = args.client_mac
         transaction_id = randint(1, 4294967295)
 
         discover_packet = dhcp.make_request_packet(source_mac=_current_mac_address,
