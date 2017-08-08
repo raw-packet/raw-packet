@@ -556,6 +556,28 @@ class DHCP_raw:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
+    def make_decline_packet(self, relay_mac, relay_ip, server_mac, server_ip, client_mac, requested_ip, transaction_id):
+        option_message_type = pack("!3B", 53, 1, 4)
+        option_requested_ip = pack("!" "2B" "4s", 50, 4, inet_aton(requested_ip))
+        option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(server_ip))
+        option_end = pack("B", 255)
+
+        options = option_message_type + option_requested_ip + option_server_id + option_end
+
+        return self.make_packet(ethernet_src_mac=relay_mac,
+                                ethernet_dst_mac=server_mac,
+                                ip_src=relay_ip, ip_dst=server_ip,
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip=requested_ip,
+                                bootp_your_client_ip="0.0.0.0",
+                                bootp_next_server_ip="0.0.0.0",
+                                bootp_relay_agent_ip=relay_ip,
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
     def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
                              client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
                              payload=None, proxy=None, domain=None, payload_option_code=114):

