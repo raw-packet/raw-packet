@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from base import Base
 from argparse import ArgumentParser
 from network import Ethernet_raw, DHCP_raw
@@ -5,6 +7,7 @@ from datetime import datetime
 from time import sleep
 from random import randint
 from tm import ThreadManager
+from pprint import pprint
 from scapy.all import sniff, DHCP, BOOTP, sendp
 from logging import getLogger, ERROR
 getLogger("scapy.runtime").setLevel(ERROR)
@@ -20,10 +23,11 @@ parser = ArgumentParser(description='DHCP Relay agent script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 100000)', default=100000)
 parser.add_argument('-m', '--client_mac', type=str, help='Set client MAC address', default=None)
-parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 5)', default=5)
+parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 1)', default=1)
 parser.add_argument('-n', '--not_send_hostname', action='store_true', help='Do not send hostname in DHCP request')
 parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option value', default=None)
 parser.add_argument('-c', '--dhcp_option_code', type=int, help='Set DHCP option code (default: 12)', default=12)
+parser.add_argument('-f', '--find_dhcp', action='store_true', help='Only find DHCP server in your network')
 args = parser.parse_args()
 
 if args.dhcp_option_value is not None:
@@ -93,6 +97,12 @@ def send_dhcp_request(request):
         siaddr = request[BOOTP].siaddr
 
         if request[DHCP].options[0][1] == 2:
+            if args.find_dhcp:
+                print "\nDHCP server IP: " + siaddr
+                print "DHCP server MAC: " + Base.get_mac(_current_network_interface, siaddr) + "\n"
+                pprint(request[DHCP].options)
+                exit(0)
+
             print "[INFO] OFFER from: " + siaddr + " || transaction id: " + hex(xid) + " || your client ip: " + yiaddr
 
             try:
