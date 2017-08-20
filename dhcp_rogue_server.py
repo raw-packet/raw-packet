@@ -33,12 +33,12 @@ parser.add_argument('-B', '--without_base64', action='store_true', help='Do not 
 parser.add_argument('-O', '--shellshock_option_code', type=int,
                     help='Set dhcp option code for inject shellshock payload, default=114', default=114)
 
-parser.add_argument('--ip_path', type=str, help='Set path to "ip" command, default = /bin/', default="/bin/")
-parser.add_argument('--iface_name', type=str, help='Set iface name, default = eth0', default="eth0")
+parser.add_argument('--ip_path', type=str, help='Set path to "ip" in shellshock payload, default = /bin/', default="/bin/")
+parser.add_argument('--iface_name', type=str, help='Set iface name in shellshock payload, default = eth0', default="eth0")
 
-parser.add_argument('--wifi', help='WiFi attack', action='store_true')
-parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
-parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
+# parser.add_argument('--wifi', help='WiFi attack', action='store_true')
+# parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server mac address, if not set use your mac address')
+# parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your ip address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
 parser.add_argument('--netmask', type=str, help='Set network mask, if not set use your netmask')
 parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not set use your broadcast')
