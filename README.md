@@ -50,4 +50,4 @@ optional arguments:
 9. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
 
 ## Видео проведения атаки
-[![DHCP Starvation preview](https://img.youtube.com/vi/yrMqg6xp6qQ/0.jpg)](http://www.youtube.com/watch?v=yrMqg6xp6qQ)
+[![DHCP Starvation preview](https://j.gifs.com/lOzoB5.gif)](http://www.youtube.com/watch?v=yrMqg6xp6qQ)
