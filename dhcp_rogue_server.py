@@ -14,7 +14,7 @@ from netaddr import IPAddress
 Base.check_user()
 Base.check_platform()
 
-parser = ArgumentParser(description='DHCP Reply (Offer and Ack) sender')
+parser = ArgumentParser(description='DHCP Rogue server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set first client ip for offering')
