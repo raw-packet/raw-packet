@@ -19,7 +19,7 @@ _dhcp_option_code = 12
 _transactions = {}
 _current_network_interface = ""
 
-parser = ArgumentParser(description='DHCP Relay agent script')
+parser = ArgumentParser(description='DHCP Starvation attack script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 100000)', default=100000)
 parser.add_argument('-m', '--client_mac', type=str, help='Set client MAC address', default=None)
