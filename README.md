@@ -51,3 +51,65 @@ optional arguments:
 
 ## Видео проведения атаки
 [![DHCP Starvation preview](https://j.gifs.com/lOzoB5.gif)](http://www.youtube.com/watch?v=yrMqg6xp6qQ)
+
+# dhcp_rogue_server.py
+Данный скрипт производит атаку на DHCP-клиентов путем подмены легитимного DHCP-сервера (Rogue DHCP).
+
+```
+root@desktop:~/raw-packet# ./dhcp_rogue_server.py -h
+usage: dhcp_rogue_server.py [-h] [-i INTERFACE] -f FIRST_OFFER_IP -l
+                            LAST_OFFER_IP [-t TARGET_MAC]
+                            [-c SHELLSHOCK_COMMAND] [-b] [-p BIND_PORT] [-N]
+                            [-E] [-R] [-e REVERSE_PORT] [-n] [-B]
+                            [-O SHELLSHOCK_OPTION_CODE] [--ip_path IP_PATH]
+                            [--iface_name IFACE_NAME] [--router ROUTER]
+                            [--netmask NETMASK] [--broadcast BROADCAST]
+                            [--dns DNS] [--lease_time LEASE_TIME]
+                            [--domain DOMAIN] [--proxy PROXY]
+
+DHCP Rogue server
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send reply packets
+  -f FIRST_OFFER_IP, --first_offer_ip FIRST_OFFER_IP
+                        Set first client ip for offering
+  -l LAST_OFFER_IP, --last_offer_ip LAST_OFFER_IP
+                        Set last client ip for offering
+  -t TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND
+                        Set shellshock command in DHCP client
+  -b, --bind_shell      Use awk bind tcp shell in DHCP client
+  -p BIND_PORT, --bind_port BIND_PORT
+                        Set port for listen bind shell (default=1234)
+  -N, --nc_reverse_shell
+                        Use nc reverse tcp shell in DHCP client
+  -E, --nce_reverse_shell
+                        Use nc -e reverse tcp shell in DHCP client
+  -R, --bash_reverse_shell
+                        Use bash reverse tcp shell in DHCP client
+  -e REVERSE_PORT, --reverse_port REVERSE_PORT
+                        Set port for listen bind shell (default=443)
+  -n, --without_network
+                        Do not add network configure in payload
+  -B, --without_base64  Do not use base64 encode in payload
+  -O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE
+                        Set dhcp option code for inject shellshock payload,
+                        default=114
+  --ip_path IP_PATH     Set path to "ip" in shellshock payload, default =
+                        /bin/
+  --iface_name IFACE_NAME
+                        Set iface name in shellshock payload, default = eth0
+  --router ROUTER       Set router IP address, if not set use your ip address
+  --netmask NETMASK     Set network mask, if not set use your netmask
+  --broadcast BROADCAST
+                        Set network broadcast, if not set use your broadcast
+  --dns DNS             Set DNS server IP address, if not set use your ip
+                        address
+  --lease_time LEASE_TIME
+                        Set lease time, default=172800
+  --domain DOMAIN       Set domain name for search, default=test.com
+  --proxy PROXY         Set proxy
+```
