@@ -12,7 +12,7 @@
 Данный скрипт производит атаку на DHCP сервер путем переполнения пула свободных IP-адресов на нем (DHCP starvation attack).
 
 ```
-desktop:raw-packet root# ./dhcp_starvation.py -h
+root@desktop:~/raw-packet# ./dhcp_starvation.py -h
 usage: dhcp_starvation.py [-h] [-i INTERFACE] [-p PACKETS] [-m CLIENT_MAC]
                           [-d DELAY] [-n] [-v DHCP_OPTION_VALUE]
                           [-c DHCP_OPTION_CODE] [-f]
