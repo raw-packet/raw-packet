@@ -36,15 +36,20 @@ if args.target_mac is not None:
 
 def send_arp_reply(request):
     if request.haslayer(ARP):
-        print "ARP!"
         global _current_number_of_packets
+        global _current_network_interface
         global _current_mac_address
-        if request[ARP].op == ARP.who_has and request[ARP].hwdst == "00:00:00:00:00:00":
-            sendp(Ether(dst=request[ARP].hwsrc) / ARP(hwdst=request[ARP].hwsrc,
-                                                      psrc=request[ARP].psrc))
-        _current_number_of_packets += 1
-        if _current_number_of_packets >= _number_of_packets:
-            exit(0)
+
+        if request[ARP].op == 1:
+            if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
+                print "[INFO] Gratuitous ARP MAC: " + request[ARP].hwsrc + " IP: " + request[ARP].pdst
+                sendp(Ether(dst=request[ARP].hwsrc, src=_current_mac_address)
+                      / ARP(hwsrc=_current_mac_address, psrc=request[ARP].pdst,
+                            hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2),
+                      iface=_current_network_interface, verbose=False)
+                _current_number_of_packets += 1
+                if _current_number_of_packets >= _number_of_packets:
+                    exit(0)
 
 
 if __name__ == "__main__":
