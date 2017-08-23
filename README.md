@@ -113,3 +113,27 @@ optional arguments:
   --domain DOMAIN       Set domain name for search, default=test.com
   --proxy PROXY         Set proxy
 ```
+
+## Аргументы скрипта dhcp_rogue_server.py:
+1. ```-h, --help```: вывод помощи;
+2. ```-i INTERFACE, --interface INTERFACE```: используемый сетевой интерфейс для прослушивания DHCP-запросов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
+3. ```-f FIRST_OFFER_IP, --first_offer_ip FIRST_OFFER_IP```: первый IP-адрес который будет выдан DHCP-клиентам;
+4. ```-l LAST_OFFER_IP, --last_offer_ip LAST_OFFER_IP```: последний IP-адрес который будет выдан DHCP-клиентам;
+5. ```-t TARGET_MAC, --target_mac TARGET_MAC```: MAC-адрес цели, если данный параметр будет задан то будет осущевляться перехват DHCP-запросов только от данного MAC-адреса;
+6. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
+7. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
+8. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
+9. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
+10. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
+11. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
+12. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
+13. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
+14. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
+15. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
+16. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
+17. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
+18. ```--netmask NETMASK```: маска подсети;
+19. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
+19. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
+19. ```--domain DOMAIN```: домен;
+19. ```--proxy PROXY```: прокси.
