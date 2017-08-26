@@ -388,6 +388,7 @@ def dhcp_reply(request):
                         print _success + "Target IP: " + cSUCCESS + target_ip_address + cEND
                         print "\r\n"
                         SOCK.close()
+                        exit(0)
     SOCK.close()
 
 
