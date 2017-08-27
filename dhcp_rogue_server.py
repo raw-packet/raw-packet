@@ -14,9 +14,9 @@ from netaddr import IPAddress
 Base.check_user()
 Base.check_platform()
 
-cINFO = '\033[0;34m'
-cERROR = '\033[0;31m'
-cSUCCESS = '\033[0;32m'
+cINFO = '\033[1;34m'
+cERROR = '\033[1;31m'
+cSUCCESS = '\033[1;32m'
 cEND = '\033[0m'
 
 _info = cINFO + '[*]' + cEND + ' '
