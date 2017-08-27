@@ -93,7 +93,7 @@ def send_dhcp_discover():
         sendp(discover_packet, iface=_current_network_interface, verbose=False)
         _transactions[transaction_id] = client_mac
 
-        if int(time() - _start_time) > 5:
+        if int(time() - _start_time) > 30:
             print "\r\n"
             print _success + "IP address pool is exhausted: " + cSUCCESS + \
                 str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
