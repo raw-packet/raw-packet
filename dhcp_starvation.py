@@ -145,7 +145,7 @@ def send_dhcp_request(request):
                 print _error + "Unknown error!"
 
         if request[DHCP].options[0][1] == 5:
-            print _info + "ACK from:   " + cINFO + siaddr + cEND + " your client ip: " + cINFO + yiaddr + cEND
+            print _success + "ACK from:   " + cSUCCESS + siaddr + cEND + " your client ip: " + cSUCCESS + yiaddr + cEND
 
         if request[DHCP].options[0][1] == 6:
             print _error + "NAK from:   " + cERROR + siaddr + cEND + " your client ip: " + cERROR + yiaddr + cEND
