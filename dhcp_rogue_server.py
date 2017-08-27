@@ -13,6 +13,7 @@ from netaddr import IPAddress
 
 Base.check_user()
 Base.check_platform()
+Base.print_banner()
 
 cINFO = '\033[1;34m'
 cERROR = '\033[1;31m'

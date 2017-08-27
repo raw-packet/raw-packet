@@ -13,6 +13,20 @@ class Base:
 
     def __init__(self):
         pass
+    
+    @staticmethod
+    def print_banner():
+        with open('version.txt', 'r') as version_file:
+            current_version = version_file.read()
+        greenc = '\033[1;32m'
+        endc = '\033[0m'
+        print greenc + "                                          _        _   " + endc
+        print greenc + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + endc
+        print greenc + "| '__/ _` \ \ /\ / /___ | '_ \ / _` |/ __| |/ / _ \ __|" + endc
+        print greenc + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + endc
+        print greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc
+        print greenc + "                        |_|                      v" + current_version + endc
+        print greenc + "\r\nhttps://github.com/Vladimir-Ivanov-Git/raw-packet\r\n" + endc
 
     @staticmethod
     def check_platform():

@@ -16,6 +16,7 @@ getLogger("scapy.runtime").setLevel(ERROR)
 
 Base.check_user()
 Base.check_platform()
+Base.print_banner()
 
 cINFO = '\033[1;34m'
 cERROR = '\033[1;31m'
@@ -35,7 +36,7 @@ _ack_received = False
 parser = ArgumentParser(description='DHCP Starvation attack script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 1)', default=1)
-parser.add_argument('-t', '--timeout', tipe=int, help='Set receiving timeout in seconds (default: 10)', default=10)
+parser.add_argument('-t', '--timeout', type=int, help='Set receiving timeout in seconds (default: 10)', default=10)
 parser.add_argument('-n', '--not_send_hostname', action='store_true', help='Do not send hostname in DHCP request')
 parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option value', default=None)
 parser.add_argument('-c', '--dhcp_option_code', type=int, help='Set DHCP option code (default: 12)', default=12)
