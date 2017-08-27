@@ -145,7 +145,6 @@ if 255 < args.shellshock_option_code < 0:
     print _error + "Bad value in DHCP option code! This value should be in the range from 1 to 255"
     exit(1)
 
-print "\r\n"
 print _info + "Network interface: " + cINFO + current_network_interface + cEND
 if args.target_mac is not None:
     print _info + "Target MAC: " + cINFO + args.target_mac + cEND
@@ -159,7 +158,6 @@ print _info + "DHCP server ip address: " + cINFO + dhcp_server_ip_address + cEND
 print _info + "Router IP address: " + cINFO + router_ip_address + cEND
 print _info + "Network mask: " + cINFO + network_mask + cEND
 print _info + "DNS server IP address: " + cINFO + dns_server_ip_address + cEND
-print "\r\n"
 
 
 def make_dhcp_offer_packet(transaction_id):
@@ -383,10 +381,8 @@ def dhcp_reply(request):
                         print _info + "Send ARP response!"
                     else:
                         print _success + "MiTM success!"
-                        print "\r\n"
                         print _success + "Target MAC: " + cSUCCESS + target_mac_address + cEND
                         print _success + "Target IP: " + cSUCCESS + target_ip_address + cEND
-                        print "\r\n"
                         SOCK.close()
                         exit(0)
     SOCK.close()
