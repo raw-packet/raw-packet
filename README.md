@@ -50,7 +50,7 @@ optional arguments:
 9. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
 
 ## Видео проведения атаки
-[![DHCP Starvation preview](https://j.gifs.com/lOzoB5.gif)](http://www.youtube.com/watch?v=yrMqg6xp6qQ)
+[![DHCP Starvation preview](https://j.gifs.com/GZGgEJ.gif)](https://youtu.be/Nc8lRo9LbKQ)
 
 # dhcp_rogue_server.py
 Данный скрипт производит атаку на DHCP-клиентов путем подмены легитимного DHCP-сервера (Rogue DHCP).
@@ -137,3 +137,6 @@ optional arguments:
 19. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
 19. ```--domain DOMAIN```: домен;
 19. ```--proxy PROXY```: прокси.
+
+## Видео проведения атаки
+[![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
