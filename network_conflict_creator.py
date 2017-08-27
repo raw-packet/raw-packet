@@ -7,7 +7,9 @@ from scapy.all import sniff, Ether, ARP, sendp
 from logging import getLogger, ERROR
 getLogger("scapy.runtime").setLevel(ERROR)
 
+Base = Base()
 Base.check_user()
+Base.check_platform()
 
 parser = ArgumentParser(description='DHCP Starvation attack script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')

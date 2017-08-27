@@ -10,10 +10,25 @@ from scapy.all import srp, Ether, ARP
 
 
 class Base:
+    cINFO = None
+    cERROR = None
+    cSUCCESS = None
+    cEND = None
+
+    c_info = None
+    c_error = None
+    c_success = None
 
     def __init__(self):
-        pass
-    
+        self.cINFO = '\033[1;34m'
+        self.cERROR = '\033[1;31m'
+        self.cSUCCESS = '\033[1;32m'
+        self.cEND = '\033[0m'
+
+        self.c_info = self.cINFO + '[*]' + self.cEND + ' '
+        self.c_error = self.cERROR + '[-]' + self.cEND + ' '
+        self.c_success = self.cSUCCESS + '[+]' + self.cEND + ' '
+
     @staticmethod
     def print_banner():
         with open('version.txt', 'r') as version_file:
