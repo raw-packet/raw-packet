@@ -13,27 +13,32 @@ class Base:
     cINFO = None
     cERROR = None
     cSUCCESS = None
+    cWARNING = None
     cEND = None
 
     c_info = None
     c_error = None
     c_success = None
+    c_warning = None
 
     def __init__(self):
         self.cINFO = '\033[1;34m'
         self.cERROR = '\033[1;31m'
         self.cSUCCESS = '\033[1;32m'
+        self.cWARNING = '\033[1;33m'
         self.cEND = '\033[0m'
 
         self.c_info = self.cINFO + '[*]' + self.cEND + ' '
         self.c_error = self.cERROR + '[-]' + self.cEND + ' '
         self.c_success = self.cSUCCESS + '[+]' + self.cEND + ' '
+        self.c_warning = self.cWARNING + '[!]' + self.cEND + ' '
 
     @staticmethod
     def print_banner():
         with open('version.txt', 'r') as version_file:
             current_version = version_file.read()
         greenc = '\033[1;32m'
+        yellowc = '\033[1;33m'
         endc = '\033[0m'
         print greenc + "                                          _        _   " + endc
         print greenc + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + endc
@@ -41,7 +46,7 @@ class Base:
         print greenc + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + endc
         print greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc
         print greenc + "                        |_|                      v" + current_version + endc
-        print greenc + "\r\nhttps://github.com/Vladimir-Ivanov-Git/raw-packet\r\n" + endc
+        print yellowc + "\r\nhttps://github.com/Vladimir-Ivanov-Git/raw-packet\r\n" + endc
 
     @staticmethod
     def check_platform():

