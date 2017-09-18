@@ -13,9 +13,8 @@
 
 ```
 root@desktop:~/raw-packet# ./dhcp_starvation.py -h
-usage: dhcp_starvation.py [-h] [-i INTERFACE] [-p PACKETS] [-m CLIENT_MAC]
-                          [-d DELAY] [-n] [-v DHCP_OPTION_VALUE]
-                          [-c DHCP_OPTION_CODE] [-f]
+usage: dhcp_starvation.py [-h] [-i INTERFACE] [-d DELAY] [-t TIMEOUT] [-n]
+                          [-v DHCP_OPTION_VALUE] [-c DHCP_OPTION_CODE] [-f]
 
 DHCP Starvation attack script
 
@@ -23,12 +22,10 @@ optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for send discover packets
-  -p PACKETS, --packets PACKETS
-                        Number of packets (default: 100000)
-  -m CLIENT_MAC, --client_mac CLIENT_MAC
-                        Set client MAC address
   -d DELAY, --delay DELAY
                         Set delay time in seconds (default: 1)
+  -t TIMEOUT, --timeout TIMEOUT
+                        Set receiving timeout in seconds (default: 10)
   -n, --not_send_hostname
                         Do not send hostname in DHCP request
   -v DHCP_OPTION_VALUE, --dhcp_option_value DHCP_OPTION_VALUE
@@ -41,13 +38,12 @@ optional arguments:
 ## Аргументы скрипта dhcp_starvation.py:
 1. ```-h, --help```: вывод помощи;
 2. ```-i INTERFACE, --interface INTERFACE```: используемый сетевой интерфейс, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-3. ```-p PACKETS, --packets PACKETS```: количество DHCPDISCOVER пакетов для отправки, по смолчанию - 100000;
-4. ```-m CLIENT_MAC, --client_mac CLIENT_MAC```: MAC-адрес клиента в DHCP-запросах;
-5. ```-d DELAY, --delay DELAY```: время ожидания между отправкой DHCPDISCOVER пакетов в секундах;
-6. ```-n, --not_send_hostname```: не отправлять имя компьютера в DHCP-запросах, по умолчанию это рандомная строка из 8 символов;
-7. ```-v DHCP_OPTION_VALUE, --dhcp_option_value DHCP_OPTION_VALUE```: значение DHCP-опции, если вы хотите добавить ее во все запросы;
-8. ```-c DHCP_OPTION_CODE, --dhcp_option_code DHCP_OPTION_CODE```: код DHCP-опции, если вы хотите добавить ее во все запросы;
-9. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
+3. ```-d DELAY, --delay DELAY```: время ожидания между отправкой DHCPDISCOVER пакетов в секундах;
+4. ```-t TIMEOUT, --timeout TIMEOUT```: время ожидания DHCPACK от сервера в секундах, после чего скрипт остановится;
+5. ```-n, --not_send_hostname```: не отправлять имя компьютера в DHCP-запросах, по умолчанию это рандомная строка из 8 символов;
+6. ```-v DHCP_OPTION_VALUE, --dhcp_option_value DHCP_OPTION_VALUE```: значение DHCP-опции, если вы хотите добавить ее во все запросы;
+7. ```-c DHCP_OPTION_CODE, --dhcp_option_code DHCP_OPTION_CODE```: код DHCP-опции, если вы хотите добавить ее во все запросы;
+8. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
 
 ## Видео проведения атаки
 [![DHCP Starvation preview](https://j.gifs.com/GZGgEJ.gif)](https://youtu.be/Nc8lRo9LbKQ)
@@ -57,15 +53,17 @@ optional arguments:
 
 ```
 root@desktop:~/raw-packet# ./dhcp_rogue_server.py -h
-usage: dhcp_rogue_server.py [-h] [-i INTERFACE] -f FIRST_OFFER_IP -l
-                            LAST_OFFER_IP [-t TARGET_MAC]
-                            [-c SHELLSHOCK_COMMAND] [-b] [-p BIND_PORT] [-N]
-                            [-E] [-R] [-e REVERSE_PORT] [-n] [-B]
-                            [-O SHELLSHOCK_OPTION_CODE] [--ip_path IP_PATH]
-                            [--iface_name IFACE_NAME] [--router ROUTER]
-                            [--netmask NETMASK] [--broadcast BROADCAST]
-                            [--dns DNS] [--lease_time LEASE_TIME]
-                            [--domain DOMAIN] [--proxy PROXY]
+usage: dhcp_rogue_server.py [-h] [-i INTERFACE] [-f FIRST_OFFER_IP]
+                            [-l LAST_OFFER_IP] [-t TARGET_MAC] [-I TARGET_IP]
+                            [-q] [--apple] [-c SHELLSHOCK_COMMAND] [-b]
+                            [-p BIND_PORT] [-N] [-E] [-R] [-e REVERSE_PORT]
+                            [-n] [-B] [-O SHELLSHOCK_OPTION_CODE]
+                            [--ip_path IP_PATH] [--iface_name IFACE_NAME]
+                            [--dhcp_mac DHCP_MAC] [--dhcp_ip DHCP_IP]
+                            [--router ROUTER] [--netmask NETMASK]
+                            [--broadcast BROADCAST] [--dns DNS]
+                            [--lease_time LEASE_TIME] [--domain DOMAIN]
+                            [--proxy PROXY]
 
 DHCP Rogue server
 
@@ -79,6 +77,10 @@ optional arguments:
                         Set last client ip for offering
   -t TARGET_MAC, --target_mac TARGET_MAC
                         Set target MAC address
+  -I TARGET_IP, --target_ip TARGET_IP
+                        Set client IP address with MAC in --target_mac
+  -q, --quiet           Minimal output
+  --apple               Apple devices MiTM
   -c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND
                         Set shellshock command in DHCP client
   -b, --bind_shell      Use awk bind tcp shell in DHCP client
@@ -102,6 +104,10 @@ optional arguments:
                         /bin/
   --iface_name IFACE_NAME
                         Set iface name in shellshock payload, default = eth0
+  --dhcp_mac DHCP_MAC   Set DHCP server MAC address, if not set use your MAC
+                        address
+  --dhcp_ip DHCP_IP     Set DHCP server IP address, if not set use your IP
+                        address
   --router ROUTER       Set router IP address, if not set use your ip address
   --netmask NETMASK     Set network mask, if not set use your netmask
   --broadcast BROADCAST
@@ -120,23 +126,58 @@ optional arguments:
 3. ```-f FIRST_OFFER_IP, --first_offer_ip FIRST_OFFER_IP```: первый IP-адрес который будет выдан DHCP-клиентам;
 4. ```-l LAST_OFFER_IP, --last_offer_ip LAST_OFFER_IP```: последний IP-адрес который будет выдан DHCP-клиентам;
 5. ```-t TARGET_MAC, --target_mac TARGET_MAC```: MAC-адрес цели, если данный параметр будет задан то будет осущевляться перехват DHCP-запросов только от данного MAC-адреса;
-6. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
-7. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
-8. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
-9. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
-10. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
-11. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
-12. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
-13. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
-14. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
-15. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
-16. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
-17. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
-18. ```--netmask NETMASK```: маска подсети;
-19. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
-19. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
-19. ```--domain DOMAIN```: домен;
-19. ```--proxy PROXY```: прокси.
+6. ```-I TARGET_IP, --target_ip TARGET_IP```: IP-адрес, который необходимо назначить для MAC-адреса: --target_mac TARGET_MAC;
+7. ```-q, --quiet```: минимальный вывод скрипта;
+8. ```--apple```: специальный параметр для проведения MiTM для устройств Apple;
+9. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
+10. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
+11. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
+12. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
+13. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
+14. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
+15. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
+16. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
+17. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
+18. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
+19. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
+20. ```--dhcp_mac DHCP_MAC```: MAC-адрес DHCP-сервера;
+21. ```--dhcp_ip DHCP_IP```: IP-адрес DHCP-сервера;
+22. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
+23. ```--netmask NETMASK```: маска подсети;
+24. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
+25. ```--dns DNS```: IP-адрес DNS-сервера;
+26. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
+27. ```--domain DOMAIN```: домен;
+28. ```--proxy PROXY```: прокси.
 
 ## Видео проведения атаки
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
+
+# apple_dhcp_mitmer.py
+Данный скрипт в автоматическом режиме обнаруживает Apple устройства в WiFi сети и с помощью протокола DHCP изменяет IP-адреса маршрутизатора и DNS-сервера на всех устройствах на ваш IP-адрес.
+
+```
+root@desktop:~/raw-packet# ./apple_wifi_mitmer.py -h
+usage: apple_wifi_mitmer.py [-h] [-i LISTEN_IFACE] [-r AIREPLAY_IFACE]
+                            [-d DEAUTH]
+
+Apple WiFi DHCP MiTM creator
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i LISTEN_IFACE, --listen_iface LISTEN_IFACE
+                        Set interface name for send DHCPACK packets
+  -r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE
+                        Set interface name for aireplay
+  -d DEAUTH, --deauth DEAUTH
+                        Set number of deauth packets (dafault=35)
+```
+
+## Аргументы скрипта apple_dhcp_mitmer.py:
+1. ```-h, --help```: вывод помощи;
+2. ```-i LISTEN_IFACE, --listen_iface LISTEN_IFACE```: используемый сетевой интерфейс для прослушивания DHCP-запросов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
+3. ```-r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE```: используемый сетевой интерфейс для отправки deauth пакетов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
+4. ```-d DEAUTH, --deauth DEAUTH```: количество deauth пакетов для отправки.
+
+## Видео проведения атаки
+[![Apple WiFi MiTM preview](https://j.gifs.com/nZnOX5.gif)](https://youtu.be/MmPluMxOyMk)
