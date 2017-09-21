@@ -54,6 +54,7 @@ parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not s
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 parser.add_argument('--domain', type=str, help='Set domain name for search, default=test.com', default="test.com")
 parser.add_argument('--proxy', type=str, help='Set proxy', default=None)
+parser.add_argument('--tftp', type=str, help='Set TFTP server IP address', default=None)
 
 args = parser.parse_args()
 
@@ -73,6 +74,7 @@ router_ip_address = None
 network_mask = None
 network_broadcast = None
 dns_server_ip_address = None
+tftp_server_ip_address = None
 number_of_dhcp_request = 0
 shellshock_url = None
 proxy = None
@@ -142,6 +144,11 @@ if args.dns is None:
 else:
     dns_server_ip_address = args.dns
 
+if args.tftp is None:
+    tftp_server_ip_address = your_ip_address
+else:
+    tftp_server_ip_address = args.tftp
+
 if 255 < args.shellshock_option_code < 0:
     print Base.c_error + "Bad value in DHCP option code! This value should be in the range from 1 to 255"
     exit(1)
@@ -196,6 +203,7 @@ def make_dhcp_ack_packet(transaction_id, requested_ip):
                                      payload=shellshock_url,
                                      proxy=proxy,
                                      domain=domain,
+                                     tftp=tftp_server_ip_address,
                                      payload_option_code=args.shellshock_option_code)
 
 

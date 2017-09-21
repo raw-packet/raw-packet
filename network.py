@@ -580,7 +580,7 @@ class DHCP_raw:
 
     def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
                              client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
-                             payload=None, proxy=None, domain=None, payload_option_code=114):
+                             payload=None, proxy=None, domain=None, tftp=None, payload_option_code=114):
         option_operation = pack("!3B", 53, 1, dhcp_operation)
         option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
         option_lease_time = pack("!" "2B" "L", 51, 4, lease_time)
@@ -607,6 +607,11 @@ class DHCP_raw:
                 if 0 < payload_option_code < 256:
                     option_payload = pack("!" "2B", payload_option_code, len(payload)) + payload
                     options += option_payload
+
+        if tftp is not None:
+            if len(tftp) < 255:
+                option_tftp = pack("!" "2B" "4s", 150, 4, inet_aton(tftp))
+                options += option_tftp
 
         options += option_end
 
