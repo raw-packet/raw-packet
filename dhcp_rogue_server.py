@@ -318,9 +318,7 @@ def dhcp_reply(request):
 
             if args.apple:
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-                for _ in range(5):
-                    SOCK.send(ack_packet)
-                    sleep(0.3)
+                SOCK.send(ack_packet)
                 print Base.c_info + "Send ack response!"
 
             else:
