@@ -221,6 +221,45 @@ class IP_raw:
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
 
 
+class ARP_raw:
+
+    eth = None
+
+    def __init__(self):
+        self.eth = Ethernet_raw()
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac, sender_mac, sender_ip, target_mac, target_ip, opcode,
+                    hardware_type=1, protocol_type=2048, hardware_size=6, protocol_size=4):
+        sender_ip = inet_aton(sender_ip)
+        target_ip = inet_aton(target_ip)
+        sender_mac = self.eth.convert_mac(sender_mac)
+        target_mac = self.eth.convert_mac(target_mac)
+        arp_packet = pack("!" "2H" "2B" "H", hardware_type, protocol_type, hardware_size, protocol_size, opcode)
+        arp_packet += sender_mac + pack("!" "4s", sender_ip)
+        arp_packet += target_mac + pack("!" "4s", target_ip)
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2054)
+        return eth_header + arp_packet
+
+    def make_response(self, ethernet_src_mac, ethernet_dst_mac, sender_mac, sender_ip, target_mac, target_ip):
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                sender_mac=sender_mac,
+                                sender_ip=sender_ip,
+                                target_mac=target_mac,
+                                target_ip=target_ip,
+                                opcode=2)
+
+    def make_request(self, ethernet_src_mac, ethernet_dst_mac, sender_mac, sender_ip, target_mac, target_ip):
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                sender_mac=sender_mac,
+                                sender_ip=sender_ip,
+                                target_mac=target_mac,
+                                target_ip=target_ip,
+                                opcode=1)
+
+
 class UDP_raw:
     #  0                16               31
     #  +-----------------+-----------------+
