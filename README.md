@@ -167,6 +167,8 @@ optional arguments:
   -h, --help            show this help message and exit
   -i LISTEN_IFACE, --listen_iface LISTEN_IFACE
                         Set interface name for send DHCPACK packets
+  -c, --use_network_conflict
+                        Use network conflict technique
   -r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE
                         Set interface name for aireplay
   -d DEAUTH, --deauth DEAUTH
@@ -176,8 +178,12 @@ optional arguments:
 ## Аргументы скрипта apple_dhcp_mitmer.py:
 1. ```-h, --help```: вывод помощи;
 2. ```-i LISTEN_IFACE, --listen_iface LISTEN_IFACE```: используемый сетевой интерфейс для прослушивания DHCP-запросов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-3. ```-r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE```: используемый сетевой интерфейс для отправки deauth пакетов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-4. ```-d DEAUTH, --deauth DEAUTH```: количество deauth пакетов для отправки.
+3. ```-c, --use_network_conflict```: использовать протокол обнаружения конфликта IP-адресов в сети;
+4. ```-r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE```: используемый сетевой интерфейс для отправки deauth пакетов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
+5. ```-d DEAUTH, --deauth DEAUTH```: количество deauth пакетов для отправки.
 
-## Видео проведения атаки
+## Видео проведения атаки с использованием deauth пакетов
 [![Apple WiFi MiTM preview](https://j.gifs.com/nZnOX5.gif)](https://youtu.be/MmPluMxOyMk)
+
+## Видео проведения атаки с использованием протокола обнаружения конфликта IP-адресов в сети
+[![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
