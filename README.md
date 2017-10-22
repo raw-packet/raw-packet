@@ -187,3 +187,46 @@ optional arguments:
 
 ## Видео проведения атаки с использованием протокола обнаружения конфликта IP-адресов в сети
 [![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
+
+# dnsmasploit.py
+Данный скрипт предназначен для эксплуатации уязвимости CVE-2017-14493 (Stack Based overflow).
+
+```
+root@desktop:~/raw-packet# ./dnsmasploit.py -h
+usage: dnsmasploit.py [-h] -t TARGET [-p TARGET_PORT] [-c CAPACITY]
+                      [-v VERSION] [--interpreter INTERPRETER]
+                      [--interpreter_arg INTERPRETER_ARG] [--payload PAYLOAD]
+                      [--command COMMAND] [--bind_port BIND_PORT]
+                      [--reverse_port REVERSE_PORT]
+                      [--reverse_host REVERSE_HOST]
+
+Exploit for dnsmasq CVE-2017-14493 (Stack Based overflow)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -t TARGET, --target TARGET
+                        Set target IPv6 address
+  -p TARGET_PORT, --target_port TARGET_PORT
+                        Set target port, default=547
+  -c CAPACITY, --capacity CAPACITY
+                        Set capacity (x86 or x86_64), default=x86
+  -v VERSION, --version VERSION
+                        Set dnsmasq version (2.75, 2.76, 2.77), default=2.77
+  --interpreter INTERPRETER
+                        Set path to interpreter on target, default="/bin/bash"
+  --interpreter_arg INTERPRETER_ARG
+                        Set interpreter argument, default="-c"
+  --payload PAYLOAD     Set payload (bind_awk, reverse_awk, reverse_bash,
+                        reverse_php, reverse_nc, reverse_nce),
+                        default=reverse_nc
+  --command COMMAND     Set command for executing on target
+  --bind_port BIND_PORT
+                        Set bind port, default=4444
+  --reverse_port REVERSE_PORT
+                        Set reverse port, default=4444
+  --reverse_host REVERSE_HOST
+                        Set reverse host, default="127.0.0.1"
+```
+
+## Видео проведения атаки с использованием dnsmasploit
+[![dnsmasploit preview](https://j.gifs.com/N9x0wN.gif)](https://youtu.be/PfuGGwZdhVs)
