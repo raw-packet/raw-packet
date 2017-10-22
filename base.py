@@ -7,6 +7,7 @@ from random import choice
 from string import lowercase, uppercase, digits
 from netifaces import ifaddresses, gateways, AF_LINK, AF_INET
 from scapy.all import srp, Ether, ARP
+from struct import pack, error
 
 
 class Base:
@@ -60,6 +61,38 @@ class Base:
         if getuid() != 0:
             print "Only root can run this script!"
             print "You: " + str(getpwuid(getuid())[0]) + " can not run this script!"
+            exit(1)
+
+    @staticmethod
+    def pack8(data):
+        try:
+            return pack("B", data)
+        except error:
+            print "Bad value for 8 bit pack: " + str(data)
+            exit(1)
+
+    @staticmethod
+    def pack16(data):
+        try:
+            return pack("!H", data)
+        except error:
+            print "Bad value for 16 bit pack: " + str(data)
+            exit(1)
+
+    @staticmethod
+    def pack32(data):
+        try:
+            return pack("<I", data)
+        except error:
+            print "Bad value for 32 bit pack: " + str(data)
+            exit(1)
+
+    @staticmethod
+    def pack64(data):
+        try:
+            return pack("<Q", data)
+        except error:
+            print "Bad value for 64 bit pack: " + str(data)
             exit(1)
 
     @staticmethod
