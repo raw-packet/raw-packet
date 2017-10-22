@@ -157,11 +157,11 @@ optional arguments:
 Данный скрипт в автоматическом режиме обнаруживает Apple устройства в WiFi сети и с помощью протокола DHCP изменяет IP-адреса маршрутизатора и DNS-сервера на всех устройствах на ваш IP-адрес.
 
 ```
-root@desktop:~/raw-packet# ./apple_wifi_mitmer.py -h
-usage: apple_wifi_mitmer.py [-h] [-i LISTEN_IFACE] [-r AIREPLAY_IFACE]
+root@desktop:~/raw-packet# ./apple_dhcp_mitmer.py -h
+usage: apple_dhcp_mitmer.py [-h] [-i LISTEN_IFACE] [-r AIREPLAY_IFACE]
                             [-d DEAUTH]
 
-Apple WiFi DHCP MiTM creator
+Apple DHCP MiTM creator
 
 optional arguments:
   -h, --help            show this help message and exit
