@@ -12,7 +12,7 @@ Base.check_user()
 Base.check_platform()
 Base.print_banner()
 
-parser = ArgumentParser(description='Apple WiFi DHCP MiTM creator')
+parser = ArgumentParser(description='Apple DHCP MiTM creator')
 
 parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
 parser.add_argument('-c', '--use_network_conflict', action='store_true', help='Use network conflict technique')
