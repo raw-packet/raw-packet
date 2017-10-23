@@ -36,8 +36,6 @@ MOV_EAX_EBX_277x86 = 0x080672c3    # mov [eax+0x1],ebx; add cl,cl; ret
 EXECL_277x86 = 0x08070758          # execl
 
 # dnsmasq/2.76 x86 without ASLR
-# POP_EAX_276x86 = 0x08051c90  # pop eax ; or byte ptr [ebp - 0x3e99f590], cl ; ret
-# MOV_EAX_EDX_276x86 = 0x08065fc1  # mov dword ptr [eax + 0x68], edx ; ret
 POP_EAX_EBX_276x86 = 0x0804a0d4  # pop eax ; pop ebx ; pop esi ; ret
 MOV_EAX_EBX_276x86 = 0x0804d653  # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
 EXECL_276x86 = 0x0806c23c        # execl
