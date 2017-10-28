@@ -1,0 +1,4 @@
+netifaces>=0.10.5
+ipaddress>=1.0.18
+netaddr>=0.7.18
+scapy>=2.3.1
