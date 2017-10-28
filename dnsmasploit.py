@@ -5,6 +5,8 @@ from argparse import ArgumentParser
 from socket import socket, AF_INET6, SOCK_DGRAM, IPPROTO_UDP, SOL_SOCKET, SO_SNDBUF
 from sys import exit
 
+# Architecture i386 segments address
+
 # dnsmasq/2.77 segments address without ASLR
 # 0x0804a310 - 0x08082acc is .text
 # 0x0808b220 - 0x0808c054 is .data
