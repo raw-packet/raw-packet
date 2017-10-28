@@ -102,3 +102,10 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pcap files
+.pcap
+.pcapng
+
+# binary files
+.bin
