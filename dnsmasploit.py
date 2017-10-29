@@ -174,6 +174,9 @@ if macsrc is None:
 ipv6_first = Base.get_netiface_ipv6_address(current_network_interface, 0)
 ipv6_second = Base.get_netiface_ipv6_address(current_network_interface, 1)
 
+ipv6src_link = ""
+ipv6src = ""
+
 if ipv6_first is None or ipv6_second is None:
     print Base.c_error + "Please add IPv6 address to interface: " + current_network_interface
     exit(1)
@@ -531,11 +534,22 @@ def exploit():
 
 
 if __name__ == '__main__':
+    print Base.c_info + "Network interface: " + current_network_interface
+    print Base.c_info + "Network interface mac: " + macsrc
+    print Base.c_info + "Network interface IPv6 glob: " + ipv6src
+    print Base.c_info + "Network interface IPv6 link: " + ipv6src_link
 
     print Base.c_info + "Architecture: " + architecture
     print Base.c_info + "Dnsmasq version: " + dnsmasq_version
     print Base.c_info + "Interpreter: " + interpreter
     print Base.c_info + "Interpreter arg: " + interpreter_arg
+
+    if args.payload.startswith("reverse"):
+        print Base.c_info + "Payload reverse host: " + reverse_host
+        print Base.c_info + "Payload reverse port: " + reverse_port
+    if args.payload.startswith("bind"):
+        print Base.c_info + "Payload bind port: " + bind_port
+
     print Base.c_info + "Payload: " + payload
     print Base.c_info + "Address segment .text: " + str(TEXT[architecture][dnsmasq_version])
     print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
