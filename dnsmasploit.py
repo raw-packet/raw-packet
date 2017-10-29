@@ -167,8 +167,29 @@ else:
     current_network_interface = args.interface
 
 macsrc = Base.get_netiface_mac_address(current_network_interface)
-ipv6src_link = Base.get_netiface_ipv6_address(current_network_interface, 1)
-ipv6src = Base.get_netiface_ipv6_address(current_network_interface, 0)
+if macsrc is None:
+    print Base.c_error + "Network interface: " + current_network_interface + " do not have MAC address!"
+    exit(1)
+
+ipv6_first = Base.get_netiface_ipv6_address(current_network_interface, 0)
+ipv6_second = Base.get_netiface_ipv6_address(current_network_interface, 1)
+
+if ipv6_first is None or ipv6_second is None:
+    print Base.c_error + "Please add IPv6 address to interface: " + current_network_interface
+    exit(1)
+else:
+    if ipv6_first.startswith("fe80"):
+        ipv6src_link = ipv6_first
+        ipv6src = ipv6_second
+    elif ipv6_second.startswith("fe80"):
+        ipv6src_link = ipv6_second
+        ipv6src = ipv6_first
+    else:
+        print Base.c_error + "Please set IPv6 link local address to interface: " + current_network_interface
+
+ipv6_first = None
+ipv6_second = None
+
 dhcpv6_server_duid = None
 dhcpv6_server_ipv6_link = None
 dhcpv6_server_mac = None
