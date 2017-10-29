@@ -5,7 +5,7 @@ from pwd import getpwuid
 from netifaces import interfaces
 from random import choice
 from string import lowercase, uppercase, digits
-from netifaces import ifaddresses, gateways, AF_LINK, AF_INET
+from netifaces import ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
 from struct import pack, error
 
@@ -139,6 +139,31 @@ class Base:
         except:
             ip_address = None
         return ip_address
+
+    @staticmethod
+    def get_netiface_ipv6_address(interface_name, address_number=0):
+        try:
+            ipv6_address = str(ifaddresses(interface_name)[AF_INET6][address_number]['addr'])
+            ipv6_address = ipv6_address.replace("%" + interface_name, "", 1)
+        except:
+            ipv6_address = None
+        return ipv6_address
+
+    @staticmethod
+    def get_netiface_ipv6_link_address(interface_name):
+        try:
+            mac_address = str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
+            parts = mac_address.split(":")
+            parts.insert(3, "ff")
+            parts.insert(4, "fe")
+            parts[0] = "%x" % (int(parts[0], 16) ^ 2)
+            ipv6Parts = []
+            for i in range(0, len(parts), 2):
+                ipv6Parts.append("".join(parts[i:i + 2]))
+            ipv6_address = "fe80::%s" % (":".join(ipv6Parts))
+        except:
+            ipv6_address = None
+        return ipv6_address
 
     @staticmethod
     def get_netiface_netmask(interface_name):
