@@ -138,8 +138,9 @@ Base.print_banner()
 parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send packets')
-parser.add_argument('-e', '--exploit', action='store_true', help='Only exploit (CVE-2017-14493)')
-parser.add_argument('-l', '--info_leak', action='store_true', help='Only information leakage (CVE-2017-14494)')
+parser.add_argument('-e', '--exploit', action='store_true', help='Exploit (CVE-2017-14493) works only if ' +
+                                                                 'Stack cookie and PIE disabled')
+parser.add_argument('-l', '--info_leak', action='store_true', help='Information leakage (CVE-2017-14494)')
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
 parser.add_argument('-a', '--architecture', help='Set architecture (i386 or amd64), default=i386', default='i386')
