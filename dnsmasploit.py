@@ -168,8 +168,7 @@ else:
 
 macsrc = Base.get_netiface_mac_address(current_network_interface)
 if macsrc is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have MAC address!"
-    exit(1)
+    macsrc = "ff:ff:ff:ff:ff:ff"
 
 ipv6_first = Base.get_netiface_ipv6_address(current_network_interface, 0)
 ipv6_second = Base.get_netiface_ipv6_address(current_network_interface, 1)
