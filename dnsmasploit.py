@@ -39,6 +39,13 @@ tm = ThreadManager(3)
 # 0x08049f30 - 0x0807bca2 is .text
 # 0x08094240 - 0x08094f5c is .data
 
+# Architecture amd64 segments address
+
+# dnsmasq/2.77 segments address without PIE
+# 0x0000000000402e00 is .text
+# 0x000000000064a480 is .data
+
+
 # NOP
 NOP = {
     "i386": 0x90909090, 
