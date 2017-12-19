@@ -839,6 +839,13 @@ class DHCPv6_raw:
         self.ipv6 = IPv6_raw()
         self.udp = UDP_raw()
 
+    @staticmethod
+    def get_client_duid(mac_address):
+        eth = Ethernet_raw()
+        DUID_type = 3       # Link-Layer address
+        Hardware_type = 1   # Ethernet
+        return pack("!" "2H", DUID_type, Hardware_type) + eth.convert_mac(mac_address)
+
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
                     dhcp_message_type, packet_body, options):
@@ -855,6 +862,29 @@ class DHCPv6_raw:
                                                              len(dhcp_packet), dhcp_packet)
 
         return eth_header + ipv6_header + udp_header + dhcp_packet
+
+    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        options[3] = pack("!" "3Q", 0, 0, 0)  # Identity Association for Non-temporary Address
+        options[14] = ""                      # Rapid commit
+        options[8] = pack("!H", 0)            # Elapsed time
+        options[1] = client_identifier        # Client identifier
+
+        option_request_string = ""
+        for option_request in option_request_list:
+            option_request_string += pack("!H", option_request)
+
+        options[6] = option_request_string  # Options request
+
+        return self.make_packet(ethernet_src_mac, "33:33:00:01:00:02",
+                                ipv6_src, "ff02::1:2", 0, 546, 547,
+                                1, packet_body, options)
 
     def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
                                ipv6_src, ipv6_dst, ipv6_flow,
