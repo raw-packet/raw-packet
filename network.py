@@ -848,13 +848,16 @@ class DHCPv6_raw:
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
-                    dhcp_message_type, packet_body, options):
+                    dhcp_message_type, packet_body, options, options_raw=""):
         dhcp_packet = pack("!B", dhcp_message_type)
         dhcp_packet += packet_body
 
-        for option_code in options.keys():
-            dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
-            dhcp_packet += options[option_code]
+        if options_raw == "":
+            for option_code in options.keys():
+                dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
+                dhcp_packet += options[option_code]
+        else:
+            dhcp_packet += options_raw
 
         eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
         ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
@@ -888,9 +891,9 @@ class DHCPv6_raw:
 
     def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
                                ipv6_src, ipv6_dst, ipv6_flow,
-                               hop_count, link_addr, peer_addr, options):
+                               hop_count, link_addr, peer_addr, options, options_raw=""):
         packet_body = pack("!B", hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
                                 ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
-                                12, packet_body, options)
+                                12, packet_body, options, options_raw)
 
