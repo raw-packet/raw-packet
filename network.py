@@ -2,7 +2,7 @@ from random import choice, randint
 from struct import pack
 from binascii import unhexlify
 from array import array
-from socket import inet_aton, htons, IPPROTO_TCP
+from socket import inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6
 from re import search
 
 
@@ -200,10 +200,10 @@ class IP_raw:
         return (((s >> 8) & 0xff) | s << 8) & 0xffff
 
     def make_header(self, source_ip, destination_ip, data_len, transport_protocol_len, transport_protocol, ttl=64):
-        srcip = inet_aton(source_ip)  # Source port
+        srcip = inet_aton(source_ip)       # Source port
         dstip = inet_aton(destination_ip)  # Destination port
-        ver = 4  # IP protocol version
-        ihl = 5  # Internet Header Length
+        ver = 4       # IP protocol version
+        ihl = 5       # Internet Header Length
         dscp_ecn = 0  # Differentiated Services Code Point and Explicit Congestion Notification
 
         tlen = data_len + transport_protocol_len + 20  # Packet length
@@ -219,6 +219,44 @@ class IP_raw:
         return pack("!" "2B" "3H" "2B" "H" "4s" "4s",
                     (ver << 4) + ihl, dscp_ecn, tlen, ident,
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
+
+
+class IPv6_raw:
+    #           0 - 3     4 - 11                     12 - 31
+    #         +-------+--------------+----------------------------------------+
+    #    0-31 |Version|Traffic Class |              Flow Label                |
+    #         +-------+--------------+-------------------+--------------------+
+    #   32-63 |Payload Length (32-47)|Next Header (48-55)|  Hop Limit (56-63) |
+    #         +----------------------+-------------------+--------------------+
+    #  64-191 |                       Source Address                          |
+    #         +---------------------------------------------------------------+
+    # 192-288 |                    Destination Address                        |
+    #         +---------------------------------------------------------------+
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get_random_ip(octets=1, prefix=""):
+        ip = prefix
+        for index in range(0, octets):
+            ip += str(hex(randint(1, 65535))[2:]) + ":"
+        return ip[:-1]
+
+    @staticmethod
+    def pack_addr(ipv6_addr):
+        return inet_pton(AF_INET6, ipv6_addr)
+
+    @staticmethod
+    def make_header(source_ip, destination_ip, flow_label, payload_len, next_header, hop_limit=64):
+        srcip = inet_pton(AF_INET6, source_ip)       # Source port
+        dstip = inet_pton(AF_INET6, destination_ip)  # Destination port
+        ver = 6             # IP protocol version
+        traffic_class = 0   # Differentiated Services Code Point and Explicit Congestion Notification
+
+        return pack("!" "2I",
+                    (ver << 28) + (traffic_class << 20) + flow_label,
+                    (payload_len << 16) + (next_header << 8) + hop_limit) + srcip + dstip
 
 
 class ARP_raw:
@@ -277,11 +315,34 @@ class UDP_raw:
         pass
 
     @staticmethod
+    def checksum(pkt):
+        if len(pkt) % 2 == 1:
+            pkt += "\0"
+        s = sum(array("H", pkt))
+        s = (s >> 16) + (s & 0xffff)
+        s += s >> 16
+        s = ~s
+        return (((s >> 8) & 0xff) | s << 8) & 0xffff
+
+    @staticmethod
     def make_header(source_port, destination_port, data_length):
         if 0 < source_port < 65536 and 0 < destination_port < 65536:
             return pack("!4H", source_port, destination_port, data_length + 8, 0)
         else:
-            return 0
+            return None
+
+    def make_header_with_ipv6_checksum(self, ipv6_src, ipv6_dst, port_src, port_dst, data_len, data):
+        udp_header = self.make_header(port_src, port_dst, data_len)
+        placeholder = 0
+        protocol = IPPROTO_UDP
+        udp_length = data_len + 8
+
+        ipv6 = IPv6_raw()
+        psh = ipv6.pack_addr(ipv6_src) + ipv6.pack_addr(ipv6_dst)
+        psh += pack("!" "2B" "H", placeholder, protocol, udp_length)
+        chksum = self.checksum(psh + udp_header + data)
+
+        return pack("!4H", port_src, port_dst, data_len + 8, chksum)
 
 
 class TCP_raw:
@@ -441,12 +502,14 @@ class DHCP_raw:
     # options     var  Optional parameters field.  See the options
     #                  documents for a list of defined options.
 
-    eth = Ethernet_raw()
-    ip = IP_raw()
-    udp = UDP_raw()
+    eth = None
+    ip = None
+    udp = None
 
     def __init__(self):
-        pass
+        self.eth = Ethernet_raw()
+        self.ip = IP_raw()
+        self.udp = UDP_raw()
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ip_src, ip_dst, udp_src_port, udp_dst_port,
@@ -743,3 +806,61 @@ class DNS_raw:
                                         flags=256,
                                         request_name=request_name,
                                         request_type=1, request_class=1)
+
+
+class DHCPv6_raw:
+    # 0                   1                   2                   3
+    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |   Message   |                   Data :::                      |
+    # +-------------+-------------------------------------------------+
+
+    # DHCPv6 Message Types
+    # 1 SOLICIT
+    # 2 ADVERTISE
+    # 3 REQUEST
+    # 4 CONFIRM
+    # 5 RENEW
+    # 6 REBIND
+    # 7 REPLY
+    # 8 RELEASE
+    # 9 DECLINE
+    # 10 RECONFIGURE
+    # 11 INFORMATION - REQUEST
+    # 12 RELAY - FORW
+    # 13 RELAY - REPL
+
+    eth = None
+    ipv6 = None
+    udp = None
+
+    def __init__(self):
+        self.eth = Ethernet_raw()
+        self.ipv6 = IPv6_raw()
+        self.udp = UDP_raw()
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
+                    dhcp_message_type, packet_body, options):
+        dhcp_packet = pack("!B", dhcp_message_type)
+        dhcp_packet += packet_body
+
+        for option_code in options.keys():
+            dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
+            dhcp_packet += options[option_code]
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
+        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
+                                                             len(dhcp_packet), dhcp_packet)
+
+        return eth_header + ipv6_header + udp_header + dhcp_packet
+
+    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                               ipv6_src, ipv6_dst, ipv6_flow,
+                               hop_count, link_addr, peer_addr, options):
+        packet_body = pack("!B", hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
+                                12, packet_body, options)
+
