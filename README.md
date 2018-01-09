@@ -196,7 +196,7 @@ optional arguments:
 [![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
 
 # dnsmasploit.py
-Данный скрипт предназначен для эксплуатации уязвимости CVE-2017-14493 и CVE-2017-14494.
+Данный скрипт предназначен для эксплуатации уязвимостей CVE-2017-14493 и CVE-2017-14494.
 
 ```
 root@kali:~/raw-packet# ./dnsmasploit.py -h
