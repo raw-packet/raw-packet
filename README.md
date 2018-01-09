@@ -246,3 +246,6 @@ optional arguments:
 
 ## Video (CVE-2017-14493)
 [![dnsmasploit preview](https://j.gifs.com/7LWln8.gif)](https://youtu.be/VWr0zCZlMrE)
+
+## Video (CVE-2017-14494)
+[![dnsmasploit preview](https://j.gifs.com/1rB5VG.gif)](https://youtu.be/GqMuZ1wMCWQ)
