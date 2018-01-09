@@ -1,18 +1,16 @@
+# Important information:
+***This project is created only for education process and can not be used for 
+law violation or personal gain. The author of this project is not responsible for any possible harm caused by the materials of this project.***
+
 # Важная информация:
 ***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.
 Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
 
-# Проект raw-packet
-Данный проект содержит интрументы для низкоуровневой сборки и отправки сетевых пакетов.
-
-В настоящий момент поддерживается отправка пакетов по протоколам: ARP, DHCP, DNS.
-При этом возможность отправки данных пакетов возможна только на Linux системах и только с правами суперпользователя.
-
 # dhcp_starvation.py
-Данный скрипт производит атаку на DHCP сервер путем переполнения пула свободных IP-адресов на нем (DHCP starvation attack).
+Данный скрипт производит атаку на DHCP-сервер путем переполнения пула свободных IP-адресов.
 
 ```
-root@desktop:~/raw-packet# ./dhcp_starvation.py -h
+root@kali:~/raw-packet# ./dhcp_starvation.py -h
 usage: dhcp_starvation.py [-h] [-i INTERFACE] [-d DELAY] [-t TIMEOUT] [-n]
                           [-v DHCP_OPTION_VALUE] [-c DHCP_OPTION_CODE] [-f]
 
@@ -45,17 +43,18 @@ optional arguments:
 7. ```-c DHCP_OPTION_CODE, --dhcp_option_code DHCP_OPTION_CODE```: код DHCP-опции, если вы хотите добавить ее во все запросы;
 8. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
 
-## Видео проведения атаки
+## Video
 [![DHCP Starvation preview](https://j.gifs.com/GZGgEJ.gif)](https://youtu.be/Nc8lRo9LbKQ)
 
 # dhcp_rogue_server.py
 Данный скрипт производит атаку на DHCP-клиентов путем подмены легитимного DHCP-сервера (Rogue DHCP).
 
 ```
-root@desktop:~/raw-packet# ./dhcp_rogue_server.py -h
+root@kali:~/raw-packet# ./dhcp_rogue_server.py -h
 usage: dhcp_rogue_server.py [-h] [-i INTERFACE] [-f FIRST_OFFER_IP]
                             [-l LAST_OFFER_IP] [-t TARGET_MAC] [-I TARGET_IP]
-                            [-q] [--apple] [-c SHELLSHOCK_COMMAND] [-b]
+                            [-q] [--apple] [--broadcast_response] [--force]
+                            [--not_exit] [-c SHELLSHOCK_COMMAND] [-b]
                             [-p BIND_PORT] [-N] [-E] [-R] [-e REVERSE_PORT]
                             [-n] [-B] [-O SHELLSHOCK_OPTION_CODE]
                             [--ip_path IP_PATH] [--iface_name IFACE_NAME]
@@ -63,7 +62,7 @@ usage: dhcp_rogue_server.py [-h] [-i INTERFACE] [-f FIRST_OFFER_IP]
                             [--router ROUTER] [--netmask NETMASK]
                             [--broadcast BROADCAST] [--dns DNS]
                             [--lease_time LEASE_TIME] [--domain DOMAIN]
-                            [--proxy PROXY]
+                            [--proxy PROXY] [--tftp TFTP]
 
 DHCP Rogue server
 
@@ -81,6 +80,9 @@ optional arguments:
                         Set client IP address with MAC in --target_mac
   -q, --quiet           Minimal output
   --apple               Apple devices MiTM
+  --broadcast_response  Send broadcast response
+  --force               For new client or client after DHCP DECLINE
+  --not_exit            Not exit on success MiTM attack
   -c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND
                         Set shellshock command in DHCP client
   -b, --bind_shell      Use awk bind tcp shell in DHCP client
@@ -117,7 +119,8 @@ optional arguments:
   --lease_time LEASE_TIME
                         Set lease time, default=172800
   --domain DOMAIN       Set domain name for search, default=test.com
-  --proxy PROXY         Set proxy
+  --proxy PROXY         Set proxy server IP address
+  --tftp TFTP           Set TFTP server IP address
 ```
 
 ## Аргументы скрипта dhcp_rogue_server.py:
@@ -128,36 +131,40 @@ optional arguments:
 5. ```-t TARGET_MAC, --target_mac TARGET_MAC```: MAC-адрес цели, если данный параметр будет задан то будет осущевляться перехват DHCP-запросов только от данного MAC-адреса;
 6. ```-I TARGET_IP, --target_ip TARGET_IP```: IP-адрес, который необходимо назначить для MAC-адреса: --target_mac TARGET_MAC;
 7. ```-q, --quiet```: минимальный вывод скрипта;
-8. ```--apple```: специальный параметр для проведения MiTM для устройств Apple;
-9. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
-10. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
-11. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
-12. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
-13. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
-14. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
-15. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
-16. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
-17. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
-18. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
-19. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
-20. ```--dhcp_mac DHCP_MAC```: MAC-адрес DHCP-сервера;
-21. ```--dhcp_ip DHCP_IP```: IP-адрес DHCP-сервера;
-22. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
-23. ```--netmask NETMASK```: маска подсети;
-24. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
-25. ```--dns DNS```: IP-адрес DNS-сервера;
-26. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
-27. ```--domain DOMAIN```: домен;
-28. ```--proxy PROXY```: прокси.
+8. ```--apple```: специальный параметр для проведения MiTM для устройств компании Apple;
+9. ```--broadcast_response```:  отправлять только широковещательные ответы;
+10. ```--force```: параметр для новых клиентов или клиентов после DHCP DECLINE;
+11. ```--not_exit```: не выходить в случае успешного проведения MiTM атаки;
+12. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
+13. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
+14. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
+15. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
+16. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
+17. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
+18. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
+19. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
+20. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
+21. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
+22. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
+23. ```--dhcp_mac DHCP_MAC```: MAC-адрес DHCP-сервера;
+24. ```--dhcp_ip DHCP_IP```: IP-адрес DHCP-сервера;
+25. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
+26. ```--netmask NETMASK```: маска подсети;
+27. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
+28. ```--dns DNS```: IP-адрес DNS-сервера;
+29. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
+30. ```--domain DOMAIN```: домен;
+31. ```--proxy PROXY```: IP-адрес прокси сервера;
+32. ```--tftp TFTP```: IP-адрес TFTP сервера.
 
-## Видео проведения атаки
+## Video
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
 
 # apple_dhcp_mitmer.py
-Данный скрипт в автоматическом режиме обнаруживает Apple устройства в WiFi сети и с помощью протокола DHCP изменяет IP-адреса маршрутизатора и DNS-сервера на всех устройствах на ваш IP-адрес.
+Данный скрипт в автоматическом режиме обнаруживает Apple устройства в сети и с помощью протокола DHCP изменяет IP-адреса маршрутизатора и DNS-сервера на всех устройствах на ваш IP-адрес.
 
 ```
-root@desktop:~/raw-packet# ./apple_dhcp_mitmer.py -h
+root@kali:~/raw-packet# ./apple_dhcp_mitmer.py -h
 usage: apple_dhcp_mitmer.py [-h] [-i LISTEN_IFACE] [-r AIREPLAY_IFACE]
                             [-d DEAUTH]
 
@@ -182,36 +189,45 @@ optional arguments:
 4. ```-r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE```: используемый сетевой интерфейс для отправки deauth пакетов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
 5. ```-d DEAUTH, --deauth DEAUTH```: количество deauth пакетов для отправки.
 
-## Видео проведения атаки с использованием deauth пакетов
+## Video with deauth packets technique
 [![Apple WiFi MiTM preview](https://j.gifs.com/nZnOX5.gif)](https://youtu.be/MmPluMxOyMk)
 
-## Видео проведения атаки с использованием протокола обнаружения конфликта IP-адресов в сети
+## Video with network conflict technique
 [![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
 
 # dnsmasploit.py
-Данный скрипт предназначен для эксплуатации уязвимости CVE-2017-14493 (Stack Based overflow).
+Данный скрипт предназначен для эксплуатации уязвимости CVE-2017-14493 и CVE-2017-14494.
 
 ```
-root@desktop:~/raw-packet# ./dnsmasploit.py -h
-usage: dnsmasploit.py [-h] -t TARGET [-p TARGET_PORT] [-c CAPACITY]
-                      [-v VERSION] [--interpreter INTERPRETER]
+root@kali:~/raw-packet# ./dnsmasploit.py -h
+usage: dnsmasploit.py [-h] [-i INTERFACE] [-e] [-l] [-f FILE_NAME] -t TARGET
+                      [-p TARGET_PORT] [-a ARCHITECTURE] [-v VERSION]
+                      [--interpreter INTERPRETER]
                       [--interpreter_arg INTERPRETER_ARG] [--payload PAYLOAD]
                       [--command COMMAND] [--bind_port BIND_PORT]
                       [--reverse_port REVERSE_PORT]
                       [--reverse_host REVERSE_HOST]
 
-Exploit for dnsmasq CVE-2017-14493 (Stack Based overflow)
+Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494
 
 optional arguments:
   -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send packets
+  -e, --exploit         Exploit (CVE-2017-14493) works only if Stack cookie
+                        and PIE disabled
+  -l, --data_leak       Data leakage (CVE-2017-14494)
+  -f FILE_NAME, --file_name FILE_NAME
+                        Set file name for leak data
   -t TARGET, --target TARGET
                         Set target IPv6 address
   -p TARGET_PORT, --target_port TARGET_PORT
                         Set target port, default=547
-  -c CAPACITY, --capacity CAPACITY
-                        Set capacity (x86 or x86_64), default=x86
+  -a ARCHITECTURE, --architecture ARCHITECTURE
+                        Set architecture (i386, amd64 or arm), default=i386
   -v VERSION, --version VERSION
-                        Set dnsmasq version (2.75, 2.76, 2.77), default=2.77
+                        Set dnsmasq version (2.70, 2.71, 2.72, 2.73, 2.74,
+                        2.75, 2.76, 2.77), default=2.77
   --interpreter INTERPRETER
                         Set path to interpreter on target, default="/bin/bash"
   --interpreter_arg INTERPRETER_ARG
@@ -225,8 +241,8 @@ optional arguments:
   --reverse_port REVERSE_PORT
                         Set reverse port, default=4444
   --reverse_host REVERSE_HOST
-                        Set reverse host, default="127.0.0.1"
+                        Set reverse host
 ```
 
-## Видео проведения атаки с использованием dnsmasploit
+## Video
 [![dnsmasploit preview](https://j.gifs.com/N9x0wN.gif)](https://youtu.be/PfuGGwZdhVs)
