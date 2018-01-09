@@ -244,5 +244,5 @@ optional arguments:
                         Set reverse host
 ```
 
-## Video
-[![dnsmasploit preview](https://j.gifs.com/N9x0wN.gif)](https://youtu.be/PfuGGwZdhVs)
+## Video (CVE-2017-14493)
+[![dnsmasploit preview](https://j.gifs.com/7LWln8.gif)](https://youtu.be/VWr0zCZlMrE)
