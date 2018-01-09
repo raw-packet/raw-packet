@@ -475,7 +475,7 @@ def get_dhcpv6_server_duid():
         tm.add_task(recv_dhcpv6_reply)
         sleep(3)
         send_dhcpv6_solicit()
-        sleep(5)
+        sleep(10)
 
         count_solicit_reqeusts = 0
         while count_solicit_reqeusts < 2:
