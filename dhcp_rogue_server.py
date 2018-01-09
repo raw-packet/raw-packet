@@ -59,7 +59,7 @@ parser.add_argument('--broadcast', type=str, help='Set network broadcast, if not
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address')
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 parser.add_argument('--domain', type=str, help='Set domain name for search, default=test.com', default="test.com")
-parser.add_argument('--proxy', type=str, help='Set proxy', default=None)
+parser.add_argument('--proxy', type=str, help='Set proxy server IP address', default=None)
 parser.add_argument('--tftp', type=str, help='Set TFTP server IP address', default=None)
 
 args = parser.parse_args()
