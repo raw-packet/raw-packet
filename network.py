@@ -368,7 +368,7 @@ class TCP_raw:
         s = ~s & 0xffff
         return s
 
-    def make_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, flag, win, opt_exist=False, opt=None):
+    def make_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, flag, win, opt_exist=False, opt=None, data=""):
 
         reserved = 0
         window = win
@@ -389,15 +389,12 @@ class TCP_raw:
 
         source_address = inet_aton(ip_src)
         destination_address = inet_aton(ip_dst)
-
         placeholder = 0
         protocol = IPPROTO_TCP
-        tcp_length = len(tcp_header)
-
+        tcp_length = len(tcp_header) + len(data)
         psh = pack("!" "4s" "4s" "2B" "H", source_address, destination_address, placeholder, protocol, tcp_length)
-        psh = psh + tcp_header
 
-        chksum = self.checksum(psh)
+        chksum = self.checksum(psh + tcp_header + data)
 
         tcp_header = pack("!" "2H" "2L" "2B" "3H",
                           port_src, port_dst, seq, ack, (offset << 4) + reserved, flag, window, chksum, urg)
@@ -418,21 +415,38 @@ class TCP_raw:
 
         return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, 0, 2, 29200, True, options)
 
-    def make_ack_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr):
+    def make_ack_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr=-1):
         option_nop = pack("!B", 1)
-        self.update_timestamp()
-        option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
-        options = option_nop + option_nop + option_timestamp
+        if tsecr != -1:
+            self.update_timestamp()
+            option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
+            options = option_nop + option_nop + option_timestamp
+        else:
+            options = option_nop + option_nop
 
-        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 16, 229, True, options)
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 16, 29200, True, options)
 
-    def make_psh_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr):
+    def make_psh_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr=-1, data=""):
         option_nop = pack("!B", 1)
-        self.update_timestamp()
-        option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
-        options = option_nop + option_nop + option_timestamp
+        if tsecr != -1:
+            self.update_timestamp()
+            option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
+            options = option_nop + option_nop + option_timestamp
+        else:
+            options = option_nop + option_nop
 
-        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 24, 229, True, options)
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 24, 29200, False, options, data)
+
+    def make_fin_header(self, ip_src, ip_dst, port_src, port_dst, seq, ack, tsecr=-1):
+        option_nop = pack("!B", 1)
+        if tsecr != -1:
+            self.update_timestamp()
+            option_timestamp = pack("! 2B 2L", 8, 10, self.timestamp_value, tsecr)
+            options = option_nop + option_nop + option_timestamp
+        else:
+            options = option_nop + option_nop
+
+        return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 17, 29200, False, options)
 
 
 class DHCP_raw:
