@@ -196,7 +196,7 @@ optional arguments:
 [![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
 
 # dnsmasploit.py
-Данный скрипт предназначен для эксплуатации уязвимости CVE-2017-14493 и CVE-2017-14494.
+Данный скрипт предназначен для эксплуатации уязвимостей CVE-2017-14493 и CVE-2017-14494.
 
 ```
 root@kali:~/raw-packet# ./dnsmasploit.py -h
@@ -244,5 +244,8 @@ optional arguments:
                         Set reverse host
 ```
 
-## Video
-[![dnsmasploit preview](https://j.gifs.com/N9x0wN.gif)](https://youtu.be/PfuGGwZdhVs)
+## Video (CVE-2017-14493)
+[![dnsmasploit preview](https://j.gifs.com/7LWln8.gif)](https://youtu.be/VWr0zCZlMrE)
+
+## Video (CVE-2017-14494)
+[![dnsmasploit preview](https://j.gifs.com/1rB5VG.gif)](https://youtu.be/GqMuZ1wMCWQ)
