@@ -149,8 +149,16 @@ class Base:
             ipv6_address = None
         return ipv6_address
 
+    def get_netiface_ipv6_link_address(self, interface_name):
+        for index in range(10):
+            ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
+            if ipv6_address.startswith("fe80::"):
+                return ipv6_address
+        return None
+
+
     @staticmethod
-    def get_netiface_ipv6_link_address(interface_name):
+    def create_netiface_ipv6_link_address(interface_name):
         try:
             mac_address = str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
             parts = mac_address.split(":")
