@@ -483,20 +483,23 @@ class ICMPv6_raw:
         icmp_packet = pack("!" "2B" "H", type, code, check_sum) + body
 
         eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
-        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58)  # 58 = 0x3a (ICMPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58, 255)  # 58 = 0x3a (ICMPv6)
 
         return eth_header + ipv6_header + icmp_packet
 
-    def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src, source_link_layer_address=""):
+    def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src,
+                                   need_source_link_layer_address=False, source_link_layer_address=""):
+
         body = pack("I", 0)             # 4 reserved bytes
-        body += pack("!" "2B", 1, 1)    # 1 - Type: source link address, 1 - Length = 1 (8 bytes)
+        if need_source_link_layer_address:
+            body += pack("!" "2B", 1, 1)    # 1 - Type: source link address, 1 - Length = 1 (8 bytes)
 
-        if source_link_layer_address == 0:
-            body += self.eth.convert_mac(ethernet_src_mac)
-        else:
-            body += self.eth.convert_mac(source_link_layer_address)
+            if source_link_layer_address == "":
+                body += self.eth.convert_mac(ethernet_src_mac)
+            else:
+                body += self.eth.convert_mac(source_link_layer_address)
 
-        return self.make_packet(ethernet_src_mac, "33:33:00:00:00:00:02", ipv6_src, "ff02::2", 0, 133, 0, body)
+        return self.make_packet(ethernet_src_mac, "33:33:00:00:00:02", ipv6_src, "ff02::2", 0x835d1, 133, 0, body)
 
 
 class DHCP_raw:
