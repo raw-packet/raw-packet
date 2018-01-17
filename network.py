@@ -2,7 +2,7 @@ from random import choice, randint
 from struct import pack
 from binascii import unhexlify
 from array import array
-from socket import inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6
+from socket import inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
 from re import search
 
 
@@ -311,8 +311,10 @@ class UDP_raw:
     #  |          data octets ...
     #  +---------------- ...
 
+    ipv6 = None
+
     def __init__(self):
-        pass
+        self.ipv6 = IPv6_raw()
 
     @staticmethod
     def checksum(pkt):
@@ -337,8 +339,7 @@ class UDP_raw:
         protocol = IPPROTO_UDP
         udp_length = data_len + 8
 
-        ipv6 = IPv6_raw()
-        psh = ipv6.pack_addr(ipv6_src) + ipv6.pack_addr(ipv6_dst)
+        psh = self.ipv6.pack_addr(ipv6_src) + self.ipv6.pack_addr(ipv6_dst)
         psh += pack("!" "2B" "H", placeholder, protocol, udp_length)
         chksum = self.checksum(psh + udp_header + data)
 
@@ -447,6 +448,55 @@ class TCP_raw:
             options = option_nop + option_nop
 
         return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 17, 29200, False, options)
+
+
+class ICMPv6_raw:
+    eth = None
+    ipv6 = None
+
+    def __init__(self):
+        self.eth = Ethernet_raw()
+        self.ipv6 = IPv6_raw()
+
+    @staticmethod
+    def checksum(pkt):
+        if len(pkt) % 2 == 1:
+            pkt += "\0"
+        s = sum(array("H", pkt))
+        s = (s >> 16) + (s & 0xffff)
+        s += s >> 16
+        s = ~s
+        return (((s >> 8) & 0xff) | s << 8) & 0xffff
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ipv6_src, ipv6_dst, ipv6_flow, type, code, body):
+
+        placeholder = 0
+        protocol = IPPROTO_ICMPV6
+        check_sum = 0
+        icmp_packet = pack("!" "2B" "H", type, code, check_sum) + body
+
+        psh = self.ipv6.pack_addr(ipv6_src) + self.ipv6.pack_addr(ipv6_dst)
+        psh += pack("!" "2B" "H", placeholder, protocol, len(icmp_packet))
+        check_sum = self.checksum(psh + icmp_packet)
+
+        icmp_packet = pack("!" "2B" "H", type, code, check_sum) + body
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58)  # 58 = 0x3a (ICMPv6)
+
+        return eth_header + ipv6_header + icmp_packet
+
+    def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src, source_link_layer_address=""):
+        body = pack("I", 0)             # 4 reserved bytes
+        body += pack("!" "2B", 1, 1)    # 1 - Type: source link address, 1 - Length = 1 (8 bytes)
+
+        if source_link_layer_address == 0:
+            body += self.eth.convert_mac(ethernet_src_mac)
+        else:
+            body += self.eth.convert_mac(source_link_layer_address)
+
+        return self.make_packet(ethernet_src_mac, "33:33:00:00:00:00:02", ipv6_src, "ff02::2", 0, 133, 0, body)
 
 
 class DHCP_raw:
