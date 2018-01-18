@@ -453,10 +453,12 @@ class TCP_raw:
 class ICMPv6_raw:
     eth = None
     ipv6 = None
+    dns = None
 
     def __init__(self):
         self.eth = Ethernet_raw()
         self.ipv6 = IPv6_raw()
+        self.dns = DNS_raw()
 
     @staticmethod
     def checksum(pkt):
@@ -467,6 +469,16 @@ class ICMPv6_raw:
         s += s >> 16
         s = ~s
         return (((s >> 8) & 0xff) | s << 8) & 0xffff
+
+    @staticmethod
+    def make_option(option_type, option_value):
+        if (len(option_value) + 2) / 8 > 255:
+            print "ICMPv6 option value too big!"
+            return ""
+        else:
+            if (len(option_value) + 2) % 8 != 0:
+                option_value = ''.join(pack("B", 0) for _ in range(8 - ((len(option_value) + 2) % 8))) + option_value
+            return pack("!2B", option_type, (len(option_value) + 2) / 8) + option_value
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ipv6_src, ipv6_dst, ipv6_flow, type, code, body):
@@ -500,6 +512,39 @@ class ICMPv6_raw:
                 body += self.eth.convert_mac(source_link_layer_address)
 
         return self.make_packet(ethernet_src_mac, "33:33:00:00:00:02", ipv6_src, "ff02::2", 0x835d1, 133, 0, body)
+
+    def make_router_advertisement_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst,
+                                         prefix, dns, domain_search, mtu=1500, advertisement_interval=60000,
+                                         src_link_layer_address=None, router_lifetime=1800):
+        cur_hop_limit = 64  # Cur hop limit
+        flags = 0xc0        # Managed address configuration, other configuration, PRF: Medium
+        reachable_time = 0  # Reachable time
+        retrans_timer = 0   # Retrans timer
+
+        body = pack("!" "2B" "H" "2I", cur_hop_limit, flags, router_lifetime, reachable_time, retrans_timer)
+
+        if src_link_layer_address is None:
+            src_link_layer_address = ethernet_src_mac
+
+        prefix_value = self.ipv6.pack_addr(str(prefix.split("/")[0]))
+        prefix_len = int(prefix.split("/")[1])
+
+        body += self.make_option(1, self.eth.convert_mac(src_link_layer_address))
+        body += self.make_option(3, pack("!" "2B" "3I", prefix_len, 0xc0, 0xffffffff, 0xffffffff, 0) + prefix_value)
+        body += self.make_option(5, pack("!H", mtu))
+        body += self.make_option(25, pack("!H", 6000) + self.ipv6.pack_addr(dns))
+
+        if len(domain_search) > 22:
+            print "Too big domain search value!"
+        else:
+            domain_search = self.dns.make_dns_name(domain_search)
+            padding = 24 - len(domain_search)
+            domain_search += ''.join(pack("B", 0) for _ in range(padding))
+            body += self.make_option(31, pack("!I", 6000) + domain_search)
+
+        body += self.make_option(7, pack("!H", advertisement_interval))
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0xb4755, 134, 0, body)
 
 
 class DHCP_raw:
