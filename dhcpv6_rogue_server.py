@@ -5,7 +5,7 @@ from network import DHCPv6_raw
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv6Address
-from scapy.all import sniff, ICMPv6, DHCPv6
+from scapy.all import sniff, Ether, IPv6, ICMPv6ND_RS, DHCP6_Solicit, DHCP6_Request, DHCP6_Release, DHCP6_Confirm
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
@@ -85,13 +85,30 @@ if not args.quiet:
 
 def reply(request):
 
-    # ICMPv6 REQUESTS
-    if request.haslayer(ICMPv6):
-        print "ICMPv6 request!"
+    # ICMPv6 Router Solicitation
+    if request.haslayer(ICMPv6ND_RS):
+        print Base.c_info + "ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
+              request[Ether].src + ")"
 
-    # DHCPv6 REQUESTS
-    if request.haslayer(DHCPv6):
-        print "DHCPv6 request!"
+    # DHCPv6 Solicit
+    if request.haslayer(DHCP6_Solicit):
+        print Base.c_info + "DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
+              request[Ether].src + ")"
+
+    # DHCPv6 Request
+    if request.haslayer(DHCP6_Request):
+        print Base.c_info + "DHCPv6 Request from: " + request[IPv6].src + " (" + \
+              request[Ether].src + ")"
+
+    # DHCPv6 Release
+    if request.haslayer(DHCP6_Release):
+        print Base.c_info + "DHCPv6 Release from: " + request[IPv6].src + " (" + \
+              request[Ether].src + ")"
+
+    # DHCPv6 Confirm
+    if request.haslayer(DHCP6_Confirm):
+        print Base.c_info + "DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
+              request[Ether].src + ")"
 
 
 if __name__ == "__main__":
@@ -101,12 +118,14 @@ if __name__ == "__main__":
             exit(1)
     else:
         if args.target_mac is None:
-            print Base.c_info + "Waiting for a ICMPv6 or DHCPv6 requests ..."
-            sniff(lfilter=lambda d: d.src != your_mac_address,
-                  filter="icmpv6 or dhcpv6",
+            print Base.c_info + "Waiting for a ICMPv6 RS or DHCPv6 requests ..."
+            sniff(lfilter=lambda d: d.src != your_mac_address and
+                                    (ICMPv6ND_RS in d or DHCP6_Solicit in d or DHCP6_Request in d
+                                     or DHCP6_Release in d or DHCP6_Confirm in d),
                   prn=reply, iface=current_network_interface)
         else:
-            print Base.c_info + "Waiting for a ICMPv6 or DHCPv6 requests from: " + args.target_mac + " ..."
-            sniff(lfilter=lambda d: d.src == args.target_mac,
-                  filter="icmpv6 or dhcpv6",
+            print Base.c_info + "Waiting for a ICMPv6 RS or DHCPv6 requests from: " + args.target_mac + " ..."
+            sniff(lfilter=lambda d: d.src == args.target_mac and
+                                    (ICMPv6ND_RS in d or DHCP6_Solicit in d or DHCP6_Request in d
+                                     or DHCP6_Release in d or DHCP6_Confirm in d),
                   prn=reply, iface=current_network_interface)
