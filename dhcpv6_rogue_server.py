@@ -105,10 +105,10 @@ def reply(request):
                                                                    domain_search=dns_search)
         try:
             SOCK.send(icmpv6_ra_packet)
-            print Base.c_warning + "Send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
+            print Base.c_warning + "Send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
         except:
-            print Base.c_error + "Do not send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
+            print Base.c_error + "Do not send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
 
     # DHCPv6 Solicit
