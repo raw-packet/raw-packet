@@ -94,7 +94,7 @@ def reply(request):
 
     # ICMPv6 Router Solicitation
     if request.haslayer(ICMPv6ND_RS):
-        print Base.c_info + "ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
+        print Base.c_info + "Sniff ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
         icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
                                                                    ethernet_dst_mac=request[Ether].src,
@@ -105,7 +105,7 @@ def reply(request):
                                                                    domain_search=dns_search)
         try:
             SOCK.send(icmpv6_ra_packet)
-            print Base.c_info + "Send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
+            print Base.c_warning + "Send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
         except:
             print Base.c_error + "Do not send ICMPv6 Router Advertisement packet to: " + request[IPv6].src + " (" + \
@@ -113,22 +113,22 @@ def reply(request):
 
     # DHCPv6 Solicit
     if request.haslayer(DHCP6_Solicit):
-        print Base.c_info + "DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
+        print Base.c_info + "Sniff DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
 
     # DHCPv6 Request
     if request.haslayer(DHCP6_Request):
-        print Base.c_info + "DHCPv6 Request from: " + request[IPv6].src + " (" + \
+        print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
 
     # DHCPv6 Release
     if request.haslayer(DHCP6_Release):
-        print Base.c_info + "DHCPv6 Release from: " + request[IPv6].src + " (" + \
+        print Base.c_info + "Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
 
     # DHCPv6 Confirm
     if request.haslayer(DHCP6_Confirm):
-        print Base.c_info + "DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
+        print Base.c_info + "Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
 
     SOCK.close()
