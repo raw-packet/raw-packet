@@ -14,6 +14,7 @@ from sys import exit
 Base = Base()
 Base.check_platform()
 Base.check_user()
+Base.print_banner()
 
 if __name__ == "__main__":
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-m', '--src_mac', type=str, help='Set src mac address (not required)', default=None)
     parser.add_argument('-a', '--src_ipv6', type=str, help='Set src ipv6 address (not required)', default=None)
-    parser.add_argument('-p', '--number_of_packets', type=int, help='Set number of packets (default=1000000)', default=1000000)
+    parser.add_argument('-p', '--number_of_packets', type=int, help='Set number of packets (default=100000)', default=100000)
     parser.add_argument('-t', '--number_of_iterations', type=int, help='Set number of iteration (default=100)', default=100)
 
     args = parser.parse_args()
@@ -47,8 +48,8 @@ if __name__ == "__main__":
         src_ipv6_address = args.src_ipv6
 
     print Base.c_info + "Interface: " + current_network_interface
-    print Base.c_info + "IPv6 address: " + src_ipv6_address
-    print Base.c_info + "MAC address: " + src_mac_address
+    print Base.c_info + "Src IPv6 address: " + src_ipv6_address
+    print Base.c_info + "Src MAC address: " + src_mac_address
     print Base.c_info + "Sending ICMPv6 router solicit packets ..."
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
