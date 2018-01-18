@@ -133,6 +133,7 @@ def reply(request):
 
     SOCK.close()
 
+
 if __name__ == "__main__":
     if args.target_ip is not None:
         if args.target_mac is None:
