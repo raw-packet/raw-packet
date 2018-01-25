@@ -75,6 +75,8 @@ else:
 
 if not args.quiet:
     print Base.c_info + "Network interface: " + Base.cINFO + current_network_interface + Base.cEND
+    print Base.c_info + "Your MAC address: " + Base.cINFO + your_mac_address + Base.cEND
+    print Base.c_info + "Your IPv6 link local address: " + Base.cINFO + your_ipv6_link_address + Base.cEND
     if args.target_mac is not None:
         print Base.c_info + "Target MAC: " + Base.cINFO + args.target_mac + Base.cEND
     if args.target_ip is not None:
