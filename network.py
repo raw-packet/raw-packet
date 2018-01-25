@@ -1056,7 +1056,7 @@ class DHCPv6_raw:
 
     def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
                               ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None):
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
 
         if 16777215 < transaction_id < 0:
             return None
@@ -1069,7 +1069,11 @@ class DHCPv6_raw:
         else:
             options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
 
-        options[2] = self.get_duid(ethernet_src_mac)         # Server Identifier
+        if server_duid_mac is None:
+            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+        else:
+            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
+
         options[20] = ""                                     # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
         options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
