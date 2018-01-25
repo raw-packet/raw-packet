@@ -499,7 +499,7 @@ def get_dhcpv6_server_duid():
 
 
 def send_dhcpv6_solicit():
-    Client_DUID = dhcpv6r.get_client_duid(macsrc)
+    Client_DUID = dhcpv6r.get_duid(macsrc)
     request_options = [23, 24]
 
     pkt = dhcpv6r.make_solicit_packet(ethernet_src_mac=macsrc,
@@ -520,7 +520,7 @@ def send_dhcpv6_solicit():
 
 def recv_dhcpv6_reply():
     sniff(iface=current_network_interface, stop_filter=dhcpv6_callback, count=1,
-          filter="udp and src port 547 and dst port 546 and ip6 dst host " + ipv6src_link)
+          filter="udp and src port 547 and dst port 546")
 
 
 def dhcpv6_callback(pkt):
