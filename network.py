@@ -451,6 +451,15 @@ class TCP_raw:
 
 
 class ICMPv6_raw:
+    #  0                   1                   2                   3
+    #  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |     Type      |     Code      |          Checksum             |
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |                                                               |
+    # +                         Message Body                          +
+    # |                                                               |
+
     eth = None
     ipv6 = None
     dns = None
@@ -514,8 +523,9 @@ class ICMPv6_raw:
         return self.make_packet(ethernet_src_mac, "33:33:00:00:00:02", ipv6_src, "ff02::2", 0x835d1, 133, 0, body)
 
     def make_router_advertisement_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst,
-                                         prefix, dns, domain_search, mtu=1500, advertisement_interval=60000,
-                                         src_link_layer_address=None, router_lifetime=1800):
+                                         prefix, dns_address, domain_search, ipv6_addr=None, mtu=1500,
+                                         advertisement_interval=60000, src_link_layer_address=None,
+                                         router_lifetime=1800):
         cur_hop_limit = 64  # Cur hop limit
         flags = 0xc0        # Managed address configuration, other configuration, PRF: Medium
         reachable_time = 0  # Reachable time
@@ -532,7 +542,7 @@ class ICMPv6_raw:
         body += self.make_option(1, self.eth.convert_mac(src_link_layer_address))
         body += self.make_option(3, pack("!" "2B" "3I", prefix_len, 0xc0, 0xffffffff, 0xffffffff, 0) + prefix_value)
         body += self.make_option(5, pack("!H", mtu))
-        body += self.make_option(25, pack("!H", 6000) + self.ipv6.pack_addr(dns))
+        body += self.make_option(25, pack("!H", 6000) + self.ipv6.pack_addr(dns_address))
 
         if len(domain_search) > 22:
             print "Too big domain search value!"
@@ -543,6 +553,8 @@ class ICMPv6_raw:
             body += self.make_option(31, pack("!I", 6000) + domain_search)
 
         body += self.make_option(7, pack("!H", advertisement_interval))
+        if ipv6_addr is not None:
+            body += self.make_option(17, pack("!" "2B" "I", 3, prefix_len, 0) + self.ipv6.pack_addr(ipv6_addr))
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0xb4755, 134, 0, body)
 
@@ -945,18 +957,22 @@ class DHCPv6_raw:
     eth = None
     ipv6 = None
     udp = None
+    dns = None
 
     def __init__(self):
         self.eth = Ethernet_raw()
         self.ipv6 = IPv6_raw()
         self.udp = UDP_raw()
+        self.dns = DNS_raw()
 
-    @staticmethod
-    def get_client_duid(mac_address):
-        eth = Ethernet_raw()
-        DUID_type = 3       # Link-Layer address
+    def get_duid(self, mac_address, timeval=None):
         Hardware_type = 1   # Ethernet
-        return pack("!" "2H", DUID_type, Hardware_type) + eth.convert_mac(mac_address)
+        if timeval is None:
+            DUID_type = 3   # Link-Layer address
+            return pack("!" "2H", DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
+        else:
+            DUID_type = 1   # Link-Layer address plus time
+            return pack("!" "2H" "I", DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
@@ -1009,3 +1025,60 @@ class DHCPv6_raw:
                                 ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
                                 12, packet_body, options, options_raw)
 
+    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        if client_duid_timeval is None:
+            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        else:
+            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        options[2] = self.get_duid(ethernet_src_mac)         # Server Identifier
+        options[20] = ""                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 2,
+                                packet_body, options)
+
+    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        if client_duid_timeval is None:
+            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        else:
+            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        options[2] = self.get_duid(ethernet_src_mac)         # Server Identifier
+        options[20] = ""                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 7,
+                                packet_body, options)
