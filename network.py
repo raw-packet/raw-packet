@@ -245,18 +245,21 @@ class IPv6_raw:
 
     @staticmethod
     def pack_addr(ipv6_addr):
-        return inet_pton(AF_INET6, ipv6_addr)
+        if ipv6_addr == "::":
+            return ''.join(pack("B", 0) for _ in range(16))
+        else:
+            return inet_pton(AF_INET6, ipv6_addr)
 
-    @staticmethod
-    def make_header(source_ip, destination_ip, flow_label, payload_len, next_header, hop_limit=64):
-        srcip = inet_pton(AF_INET6, source_ip)       # Source port
-        dstip = inet_pton(AF_INET6, destination_ip)  # Destination port
+    def make_header(self, source_ip, destination_ip, flow_label, payload_len, next_header, hop_limit=64):
+        srcipv6 = self.pack_addr(source_ip)       # Source IPv6 address
+        dstipv6 = self.pack_addr(destination_ip)  # Destination IPv6 address
+
         ver = 6             # IP protocol version
         traffic_class = 0   # Differentiated Services Code Point and Explicit Congestion Notification
 
         return pack("!" "2I",
                     (ver << 28) + (traffic_class << 20) + flow_label,
-                    (payload_len << 16) + (next_header << 8) + hop_limit) + srcip + dstip
+                    (payload_len << 16) + (next_header << 8) + hop_limit) + srcipv6 + dstipv6
 
 
 class ARP_raw:
@@ -523,7 +526,7 @@ class ICMPv6_raw:
         return self.make_packet(ethernet_src_mac, "33:33:00:00:00:02", ipv6_src, "ff02::2", 0x835d1, 133, 0, body)
 
     def make_router_advertisement_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst,
-                                         prefix, dns_address, domain_search, ipv6_addr=None, mtu=1500,
+                                         dns_address, domain_search, prefix=None, ipv6_addr=None, mtu=1500,
                                          advertisement_interval=60000, src_link_layer_address=None,
                                          router_lifetime=1800):
         cur_hop_limit = 64  # Cur hop limit
@@ -536,11 +539,14 @@ class ICMPv6_raw:
         if src_link_layer_address is None:
             src_link_layer_address = ethernet_src_mac
 
-        prefix_value = self.ipv6.pack_addr(str(prefix.split("/")[0]))
-        prefix_len = int(prefix.split("/")[1])
+        if prefix is not None:
+            prefix_value = self.ipv6.pack_addr(str(prefix.split("/")[0]))
+            prefix_len = int(prefix.split("/")[1])
+            body += self.make_option(3, pack("!" "2B" "3I", prefix_len, 0xc0, 0xffffffff, 0xffffffff, 0) + prefix_value)
+            if ipv6_addr is not None:
+                body += self.make_option(17, pack("!" "2B" "I", 3, prefix_len, 0) + self.ipv6.pack_addr(ipv6_addr))
 
         body += self.make_option(1, self.eth.convert_mac(src_link_layer_address))
-        body += self.make_option(3, pack("!" "2B" "3I", prefix_len, 0xc0, 0xffffffff, 0xffffffff, 0) + prefix_value)
         body += self.make_option(5, pack("!H", mtu))
         body += self.make_option(25, pack("!H", 6000) + self.ipv6.pack_addr(dns_address))
 
@@ -553,10 +559,30 @@ class ICMPv6_raw:
             body += self.make_option(31, pack("!I", 6000) + domain_search)
 
         body += self.make_option(7, pack("!H", advertisement_interval))
-        if ipv6_addr is not None:
-            body += self.make_option(17, pack("!" "2B" "I", 3, prefix_len, 0) + self.ipv6.pack_addr(ipv6_addr))
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0xb4755, 134, 0, body)
+
+    def make_neighbor_advertisement_packet(self, ethernet_src_mac, ipv6_src, target_ipv6_address,
+                                           ethernet_dst_mac=None, ipv6_dst=None):
+        body = pack("!I", 0x20000000)   # Flags: 0x20000000, Override
+        body += self.ipv6.pack_addr(target_ipv6_address)
+        body += self.make_option(2, self.eth.convert_mac(ethernet_src_mac))  # Target link-layer address
+
+        if ethernet_dst_mac is None:
+            ethernet_dst_mac = "33:33:00:00:00:01"
+
+        if ipv6_dst is None:
+            ipv6_dst = "ff02::1"
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 136, 0, body)
+
+    # def make_dad_packet(self, ethernet_src_mac, target_ipv6_address):
+    #     body = pack("I", 0)             # 4 reserved bytes
+    #     body += self.ipv6.pack_addr(target_ipv6_address)
+    #     body += self.make_option(14, pack("!IH", 0x1f06928c, 0x6f45))
+    #
+    #     return self.make_packet(ethernet_src_mac, "33:33:ff:00:03:2e",
+    #                             "::", "ff02::1:ff00:32e", 0, 135, 0, body)
 
 
 class DHCP_raw:
@@ -940,19 +966,43 @@ class DHCPv6_raw:
     # +-------------+-------------------------------------------------+
 
     # DHCPv6 Message Types
-    # 1 SOLICIT
-    # 2 ADVERTISE
-    # 3 REQUEST
-    # 4 CONFIRM
-    # 5 RENEW
-    # 6 REBIND
-    # 7 REPLY
-    # 8 RELEASE
-    # 9 DECLINE
-    # 10 RECONFIGURE
-    # 11 INFORMATION - REQUEST
-    # 12 RELAY - FORW
-    # 13 RELAY - REPL
+    # 0	    Reserved
+    # 1	    SOLICIT	            [RFC3315]
+    # 2	    ADVERTISE	        [RFC3315]
+    # 3	    REQUEST	            [RFC3315]
+    # 4	    CONFIRM	            [RFC3315]
+    # 5	    RENEW	            [RFC3315]
+    # 6	    REBIND	            [RFC3315]
+    # 7	    REPLY	            [RFC3315]
+    # 8	    RELEASE	            [RFC3315]
+    # 9	    DECLINE	            [RFC3315]
+    # 10	RECONFIGURE	        [RFC3315]
+    # 11	INFORMATION-REQUEST	[RFC3315]
+    # 12	RELAY-FORW	        [RFC3315]
+    # 13	RELAY-REPL	        [RFC3315]
+    # 14	LEASEQUERY	        [RFC5007]
+    # 15	LEASEQUERY-REPLY	[RFC5007]
+    # 16	LEASEQUERY-DONE	    [RFC5460]
+    # 17	LEASEQUERY-DATA	    [RFC5460]
+    # 18	RECONFIGURE-REQUEST [RFC6977]
+    # 19	RECONFIGURE-REPLY	[RFC6977]
+    # 20	DHCPV4-QUERY	    [RFC7341]
+    # 21	DHCPV4-RESPONSE	    [RFC7341]
+    # 22	ACTIVELEASEQUERY	[RFC7653]
+    # 23	STARTTLS	        [RFC7653]
+    # 24	BNDUPD	            [RFC8156]
+    # 25	BNDREPLY	        [RFC8156]
+    # 26	POOLREQ	            [RFC8156]
+    # 27	POOLRESP	        [RFC8156]
+    # 28	UPDREQ	            [RFC8156]
+    # 29	UPDREQALL	        [RFC8156]
+    # 30	UPDDONE	            [RFC8156]
+    # 31	CONNECT	            [RFC8156]
+    # 32	CONNECTREPLY	    [RFC8156]
+    # 33	DISCONNECT	        [RFC8156]
+    # 34	STATE	            [RFC8156]
+    # 35	CONTACT	            [RFC8156]
+    # 36-255	Unassigned
 
     eth = None
     ipv6 = None
@@ -1086,3 +1136,28 @@ class DHCPv6_raw:
                                 ipv6_src, ipv6_dst,
                                 0xa1b82, 547, 546, 7,
                                 packet_body, options)
+
+    # def make_reconfigure_packet(self, ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst, transaction_id, dns_address,
+    #                             domain_search, ipv6_address):
+    #     if 16777215 < transaction_id < 0:
+    #         return None
+    #
+    #     packet_body = pack("!L", transaction_id)[1:]
+    #     options = {}
+    #
+    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+    #
+    #     options[20] = ""                                     # Reconfigure Accept
+    #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+    #     options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+    #
+    #     options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+    #                  pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+    #
+    #     return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst,
+    #                             0xa1b82, 547, 546, 10,
+    #                             packet_body, options)
