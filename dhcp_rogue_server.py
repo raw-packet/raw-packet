@@ -317,9 +317,10 @@ def dhcp_reply(request):
                     number_of_dhcp_request = 0
                     offer_ip_address = args.first_offer_ip
 
-            offer_packet = make_dhcp_offer_packet(transaction_id)
-            SOCK.send(offer_packet)
-            print Base.c_info + "Send offer response!"
+            if not args.apple:
+                offer_packet = make_dhcp_offer_packet(transaction_id)
+                SOCK.send(offer_packet)
+                print Base.c_info + "Send offer response!"
 
         # DHCP INFORM
         if request[DHCP].options[0][1] == 8:
@@ -385,7 +386,9 @@ def dhcp_reply(request):
             else:
                 if args.apple:
                     ack_packet = make_dhcp_ack_packet(transaction_id, requested_ip)
-                    SOCK.send(ack_packet)
+                    sleep(0.5)
+                    for _ in range(3):
+                        SOCK.send(ack_packet)
                     print Base.c_info + "Send ack response to Apple device: " + target_mac_address
 
                 else:
