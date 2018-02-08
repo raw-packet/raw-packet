@@ -1,6 +1,7 @@
 from platform import system, release
 from sys import exit
 from os import getuid
+from os.path import dirname, abspath
 from pwd import getpwuid
 from netifaces import interfaces
 from random import choice
@@ -36,7 +37,7 @@ class Base:
 
     @staticmethod
     def print_banner():
-        with open('version.txt', 'r') as version_file:
+        with open(dirname(abspath(__file__)) + '/version.txt', 'r') as version_file:
             current_version = version_file.read()
         greenc = '\033[1;32m'
         yellowc = '\033[1;33m'
