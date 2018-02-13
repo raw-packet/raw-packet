@@ -154,31 +154,17 @@ def send_icmpv6_advertise_packets():
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
-    if target_mac_address is not None:
+    icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
+                                                               ethernet_dst_mac="33:33:00:00:00:01",
+                                                               ipv6_src=your_ipv6_link_address,
+                                                               ipv6_dst="fd00::1",
+                                                               dns_address=recursive_dns_address,
+                                                               domain_search=dns_search,
+                                                               prefix=network_prefix)
 
-        if args.local_ipv6 is None:
-            target_ipv6_link_address = Base.create_ipv6_link_address(target_mac_address)
-        else:
-            target_ipv6_link_address = args.local_ipv6
-
-        icmpv6_ra_packet = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                   ethernet_dst_mac=target_mac_address,
-                                                                   ipv6_src=your_ipv6_link_address,
-                                                                   ipv6_dst=target_ipv6_link_address,
-                                                                   dns_address=recursive_dns_address,
-                                                                   domain_search=dns_search,
-                                                                   prefix=network_prefix)
-        if args.apple:
-            if args.local_ipv6 is not None:
-                while need_router_advertise:
-                    SOCK.send(icmpv6_ra_packet)
-                    sleep(0.1)
-        else:
-            while need_router_advertise:
-                SOCK.send(icmpv6_ra_packet)
-                sleep(0.1)
-
-    SOCK.close()
+    while True:
+        SOCK.send(icmpv6_ra_packet)
+        sleep(0.1)
 
 
 def reply(request):
