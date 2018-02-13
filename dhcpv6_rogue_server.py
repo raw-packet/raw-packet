@@ -218,8 +218,8 @@ def reply(request):
                 if request[ICMPv6ND_NS].tgt != offers[request[Ether].src]:
                     global_socket.send(icmpv6_na_packet)
                 if request[ICMPv6ND_NS].tgt == offers[request[Ether].src]:
-                    print Base.c_warning + "Client: " + request[Ether].src + " sent a ICMPv6 NS request your offer " + \
-                          "IPv6 address: " + request[ICMPv6ND_NS].tgt
+                    print Base.c_warning + "Client: " + request[Ether].src + " sent a ICMPv6 NS request on your " + \
+                          "offer IPv6 address: " + request[ICMPv6ND_NS].tgt
                     icmpv6_neighbor_solicit_your_offer_ipv6.append(request[Ether].src)
 
     if not disable_dhcpv6:
