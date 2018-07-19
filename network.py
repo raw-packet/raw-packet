@@ -949,20 +949,51 @@ class DNS_raw:
     def make_dns_ptr(ip_address):
         pass
 
-    def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port,
-                            tid, flags, request_name, request_type, request_class):
+    def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, flags,
+                             queries=[], answers_address=[], name_servers={}):
         transaction_id = tid
         dns_flags = flags
-        questions = 1
-        answer_rrs = 0
-        authority_rrs = 0
-        additional_rrs = 0
-        dns_request_type = request_type
-        dns_request_class = request_class
+        questions = len(queries)
+        answer_rrs = len(answers_address)
+        authority_rrs = len(name_servers.keys())
+        additional_rrs = len(name_servers.keys())
 
         dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-        dns_packet += self.make_dns_name(request_name)
-        dns_packet += pack("!2H", dns_request_type, dns_request_class)
+
+        query_type = 1
+
+        for query in queries:
+            query_name = query["name"]
+            query_type = query["type"]
+            query_class = query["class"]
+
+            if query_name.endswith("."):
+                query_name = query_name[:-1]
+
+            dns_packet += self.make_dns_name(query_name)
+            dns_packet += pack("!2H", query_type, query_class)
+
+        if query_type == 1:
+            for address in answers_address:
+                if "name" in address.keys():
+                    dns_packet += self.make_dns_name(address["name"])
+                else:
+                    dns_packet += pack("!H", 0xc00c)
+
+                dns_packet += pack("!" "2H" "I" "H" "4s", address["type"], address["class"], address["ttl"],
+                                   4, inet_aton(address["address"]))
+
+        if query_type == 12:
+            for address in answers_address:
+                domain = self.make_dns_name(address["address"])
+                if "name" in address.keys():
+                    dns_packet += self.make_dns_name(address["name"])
+                else:
+                    dns_packet += pack("!H", 0xc00c)
+
+                dns_packet += pack("!" "2H" "I" "H", address["type"], address["class"], address["ttl"],
+                                   len(domain))
+                dns_packet += domain
 
         eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
         ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
@@ -970,14 +1001,50 @@ class DNS_raw:
 
         return eth_header + ip_header + udp_header + dns_packet
 
-    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, request_name):
+    def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, queries=[], flags=0):
+        transaction_id = tid
+        dns_flags = flags
+        questions = len(queries)
+        answer_rrs = 0
+        authority_rrs = 0
+        additional_rrs = 0
+
+        dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+        for query in queries:
+            dns_packet += self.make_dns_name(query["name"])
+            dns_packet += pack("!2H", query["type"], query["class"])
+
+        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
+        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
+        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+
+        return eth_header + ip_header + udp_header + dns_packet
+
+    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
+        queries = []
+
+        for name in names:
+            queries.append({"type": 1, "class": 1, "name": name})
+
         return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
                                         src_ip=src_ip, dst_ip=dst_ip,
                                         src_port=src_port, dst_port=dst_port,
                                         tid=tid,
-                                        flags=256,
-                                        request_name=request_name,
-                                        request_type=1, request_class=1)
+                                        flags=flags,
+                                        queries=queries)
+
+    def make_any_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
+        queries = []
+
+        for name in names:
+            queries.append({"type": 255, "class": 1, "name": name})
+
+        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                        src_ip=src_ip, dst_ip=dst_ip,
+                                        src_port=src_port, dst_port=dst_port,
+                                        tid=tid,
+                                        flags=flags,
+                                        queries=queries)
 
 
 class DHCPv6_raw:
