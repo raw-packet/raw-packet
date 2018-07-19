@@ -2,7 +2,7 @@ from random import choice, randint
 from struct import pack
 from binascii import unhexlify
 from array import array
-from socket import inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
+from socket import error, inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
 from re import search
 
 
@@ -685,48 +685,51 @@ class DHCP_raw:
                     bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
                     bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options, padding=0):
 
-        message_type = bootp_message_type  # Boot protocol message type
-        hardware_type = 1  # Ethernet
-        hardware_address_len = 6  # Ethernet address len
-        hops = 0  # Number of hops
-        transaction_id = bootp_transaction_id  # Transaction id
-        seconds_elapsed = 0  # Seconds elapsed
-        flags = bootp_flags  # Flags
+        try:
+            message_type = bootp_message_type  # Boot protocol message type
+            hardware_type = 1  # Ethernet
+            hardware_address_len = 6  # Ethernet address len
+            hops = 0  # Number of hops
+            transaction_id = bootp_transaction_id  # Transaction id
+            seconds_elapsed = 0  # Seconds elapsed
+            flags = bootp_flags  # Flags
 
-        CIADDR = inet_aton(bootp_client_ip)  # Client IP address
-        YIADDR = inet_aton(bootp_your_client_ip)  # Your client IP address
-        SIADDR = inet_aton(bootp_next_server_ip)  # Next server IP address
-        GIADDR = inet_aton(bootp_relay_agent_ip)  # Relay agent IP address
-        CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
+            CIADDR = inet_aton(bootp_client_ip)  # Client IP address
+            YIADDR = inet_aton(bootp_your_client_ip)  # Your client IP address
+            SIADDR = inet_aton(bootp_next_server_ip)  # Next server IP address
+            GIADDR = inet_aton(bootp_relay_agent_ip)  # Relay agent IP address
+            CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
 
-        # Test case
-        # test_command = bytes("() { :; }; echo test > /tmp/test ")
-        # test_command = pack("!%ds" % (len(test_command)), test_command)
+            # Test case
+            # test_command = bytes("() { :; }; echo test > /tmp/test ")
+            # test_command = pack("!%ds" % (len(test_command)), test_command)
 
-        client_hw_padding = ''.join(pack("B", 0) for _ in range(10))  # Client hardware address padding
-        server_host_name = ''.join(pack("B", 0) for _ in range(64))  # Server host name
-        boot_file_name = ''.join(pack("B", 0) for _ in range(128))  # Boot file name
-        magic_cookie = pack("!4B", 99, 130, 83, 99)  # Magic cookie: DHCP
+            client_hw_padding = ''.join(pack("B", 0) for _ in range(10))  # Client hardware address padding
+            server_host_name = ''.join(pack("B", 0) for _ in range(64))  # Server host name
+            boot_file_name = ''.join(pack("B", 0) for _ in range(128))  # Boot file name
+            magic_cookie = pack("!4B", 99, 130, 83, 99)  # Magic cookie: DHCP
 
-        dhcp_packet = pack("!" "4B" "L" "2H",
-                           message_type, hardware_type, hardware_address_len, hops, transaction_id,
-                           seconds_elapsed, flags)
+            dhcp_packet = pack("!" "4B" "L" "2H",
+                               message_type, hardware_type, hardware_address_len, hops, transaction_id,
+                               seconds_elapsed, flags)
 
-        dhcp_packet += pack("!" "4s" "4s" "4s" "4s",
-                            CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+            dhcp_packet += pack("!" "4s" "4s" "4s" "4s",
+                                CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
 
-        dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
+            dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
 
-        if padding != 0:
-            dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(int(padding)))
-        else:
-            dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
+            if padding != 0:
+                dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(int(padding)))
+            else:
+                dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
 
-        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
-        ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
-        udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
+            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
+            ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
+            udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
 
-        return eth_header + ip_header + udp_header + dhcp_packet
+            return eth_header + ip_header + udp_header + dhcp_packet
+        except error:
+            return None
 
     def make_discover_packet(self, source_mac, client_mac, host_name=None):
         option_discover = pack("!3B", 53, 1, 1)
@@ -762,7 +765,8 @@ class DHCP_raw:
                                 dhcp_options=options)
 
     def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, host_name=None,
-                            requested_ip=None, option_value=None, option_code=12, relay_agent_ip="0.0.0.0"):
+                            requested_ip=None, option_value=None, option_code=12,
+                            client_ip="0.0.0.0", your_client_ip="0.0.0.0", relay_agent_ip="0.0.0.0"):
         option_message_type = pack("!3B", 53, 1, dhcp_message_type)
         options = option_message_type
 
@@ -783,8 +787,8 @@ class DHCP_raw:
                     option_payload = pack("!" "2B", option_code, len(option_value)) + option_value
                     options += option_payload
 
-        option_param_req_list = pack("!2B", 55, 254)
-        for param in range(1, 255):
+        option_param_req_list = pack("!2B", 55, 7)
+        for param in [1, 2, 3, 6, 28, 15, 26]:
             option_param_req_list += pack("B", param)
 
         option_end = pack("B", 255)
@@ -798,8 +802,8 @@ class DHCP_raw:
                                 bootp_message_type=1,
                                 bootp_transaction_id=transaction_id,
                                 bootp_flags=0,
-                                bootp_client_ip="0.0.0.0",
-                                bootp_your_client_ip="0.0.0.0",
+                                bootp_client_ip=client_ip,
+                                bootp_your_client_ip=your_client_ip,
                                 bootp_next_server_ip="0.0.0.0",
                                 bootp_relay_agent_ip=relay_agent_ip,
                                 bootp_client_hw_address=client_mac,
