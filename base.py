@@ -8,6 +8,7 @@ from random import choice
 from string import lowercase, uppercase, digits
 from netifaces import ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
+from netaddr import IPNetwork
 from struct import pack, error
 
 
@@ -188,6 +189,26 @@ class Base:
         except:
             netmask = None
         return netmask
+
+    def get_netiface_first_ip(self, interface_name):
+        try:
+            netmask = self.get_netiface_netmask(interface_name)
+            ip_address = self.get_netiface_ip_address(interface_name)
+            ip = IPNetwork(ip_address + '/' + netmask)
+            first_ip = str(ip[2])
+        except:
+            first_ip = None
+        return first_ip
+
+    def get_netiface_last_ip(self, interface_name):
+        try:
+            netmask = self.get_netiface_netmask(interface_name)
+            ip_address = self.get_netiface_ip_address(interface_name)
+            ip = IPNetwork(ip_address + '/' + netmask)
+            first_ip = str(ip[-3])
+        except:
+            first_ip = None
+        return first_ip
 
     @staticmethod
     def get_netiface_broadcast(interface_name):
