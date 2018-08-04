@@ -1,0 +1,68 @@
+@CHARSET "UTF-8";
+html,
+body {
+	height: 100%
+}
+
+body {
+	margin: 0
+}
+
+*,
+*:before,
+*:after {
+	box-sizing: border-box
+}
+
+.wrapper {
+	height: 100%
+}
+
+.wrapper {
+	margin: auto;
+	text-align: center;
+	min-height: 480px;
+	font-family: "Myriad Set Pro";
+	padding: 0;
+	box-sizing: border-box
+}
+
+.wrapper.window {
+	padding-top: 0!important
+}
+
+.si-frame {
+	height: 100%;
+	width: 100%
+}
+
+.widget-waiting-container {
+	position: relative;
+	width: 100%;
+	height: 100%
+}
+
+.widget-waiting {
+	position: absolute;
+	left: 50%;
+	top: 42.5%
+}
+
+nav#globalheader.globalheader {
+	margin-bottom: 0
+}
+
+#ac-globalnav {
+	margin: 0!important
+}
+
+#ac-globalfooter .ac-gf-footer {
+	border-top: 0;
+	padding: 20px 0 24px
+}
+
+.ac-gf-footer-locale-link {
+	padding-left: 0!important;
+	margin-left: 0!important;
+	border-left: none!important
+}
