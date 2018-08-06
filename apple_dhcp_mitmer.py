@@ -162,6 +162,7 @@ if __name__ == "__main__":
 
     try:
         print Base.c_info + "Restarting apache2 server ..."
+        sub.Popen(['a2enmod rewrite  >/dev/null 2>&1'], shell=True)
         sub.Popen(['systemctl restart apache2  >/dev/null 2>&1'], shell=True)
     except OSError as e:
         if e.errno == errno.ENOENT:
@@ -259,7 +260,7 @@ if __name__ == "__main__":
     arp_scan_out = None
     try:
         arp_scan = sub.Popen(['arp-scan --macfile=' + script_dir + '/apple_mac_prefixes.txt -I ' +
-                              listen_network_interface + ' --localnet --ignoredups --retry=5 --timeout=1000'],
+                              listen_network_interface + ' --localnet --ignoredups --retry=3 --timeout=1000'],
                              shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
         arp_scan_out, arp_scan_err = arp_scan.communicate()
     except OSError as e:
