@@ -1,5 +1,5 @@
 from platform import system, release
-from sys import exit
+from sys import exit, stdout
 from os import getuid
 from os.path import dirname, abspath
 from pwd import getpwuid
@@ -50,6 +50,42 @@ class Base:
         print greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc
         print greenc + "                        |_|                      v" + current_version + endc
         print yellowc + "\r\nhttps://github.com/Vladimir-Ivanov-Git/raw-packet\r\n" + endc
+
+    def color_print(self, color, *strings):
+        if color == "blue":
+            stdout.write(self.c_info)
+        if color == "red":
+            stdout.write(self.c_error)
+        if color == "orange":
+            stdout.write(self.c_warning)
+        if color == "green":
+            stdout.write(self.c_success)
+        for index in range(len(strings)):
+            if index % 2 == 0:
+                stdout.write(strings[index])
+            else:
+                if color == "blue":
+                    stdout.write(self.cINFO)
+                if color == "red":
+                    stdout.write(self.cERROR)
+                if color == "orange":
+                    stdout.write(self.cWARNING)
+                if color == "green":
+                    stdout.write(self.cSUCCESS)
+                stdout.write(strings[index] + self.cEND)
+        stdout.write("\n")
+
+    def print_info(self, *strings):
+        self.color_print("blue", *strings)
+
+    def print_error(self, *strings):
+        self.color_print("red", *strings)
+
+    def print_warning(self, *strings):
+        self.color_print("orange", *strings)
+
+    def print_success(self, *strings):
+        self.color_print("green", *strings)
 
     @staticmethod
     def check_platform():
