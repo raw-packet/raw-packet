@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# region Import
+from sys import path
+from os.path import dirname, abspath
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
+utils_path = project_root_path + "/Utils/"
+path.append(utils_path)
+
 from base import Base
 from network import ARP_raw
 from socket import socket, AF_PACKET, SOCK_RAW
@@ -9,6 +16,7 @@ from sys import exit
 from scapy.all import sniff, Ether, ARP
 from logging import getLogger, ERROR
 getLogger("scapy.runtime").setLevel(ERROR)
+# endregion
 
 Base = Base()
 Base.check_user()
