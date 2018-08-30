@@ -18,6 +18,8 @@ import re
 
 # region Main class - Scanner
 class Scanner:
+
+    # region Init
     Base = None
     ScriptDir = None
     ip_pattern = None
@@ -26,6 +28,41 @@ class Scanner:
         self.Base = Base()
         self.ScriptDir = dirname((abspath(__file__)))
         self.ip_pattern = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    # endregion
+
+    def apple_device_selection(self, apple_devices):
+        apple_device = None
+        if len(apple_devices) > 0:
+            if len(apple_devices) == 1:
+                apple_device = apple_devices[0]
+                self.Base.print_info("One Apple device found:")
+                self.Base.print_success(apple_device[0] + " (" + apple_device[1] + ") ", apple_device[2])
+            if len(apple_devices) > 1:
+                self.Base.print_info("Apple devices found:")
+                device_index = 1
+                for apple_device in apple_devices:
+                    self.Base.print_success(str(device_index) + ") " + apple_device[0] + " (" + apple_device[1] + ") ",
+                                            apple_device[2])
+                    device_index += 1
+
+                device_index -= 1
+                current_device_index = raw_input('Set device index from range (1-' + str(device_index) + '): ')
+
+                if not current_device_index.isdigit():
+                    self.Base.print_error("Your input data is not digit!")
+                    exit(1)
+
+                if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
+                    self.Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
+                    exit(1)
+
+                current_device_index = int(current_device_index) - 1
+                apple_device = apple_devices[current_device_index]
+        else:
+            self.Base.print_error("Could not find Apple devices!")
+            exit(1)
+        return apple_device
+
 
     # region Find Apple devices by MAC address
     def find_apple_devices_by_mac(self, network_interface):

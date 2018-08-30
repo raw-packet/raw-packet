@@ -232,7 +232,7 @@ if __name__ == "__main__":
     # endregion
     # endregion
 
-    # region Find Apple devices in local network with arp-scan
+    # region Find Apple devices in local network with arp-scan or nmap
     if args.target_ip is None:
         if not args.nmap_scan:
             Base.print_info("ARP scan is running ...")
@@ -241,29 +241,7 @@ if __name__ == "__main__":
             Base.print_info("NMAP scan is running ...")
             apple_devices = Scanner.find_apple_devices_with_nmap(listen_network_interface)
 
-        if len(apple_devices) > 0:
-            Base.print_info("Apple devices found:")
-            device_index = 1
-            for apple_device in apple_devices:
-                Base.print_success(str(device_index) + ") " + apple_device[0] + " (" + apple_device[1] + ") ",
-                                   apple_device[2])
-                device_index += 1
-
-            device_index -= 1
-            current_device_index = raw_input('Set device index from range (1-' + str(device_index) + '): ')
-
-            if not current_device_index.isdigit():
-                Base.print_error("Your input data is not digit!")
-                exit(1)
-
-            if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
-                Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
-                exit(1)
-
-            current_device_index = int(current_device_index) - 1
-            apple_device = apple_devices[current_device_index]
-        else:
-            Base.print_error("Could not find Apple devices!")
+        apple_device = Scanner.apple_device_selection(apple_devices)
     # endregion
 
     # region Find Mac address of Apple device if target IP is set
