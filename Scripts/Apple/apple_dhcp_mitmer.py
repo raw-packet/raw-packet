@@ -8,6 +8,7 @@ utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
 from base import Base
+from scanner import Scanner
 from os import path, errno, makedirs
 from shutil import copyfile, copytree
 import subprocess as sub
@@ -20,6 +21,7 @@ import re
 
 # region Check user, platform and print banner
 Base = Base()
+Scanner = Scanner()
 Base.check_user()
 Base.check_platform()
 Base.print_banner()
@@ -35,6 +37,7 @@ parser.add_argument('-p', '--fishing_domain_path', type=str, default="apple",
 parser.add_argument('-k', '--kill', action='store_true', help='Kill process')
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
+parser.add_argument('-s', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection')
 args = parser.parse_args()
 # endregion
 
@@ -231,55 +234,36 @@ if __name__ == "__main__":
 
     # region Find Apple devices in local network with arp-scan
     if args.target_ip is None:
-        Base.print_info("ARP scan is running ...")
-        arp_scan_out = None
-        try:
-            arp_scan = sub.Popen(['arp-scan --macfile=' + script_dir + '/apple_mac_prefixes.txt -I ' +
-                                  listen_network_interface + ' --localnet --ignoredups --retry=3 --timeout=1000'],
-                                 shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
-            arp_scan_out, arp_scan_err = arp_scan.communicate()
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                Base.print_error("Program: ", "arp-scan", " is not installed!")
-                exit(1)
-            else:
-                Base.print_error("Something else went wrong while trying to run ", "`arp-scan`")
-                exit(2)
-
-        if arp_scan_out is not None:
-            for device in arp_scan_out.splitlines():
-                if "Apple" in device:
-                    apple_devices.append(device.split())
-                try:
-                    if ip_pattern.match(device.split()[0]):
-                        localnet_ip_addresses.append(device.split()[0])
-                except IndexError:
-                    pass
-
-            if len(apple_devices) > 0:
-                Base.print_info("Apple devices found:")
-                device_index = 1
-                for apple_device in apple_devices:
-                    print Base.c_success + str(device_index) + ") " + apple_device[0] + " (" + apple_device[1] + ")"
-                    device_index += 1
-
-                device_index -= 1
-                current_device_index = raw_input('Set device index from range (1-' + str(device_index) + '): ')
-
-                if not current_device_index.isdigit():
-                    Base.print_error("Your input data is not digit!")
-                    exit(1)
-
-                if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
-                    Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
-                    exit(1)
-
-                current_device_index = int(current_device_index) - 1
-                apple_device = apple_devices[current_device_index]
-            else:
-                Base.print_error("Could not find Apple devices!")
+        if not args.nmap_scan:
+            Base.print_info("ARP scan is running ...")
+            apple_devices = Scanner.find_apple_devices_by_mac(listen_network_interface)
         else:
-            Base.print_error("arp-scan output is empty!")
+            Base.print_info("NMAP scan is running ...")
+            apple_devices = Scanner.find_apple_devices_with_nmap(listen_network_interface)
+
+        if len(apple_devices) > 0:
+            Base.print_info("Apple devices found:")
+            device_index = 1
+            for apple_device in apple_devices:
+                Base.print_success(str(device_index) + ") " + apple_device[0] + " (" + apple_device[1] + ") ",
+                                   apple_device[2])
+                device_index += 1
+
+            device_index -= 1
+            current_device_index = raw_input('Set device index from range (1-' + str(device_index) + '): ')
+
+            if not current_device_index.isdigit():
+                Base.print_error("Your input data is not digit!")
+                exit(1)
+
+            if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
+                Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
+                exit(1)
+
+            current_device_index = int(current_device_index) - 1
+            apple_device = apple_devices[current_device_index]
+        else:
+            Base.print_error("Could not find Apple devices!")
     # endregion
 
     # region Find Mac address of Apple device if target IP is set
@@ -301,28 +285,8 @@ if __name__ == "__main__":
         # region Set new IP address for target
         if args.new_ip is None:
             # region Fast scan localnet with arp-scan
-            if len(localnet_ip_addresses) == 0:
-                Base.print_info("Search for free IP addresses on the local network ...")
-                arp_scan_out = None
-                try:
-                    arp_scan = sub.Popen(['arp-scan  -I ' + listen_network_interface + ' --localnet'],
-                                         shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
-                    arp_scan_out, arp_scan_err = arp_scan.communicate()
-                except OSError as e:
-                    if e.errno == errno.ENOENT:
-                        Base.print_error("Program: ", "arp-scan", " is not installed!")
-                        exit(1)
-                    else:
-                        Base.print_error("Something else went wrong while trying to run ", "`arp-scan`")
-                        exit(2)
-
-                if arp_scan_out is not None:
-                    for device in arp_scan_out.splitlines():
-                        try:
-                            if ip_pattern.match(device.split()[0]):
-                                localnet_ip_addresses.append(device.split()[0])
-                        except IndexError:
-                            pass
+            Base.print_info("Search for free IP addresses on the local network ...")
+            localnet_ip_addresses = Scanner.find_ip_in_local_network(listen_network_interface)
             # endregion
             index = 0
             while new_ip is None:
