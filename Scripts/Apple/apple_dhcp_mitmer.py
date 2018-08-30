@@ -47,6 +47,10 @@ sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep | awk '{p
 sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2>/dev/null"],
           shell=True)
 
+# Kill the processes that listens on 53 UDP port
+sub.Popen(["kill -9 $(lsof -iUDP -n -P | grep ':53' | awk '{print $2}') 2>/dev/null"],
+          shell=True)
+
 if args.kill:
     exit(0)
 # endregion
