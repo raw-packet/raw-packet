@@ -28,7 +28,7 @@ Base.print_banner()
 # endregion
 
 # region Parse script arguments
-parser = ArgumentParser(description='Apple DHCP MiTMer script')
+parser = ArgumentParser(description='Apple DHCP MiTM script')
 parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
 parser.add_argument('-f', '--fishing_domain', type=str, default="auth.apple.wi-fi.com",
                     help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
