@@ -8,7 +8,7 @@ from random import choice
 from string import lowercase, uppercase, digits
 from netifaces import ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
-from netaddr import IPNetwork
+from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 
 
@@ -245,6 +245,16 @@ class Base:
         except:
             first_ip = None
         return first_ip
+
+    def get_netiface_net(self, interface_name):
+        try:
+            netmask = self.get_netiface_netmask(interface_name)
+            ip_address = self.get_netiface_ip_address(interface_name)
+            ip = IPNetwork(ip_address + '/' + netmask)
+            network = str(ip[0]) + "/" + str(IPAddress(netmask).netmask_bits())
+        except:
+            network = None
+        return network
 
     @staticmethod
     def get_netiface_broadcast(interface_name):
