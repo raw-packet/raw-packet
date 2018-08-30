@@ -139,18 +139,24 @@ class Scanner:
             if element.tag == "host":
                 state = element.find('status').attrib['state']
                 if state == 'up':
-                    ip_address = None
-                    mac_address = None
-                    description = None
+                    ip_address = ""
+                    mac_address = ""
+                    description = ""
                     for address in element.findall('address'):
                         if address.attrib['addrtype'] == 'ipv4':
                             ip_address = address.attrib['addr']
                         if address.attrib['addrtype'] == 'mac':
                             mac_address = address.attrib['addr']
-                            description = address.attrib['vendor'] + " device"
+                            try:
+                                description = address.attrib['vendor'] + " device"
+                            except KeyError:
+                                pass
                     for os_info in element.find('os'):
                         if os_info.tag == 'osmatch':
-                            description += ", " + os_info.attrib['name']
+                            try:
+                                description += ", " + os_info.attrib['name']
+                            except TypeError:
+                                pass
                             break
                     local_network_devices.append([ip_address, mac_address, description])
 
