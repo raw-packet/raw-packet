@@ -11,12 +11,8 @@ from base import Base
 from network import Ethernet_raw, ARP_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
-from ipaddress import IPv4Address
-from scapy.all import Ether, ARP, BOOTP, DHCP, sniff, sendp
-from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
-from base64 import b64encode
-from struct import pack
-from netaddr import IPAddress
+from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
+from socket import socket, AF_PACKET, SOCK_RAW
 from tm import ThreadManager
 from time import sleep
 # endregion
