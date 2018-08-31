@@ -3,3 +3,4 @@ ipaddress>=1.0.18
 netaddr>=0.7.18
 scapy>=2.3.1
 python-libnmap>=0.7.0
+psutil>=5.0.1
