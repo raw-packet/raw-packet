@@ -1,4 +1,4 @@
-from platform import system, release
+from platform import system, release, dist
 from sys import exit, stdout
 from os import getuid
 from os.path import dirname, abspath
@@ -10,6 +10,8 @@ from netifaces import ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
+from os import errno
+import subprocess as sub
 
 
 class Base:
@@ -23,6 +25,8 @@ class Base:
     c_error = None
     c_success = None
     c_warning = None
+
+    os_installed_packages_list = None
 
     def __init__(self):
         self.cINFO = '\033[1;34m'
@@ -264,7 +268,6 @@ class Base:
             broadcast = None
         return broadcast
 
-
     @staticmethod
     def make_random_string(length):
         return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
@@ -291,3 +294,37 @@ class Base:
                 return "ff:ff:ff:ff:ff:ff"
         except:
             return "ff:ff:ff:ff:ff:ff"
+
+    def ubuntu_list_installed_packages(self):
+        apt_list_out = None
+        try:
+            apt_list = sub.Popen(['apt list --installed'], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+            apt_list_out, apt_list_err = apt_list.communicate()
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                self.print_error("Program: ", "apt", " is not installed!")
+                exit(1)
+            else:
+                self.print_error("Something else went wrong while trying to run ", "`apt list --installed`")
+                exit(2)
+        if apt_list_out is not None:
+            self.os_installed_packages_list = apt_list_out
+        return apt_list_out
+
+    def check_installed_software(self, software_name):
+        self.check_platform()
+        if "Kali" in dist() or "Ubuntu" in dist():
+            if self.os_installed_packages_list is None:
+                self.ubuntu_list_installed_packages()
+            if self.os_installed_packages_list is None:
+                self.print_warning("Unable to verify OS installed software.")
+                return True
+            else:
+                if software_name in self.os_installed_packages_list:
+                    return True
+                else:
+                    self.print_error("Software: " + software_name + " is not installed!")
+                    return False
+        else:
+            self.print_warning("Unable to verify OS installed software. This function works only in Kali or Ubuntu")
+            return True
