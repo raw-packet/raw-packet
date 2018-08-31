@@ -51,6 +51,14 @@ sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2
 sub.Popen(["kill -9 $(lsof -iUDP -n -P | grep ':53' | awk '{print $2}') 2>/dev/null"],
           shell=True)
 
+# Kill the processes that listens on 80 TCP port
+sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':80' | awk '{print $2}') 2>/dev/null"],
+          shell=True)
+
+# Kill the processes that listens on 443 TCP port
+sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':443' | awk '{print $2}') 2>/dev/null"],
+          shell=True)
+
 if args.kill:
     exit(0)
 # endregion
@@ -119,18 +127,20 @@ if __name__ == "__main__":
 
     # region Social engineering
 
-    # Disable ipv4 forwarding
+    # region Disable ipv4 forwarding
     Base.print_info("Disable ipv4 forwarding")
     ipv4_forward_file_name = "/proc/sys/net/ipv4/ip_forward"
     with open(ipv4_forward_file_name, 'w') as ipv4_forward_file:
         ipv4_forward_file.write("0")
+    # endregion
 
-    # Check OS installed software
+    # region Check OS installed software
     Base.print_info("Check OS installed software")
     Base.check_installed_software("apache2")
     Base.check_installed_software("service")
     Base.check_installed_software("dnschef")
     Base.check_installed_software("ps")
+    # endregion
 
     # Variables
     script_dir = project_root_path
