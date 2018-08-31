@@ -12,6 +12,7 @@ from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from os import errno
 import subprocess as sub
+import psutil as ps
 
 
 class Base:
@@ -328,3 +329,14 @@ class Base:
         else:
             self.print_warning("Unable to verify OS installed software. This function works only in Kali or Ubuntu")
             return True
+
+    @staticmethod
+    def check_process(process_name):
+        for process in ps.process_iter():
+            if 'python' in process.name():
+                for argument in process.cmdline():
+                    if process_name in argument:
+                        return process.pid
+            if process.name() == process_name:
+                return process.pid
+        return 0
