@@ -125,6 +125,13 @@ if __name__ == "__main__":
     with open(ipv4_forward_file_name, 'w') as ipv4_forward_file:
         ipv4_forward_file.write("0")
 
+    # Check OS installed software
+    Base.print_info("Check OS installed software")
+    Base.check_installed_software("apache2")
+    Base.check_installed_software("service")
+    Base.check_installed_software("dnschef")
+    Base.check_installed_software("ps")
+
     # Variables
     script_dir = project_root_path
     apache2_sites_available_dir = "/etc/apache2/sites-available/"
@@ -211,13 +218,13 @@ if __name__ == "__main__":
     try:
         Base.print_info("Restarting apache2 server ...")
         sub.Popen(['a2enmod rewrite  >/dev/null 2>&1'], shell=True)
-        sub.Popen(['systemctl restart apache2  >/dev/null 2>&1'], shell=True)
+        sub.Popen(['service apache2 restart  >/dev/null 2>&1'], shell=True)
     except OSError as e:
         if e.errno == errno.ENOENT:
-            Base.print_error("Program: ", "systemctl", " is not installed!")
+            Base.print_error("Program: ", "service", " is not installed!")
             exit(1)
         else:
-            Base.print_error("Something went wrong while trying to run ", "`systemctl reload apache2`")
+            Base.print_error("Something went wrong while trying to run ", "`service apache2 restart`")
             exit(2)
     # endregion
 
@@ -315,6 +322,8 @@ if __name__ == "__main__":
                     rogue_server_is_run = False
                 else:
                     sleep(5)
+            sleep(5)
+            exit(0)
         except OSError as e:
             if e.errno == errno.ENOENT:
                 Base.print_error("Program: ", "ps", " is not installed!")
