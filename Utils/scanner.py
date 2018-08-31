@@ -28,6 +28,11 @@ class Scanner:
         self.Base = Base()
         self.ScriptDir = dirname((abspath(__file__)))
         self.ip_pattern = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+
+        if not self.Base.check_installed_software("arp-scan"):
+            exit(1)
+        if not self.Base.check_installed_software("nmap"):
+            exit(2)
     # endregion
 
     def apple_device_selection(self, apple_devices):
