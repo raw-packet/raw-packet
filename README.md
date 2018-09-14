@@ -1,3 +1,26 @@
+[Raw-packet project](https://raw-packet.github.io/)
+===================
+
+[![Official site][site-label]][site-link]
+[![Required OS][os-label]][os-link]
+[![Python versions][python-versions-label]][python-versions-link]
+[![Scapy minimal versions][scapy-version-label]][scapy-version-link]
+[![License][license-label]][license-link]
+[![Stability][stability-label]][stability-link]
+
+[site-label]: https://raw-packet.github.io/static/images/labels/site.svg
+[site-link]: https://raw-packet.github.io/
+[os-label]: https://raw-packet.github.io/static/images/labels/os.svg
+[os-link]: https://en.wikipedia.org/wiki/Linux
+[python-versions-label]: https://raw-packet.github.io/static/images/labels/python.svg
+[python-versions-link]: https://www.python.org/download/releases/2.7/
+[scapy-version-label]: https://raw-packet.github.io/static/images/labels/scapy.svg
+[scapy-version-link]: https://scapy.net
+[license-label]: https://raw-packet.github.io/static/images/labels/license.svg
+[license-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/blob/master/LICENSE
+[stability-label]: https://raw-packet.github.io/static/images/labels/stability.svg
+[stability-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
+
 # Important information:
 ***This project is created only for education process and can not be used for 
 law violation or personal gain. The author of this project is not responsible for any possible harm caused by the materials of this project.***
