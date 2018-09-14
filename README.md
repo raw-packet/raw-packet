@@ -29,7 +29,31 @@ law violation or personal gain. The author of this project is not responsible fo
 ***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.
 Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
 
-# dhcp_starvation.py
+# Install
+
+### Ubuntu based OS install with apt (recommended):
+```
+sudo apt update
+sudo apt install python python-scapy python-netifaces python-ipaddress python-netaddr python-libnmap
+sudo apt install apache2 arp-scan nmap
+git clone https://github.com/Vladimir-Ivanov-Git/raw-packet
+cd ./raw-packet
+```
+
+### Ubuntu based OS install with pip:
+```
+sudo apt update
+sudo apt install python python-pip apache2 arp-scan nmap
+git clone https://github.com/Vladimir-Ivanov-Git/raw-packet
+cd ./raw-packet
+sudo pip install -r requirements.txt
+```
+
+# Scripts
+
+# DHCP
+
+## Sript: dhcp_starvation.py
 Данный скрипт производит атаку на DHCP-сервер путем переполнения пула свободных IP-адресов.
 
 ```
@@ -56,20 +80,10 @@ optional arguments:
   -f, --find_dhcp       Only find DHCP server in your network
 ```
 
-## Аргументы скрипта dhcp_starvation.py:
-1. ```-h, --help```: вывод помощи;
-2. ```-i INTERFACE, --interface INTERFACE```: используемый сетевой интерфейс, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-3. ```-d DELAY, --delay DELAY```: время ожидания между отправкой DHCPDISCOVER пакетов в секундах;
-4. ```-t TIMEOUT, --timeout TIMEOUT```: время ожидания DHCPACK от сервера в секундах, после чего скрипт остановится;
-5. ```-n, --not_send_hostname```: не отправлять имя компьютера в DHCP-запросах, по умолчанию это рандомная строка из 8 символов;
-6. ```-v DHCP_OPTION_VALUE, --dhcp_option_value DHCP_OPTION_VALUE```: значение DHCP-опции, если вы хотите добавить ее во все запросы;
-7. ```-c DHCP_OPTION_CODE, --dhcp_option_code DHCP_OPTION_CODE```: код DHCP-опции, если вы хотите добавить ее во все запросы;
-8. ```-f, --find_dhcp```: найти DHCP-сервер в сети без проведения атаки.
-
-## Video
+### Demo video:
 [![DHCP Starvation preview](https://j.gifs.com/GZGgEJ.gif)](https://youtu.be/Nc8lRo9LbKQ)
 
-# dhcp_rogue_server.py
+## Script: dhcp_rogue_server.py
 Данный скрипт производит атаку на DHCP-клиентов путем подмены легитимного DHCP-сервера (Rogue DHCP).
 
 ```
@@ -146,44 +160,12 @@ optional arguments:
   --tftp TFTP           Set TFTP server IP address
 ```
 
-## Аргументы скрипта dhcp_rogue_server.py:
-1. ```-h, --help```: вывод помощи;
-2. ```-i INTERFACE, --interface INTERFACE```: используемый сетевой интерфейс для прослушивания DHCP-запросов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-3. ```-f FIRST_OFFER_IP, --first_offer_ip FIRST_OFFER_IP```: первый IP-адрес который будет выдан DHCP-клиентам;
-4. ```-l LAST_OFFER_IP, --last_offer_ip LAST_OFFER_IP```: последний IP-адрес который будет выдан DHCP-клиентам;
-5. ```-t TARGET_MAC, --target_mac TARGET_MAC```: MAC-адрес цели, если данный параметр будет задан то будет осущевляться перехват DHCP-запросов только от данного MAC-адреса;
-6. ```-I TARGET_IP, --target_ip TARGET_IP```: IP-адрес, который необходимо назначить для MAC-адреса: --target_mac TARGET_MAC;
-7. ```-q, --quiet```: минимальный вывод скрипта;
-8. ```--apple```: специальный параметр для проведения MiTM для устройств компании Apple;
-9. ```--broadcast_response```:  отправлять только широковещательные ответы;
-10. ```--force```: параметр для новых клиентов или клиентов после DHCP DECLINE;
-11. ```--not_exit```: не выходить в случае успешного проведения MiTM атаки;
-12. ```-c SHELLSHOCK_COMMAND, --shellshock_command SHELLSHOCK_COMMAND```: команда, которая будет выполнена на уязвимом DHCP-клиенте;
-13. ```-b, --bind_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать bind shell (awk);
-14. ```-p BIND_PORT, --bind_port BIND_PORT```: порт, который будет прослушиваться на уязвимом DHCP-клиенте;
-15. ```-N, --nc_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc);
-16. ```-E, --nce_reverse_shell```: при эксплуатации уязвимости shellshock на DHCP-клиенте использовать reverse shell (nc -e);
-17. ```-e REVERSE_PORT, --reverse_port REVERSE_PORT```: порт вашего хоста, к которому будут поключаться уязвимые DHCP-клиенты при использовании на них reverse shell;
-18. ```-n, --without_network```: при эксплуатации уязвимости shellshock на DHCP-клиенте не настраивать сетевой интерфейс;
-19. ```-B, --without_base64```: при эксплуатации уязвимости shellshock на DHCP-клиенте не кодировать нагрузку в base64;
-20. ```-O SHELLSHOCK_OPTION_CODE, --shellshock_option_code SHELLSHOCK_OPTION_CODE```: DHCP-опция в которой будет находится полезная нагрузка.
-21. ```--ip_path IP_PATH ```: путь до программы ip на уязвимом DHCP-клиенте, по умолчанию - /bin/;
-22. ```--iface_name IFACE_NAME```: имя сетевого интерфейса на уязвимом DHCP-клиенте, по умолчанию - eth0;
-23. ```--dhcp_mac DHCP_MAC```: MAC-адрес DHCP-сервера;
-24. ```--dhcp_ip DHCP_IP```: IP-адрес DHCP-сервера;
-25. ```--router ROUTER```: IP-адрес шлюза по умолчанию;
-26. ```--netmask NETMASK```: маска подсети;
-27. ```--broadcast BROADCAST```: широковещательный адрес в подсети;
-28. ```--dns DNS```: IP-адрес DNS-сервера;
-29. ```--lease_time LEASE_TIME```: время аренды IP-адреса;
-30. ```--domain DOMAIN```: домен;
-31. ```--proxy PROXY```: IP-адрес прокси сервера;
-32. ```--tftp TFTP```: IP-адрес TFTP сервера.
-
-## Video
+### Demo video:
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
 
-# apple_dhcp_mitmer.py
+# Apple
+
+## Script: apple_dhcp_mitmer.py
 Данный скрипт в автоматическом режиме обнаруживает Apple устройства в сети и с помощью протокола DHCP изменяет IP-адреса маршрутизатора и DNS-сервера на всех устройствах на ваш IP-адрес.
 
 ```
@@ -205,20 +187,15 @@ optional arguments:
                         Set number of deauth packets (dafault=35)
 ```
 
-## Аргументы скрипта apple_dhcp_mitmer.py:
-1. ```-h, --help```: вывод помощи;
-2. ```-i LISTEN_IFACE, --listen_iface LISTEN_IFACE```: используемый сетевой интерфейс для прослушивания DHCP-запросов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-3. ```-c, --use_network_conflict```: использовать протокол обнаружения конфликта IP-адресов в сети;
-4. ```-r AIREPLAY_IFACE, --aireplay_iface AIREPLAY_IFACE```: используемый сетевой интерфейс для отправки deauth пакетов, данный параметр не обязательно выставлять, если вы его не выставите скрипт выведет список активных сетевых интерфейсов и вы выберете интерфейс из этого списка;
-5. ```-d DEAUTH, --deauth DEAUTH```: количество deauth пакетов для отправки.
-
-## Video with deauth packets technique
+### Demo video with deauth packets technique:
 [![Apple WiFi MiTM preview](https://j.gifs.com/nZnOX5.gif)](https://youtu.be/MmPluMxOyMk)
 
-## Video with network conflict technique
+### Demo video with network conflict technique:
 [![Apple network conflict MiTM](https://j.gifs.com/2v43V1.gif)](https://youtu.be/-vg2gNiQ53s)
 
-# dnsmasploit.py
+# Binary exploits
+
+## Script: dnsmasploit.py
 Данный скрипт предназначен для эксплуатации уязвимостей CVE-2017-14493 и CVE-2017-14494.
 
 ```
@@ -267,8 +244,8 @@ optional arguments:
                         Set reverse host
 ```
 
-## Video (CVE-2017-14493)
+### Demo video exploit for CVE-2017-14493:
 [![dnsmasploit preview](https://j.gifs.com/7LWln8.gif)](https://youtu.be/VWr0zCZlMrE)
 
-## Video (CVE-2017-14494)
+### Demo video exploit for CVE-2017-14494:
 [![dnsmasploit preview](https://j.gifs.com/1rB5VG.gif)](https://youtu.be/GqMuZ1wMCWQ)
