@@ -191,7 +191,7 @@ def send_dhcp_request(request):
                 # pprint(request[DHCP].options)
                 exit(0)
 
-            Base.print_info("OFFER from: ", dhcp_server_ip + " (" + dhcp_server_mac + ")", " your client ip: ", yiaddr)
+            Base.print_info("OFFER from: ", dhcp_server_ip, " your client ip: ", yiaddr)
 
             try:
                 if args.not_send_hostname:
@@ -219,12 +219,12 @@ def send_dhcp_request(request):
         # region DHCP ACK
         if request[DHCP].options[0][1] == 5:
             ack_received = True
-            Base.print_info("ACK from:   ", dhcp_server_ip + " (" + dhcp_server_mac + ")", " your client ip: ", yiaddr)
+            Base.print_info("ACK from:   ", dhcp_server_ip, " your client ip: ", yiaddr)
         # endregion
 
         # region DHCP NAK
         if request[DHCP].options[0][1] == 6:
-            Base.print_error("NAK from:   ", dhcp_server_ip + " (" + dhcp_server_mac + ")", " your client ip: ", yiaddr)
+            Base.print_error("NAK from:   ", dhcp_server_ip, " your client ip: ", yiaddr)
         # endregion
 # endregion
 
