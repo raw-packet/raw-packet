@@ -23,11 +23,10 @@
 
 # Important information:
 ***This project is created only for education process and can not be used for 
-law violation or personal gain. The author of this project is not responsible for any possible harm caused by the materials of this project.***
+law violation or personal gain.<br/>The author of this project is not responsible for any possible harm caused by the materials of this project.***
 
 # Важная информация:
-***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.
-Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
+***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.<br/>Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
 
 # Install
 
@@ -54,12 +53,13 @@ sudo pip install -r requirements.txt
 # DHCP
 
 ## Sript: dhcp_starvation.py
-Данный скрипт производит атаку на DHCP-сервер путем переполнения пула свободных IP-адресов.
+This script implement the attack - [DHCP starvation](https://www.sciencedirect.com/science/article/pii/S0045790612001140).<br/>DHCP starvation attack is an attack that targets DHCP servers whereby forged DHCP requests are crafted by an attacker with the intent of exhausting all available IP addresses that can be allocated by the DHCP server.
 
 ```
-root@kali:~/raw-packet# ./dhcp_starvation.py -h
+root@kali:~/raw-packet# ./Scripts/DHCP/dhcp_starvation.py -h
 usage: dhcp_starvation.py [-h] [-i INTERFACE] [-d DELAY] [-t TIMEOUT] [-n]
                           [-v DHCP_OPTION_VALUE] [-c DHCP_OPTION_CODE] [-f]
+                          [-m]
 
 DHCP Starvation attack script
 
@@ -78,6 +78,7 @@ optional arguments:
   -c DHCP_OPTION_CODE, --dhcp_option_code DHCP_OPTION_CODE
                         Set DHCP option code (default: 12)
   -f, --find_dhcp       Only find DHCP server in your network
+  -m, --mac_change      Use mac change technique
 ```
 
 ### Demo video:
