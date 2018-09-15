@@ -3,13 +3,13 @@ from sys import exit, stdout
 from os import getuid
 from os.path import dirname, abspath
 from pwd import getpwuid
-from netifaces import interfaces
 from random import choice
 from string import lowercase, uppercase, digits
-from netifaces import ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
+from netifaces import interfaces, ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
+# from pythonwifi.iwlibs import Wireless
 from os import errno
 import subprocess as sub
 import psutil as ps
@@ -54,7 +54,7 @@ class Base:
         print greenc + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + endc
         print greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc
         print greenc + "                        |_|                      v" + current_version + endc
-        print yellowc + "\r\nhttps://github.com/Vladimir-Ivanov-Git/raw-packet\r\n" + endc
+        print yellowc + "\r\n             https://raw-packet.github.io/\r\n" + endc
 
     def color_print(self, color, *strings):
         if color == "blue":
@@ -166,6 +166,34 @@ class Base:
             print "This network interface has some problem"
             exit(1)
         return current_network_interface
+
+    # @staticmethod
+    # def check_netiface_is_wireless(interface_name):
+    #     try:
+    #         wifi = Wireless(interface_name)
+    #         wifi.getEssid()
+    #         result = True
+    #     except:
+    #         result = False
+    #     return result
+    #
+    # @staticmethod
+    # def get_netiface_essid(interface_name):
+    #     try:
+    #         wifi = Wireless(interface_name)
+    #         essid = wifi.getEssid()
+    #     except:
+    #         essid = None
+    #     return essid
+    #
+    # @staticmethod
+    # def get_netiface_frequency(interface_name):
+    #     try:
+    #         wifi = Wireless(interface_name)
+    #         frequency = wifi.getFrequency()
+    #     except:
+    #         frequency = 0
+    #     return frequency
 
     @staticmethod
     def get_netiface_mac_address(interface_name):
