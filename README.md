@@ -82,7 +82,7 @@ optional arguments:
 ```
 
 ### Demo video:
-[![DHCP Starvation preview](https://j.gifs.com/GZGgEJ.gif)](https://youtu.be/Nc8lRo9LbKQ)
+[![DHCP Starvation demo video](https://raw-packet.github.io/static/images/gifs/dhcp_starvation.gif)](https://youtu.be/Ig5-dRv2NCI)
 
 ## Script: dhcp_rogue_server.py
 Данный скрипт производит атаку на DHCP-клиентов путем подмены легитимного DHCP-сервера (Rogue DHCP).
