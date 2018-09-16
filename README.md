@@ -6,6 +6,7 @@
 [![Python versions][python-versions-label]][python-versions-link]
 [![Scapy minimal versions][scapy-version-label]][scapy-version-link]
 [![License][license-label]][license-link]
+[![Version][version-label]][version-link]
 [![Stability][stability-label]][stability-link]
 
 [site-label]: https://raw-packet.github.io/static/images/labels/site.svg
@@ -18,6 +19,8 @@
 [scapy-version-link]: https://scapy.net
 [license-label]: https://raw-packet.github.io/static/images/labels/license.svg
 [license-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/blob/master/LICENSE
+[version-label]: https://raw-packet.github.io/static/images/labels/version.svg
+[version-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
 [stability-label]: https://raw-packet.github.io/static/images/labels/stability.svg
 [stability-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
 
