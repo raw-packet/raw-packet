@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# region Import
+from sys import path
+from os.path import dirname, abspath
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
+utils_path = project_root_path + "/Utils/"
+path.append(utils_path)
+
 from base import Base
 from network import DHCPv6_raw, ICMPv6_raw, Ethernet_raw, IPv6_raw
 from sys import exit
@@ -10,6 +17,7 @@ from socket import socket, AF_PACKET, SOCK_RAW
 from tm import ThreadManager
 from random import randint
 from time import sleep
+# endregion
 
 current_network_interface = None
 target_mac_address = None

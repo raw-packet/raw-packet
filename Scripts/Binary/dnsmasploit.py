@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# region Import
+from sys import path
+from os.path import dirname, abspath
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
+utils_path = project_root_path + "/Utils/"
+path.append(utils_path)
+
 from base import Base
 from argparse import ArgumentParser
 from sys import exit
@@ -16,6 +23,7 @@ from re import compile
 from collections import OrderedDict
 from select import select
 from network import IPv6_raw, DHCPv6_raw
+# endregion
 
 tm = ThreadManager(3)
 
