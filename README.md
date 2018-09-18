@@ -24,7 +24,7 @@
 [stability-label]: https://raw-packet.github.io/static/images/labels/stability.svg
 [stability-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
 
-![Logo](https://raw-packet.github.io/static/images/logo/logo-caption-gray.svg)
+![Logo](https://raw-packet.github.io/static/images/logo/logo-caption-gray.jpg)
 
 # Important information:
 ***This project is created only for education process and can not be used for 
