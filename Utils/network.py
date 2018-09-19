@@ -143,10 +143,6 @@ class Ethernet_raw:
         return mac_prefix + ':' + mac_suffix
 
     @staticmethod
-    def get_mac_for_dhcp_discover():
-        return "00:00:0c:d4:e8:17"
-
-    @staticmethod
     def convert_mac(mac_address):
         if len(mac_address) < 17:
             print "Too short mac address: " + mac_address
@@ -731,7 +727,11 @@ class DHCP_raw:
         except error:
             return None
 
-    def make_discover_packet(self, source_mac, client_mac, host_name=None):
+    def make_discover_packet(self, source_mac, client_mac, host_name=None, relay_ip=None):
+        relay_agent_ip_address = "0.0.0.0"
+        if relay_ip is not None:
+            relay_agent_ip_address = relay_ip
+
         option_discover = pack("!3B", 53, 1, 1)
         options = option_discover
 
@@ -760,7 +760,7 @@ class DHCP_raw:
                                 bootp_client_ip="0.0.0.0",
                                 bootp_your_client_ip="0.0.0.0",
                                 bootp_next_server_ip="0.0.0.0",
-                                bootp_relay_agent_ip="0.0.0.0",
+                                bootp_relay_agent_ip=relay_agent_ip_address,
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
