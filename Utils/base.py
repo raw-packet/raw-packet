@@ -3,13 +3,13 @@ from sys import exit, stdout
 from os import getuid
 from os.path import dirname, abspath
 from pwd import getpwuid
-from random import choice
+from random import choice, randint
 from string import lowercase, uppercase, digits
 from netifaces import interfaces, ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 from scapy.all import srp, Ether, ARP
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
-# from pythonwifi.iwlibs import Wireless
+from ipaddress import IPv4Address
 from os import errno
 import subprocess as sub
 import psutil as ps
@@ -279,6 +279,17 @@ class Base:
             first_ip = None
         return first_ip
 
+    def get_netiface_random_ip(self, interface_name):
+        try:
+            netmask = self.get_netiface_netmask(interface_name)
+            ip_address = self.get_netiface_ip_address(interface_name)
+            ip = IPNetwork(ip_address + '/' + netmask)
+            random_index = randint(2, len(ip) - 3)
+            random_ip = str(ip[random_index])
+        except:
+            random_ip = None
+        return random_ip
+
     def get_netiface_net(self, interface_name):
         try:
             netmask = self.get_netiface_netmask(interface_name)
@@ -368,3 +379,10 @@ class Base:
             if process.name() == process_name:
                 return process.pid
         return 0
+
+    @staticmethod
+    def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
+        if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
+            return True
+        else:
+            return False
