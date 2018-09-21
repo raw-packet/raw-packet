@@ -18,11 +18,11 @@ Raw-packet project
 [scapy-version-label]: https://raw-packet.github.io/static/images/labels/scapy.svg
 [scapy-version-link]: https://scapy.net
 [license-label]: https://raw-packet.github.io/static/images/labels/license.svg
-[license-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/blob/master/LICENSE
+[license-link]: https://github.com/raw-packet/raw-packet/blob/master/LICENSE
 [version-label]: https://raw-packet.github.io/static/images/labels/version.svg
-[version-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
+[version-link]: https://github.com/raw-packet/raw-packet/releases
 [stability-label]: https://raw-packet.github.io/static/images/labels/stability.svg
-[stability-link]: https://github.com/Vladimir-Ivanov-Git/raw-packet/releases
+[stability-link]: https://github.com/raw-packet/raw-packet/releases
 
 [![Logo](https://raw-packet.github.io/static/images/logo/logo-caption-gray.jpg)](https://raw-packet.github.io/)
 
@@ -40,7 +40,7 @@ law violation or personal gain.<br/>The author of this project is not responsibl
 sudo apt update
 sudo apt install python python-scapy python-netifaces python-ipaddress python-netaddr python-libnmap
 sudo apt install apache2 arp-scan nmap
-git clone https://github.com/Vladimir-Ivanov-Git/raw-packet
+git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 ```
 
@@ -48,7 +48,7 @@ cd ./raw-packet
 ```
 sudo apt update
 sudo apt install python python-pip apache2 arp-scan nmap
-git clone https://github.com/Vladimir-Ivanov-Git/raw-packet
+git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 sudo pip install -r requirements.txt
 ```
