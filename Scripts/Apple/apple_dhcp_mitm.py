@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # region Directory for phishing domain
     if not path.exists(se_path):
         if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
-            copytree(src=script_dir + "/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
+            copytree(src=project_root_path + "/Utils/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
         else:
             Base.print_error("Directory: ", se_path, " does not exist!")
             exit(1)
