@@ -24,7 +24,7 @@ Raw-packet project
 [stability-label]: https://raw-packet.github.io/static/images/labels/stability.svg
 [stability-link]: https://github.com/raw-packet/raw-packet/releases
 
-[![Logo](https://raw-packet.github.io/static/images/logo/logo-caption-gray.jpg)](https://raw-packet.github.io/)
+[![Logo](https://raw-packet.github.io/static/images/logo/logo-caption.png)](https://raw-packet.github.io/)
 
 # Important information:
 ***This project is created only for education process and can not be used for 
