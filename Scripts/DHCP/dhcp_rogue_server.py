@@ -367,7 +367,8 @@ def make_dhcp_ack_packet(transaction_id, target_mac, target_ip, destination_mac=
                                      proxy=bytes(proxy_url),
                                      domain=domain,
                                      tftp=tftp_server_ip_address,
-                                     payload_option_code=args.shellshock_option_code)
+                                     payload_option_code=args.shellshock_option_code,
+                                     enable_netbios=True)
 # endregion
 
 
@@ -463,8 +464,8 @@ def reply(request):
         # region DHCP DISCOVER
         if request[DHCP].options[0][1] == 1:
             # region Start DHCP discover sender
-            if not discover_sender_is_work:
-                if args.send_discover:
+            if args.send_discover:
+                if not discover_sender_is_work:
                     discover_sender(100)
             # endregion
 
@@ -558,8 +559,8 @@ def reply(request):
         # region DHCP REQUEST
         if request[DHCP].options[0][1] == 3:
             # region Start DHCP discover sender
-            if not discover_sender_is_work:
-                if args.send_discover:
+            if args.send_discover:
+                if not discover_sender_is_work:
                     discover_sender(100)
             # endregion
 
