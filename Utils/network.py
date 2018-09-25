@@ -854,7 +854,8 @@ class DHCP_raw:
 
     def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
                              client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
-                             payload=None, proxy=None, domain=None, tftp=None, payload_option_code=114):
+                             payload=None, proxy=None, domain=None, tftp=None, payload_option_code=114,
+                             enable_netbios=False):
         option_operation = pack("!3B", 53, 1, dhcp_operation)
         option_server_id = pack("!" "2B" "4s", 54, 4, inet_aton(dhcp_server_id))
         option_lease_time = pack("!" "2B" "L", 51, 4, lease_time)
@@ -886,6 +887,16 @@ class DHCP_raw:
             if len(tftp) < 255:
                 option_tftp = pack("!" "2B" "4s", 150, 4, inet_aton(tftp))
                 options += option_tftp
+
+        if enable_netbios:
+            vendor_specific_option_code = 0x01
+            vendor_specific_option_length = 0x04
+            vendor_specific_option_data = 0x00000001
+            option_netbios = pack("!" "4B" "I", 43, 6,
+                                  vendor_specific_option_code,
+                                  vendor_specific_option_length,
+                                  vendor_specific_option_data)
+            options += option_netbios
 
         options += option_end
 
