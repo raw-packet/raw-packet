@@ -464,7 +464,8 @@ def reply(request):
         if request[DHCP].options[0][1] == 1:
             # region Start DHCP discover sender
             if not discover_sender_is_work:
-                discover_sender(100)
+                if args.send_discover:
+                    discover_sender(100)
             # endregion
 
             # region Print INFO message
@@ -558,7 +559,8 @@ def reply(request):
         if request[DHCP].options[0][1] == 3:
             # region Start DHCP discover sender
             if not discover_sender_is_work:
-                discover_sender(100)
+                if args.send_discover:
+                    discover_sender(100)
             # endregion
 
             # region Set local variables
