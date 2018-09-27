@@ -68,7 +68,6 @@ class Scanner:
             exit(1)
         return apple_device
 
-
     # region Find Apple devices by MAC address
     def find_apple_devices_by_mac(self, network_interface):
         arp_scan_out = None
@@ -113,7 +112,8 @@ class Scanner:
                 self.Base.print_error("Program: ", "arp-scan", " is not installed!")
                 exit(1)
             else:
-                self.Base.print_error("Something else went wrong while trying to run ", "`arp-scan`")
+                self.Base.print_error("Something else went wrong while trying to run ",
+                                      "`arp-scan -I " + network_interface + " --localnet`")
                 exit(2)
 
         if arp_scan_out is not None:
