@@ -9,6 +9,8 @@ path.append(utils_path)
 
 from base import Base
 from network import Ethernet_raw, ARP_raw, IP_raw, DHCP_raw
+from scanner import Scanner
+
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
@@ -24,6 +26,7 @@ from random import randint
 
 # region Check user, platform and create threads
 Base = Base()
+Scanner = Scanner()
 Base.check_user()
 Base.check_platform()
 tm = ThreadManager(3)
@@ -304,11 +307,22 @@ if not args.quiet:
 
 # region Get free IP addresses in local network
 def get_free_ip_addresses():
+    global Scanner
     # Get all IP addresses in range from first to last offer IP address
     current_ip_address = first_offer_ip_address
     while IPv4Address(unicode(current_ip_address)) <= IPv4Address(unicode(last_offer_ip_address)):
         free_ip_addresses.append(current_ip_address)
         current_ip_address = str(IPv4Address(unicode(current_ip_address)) + 1)
+
+    Base.print_info("ARP scan on interface: ", current_network_interface, " is running ...")
+    localnet_ip_addresses = Scanner.find_ip_in_local_network(current_network_interface)
+
+    for ip_address in localnet_ip_addresses:
+        try:
+            free_ip_addresses.remove(ip_address)
+        except ValueError:
+            pass
+
 # endregion
 
 
@@ -850,7 +864,7 @@ if __name__ == "__main__":
 
     # Target MAC address is not set
     if target_mac_address is None:
-        Base.print_info("Waiting for a ARP, DHCP DISCOVER, DHCP REQUEST or DHCP INFORM ...")
+        Base.print_info("Waiting for a ARP or DHCP requests ...")
 
         # DHCP discover sender is not works
         if dhcp_discover_packets_source_mac is None:
@@ -865,7 +879,7 @@ if __name__ == "__main__":
 
     # Target MAC address is set
     else:
-        Base.print_info("Waiting for a ARP, DHCP DISCOVER, DHCP REQUEST or DHCP INFORM from: ", target_mac_address)
+        Base.print_info("Waiting for a ARP or DHCP requests from: ", target_mac_address)
         sniff(lfilter=lambda d: d.src == args.target_mac,
               filter="arp or (udp and src port 68 and dst port 67)",
               prn=reply, iface=current_network_interface)
