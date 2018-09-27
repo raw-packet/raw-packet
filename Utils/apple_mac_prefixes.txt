@@ -188,7 +188,7 @@
 406C8F	Apple device
 40831D	Apple device
 4098AD	Apple device
-409C28	Apple device, possible iPhone 8
+409C28	Apple device, possible iPhone
 40A6D9	Apple device
 40B395	Apple device
 40CBC0	Apple device
@@ -383,7 +383,7 @@
 8C5877	Apple device
 8C7B9D	Apple device
 8C7C92	Apple device
-8C8590	Apple device, possible MacBook Pro (13-inch, 2017)
+8C8590	Apple device, possible MacBook
 8C8EF2	Apple device
 8C8FE9	Apple device
 8CFABA	Apple device
@@ -406,7 +406,7 @@
 94E96A	Apple device
 94F6A3	Apple device
 9800C6	Apple device
-9801A7	Apple device, possible MacBook Air
+9801A7	Apple device, possible MacBook
 9803D8	Apple device
 9810E8	Apple device
 985AEB	Apple device
@@ -508,7 +508,7 @@ BCE143	Apple device
 BCEC5D	Apple device
 BCFED9	Apple device
 C01ADA	Apple device
-C06394	Apple device, possible iPod touch
+C06394	Apple device, possible iPod
 C0847A	Apple device
 C09F42	Apple device
 C0A53E	Apple device
@@ -547,7 +547,7 @@ CCC760	Apple device
 D0034B	Apple device
 D023DB	Apple device
 D02598	Apple device
-D02B20	Apple device, possible iPhone 8
+D02B20	Apple device, possible iPhone
 D03311	Apple device
 D04F7E	Apple device
 D0817A	Apple device
