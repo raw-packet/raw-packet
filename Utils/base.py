@@ -383,7 +383,15 @@ class Base:
                         return process.pid
             if process.name() == process_name:
                 return process.pid
-        return 0
+        return -1
+
+    def get_process_pid(self, process_name):
+        return self.check_process(process_name)
+
+    @staticmethod
+    def kill_process(process_pid):
+        process = ps.Process(process_pid)
+        process.terminate()
 
     @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
