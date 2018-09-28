@@ -334,8 +334,8 @@ if __name__ == "__main__":
 
     # region Check apache2 is running
     sleep(2)
-    apache2_pid = Base.check_process("apache2")
-    if apache2_pid == 0:
+    apache2_pid = Base.get_process_pid("apache2")
+    if apache2_pid == -1:
         Base.print_error("Process apache2 is not running!")
         exit(1)
     else:
@@ -359,8 +359,8 @@ if __name__ == "__main__":
 
     # region Check dnschef is running
     sleep(2)
-    dnschef_pid = Base.check_process("dnschef")
-    if dnschef_pid == 0:
+    dnschef_pid = Base.get_process_pid("dnschef")
+    if dnschef_pid == -1:
         Base.print_error("Process dnschef is not running!")
         exit(1)
     else:
@@ -470,40 +470,30 @@ if __name__ == "__main__":
         # endregion
 
         # region Check apple_rogue_dhcp or dhcp_rogue_server script is run
-        try:
-            if args.deauth:
-                script_name = "dhcp_rogue_server"
-            else:
-                script_name = "apple_rogue_dhcp"
+        if args.deauth:
+            script_name = "dhcp_rogue_server"
+        else:
+            script_name = "apple_rogue_dhcp"
 
-            rogue_server_is_run = True
-            start = time()
+        rogue_server_pid = 0
+        start = time()
 
-            while rogue_server_is_run:
+        while Base.get_process_pid(script_name) != -1:
 
-                # Check timeout
-                if (int(time() - start) > 120):
-                    sub.Popen(["kill -9 $(ps aux | grep \"" + script_name + "\" | grep -v grep |" +
-                               " awk '{print $2}') 2>/dev/null"], shell=True)
+            # Get rogue server pid
+            rogue_server_pid = Base.get_process_pid(script_name)
 
-                ps = sub.Popen(['ps aux | grep "' + script_name + '" | grep -v grep'],
-                               shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+            # If timeout - kill rogue server process
+            if int(time() - start) > 120:
+                Base.kill_process(rogue_server_pid)
 
-                ps_out, ps_err = ps.communicate()
-                if ps_out == "":
-                    rogue_server_is_run = False
-                else:
-                    sleep(5)
-            sleep(5)
-            exit(0)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                Base.print_error("Program: ", "ps", " is not installed!")
-                exit(1)
-            else:
-                Base.print_error("Something else went wrong while trying to run ", "`ps`")
-                exit(2)
+            # Wait
+            sleep(10)
+
         # endregion
+
+        # Exit from Main function
+        exit(0)
 
     # endregion
 
