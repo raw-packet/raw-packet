@@ -44,20 +44,21 @@ args = parser.parse_args()
 # endregion
 
 # region Kill subprocesses
-sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep | awk '{print $2}') 2>/dev/null"], shell=True)
-sub.Popen(["kill -9 $(ps aux | grep dnschef | grep -v grep | awk '{print $2}') 2>/dev/null"], shell=True)
 
+# Kill subprocesses
+Base.kill_process_by_name('apple_rogue_dhcp')
+Base.kill_process_by_name('dhcp_rogue_server')
+Base.kill_process_by_name('dnschef')
+
+# Kill the processes that listens on 53 UDP port, 80 and 443 TCP ports
+Base.kill_process_by_listen_port(53, 'udp')
+Base.kill_process_by_listen_port(68, 'udp')
+Base.kill_process_by_listen_port(80, 'tcp')
+Base.kill_process_by_listen_port(443, 'tcp')
+
+# Exit
 if args.kill:
     exit(0)
-
-# Kill the processes that listens on 53 UDP port
-sub.Popen(["kill -9 $(lsof -iUDP -n -P | grep ':53' | awk '{print $2}') 2>/dev/null"], shell=True)
-
-# Kill the processes that listens on 80 TCP port
-sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':80' | awk '{print $2}') 2>/dev/null"], shell=True)
-
-# Kill the processes that listens on 443 TCP port
-sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':443' | awk '{print $2}') 2>/dev/null"], shell=True)
 
 # endregion
 
