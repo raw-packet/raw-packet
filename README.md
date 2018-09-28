@@ -39,7 +39,7 @@ law violation or personal gain.<br/>The author of this project is not responsibl
 ```
 sudo apt update
 sudo apt install python python-scapy python-netifaces python-ipaddress python-netaddr python-libnmap
-sudo apt install apache2 arp-scan nmap
+sudo apt install apache2 arp-scan nmap net-tools wireless-tools mdk3
 git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 ```
@@ -47,7 +47,8 @@ cd ./raw-packet
 ### Ubuntu based OS install with pip:
 ```
 sudo apt update
-sudo apt install python python-pip apache2 arp-scan nmap
+sudo apt install python python-pip apache2 arp-scan nmap 
+sudo apt install net-tools wireless-tools mdk3
 git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 sudo pip install -r requirements.txt
