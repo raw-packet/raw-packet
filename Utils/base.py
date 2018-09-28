@@ -13,6 +13,7 @@ from ipaddress import IPv4Address
 from os import errno
 import subprocess as sub
 import psutil as ps
+import socket as sock
 
 
 class Base:
@@ -389,9 +390,40 @@ class Base:
         return self.check_process(process_name)
 
     @staticmethod
+    def get_process_pid_by_listen_port(listen_port, proto='tcp'):
+        pids = []
+        for process in ps.process_iter():
+            connections = process.connections()
+            for connection in connections:
+                (listen_address, port) = connection.laddr
+                if listen_address != "127.0.0.1":
+                    if connection.type == sock.SOCK_STREAM and connection.status == ps.CONN_LISTEN:
+                        connection_proto = 'tcp'
+                    elif connection.type == sock.SOCK_DGRAM:
+                        connection_proto = 'udp'
+                    else:
+                        continue
+                    if proto == connection_proto:
+                        if connection.type == sock.SOCK_STREAM and connection.status == ps.CONN_LISTEN:
+                            if port == listen_port and process.pid is not None:
+                                pids.append(process.pid)
+        return pids
+
+    @staticmethod
     def kill_process(process_pid):
         process = ps.Process(process_pid)
         process.terminate()
+
+    def kill_process_by_name(self, process_name):
+        process_pid = self.get_process_pid(process_name)
+        if process_pid != -1:
+            self.kill_process(process_pid)
+
+    def kill_process_by_listen_port(self, listen_port, proto='tcp'):
+        pids = self.get_process_pid_by_listen_port(listen_port, proto)
+        if len(pids) > 0:
+            for pid in pids:
+                self.kill_process(pid)
 
     @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
