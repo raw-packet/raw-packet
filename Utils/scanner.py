@@ -9,7 +9,6 @@ path.append(current_path)
 
 from base import Base
 from os import errno
-from libnmap.process import NmapProcess
 import xml.etree.ElementTree as ET
 import subprocess as sub
 import re
@@ -134,9 +133,10 @@ class Scanner:
 
         local_network = self.Base.get_netiface_first_ip(network_interface) + "-" + \
                         self.Base.get_netiface_last_ip(network_interface).split('.')[3]
-        nmap = NmapProcess(local_network, "-n -O --osscan-guess -T5 -e " +
-                           network_interface + " -oX " + self.ScriptDir + "/nmap_local_network.xml", None, False)
-        nmap.run()
+        nmap_process = sub.Popen(['nmap ' + local_network + ' -n -O --osscan-guess -T5 -e ' +
+                                  network_interface + ' -oX ' + self.ScriptDir + '/nmap_local_network.xml'],
+                                 shell=True, stdout=sub.PIPE)
+        nmap_process.wait()
 
         nmap_report = ET.parse(self.ScriptDir + "/nmap_local_network.xml")
         root_tree = nmap_report.getroot()
