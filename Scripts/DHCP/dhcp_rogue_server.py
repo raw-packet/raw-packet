@@ -181,6 +181,10 @@ if args.target_ip is not None:
         Base.print_error("Please set target MAC address (example: --target_mac 00:AA:BB:CC:DD:FF)" +
                          ", for target IP address: ", args.target_ip)
         exit(1)
+
+    # Set default first offer IP and last offer IP
+    first_offer_ip_address = str(IPv4Address(unicode(first_ip_address)) + 1)
+    last_offer_ip_address = str(IPv4Address(unicode(last_ip_address)) - 1)
 # endregion
 
 # region Target IP is not set - get first and last offer IP
@@ -753,9 +757,12 @@ def reply(request):
                             ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip,
                                                               client_mac_address, requested_ip)
 
-                        SOCK.send(ack_packet)
-
                         Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
+
+                        for index in range(1, 3, 1):
+                            SOCK.send(ack_packet)
+                            sleep(0.5)
+
                         # endregion
 
                         # region Add client info in global clients dictionary
