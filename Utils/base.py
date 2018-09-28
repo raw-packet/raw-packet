@@ -335,7 +335,7 @@ class Base:
         except:
             return "ff:ff:ff:ff:ff:ff"
 
-    def ubuntu_list_installed_packages(self):
+    def debian_list_installed_packages(self):
         apt_list_out = None
         try:
             apt_list = sub.Popen(['apt list --installed'], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
@@ -353,18 +353,23 @@ class Base:
 
     def check_installed_software(self, software_name):
         self.check_platform()
-        if "Kali" in dist() or "Ubuntu" in dist():
+
+        if "Kali" or "Ubuntu" or "Debian" in dist():
+
             if self.os_installed_packages_list is None:
-                self.ubuntu_list_installed_packages()
+                self.debian_list_installed_packages()
+
             if self.os_installed_packages_list is None:
                 self.print_warning("Unable to verify OS installed software.")
                 return True
+
             else:
                 if software_name in self.os_installed_packages_list:
                     return True
                 else:
                     self.print_error("Software: " + software_name + " is not installed!")
                     return False
+
         else:
             self.print_warning("Unable to verify OS installed software. This function works only in Kali or Ubuntu")
             return True
