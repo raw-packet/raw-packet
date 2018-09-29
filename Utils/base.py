@@ -419,8 +419,11 @@ class Base:
 
     @staticmethod
     def kill_process(process_pid):
-        process = ps.Process(process_pid)
-        process.terminate()
+        try:
+            process = ps.Process(process_pid)
+            process.terminate()
+        except ps.NoSuchProcess:
+            pass
 
     def kill_process_by_name(self, process_name):
         process_pid = self.get_process_pid(process_name)
