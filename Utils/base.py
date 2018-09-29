@@ -1,7 +1,7 @@
 from platform import system, release, dist
 from sys import exit, stdout
 from os import getuid
-from os.path import dirname, abspath
+from os.path import dirname, abspath, isfile
 from pwd import getpwuid
 from random import choice, randint
 from string import lowercase, uppercase, digits
@@ -365,11 +365,19 @@ class Base:
                 return True
 
             else:
-                if software_name in self.os_installed_packages_list:
-                    return True
+                if software_name == 'dnschef':
+                    if isfile("/bin/" + software_name) or isfile("/sbin/" + software_name) or \
+                            isfile("/usr/bin/" + software_name) or isfile("/usr/sbin/" + software_name) or \
+                            isfile("/usr/local/bin/" + software_name) or isfile("/usr/local/sbin/" + software_name):
+                        return True
+                    else:
+                        return False
                 else:
-                    self.print_error("Software: " + software_name + " is not installed!")
-                    return False
+                    if software_name in self.os_installed_packages_list:
+                        return True
+                    else:
+                        self.print_error("Software: " + software_name + " is not installed!")
+                        return False
 
         else:
             self.print_warning("Unable to verify OS installed software. This function works only in Kali or Ubuntu")
