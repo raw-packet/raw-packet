@@ -758,11 +758,7 @@ def reply(request):
                                                               client_mac_address, requested_ip)
 
                         Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
-
-                        for index in range(1, 3, 1):
-                            SOCK.send(ack_packet)
-                            sleep(0.5)
-
+                        SOCK.send(ack_packet)
                         # endregion
 
                         # region Add client info in global clients dictionary
