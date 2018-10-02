@@ -33,6 +33,17 @@ law violation or personal gain.<br/>The author of this project is not responsibl
 # Важная информация:
 ***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.<br/>Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
 
+# Info
+Author: [Vladimir Ivanov](https://github.com/Vladimir-Ivanov-Git)<br/>
+Project email: [raw.packet.project@gmail.com](mailto:raw.packet.project@gmail.com)<br/>
+PGP Public key: [raw.packet.project@gmail.com PGP Public key](https://raw-packet.github.io/static/pgp/Raw-packet.asc)<br/>
+Current project version: [0.0.4](https://github.com/raw-packet/raw-packet)<br/>
+Last stable release: [0.0.3](https://github.com/raw-packet/raw-packet/releases/tag/0.0.3)<br/>
+Required OS: [Linux based](https://en.wikipedia.org/wiki/Linux)<br/>
+Python version: [2.7](https://www.python.org/download/releases/2.7/)<br/>
+Scapy version: [2.3.1](https://scapy.net)<br/>
+License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
+
 # Install
 
 ### Ubuntu based OS install with apt (recommended):
