@@ -62,12 +62,9 @@ if args.dhcp_option_code != 12:
 # endregion
 
 # region Get listen network interface, your IP address and MAC address
-listen_network_interface = None
-
 if args.interface is None:
-    listen_network_interface = Base.netiface_selection()
-else:
-    listen_network_interface = args.interface
+    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+listen_network_interface = Base.netiface_selection(args.interface)
 
 your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
 if your_ip_address is None:

@@ -78,7 +78,6 @@ if args.kill:
 # endregion
 
 # region Set global variables
-listen_network_interface = None
 deauth_network_interface = None
 
 apple_devices = []
@@ -98,10 +97,8 @@ sniff_dhcp_request = False
 
 # region Get listen network interface, your IP address, first and last IP in local network
 if args.listen_iface is None:
-    Base.print_warning("Set network interface for listen ARP and DHCP requests:")
-    listen_network_interface = Base.netiface_selection()
-else:
-    listen_network_interface = args.listen_iface
+    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+listen_network_interface = Base.netiface_selection(args.listen_iface)
 
 your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
 if your_ip_address is None:
@@ -119,10 +116,8 @@ if args.deauth_iface is not None:
 if args.deauth:
     # region Get network interface for send wifi deauth packets
     if args.deauth_iface is None:
-        Base.print_warning("Set network interface for send wifi deauth packets:")
-        deauth_network_interface = Base.netiface_selection()
-    else:
-        deauth_network_interface = args.deauth_iface
+        Base.print_warning("Please set network interface for send WiFi deauth packets ...")
+    deauth_network_interface = Base.netiface_selection(args.deauth_iface)
 
     if listen_network_interface == deauth_network_interface:
         Base.print_error("Network interface for listening DHCP requests (", listen_network_interface,

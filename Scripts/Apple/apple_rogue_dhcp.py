@@ -39,7 +39,6 @@ eth = Ethernet_raw()
 arp = ARP_raw()
 dhcp = DHCP_raw()
 
-current_network_interface = None
 target_mac_address = str(args.target_mac).lower()
 target_ip_address = str(args.target_ip)
 transaction_id_global = 0
@@ -48,9 +47,8 @@ print_possible_mitm = False
 print_success_mitm = False
 
 if args.interface is None:
-    current_network_interface = Base.netiface_selection()
-else:
-    current_network_interface = args.interface
+    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:

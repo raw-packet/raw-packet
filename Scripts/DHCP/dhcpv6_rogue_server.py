@@ -69,9 +69,8 @@ if args.disable_dhcpv6:
     disable_dhcpv6 = True
 
 if args.interface is None:
-    current_network_interface = Base.netiface_selection()
-else:
-    current_network_interface = args.interface
+    Base.print_warning("Please set a network interface for sniffing ICMPv6 and DHCPv6 requests ...")
+current_network_interface = Base.netiface_selection(args.interface)
 
 global_socket = socket(AF_PACKET, SOCK_RAW)
 global_socket.bind((current_network_interface, 0))

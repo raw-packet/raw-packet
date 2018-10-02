@@ -357,11 +357,9 @@ parser.add_argument('--reverse_host', type=str, help='Set reverse host')
 
 args = parser.parse_args()
 
-current_network_interface = None
 if args.interface is None:
-    current_network_interface = Base.netiface_selection()
-else:
-    current_network_interface = args.interface
+    Base.print_warning("Please set a network interface for send exploit ...")
+current_network_interface = Base.netiface_selection(args.interface)
 
 macsrc = Base.get_netiface_mac_address(current_network_interface)
 if macsrc is None:

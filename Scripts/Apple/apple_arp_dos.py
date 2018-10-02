@@ -44,13 +44,9 @@ target_ip = None
 # endregion
 
 # region Get listen network interface, your IP and MAC address, first and last IP in local network
-listen_network_interface = None
-
 if args.iface is None:
-    Base.print_warning("Set network interface:")
-    listen_network_interface = Base.netiface_selection()
-else:
-    listen_network_interface = args.iface
+    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+listen_network_interface = Base.netiface_selection(args.iface)
 
 your_mac_address = Base.get_netiface_mac_address(listen_network_interface)
 if your_mac_address is None:

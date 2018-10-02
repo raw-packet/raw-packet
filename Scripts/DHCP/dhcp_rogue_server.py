@@ -96,7 +96,6 @@ eth = Ethernet_raw()
 arp = ARP_raw()
 dhcp = DHCP_raw()
 
-current_network_interface = None
 first_offer_ip_address = None
 last_offer_ip_address = None
 network_mask = None
@@ -129,9 +128,8 @@ discover_sender_is_work = False
 
 # region Get your network settings
 if args.interface is None:
-    current_network_interface = Base.netiface_selection()
-else:
-    current_network_interface = args.interface
+    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
