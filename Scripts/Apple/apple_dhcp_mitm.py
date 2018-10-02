@@ -210,6 +210,7 @@ def dhcp_request_sniffer_prn(request):
     if request.haslayer(DHCP):
 
         # Kill aireply-ng
+        sleep(2)
         sniff_dhcp_request = True
         Base.kill_process_by_name('aireplay-ng')
 # endregion
