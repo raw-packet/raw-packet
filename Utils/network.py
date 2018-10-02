@@ -599,6 +599,215 @@ class ICMPv6_raw:
     #                             "::", "ff02::1:ff00:32e", 0, 135, 0, body)
 
 
+class DHCPv6_raw:
+    # 0                   1                   2                   3
+    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |   Message   |                   Data :::                      |
+    # +-------------+-------------------------------------------------+
+
+    # DHCPv6 Message Types
+    # 0	    Reserved
+    # 1	    SOLICIT	            [RFC3315]
+    # 2	    ADVERTISE	        [RFC3315]
+    # 3	    REQUEST	            [RFC3315]
+    # 4	    CONFIRM	            [RFC3315]
+    # 5	    RENEW	            [RFC3315]
+    # 6	    REBIND	            [RFC3315]
+    # 7	    REPLY	            [RFC3315]
+    # 8	    RELEASE	            [RFC3315]
+    # 9	    DECLINE	            [RFC3315]
+    # 10	RECONFIGURE	        [RFC3315]
+    # 11	INFORMATION-REQUEST	[RFC3315]
+    # 12	RELAY-FORW	        [RFC3315]
+    # 13	RELAY-REPL	        [RFC3315]
+    # 14	LEASEQUERY	        [RFC5007]
+    # 15	LEASEQUERY-REPLY	[RFC5007]
+    # 16	LEASEQUERY-DONE	    [RFC5460]
+    # 17	LEASEQUERY-DATA	    [RFC5460]
+    # 18	RECONFIGURE-REQUEST [RFC6977]
+    # 19	RECONFIGURE-REPLY	[RFC6977]
+    # 20	DHCPV4-QUERY	    [RFC7341]
+    # 21	DHCPV4-RESPONSE	    [RFC7341]
+    # 22	ACTIVELEASEQUERY	[RFC7653]
+    # 23	STARTTLS	        [RFC7653]
+    # 24	BNDUPD	            [RFC8156]
+    # 25	BNDREPLY	        [RFC8156]
+    # 26	POOLREQ	            [RFC8156]
+    # 27	POOLRESP	        [RFC8156]
+    # 28	UPDREQ	            [RFC8156]
+    # 29	UPDREQALL	        [RFC8156]
+    # 30	UPDDONE	            [RFC8156]
+    # 31	CONNECT	            [RFC8156]
+    # 32	CONNECTREPLY	    [RFC8156]
+    # 33	DISCONNECT	        [RFC8156]
+    # 34	STATE	            [RFC8156]
+    # 35	CONTACT	            [RFC8156]
+    # 36-255	Unassigned
+
+    eth = None
+    ipv6 = None
+    udp = None
+    dns = None
+
+    def __init__(self):
+        self.eth = Ethernet_raw()
+        self.ipv6 = IPv6_raw()
+        self.udp = UDP_raw()
+        self.dns = DNS_raw()
+
+    def get_duid(self, mac_address, timeval=None):
+        Hardware_type = 1   # Ethernet
+        if timeval is None:
+            DUID_type = 3   # Link-Layer address
+            return pack("!" "2H", DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
+        else:
+            DUID_type = 1   # Link-Layer address plus time
+            return pack("!" "2H" "I", DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
+                    dhcp_message_type, packet_body, options, options_raw=""):
+        dhcp_packet = pack("!B", dhcp_message_type)
+        dhcp_packet += packet_body
+
+        if options_raw == "":
+            for option_code in options.keys():
+                dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
+                dhcp_packet += options[option_code]
+        else:
+            dhcp_packet += options_raw
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
+        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
+                                                             len(dhcp_packet), dhcp_packet)
+
+        return eth_header + ipv6_header + udp_header + dhcp_packet
+
+    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        options[3] = pack("!" "3Q", 0, 0, 0)  # Identity Association for Non-temporary Address
+        options[14] = ""                      # Rapid commit
+        options[8] = pack("!H", 0)            # Elapsed time
+        options[1] = client_identifier        # Client identifier
+
+        option_request_string = ""
+        for option_request in option_request_list:
+            option_request_string += pack("!H", option_request)
+
+        options[6] = option_request_string  # Options request
+
+        return self.make_packet(ethernet_src_mac, "33:33:00:01:00:02",
+                                ipv6_src, "ff02::1:2", 0, 546, 547,
+                                1, packet_body, options)
+
+    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                               ipv6_src, ipv6_dst, ipv6_flow,
+                               hop_count, link_addr, peer_addr, options, options_raw=""):
+        packet_body = pack("!B", hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
+                                12, packet_body, options, options_raw)
+
+    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        if client_duid_timeval is None:
+            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        else:
+            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        if server_duid_mac is None:
+            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+        else:
+            options[2] = self.get_duid(server_duid_mac)        # Server Identifier
+
+        options[20] = ""                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 2,
+                                packet_body, options)
+
+    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack("!L", transaction_id)[1:]
+        options = {}
+
+        if client_duid_timeval is None:
+            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        else:
+            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        if server_duid_mac is None:
+            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+        else:
+            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
+
+        options[20] = ""                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 7,
+                                packet_body, options)
+
+    # def make_reconfigure_packet(self, ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst, transaction_id, dns_address,
+    #                             domain_search, ipv6_address):
+    #     if 16777215 < transaction_id < 0:
+    #         return None
+    #
+    #     packet_body = pack("!L", transaction_id)[1:]
+    #     options = {}
+    #
+    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+    #
+    #     options[20] = ""                                     # Reconfigure Accept
+    #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+    #     options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
+    #
+    #     options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+    #                  pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+    #
+    #     return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst,
+    #                             0xa1b82, 547, 546, 10,
+    #                             packet_body, options)
+
+
 class DHCP_raw:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -1064,212 +1273,3 @@ class DNS_raw:
                                         tid=tid,
                                         flags=flags,
                                         queries=queries)
-
-
-class DHCPv6_raw:
-    # 0                   1                   2                   3
-    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    # |   Message   |                   Data :::                      |
-    # +-------------+-------------------------------------------------+
-
-    # DHCPv6 Message Types
-    # 0	    Reserved
-    # 1	    SOLICIT	            [RFC3315]
-    # 2	    ADVERTISE	        [RFC3315]
-    # 3	    REQUEST	            [RFC3315]
-    # 4	    CONFIRM	            [RFC3315]
-    # 5	    RENEW	            [RFC3315]
-    # 6	    REBIND	            [RFC3315]
-    # 7	    REPLY	            [RFC3315]
-    # 8	    RELEASE	            [RFC3315]
-    # 9	    DECLINE	            [RFC3315]
-    # 10	RECONFIGURE	        [RFC3315]
-    # 11	INFORMATION-REQUEST	[RFC3315]
-    # 12	RELAY-FORW	        [RFC3315]
-    # 13	RELAY-REPL	        [RFC3315]
-    # 14	LEASEQUERY	        [RFC5007]
-    # 15	LEASEQUERY-REPLY	[RFC5007]
-    # 16	LEASEQUERY-DONE	    [RFC5460]
-    # 17	LEASEQUERY-DATA	    [RFC5460]
-    # 18	RECONFIGURE-REQUEST [RFC6977]
-    # 19	RECONFIGURE-REPLY	[RFC6977]
-    # 20	DHCPV4-QUERY	    [RFC7341]
-    # 21	DHCPV4-RESPONSE	    [RFC7341]
-    # 22	ACTIVELEASEQUERY	[RFC7653]
-    # 23	STARTTLS	        [RFC7653]
-    # 24	BNDUPD	            [RFC8156]
-    # 25	BNDREPLY	        [RFC8156]
-    # 26	POOLREQ	            [RFC8156]
-    # 27	POOLRESP	        [RFC8156]
-    # 28	UPDREQ	            [RFC8156]
-    # 29	UPDREQALL	        [RFC8156]
-    # 30	UPDDONE	            [RFC8156]
-    # 31	CONNECT	            [RFC8156]
-    # 32	CONNECTREPLY	    [RFC8156]
-    # 33	DISCONNECT	        [RFC8156]
-    # 34	STATE	            [RFC8156]
-    # 35	CONTACT	            [RFC8156]
-    # 36-255	Unassigned
-
-    eth = None
-    ipv6 = None
-    udp = None
-    dns = None
-
-    def __init__(self):
-        self.eth = Ethernet_raw()
-        self.ipv6 = IPv6_raw()
-        self.udp = UDP_raw()
-        self.dns = DNS_raw()
-
-    def get_duid(self, mac_address, timeval=None):
-        Hardware_type = 1   # Ethernet
-        if timeval is None:
-            DUID_type = 3   # Link-Layer address
-            return pack("!" "2H", DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
-        else:
-            DUID_type = 1   # Link-Layer address plus time
-            return pack("!" "2H" "I", DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
-
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
-                    dhcp_message_type, packet_body, options, options_raw=""):
-        dhcp_packet = pack("!B", dhcp_message_type)
-        dhcp_packet += packet_body
-
-        if options_raw == "":
-            for option_code in options.keys():
-                dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
-                dhcp_packet += options[option_code]
-        else:
-            dhcp_packet += options_raw
-
-        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
-        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
-        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
-                                                             len(dhcp_packet), dhcp_packet)
-
-        return eth_header + ipv6_header + udp_header + dhcp_packet
-
-    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack("!L", transaction_id)[1:]
-        options = {}
-
-        options[3] = pack("!" "3Q", 0, 0, 0)  # Identity Association for Non-temporary Address
-        options[14] = ""                      # Rapid commit
-        options[8] = pack("!H", 0)            # Elapsed time
-        options[1] = client_identifier        # Client identifier
-
-        option_request_string = ""
-        for option_request in option_request_list:
-            option_request_string += pack("!H", option_request)
-
-        options[6] = option_request_string  # Options request
-
-        return self.make_packet(ethernet_src_mac, "33:33:00:01:00:02",
-                                ipv6_src, "ff02::1:2", 0, 546, 547,
-                                1, packet_body, options)
-
-    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                               ipv6_src, ipv6_dst, ipv6_flow,
-                               hop_count, link_addr, peer_addr, options, options_raw=""):
-        packet_body = pack("!B", hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
-                                12, packet_body, options, options_raw)
-
-    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack("!L", transaction_id)[1:]
-        options = {}
-
-        if client_duid_timeval is None:
-            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-        else:
-            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
-
-        if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-        else:
-            options[2] = self.get_duid(server_duid_mac)        # Server Identifier
-
-        options[20] = ""                                     # Reconfigure Accept
-        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
-
-        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst,
-                                0xa1b82, 547, 546, 2,
-                                packet_body, options)
-
-    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack("!L", transaction_id)[1:]
-        options = {}
-
-        if client_duid_timeval is None:
-            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-        else:
-            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
-
-        if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-        else:
-            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
-
-        options[20] = ""                                     # Reconfigure Accept
-        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-        options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
-
-        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-                     pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst,
-                                0xa1b82, 547, 546, 7,
-                                packet_body, options)
-
-    # def make_reconfigure_packet(self, ethernet_src_mac, ethernet_dst_mac,
-    #                             ipv6_src, ipv6_dst, transaction_id, dns_address,
-    #                             domain_search, ipv6_address):
-    #     if 16777215 < transaction_id < 0:
-    #         return None
-    #
-    #     packet_body = pack("!L", transaction_id)[1:]
-    #     options = {}
-    #
-    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-    #
-    #     options[20] = ""                                     # Reconfigure Accept
-    #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-    #     options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
-    #
-    #     options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-    #                  pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-    #
-    #     return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-    #                             ipv6_src, ipv6_dst,
-    #                             0xa1b82, 547, 546, 10,
-    #                             packet_body, options)
