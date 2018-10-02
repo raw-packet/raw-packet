@@ -1,3 +1,4 @@
+# region Import
 from platform import system, release, dist
 from sys import exit, stdout
 from os import getuid
@@ -14,9 +15,13 @@ from os import errno
 import subprocess as sub
 import psutil as ps
 import socket as sock
+# endregion
 
 
+# region Main class
 class Base:
+
+    # region Set variables
     cINFO = None
     cERROR = None
     cSUCCESS = None
@@ -29,7 +34,9 @@ class Base:
     c_warning = None
 
     os_installed_packages_list = None
+    # endregion
 
+    # region Init
     def __init__(self):
         self.cINFO = '\033[1;34m'
         self.cERROR = '\033[1;31m'
@@ -41,7 +48,9 @@ class Base:
         self.c_error = self.cERROR + '[-]' + self.cEND + ' '
         self.c_success = self.cSUCCESS + '[+]' + self.cEND + ' '
         self.c_warning = self.cWARNING + '[!]' + self.cEND + ' '
+    # endregion
 
+    # region Output functions
     @staticmethod
     def print_banner():
         with open(dirname(abspath(__file__)) + '/version.txt', 'r') as version_file:
@@ -92,7 +101,9 @@ class Base:
 
     def print_success(self, *strings):
         self.color_print("green", *strings)
+    # endregion
 
+    # region Check platform and user functions
     @staticmethod
     def check_platform():
         if system() != "Linux":
@@ -106,7 +117,9 @@ class Base:
             print "Only root can run this script!"
             print "You: " + str(getpwuid(getuid())[0]) + " can not run this script!"
             exit(1)
+    # endregion
 
+    # region Pack functions
     @staticmethod
     def pack8(data):
         try:
@@ -138,7 +151,9 @@ class Base:
         except error:
             print "Bad value for 64 bit pack: " + str(data)
             exit(1)
+    # endregion
 
+    # region Network interface functions
     def netiface_selection(self, interface_name=None):
         netiface_index = 1
         current_netifaces = interfaces()
@@ -324,34 +339,9 @@ class Base:
         except:
             broadcast = None
         return broadcast
+    # endregion
 
-    @staticmethod
-    def make_random_string(length):
-        return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
-
-    @staticmethod
-    def get_mac(iface, ip):
-        gw_ip = ""
-        gws = gateways()
-        for gw in gws.keys():
-            try:
-                if str(gws[gw][AF_INET][1]) == iface:
-                    gw_ip = str(gws[gw][AF_INET][0])
-            except IndexError:
-                if str(gws[gw][0][1]) == iface:
-                    gw_ip = str(gws[gw][0][0])
-        try:
-            alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=ip), iface=iface, timeout=10, verbose=0)
-            return str(alive[0][1].hwsrc)
-        except IndexError:
-            try:
-                alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=gw_ip), iface=iface, timeout=10, verbose=0)
-                return str(alive[0][1].hwsrc)
-            except:
-                return "ff:ff:ff:ff:ff:ff"
-        except:
-            return "ff:ff:ff:ff:ff:ff"
-
+    # region Check installed software
     def debian_list_installed_packages(self):
         apt_list_out = None
         try:
@@ -398,7 +388,9 @@ class Base:
         else:
             self.print_warning("Unable to verify OS installed software. This function works only in Kali or Ubuntu")
             return True
+    # endregion
 
+    # region Process control functions
     @staticmethod
     def check_process(process_name):
         for process in ps.process_iter():
@@ -451,10 +443,42 @@ class Base:
         if len(pids) > 0:
             for pid in pids:
                 self.kill_process(pid)
+    # endregion
 
+    # region Others functions
     @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
         if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
             return True
         else:
             return False
+
+    @staticmethod
+    def make_random_string(length):
+        return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
+
+    @staticmethod
+    def get_mac(iface, ip):
+        gw_ip = ""
+        gws = gateways()
+        for gw in gws.keys():
+            try:
+                if str(gws[gw][AF_INET][1]) == iface:
+                    gw_ip = str(gws[gw][AF_INET][0])
+            except IndexError:
+                if str(gws[gw][0][1]) == iface:
+                    gw_ip = str(gws[gw][0][0])
+        try:
+            alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=ip), iface=iface, timeout=10, verbose=0)
+            return str(alive[0][1].hwsrc)
+        except IndexError:
+            try:
+                alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=gw_ip), iface=iface, timeout=10, verbose=0)
+                return str(alive[0][1].hwsrc)
+            except:
+                return "ff:ff:ff:ff:ff:ff"
+        except:
+            return "ff:ff:ff:ff:ff:ff"
+    # endregion
+
+# endregion
