@@ -157,7 +157,8 @@ class Base:
                     netiface_index += 1
 
                 netiface_index -= 1
-                current_netiface_index = raw_input('Set network interface from range (1-' + str(netiface_index) + '): ')
+                current_netiface_index = raw_input(self.c_warning + 'Set network interface from range (1-' +
+                                                   str(netiface_index) + '): ')
 
                 if not current_netiface_index.isdigit():
                     self.print_error("Your input data: ", current_netiface_index, " is not digit!")
