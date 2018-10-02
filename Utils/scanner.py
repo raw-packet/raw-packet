@@ -18,11 +18,13 @@ import re
 # region Main class - Scanner
 class Scanner:
 
-    # region Init
+    # region Variables
     Base = None
     ScriptDir = None
     ip_pattern = None
+    # endregion
 
+    # region Init
     def __init__(self):
         self.Base = Base()
         self.ScriptDir = dirname((abspath(__file__)))
@@ -34,6 +36,7 @@ class Scanner:
             exit(2)
     # endregion
 
+    # region Apple device selection
     def apple_device_selection(self, apple_devices):
         apple_device = None
         if len(apple_devices) > 0:
@@ -66,8 +69,37 @@ class Scanner:
             self.Base.print_error("Could not find Apple devices!")
             exit(1)
         return apple_device
+    # endregion
 
-    # region Find Apple devices by MAC address
+    # region Find all devices in local network
+    def find_ip_in_local_network(self, network_interface):
+        arp_scan_out = None
+        local_network_ip_addresses = []
+        try:
+            arp_scan = sub.Popen(['arp-scan  -I ' + network_interface + ' --localnet'],
+                                 shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+            arp_scan_out, arp_scan_err = arp_scan.communicate()
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                self.Base.print_error("Program: ", "arp-scan", " is not installed!")
+                exit(1)
+            else:
+                self.Base.print_error("Something else went wrong while trying to run ",
+                                      "`arp-scan -I " + network_interface + " --localnet`")
+                exit(2)
+
+        if arp_scan_out is not None:
+            for device in arp_scan_out.splitlines():
+                try:
+                    if self.ip_pattern.match(device.split()[0]):
+                        local_network_ip_addresses.append(device.split()[0])
+                except IndexError:
+                    pass
+
+        return local_network_ip_addresses
+    # endregion
+
+    # region Find Apple devices in local network with arp-scan
     def find_apple_devices_by_mac(self, network_interface):
         arp_scan_out = None
         apple_devices = []
@@ -96,34 +128,6 @@ class Scanner:
             exit(2)
 
         return apple_devices
-    # endregion
-
-    # region Find devices in local network
-    def find_ip_in_local_network(self, network_interface):
-        arp_scan_out = None
-        local_network_ip_addresses = []
-        try:
-            arp_scan = sub.Popen(['arp-scan  -I ' + network_interface + ' --localnet'],
-                                 shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
-            arp_scan_out, arp_scan_err = arp_scan.communicate()
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                self.Base.print_error("Program: ", "arp-scan", " is not installed!")
-                exit(1)
-            else:
-                self.Base.print_error("Something else went wrong while trying to run ",
-                                      "`arp-scan -I " + network_interface + " --localnet`")
-                exit(2)
-
-        if arp_scan_out is not None:
-            for device in arp_scan_out.splitlines():
-                try:
-                    if self.ip_pattern.match(device.split()[0]):
-                        local_network_ip_addresses.append(device.split()[0])
-                except IndexError:
-                    pass
-
-        return local_network_ip_addresses
     # endregion
 
     # region Find Apple devices in local network with nmap

@@ -18,7 +18,7 @@ import socket as sock
 # endregion
 
 
-# region Main class
+# region Main class - Base
 class Base:
 
     # region Set variables
