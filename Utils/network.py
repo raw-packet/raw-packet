@@ -1291,7 +1291,7 @@ class DNS_raw:
                 else:
                     dns_packet += pack("!H", 0xc00c)
 
-                dns_packet += pack("!" "2H" "I" "H" "4s", address["type"], address["class"], address["ttl"],
+                dns_packet += pack("!" "2H" "I" "H" "16s", address["type"], address["class"], address["ttl"],
                                    16, inet_pton(AF_INET6, address["address"]))
 
         if query_type == 12:
