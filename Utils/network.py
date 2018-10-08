@@ -808,6 +808,79 @@ class DHCPv6_raw:
     #                             packet_body, options)
 
 
+class ICMP_raw:
+    eth = None
+    ip = None
+    udp = None
+
+    def __init__(self):
+        self.eth = Ethernet_raw()
+        self.ip = IP_raw()
+        self.udp = UDP_raw()
+
+    @staticmethod
+    def checksum(msg):
+        s = 0
+        if len(msg) % 2 == 1:
+            msg += "\0"
+        for i in range(0, len(msg), 2):
+            w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
+            s = s + w
+        s = (s >> 16) + (s & 0xffff)
+        s = ~s & 0xffff
+        return s
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, icmp_type, icmp_code, data=None):
+        try:
+            check_sum = 0x0000
+            unused = 0x00000000
+            icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+            if data is not None:
+                icmp_packet += data
+
+            check_sum = self.checksum(icmp_packet)
+
+            icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+            if data is not None:
+                icmp_packet += data
+
+            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
+            ip_header = self.ip.make_header(ip_src, ip_dst, len(icmp_packet) - 8, 8, 1)
+
+            return eth_header + ip_header + icmp_packet
+        except error:
+            return None
+
+    def make_host_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, data=None):
+        try:
+            if data is not None:
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(data), 8, 17)
+                icmp_data = ip_data + data
+            else:
+                ip_data = self.ip.make_header(ip_dst, ip_src, 0, 8, 1)
+                icmp_data = ip_data
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x01, icmp_data)
+        except error:
+            return None
+
+    def make_udp_port_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst,
+                                         udp_src_port, udp_dst_port, data=None):
+        try:
+            if data is not None:
+                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, len(data))
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data) + len(data), 8, 17)
+                icmp_data = ip_data + udp_data + data
+            else:
+                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, 0)
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data), 8, 17)
+                icmp_data = ip_data + udp_data
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
+        except error:
+            return None
+
+
 class DHCP_raw:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
