@@ -447,6 +447,14 @@ class Base:
 
     # region Others functions
     @staticmethod
+    def ip_address_validation(ip_address):
+        try:
+            sock.inet_aton(ip_address)
+            return True
+        except sock.error:
+            return False
+
+    @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
         if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
             return True
