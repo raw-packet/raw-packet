@@ -271,11 +271,14 @@ class Base:
     def get_netiface_ipv6_glob_addresses(self, interface_name):
         ipv6_addresses = []
         for index in range(10):
-            ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
-            if ipv6_address.startswith("fe80::"):
-                pass
-            else:
-                ipv6_addresses.append(ipv6_address)
+            try:
+                ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
+                if ipv6_address.startswith("fe80::"):
+                    pass
+                else:
+                    ipv6_addresses.append(ipv6_address)
+            except AttributeError:
+                break
         return ipv6_addresses
 
     @staticmethod
