@@ -1,11 +1,14 @@
+# region Import
 from random import choice, randint
 from struct import pack
 from binascii import unhexlify
 from array import array
 from socket import error, inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
 from re import search
+# endregion
 
 
+# region Raw Ethernet
 class Ethernet_raw:
     # +---------------------------------------------------------------+
     # |       Ethernet destination address (first 32 bits)            |
@@ -159,8 +162,10 @@ class Ethernet_raw:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
+# endregion
 
 
+# region Raw IP
 class IP_raw:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -215,8 +220,10 @@ class IP_raw:
         return pack("!" "2B" "3H" "2B" "H" "4s" "4s",
                     (ver << 4) + ihl, dscp_ecn, tlen, ident,
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
+# endregion
 
 
+# region Raw IPv6
 class IPv6_raw:
     #           0 - 3     4 - 11                     12 - 31
     #         +-------+--------------+----------------------------------------+
@@ -256,8 +263,10 @@ class IPv6_raw:
         return pack("!" "2I",
                     (ver << 28) + (traffic_class << 20) + flow_label,
                     (payload_len << 16) + (next_header << 8) + hop_limit) + srcipv6 + dstipv6
+# endregion
 
 
+# region Raw ARP
 class ARP_raw:
 
     eth = None
@@ -295,8 +304,10 @@ class ARP_raw:
                                 target_mac=target_mac,
                                 target_ip=target_ip,
                                 opcode=1)
+# endregion
 
 
+# region Raw UDP
 class UDP_raw:
     #  0                16               31
     #  +-----------------+-----------------+
@@ -343,8 +354,10 @@ class UDP_raw:
         chksum = self.checksum(psh + udp_header + data)
 
         return pack("!4H", port_src, port_dst, data_len + 8, chksum)
+# endregion
 
 
+# region Raw TCP
 class TCP_raw:
     timestamp_value = 0
 
@@ -447,8 +460,10 @@ class TCP_raw:
             options = option_nop + option_nop
 
         return self.make_header(ip_src, ip_dst, port_src, port_dst, seq, ack, 17, 29200, False, options)
+# endregion
 
 
+# region Raw ICMPv6
 class ICMPv6_raw:
     #  0                   1                   2                   3
     #  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -597,8 +612,10 @@ class ICMPv6_raw:
     #
     #     return self.make_packet(ethernet_src_mac, "33:33:ff:00:03:2e",
     #                             "::", "ff02::1:ff00:32e", 0, 135, 0, body)
+# endregion
 
 
+# region Raw DHCPv6
 class DHCPv6_raw:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -806,8 +823,10 @@ class DHCPv6_raw:
     #                             ipv6_src, ipv6_dst,
     #                             0xa1b82, 547, 546, 10,
     #                             packet_body, options)
+# endregion
 
 
+# region Raw ICMP
 class ICMP_raw:
     eth = None
     ip = None
@@ -879,8 +898,10 @@ class ICMP_raw:
             return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
         except error:
             return None
+# endregion
 
 
+# region Raw DHCP
 class DHCP_raw:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -1224,8 +1245,10 @@ class DHCP_raw:
                                 bootp_relay_agent_ip="0.0.0.0",
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
+# endregion
 
 
+# region Raw DNS
 class DNS_raw:
     eth = Ethernet_raw()
     ip = IP_raw()
@@ -1356,3 +1379,4 @@ class DNS_raw:
                                         tid=tid,
                                         flags=flags,
                                         queries=queries)
+# endregion
