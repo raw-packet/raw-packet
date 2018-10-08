@@ -371,52 +371,54 @@ def dns_reply(request):
 if __name__ == "__main__":
 
     # region Script arguments condition check and print info message
+    if not args.quiet:
 
-    # region Argument fake_answer is set
-    if args.fake_answer:
-        Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])), " for all DNS queries")
+        # region Argument fake_answer is set
+        if args.fake_answer:
+            Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])), " for all DNS queries")
 
-        if fake_addresses[28] is not None:
-            Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])), " for all DNS queries")
-
-    # endregion
-
-    # region Argument fake_answer is NOT set
-    else:
-
-        # region Fake domains list is set
-        if len(fake_domains) > 0:
-
-            if args.fake_ip is not None:
-                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
-                                " for domain: ", (", ".join(fake_domains)))
-
-            if args.fake_ipv6 is not None:
-                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
-                                " for domain: ", (", ".join(fake_domains)))
+            if fake_addresses[28] is not None:
+                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])), " for all DNS queries")
 
         # endregion
 
-        # region Fake domains list is NOT set
+        # region Argument fake_answer is NOT set
         else:
 
-            if args.fake_ip is not None:
-                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
-                                " for all DNS queries")
+            # region Fake domains list is set
+            if len(fake_domains) > 0:
 
-            if args.fake_ipv6 is not None:
-                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
-                                " for all DNS queries")
+                if args.fake_ip is not None:
+                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
+                                    " for domain: ", (", ".join(fake_domains)))
+
+                if args.fake_ipv6 is not None:
+                    Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
+                                    " for domain: ", (", ".join(fake_domains)))
+
+            # endregion
+
+            # region Fake domains list is NOT set
+            else:
+
+                if args.fake_ip is not None:
+                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])),
+                                    " for all DNS queries")
+
+                if args.fake_ipv6 is not None:
+                    Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])),
+                                    " for all DNS queries")
+
+            # endregion
 
         # endregion
-
-    # endregion
 
     # endregion
 
     # region Target IPv4 is NOT set
     if target_ip_address is None:
-        Base.print_info("Waiting for DNS queries on interface: ", current_network_interface)
+        if not args.quiet:
+            Base.print_info("Waiting for DNS queries on interface: ", current_network_interface)
         sniff(lfilter=lambda pkt: pkt.src != your_mac_address,
               filter="udp and dst port 53",
               prn=dns_reply, iface=current_network_interface)
@@ -424,7 +426,8 @@ if __name__ == "__main__":
 
     # region Target IPv4 is set
     else:
-        Base.print_info("Waiting for DNS queries from: ", target_ip_address)
+        if not args.quiet:
+            Base.print_info("Waiting for DNS queries from: ", target_ip_address)
         sniff(lfilter=lambda pkt: pkt.src != your_mac_address,
               filter="host " + target_ip_address + " and udp and dst port 53",
               prn=dns_reply, iface=current_network_interface)
