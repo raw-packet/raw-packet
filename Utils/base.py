@@ -268,6 +268,16 @@ class Base:
                 return ipv6_address
         return None
 
+    def get_netiface_ipv6_glob_addresses(self, interface_name):
+        ipv6_addresses = []
+        for index in range(10):
+            ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
+            if ipv6_address.startswith("fe80::"):
+                pass
+            else:
+                ipv6_addresses.append(ipv6_address)
+        return ipv6_addresses
+
     @staticmethod
     def create_ipv6_link_address(mac_address):
         try:
@@ -446,6 +456,14 @@ class Base:
     # endregion
 
     # region Others functions
+    @staticmethod
+    def ipv6_address_validation(ipv6_address):
+        try:
+            sock.inet_pton(sock.AF_INET6, ipv6_address)
+            return True
+        except sock.error:
+            return False
+
     @staticmethod
     def ip_address_validation(ip_address):
         try:
