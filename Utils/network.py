@@ -1284,6 +1284,16 @@ class DNS_raw:
                 dns_packet += pack("!" "2H" "I" "H" "4s", address["type"], address["class"], address["ttl"],
                                    4, inet_aton(address["address"]))
 
+        if query_type == 28:
+            for address in answers_address:
+                if "name" in address.keys():
+                    dns_packet += self.make_dns_name(address["name"])
+                else:
+                    dns_packet += pack("!H", 0xc00c)
+
+                dns_packet += pack("!" "2H" "I" "H" "4s", address["type"], address["class"], address["ttl"],
+                                   16, inet_pton(AF_INET6, address["address"]))
+
         if query_type == 12:
             for address in answers_address:
                 domain = self.make_dns_name(address["address"])
