@@ -1,7 +1,7 @@
 <?php
     $user_agent = $_SERVER['HTTP_USER_AGENT'];
-    if (strpos($user_agent, 'Mac OS') !== false) {
-        if (strpos($user_agent, 'Safari') !== false) {
+    if (strpos($user_agent, 'Macintosh') !== false) {
+        if (strpos($user_agent, 'AppleWebKit') == false) {
             header("Location: /leak.php");
         }
         else {
