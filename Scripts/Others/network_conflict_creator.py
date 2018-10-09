@@ -95,6 +95,9 @@ if __name__ == "__main__":
             print Base.c_error + "Please set target MAC address!"
             exit(0)
 
+        Base.print_info("Sending " + str(_number_of_packets) + " ARP reply to MAC: ", _target_mac_address,
+                        " IP: ", _target_ip_address, " ...")
+
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((_current_network_interface, 0))
 
@@ -105,5 +108,3 @@ if __name__ == "__main__":
             SOCK.send(arp_reply)
             sleep(0.1)
         SOCK.close()
-        print Base.c_info + "Send " + str(_number_of_packets) + " ARP reply to MAC: " + \
-              _target_mac_address + " IP: " + _target_ip_address
