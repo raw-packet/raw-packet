@@ -53,7 +53,7 @@ class Scanner:
                     device_index += 1
 
                 device_index -= 1
-                current_device_index = raw_input('Set device index from range (1-' + str(device_index) + '): ')
+                current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' + str(device_index) + '): ')
 
                 if not current_device_index.isdigit():
                     self.Base.print_error("Your input data is not digit!")
