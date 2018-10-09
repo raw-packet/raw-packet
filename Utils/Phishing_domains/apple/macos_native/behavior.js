@@ -12,11 +12,14 @@ var centerMarginLeft = modal.style.marginLeft,
 // invariant network manager window position as browser window is resized
 var screenLeft, screenTop;
 
+var prevScreenX = window.screenX,
+    prevScreenY = window.screenY;
+
 function showModal() {
     setTimeout(function() {
         modal.style.display = "block";
-        screenLeft = (screen.availWidth / 2) - (modal.offsetWidth / 2);
-        screenTop = 9 + (screen.height * (1 / 4)) - (modal.offsetHeight / 2);
+        screenLeft = prevScreenX + (document.body.clientWidth / 2) - (modal.offsetWidth / 2);
+        screenTop = prevScreenY + (document.body.clientHeight / 2) - (modal.offsetHeight);
         positionOnScreen();
         checkSaneSize();
         apple_id.focus();
@@ -65,9 +68,6 @@ function checkSaneSize() {
         restart();
     }
 }
-
-var prevScreenX = window.screenX,
-    prevScreenY = window.screenY;
 
 function render() {
     var dx = window.screenX - prevScreenX,
