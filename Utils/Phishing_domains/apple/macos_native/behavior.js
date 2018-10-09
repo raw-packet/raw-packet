@@ -19,7 +19,7 @@ function showModal() {
     setTimeout(function() {
         modal.style.display = "block";
         screenLeft = prevScreenX + (document.body.clientWidth / 2) - (modal.offsetWidth / 2);
-        screenTop = prevScreenY + (document.body.clientHeight / 2) - (modal.offsetHeight);
+        screenTop = prevScreenY + (document.body.clientHeight / 2) - (modal.offsetHeight / 2);
         positionOnScreen();
         checkSaneSize();
         apple_id.focus();
