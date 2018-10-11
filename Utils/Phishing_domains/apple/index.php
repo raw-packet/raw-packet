@@ -20,7 +20,7 @@
         }
 
     }
-    exit(0);
+    //exit(0);
 
     $title = "Sign In - Apple";
     $intro = "Your session is closed sign in with your Apple ID";
