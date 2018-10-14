@@ -247,9 +247,8 @@ else:
 if args.dns is None:
     dns_server_ip_address = your_ip_address
 else:
-    if not Base.ip_address_in_range(args.dns, first_ip_address, last_ip_address):
-        Base.print_error("Bad value `--dns`: ", args.dns,
-                         "; DNS server IP address must be in range: ", first_ip_address + " - " + last_ip_address)
+    if not Base.ip_address_validation(args.dns):
+        Base.print_error("Bad DNS server IP address in `--dns` parameter: ", args.dns)
         exit(1)
     else:
         dns_server_ip_address = args.dns
