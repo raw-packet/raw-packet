@@ -96,7 +96,7 @@ class Scanner:
             exit(0)
     # endregion
 
-    # region Find Apple devices in local network with arp-scan
+    # region Find Apple devices in local network with ArpScan
     def find_apple_devices_by_mac(self, network_interface, timeout=3, retry=3):
         try:
             apple_devices = []

@@ -444,7 +444,7 @@ if __name__ == "__main__":
 
     # endregion
 
-    # region Find Apple devices in local network with arp-scan or nmap
+    # region Find Apple devices in local network with ArpScan or nmap
     if args.target_ip is None:
         if not args.nmap_scan:
             Base.print_info("ARP scan is running ...")
@@ -481,7 +481,7 @@ if __name__ == "__main__":
         if not args.deauth:
             if args.new_ip is None:
 
-                # region Fast scan localnet with arp-scan
+                # region Fast scan localnet with ArpScan
                 Base.print_info("Search for free IP addresses on the local network ...")
                 localnet_ip_addresses = Scanner.find_ip_in_local_network(listen_network_interface)
                 # endregion

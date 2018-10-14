@@ -137,7 +137,7 @@ def sniffer():
 # region Main function
 if __name__ == "__main__":
 
-    # region Find Apple devices in local network with arp-scan or nmap
+    # region Find Apple devices in local network with ArpScan or nmap
     if args.target_ip is None:
         if not args.nmap_scan:
             Base.print_info("ARP scan is running ...")
