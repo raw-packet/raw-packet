@@ -324,7 +324,7 @@ if __name__ == "__main__":
                                "\t", result['mac-address'],
                                "\t", result['vendor'])
     else:
-        Base.print_error("Could not find devices!")
+        Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
     # endregion
 
 # endregion
