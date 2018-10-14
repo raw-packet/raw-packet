@@ -1,9 +1,9 @@
 # region Import
 from random import choice, randint
-from struct import pack
-from binascii import unhexlify
+from struct import pack, unpack
+from binascii import unhexlify, hexlify
 from array import array
-from socket import error, inet_aton, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
+from socket import error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
 from re import search
 # endregion
 
@@ -147,18 +147,80 @@ class Ethernet_raw:
 
     @staticmethod
     def convert_mac(mac_address):
-        if len(mac_address) < 17:
+        if len(mac_address) < 12:
             print "Too short mac address: " + mac_address
             exit(1)
-        mac_address = mac_address[:17].lower()
-        if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
-            return unhexlify(mac_address.replace(':', ''))
+
+        if len(mac_address) > 17:
+            print "Too long mac address: " + mac_address
+            exit(1)
+
+        if len(mac_address) == 17:
+            mac_address = mac_address[:17].lower()
+            if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
+                return unhexlify(mac_address.replace(':', ''))
+            else:
+                print "Bad mac address: " + mac_address
+                exit(1)
+
+        elif len(mac_address) == 12:
+            mac_address = mac_address[:12].lower()
+            result_mac_address = ""
+            for index in range(0, 12, 2):
+                result_mac_address += mac_address[index] + mac_address[index + 1] + ":"
+            return result_mac_address[:17]
+
+        else:
+            print "Bad mac address: " + mac_address
+            exit(1)
+
+    @staticmethod
+    def get_mac_prefix(mac_address, prefix_length=6):
+        if len(mac_address) < 12:
+            print "Too short mac address: " + mac_address
+            exit(1)
+
+        if len(mac_address) > 17:
+            print "Too long mac address: " + mac_address
+            exit(1)
+
+        if len(mac_address) == 17:
+            mac_address = mac_address[:17].lower()
+            if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
+                result_mac_address = mac_address.replace(':', '')
+                return result_mac_address[:prefix_length].upper()
+            else:
+                print "Bad mac address: " + mac_address
+                exit(1)
+
+        elif len(mac_address) == 12:
+            mac_address = mac_address[:12].lower()
+            result_mac_address = ""
+            for index in range(0, 12, 2):
+                result_mac_address += mac_address[index] + mac_address[index + 1] + ":"
+            return result_mac_address[:prefix_length].upper()
+
         else:
             print "Bad mac address: " + mac_address
             exit(1)
 
     def make_header(self, source_mac, destination_mac, network_type):
         return self.convert_mac(destination_mac) + self.convert_mac(source_mac) + pack("!" "H", network_type)
+
+    def parse_header(self, packet):
+        if len(packet) != 14:
+            return None
+
+        ethernet_detailed = unpack("!" "6s" "6s" "2s", packet)
+
+        try:
+            return {
+                "destination": self.convert_mac(hexlify(ethernet_detailed[0])),
+                "source": self.convert_mac(hexlify(ethernet_detailed[1])),
+                "type": hexlify(ethernet_detailed[2])
+            }
+        except IndexError:
+            return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
@@ -286,6 +348,27 @@ class ARP_raw:
 
         eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2054)
         return eth_header + arp_packet
+
+    def parse_packet(self, packet):
+        if len(packet) != 28:
+            return None
+
+        arp_detailed = unpack("2s" "2s" "1s" "1s" "2s" "6s" "4s" "6s" "4s", packet)
+
+        try:
+            return {
+                "hardware-type":   hexlify(arp_detailed[0]),
+                "protocol-type":   hexlify(arp_detailed[1]),
+                "hardware-size":   hexlify(arp_detailed[2]),
+                "protocol-size":   hexlify(arp_detailed[3]),
+                "opcode":          hexlify(arp_detailed[4]),
+                "source-mac":      self.eth.convert_mac(hexlify(arp_detailed[5])),
+                "source-ip":       inet_ntoa(arp_detailed[6]),
+                "destination-mac": self.eth.convert_mac(hexlify(arp_detailed[7])),
+                "destination-ip":  inet_ntoa(arp_detailed[8])
+            }
+        except IndexError:
+            return None
 
     def make_response(self, ethernet_src_mac, ethernet_dst_mac, sender_mac, sender_ip, target_mac, target_ip):
         return self.make_packet(ethernet_src_mac=ethernet_src_mac,
