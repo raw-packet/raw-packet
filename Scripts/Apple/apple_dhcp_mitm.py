@@ -316,7 +316,7 @@ if __name__ == "__main__":
 
     # region Set phishing domain and path
     se_domain = args.phishing_domain
-    if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
+    if args.phishing_domain_path == "google" or "apple" or "microsoft-auth-2013":
         se_path = apache2_sites_path + args.phishing_domain_path
     else:
         se_path = args.phishing_domain_path
@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
     # region Directory for phishing domain
     if not path.exists(se_path):
-        if args.phishing_domain_path == "google" or args.phishing_domain_path == "apple":
+        if args.phishing_domain_path == "google" or "apple" or "microsoft-auth-2013":
             copytree(src=project_root_path + "/Utils/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
         else:
             Base.print_error("Directory: ", se_path, " does not exist!")
