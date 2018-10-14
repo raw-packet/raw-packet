@@ -215,34 +215,42 @@ class ArpScan:
     # endregion
 
     # region Get MAC address
-    def get_mac_address(self, network_interface, target_ip_address, timeout=3, retry=3):
+    def get_mac_address(self, network_interface, target_ip_address, timeout=5, retry=5):
+        try:
 
-        # region Set variables
-        self.target_ip_address = target_ip_address
-        self.network_interface = network_interface
-        self.timeout = int(timeout)
-        self.retry_number = int(retry)
-        # endregion
+            # region Set variables
+            self.target_ip_address = target_ip_address
+            self.network_interface = network_interface
+            self.timeout = int(timeout)
+            self.retry_number = int(retry)
+            # endregion
 
-        # region Run sniffer
-        tm = ThreadManager(2)
-        tm.add_task(self.sniff)
-        # endregion
+            # region Run sniffer
+            tm = ThreadManager(2)
+            tm.add_task(self.sniff)
+            # endregion
 
-        # region Run sender
-        self.send()
-        # endregion
+            # region Run sender
+            self.send()
+            # endregion
 
-        # region Wait
-        sleep(self.timeout)
-        # endregion
+            # region Wait
+            sleep(self.timeout)
+            # endregion
 
-        # region Return
-        if 'mac-address' in self.results[0].keys():
-            return self.results[0]['mac-address']
-        else:
+            # region Return
+            if 'mac-address' in self.results[0].keys():
+                return self.results[0]['mac-address']
+            else:
+                return "ff:ff:ff:ff:ff:ff"
+            # endregion
+
+        except IndexError:
             return "ff:ff:ff:ff:ff:ff"
-        # endregion
+
+        except KeyboardInterrupt:
+            self.base.print_info("Exit")
+            exit(0)
 
     # endregion
 
