@@ -6,8 +6,7 @@ from os.path import dirname, abspath, isfile
 from pwd import getpwuid
 from random import choice, randint
 from string import lowercase, uppercase, digits
-from netifaces import interfaces, ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
-from scapy.all import srp, Ether, ARP
+from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from ipaddress import IPv4Address
@@ -485,29 +484,6 @@ class Base:
     @staticmethod
     def make_random_string(length):
         return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
-
-    @staticmethod
-    def get_mac(iface, ip):
-        gw_ip = ""
-        gws = gateways()
-        for gw in gws.keys():
-            try:
-                if str(gws[gw][AF_INET][1]) == iface:
-                    gw_ip = str(gws[gw][AF_INET][0])
-            except IndexError:
-                if str(gws[gw][0][1]) == iface:
-                    gw_ip = str(gws[gw][0][0])
-        try:
-            alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=ip), iface=iface, timeout=10, verbose=0)
-            return str(alive[0][1].hwsrc)
-        except IndexError:
-            try:
-                alive, dead = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=gw_ip), iface=iface, timeout=10, verbose=0)
-                return str(alive[0][1].hwsrc)
-            except:
-                return "ff:ff:ff:ff:ff:ff"
-        except:
-            return "ff:ff:ff:ff:ff:ff"
     # endregion
 
 # endregion
