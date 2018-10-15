@@ -283,7 +283,8 @@ class IP_raw:
                     (ver << 4) + ihl, dscp_ecn, tlen, ident,
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
 
-    def parse_header(self, packet):
+    @staticmethod
+    def parse_header(packet):
         if len(packet) < 20:
             return None
 
@@ -456,6 +457,23 @@ class UDP_raw:
         if 0 < source_port < 65536 and 0 < destination_port < 65536:
             return pack("!4H", source_port, destination_port, data_length + 8, 0)
         else:
+            return None
+
+    @staticmethod
+    def parse_header(packet):
+        if len(packet) < 8:
+            return None
+
+        udp_detailed = unpack("!4H", packet[:8])
+
+        try:
+            return {
+                "source-port":      int(udp_detailed[0]),
+                "destination-port": int(udp_detailed[1]),
+                "length":           int(udp_detailed[2]),
+                "checksum":         int(udp_detailed[3]),
+            }
+        except IndexError:
             return None
 
     def make_header_with_ipv6_checksum(self, ipv6_src, ipv6_dst, port_src, port_dst, data_len, data):
