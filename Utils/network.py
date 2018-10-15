@@ -1173,7 +1173,7 @@ class DHCP_raw:
         if len(packet) < bootp_packet_length:
             return None
 
-        bootp_detailed = unpack("!" "4B" "4s" "2H" "4s" "4s" "4s" "4s" "6s",
+        bootp_detailed = unpack("!" "4B" "I" "2H" "4s" "4s" "4s" "4s" "6s",
                                 packet[:bootp_short_packet_length])
 
         bootp_packet = {
@@ -1182,7 +1182,7 @@ class DHCP_raw:
             "hardware-address-length": int(bootp_detailed[2]),
             "hops":                    int(bootp_detailed[3]),
 
-            "transaction-id":          hexlify(bootp_detailed[4]),
+            "transaction-id":          int(bootp_detailed[4]),
 
             "seconds-elapsed":         int(bootp_detailed[5]),
             "flags":                   int(bootp_detailed[6]),
