@@ -211,13 +211,13 @@ class Ethernet_raw:
         if len(packet) != 14:
             return None
 
-        ethernet_detailed = unpack("!" "6s" "6s" "2s", packet)
+        ethernet_detailed = unpack("!" "6s" "6s" "H", packet)
 
         try:
             return {
                 "destination": self.convert_mac(hexlify(ethernet_detailed[0])),
-                "source": self.convert_mac(hexlify(ethernet_detailed[1])),
-                "type": hexlify(ethernet_detailed[2])
+                "source":      self.convert_mac(hexlify(ethernet_detailed[1])),
+                "type":        int(ethernet_detailed[2])
             }
         except IndexError:
             return None
@@ -294,22 +294,22 @@ class IP_raw:
         if version != 4:
             return None
 
-        ip_detailed = unpack("2B" "3H" "2B" "H" "4s" "4s", packet[:20])
+        ip_detailed = unpack("!" "2B" "3H" "2B" "H" "4s" "4s", packet[:20])
 
         try:
             return {
-                "version": version,
-                "length": length,
-                "dscp_ecn": int(ip_detailed[1]),
-                "total-length": int(ip_detailed[2]),
-                "identification": int(ip_detailed[3]),
-                "flags": int(int(int(ip_detailed[4]) & 0b1110000000000000) >> 3),
+                "version":         version,
+                "length":          length,
+                "dscp_ecn":        int(ip_detailed[1]),
+                "total-length":    int(ip_detailed[2]),
+                "identification":  int(ip_detailed[3]),
+                "flags":           int(int(int(ip_detailed[4]) & 0b1110000000000000) >> 3),
                 "fragment-offset": int(int(ip_detailed[4]) & 0b0001111111111111),
-                "time-to-live": int(ip_detailed[4]),
-                "protocol": int(ip_detailed[6]),
-                "checksum": int(ip_detailed[7]),
-                "sourse-ip": inet_ntoa(ip_detailed[8]),
-                "destination-ip": inet_ntoa(ip_detailed[9])
+                "time-to-live":    int(ip_detailed[4]),
+                "protocol":        int(ip_detailed[6]),
+                "checksum":        int(ip_detailed[7]),
+                "sourse-ip":       inet_ntoa(ip_detailed[8]),
+                "destination-ip":  inet_ntoa(ip_detailed[9])
             }
         except IndexError:
             return None
@@ -385,19 +385,19 @@ class ARP_raw:
         if len(packet) != 28:
             return None
 
-        arp_detailed = unpack("2s" "2s" "1s" "1s" "2s" "6s" "4s" "6s" "4s", packet)
+        arp_detailed = unpack("!" "2H" "2B" "H" "6s" "4s" "6s" "4s", packet)
 
         try:
             return {
-                "hardware-type":   hexlify(arp_detailed[0]),
-                "protocol-type":   hexlify(arp_detailed[1]),
-                "hardware-size":   hexlify(arp_detailed[2]),
-                "protocol-size":   hexlify(arp_detailed[3]),
-                "opcode":          hexlify(arp_detailed[4]),
-                "source-mac":      self.eth.convert_mac(hexlify(arp_detailed[5])),
-                "source-ip":       inet_ntoa(arp_detailed[6]),
-                "destination-mac": self.eth.convert_mac(hexlify(arp_detailed[7])),
-                "destination-ip":  inet_ntoa(arp_detailed[8])
+                "hardware-type": int(arp_detailed[0]),
+                "protocol-type": int(arp_detailed[1]),
+                "hardware-size": int(arp_detailed[2]),
+                "protocol-size": int(arp_detailed[3]),
+                "opcode":        int(arp_detailed[4]),
+                "sender-mac":    self.eth.convert_mac(hexlify(arp_detailed[5])),
+                "sender-ip":     inet_ntoa(arp_detailed[6]),
+                "target-mac":    self.eth.convert_mac(hexlify(arp_detailed[7])),
+                "target-ip":     inet_ntoa(arp_detailed[8])
             }
         except IndexError:
             return None
