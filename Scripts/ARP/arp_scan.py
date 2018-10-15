@@ -69,28 +69,49 @@ class ArpScan:
             packets = self.rawSocket.recvfrom(2048)
 
             for packet in packets:
+
+                # Parse Ethernet header
                 ethernet_header = packet[0:14]
                 ethernet_header_dict = self.eth.parse_header(ethernet_header)
 
+                # Success parse Ethernet header
                 if ethernet_header_dict is not None:
-                    if ethernet_header_dict['type'] == '0806':
+
+                    # 2054 - Type of ARP packet (0x0806)
+                    if ethernet_header_dict['type'] == 2054:
+
+                        # Destination MAC address is your MAC address
                         if ethernet_header_dict['destination'] == self.your_mac_address:
+
+                            # Parse ARP packet
                             arp_header = packet[14:42]
                             arp_header_dict = self.arp.parse_packet(arp_header)
+
+                            # Success parse ARP packet
                             if arp_header_dict is not None:
-                                if arp_header_dict['opcode'] == '0002':
-                                    if arp_header_dict['destination-mac'] == self.your_mac_address:
-                                        if arp_header_dict['destination-ip'] == self.your_ip_address:
+
+                                # ARP opcode == 2 (2 - ARP reply)
+                                if arp_header_dict['opcode'] == 2:
+
+                                    # ARP target MAC address is your MAC address
+                                    if arp_header_dict['target-mac'] == self.your_mac_address:
+
+                                        # ARP target IP address is your IP address
+                                        if arp_header_dict['target-ip'] == self.your_ip_address:
+
+                                            # Parameter Target IP address is None
                                             if self.target_ip_address is None:
                                                 self.results.append({
-                                                    "mac-address": arp_header_dict['source-mac'],
-                                                    "ip-address": arp_header_dict['source-ip']
+                                                    "mac-address": arp_header_dict['sender-mac'],
+                                                    "ip-address": arp_header_dict['sender-ip']
                                                 })
+
+                                            # Parameter Target IP address is Set
                                             else:
-                                                if arp_header_dict['source-ip'] == self.target_ip_address:
+                                                if arp_header_dict['sender-ip'] == self.target_ip_address:
                                                     self.results.append({
-                                                        "mac-address": arp_header_dict['source-mac'],
-                                                        "ip-address": arp_header_dict['source-ip']
+                                                        "mac-address": arp_header_dict['sender-mac'],
+                                                        "ip-address": arp_header_dict['sender-ip']
                                                     })
 
     # endregion
