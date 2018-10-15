@@ -1163,6 +1163,99 @@ class DHCP_raw:
         except error:
             return None
 
+    def parse_packet(self, packet):
+        bootp_packet_length = 236
+        bootp_short_packet_length = 34
+
+        dhcp_packet_start = 240
+        dhcp_magic_cookie = '63825363'
+
+        if len(packet) < bootp_packet_length:
+            return None
+
+        bootp_detailed = unpack("!" "4B" "4s" "2H" "4s" "4s" "4s" "4s" "6s",
+                                packet[:bootp_short_packet_length])
+
+        bootp_packet = {
+            "message-type":            int(bootp_detailed[0]),
+            "hardware-type":           int(bootp_detailed[1]),
+            "hardware-address-length": int(bootp_detailed[2]),
+            "hops":                    int(bootp_detailed[3]),
+
+            "transaction-id":          hexlify(bootp_detailed[4]),
+
+            "seconds-elapsed":         int(bootp_detailed[5]),
+            "flags":                   int(bootp_detailed[6]),
+
+            "client-ip-address":       inet_ntoa(bootp_detailed[7]),
+            "your-ip-address":         inet_ntoa(bootp_detailed[8]),
+            "server-ip-address":       inet_ntoa(bootp_detailed[9]),
+            "relay-ip-address":        inet_ntoa(bootp_detailed[10]),
+
+            "client-mac-address":      self.eth.convert_mac(hexlify(bootp_detailed[11]))
+        }
+
+        dhcp_packet = {}
+
+        if len(packet) > 240:
+            magic_cookie = hexlify(unpack("!4s", packet[bootp_packet_length:dhcp_packet_start])[0])
+            if magic_cookie == dhcp_magic_cookie:
+
+                position = dhcp_packet_start
+
+                while position < len(packet) - 1:
+                    option_name = int(unpack("B", packet[position:position + 1])[0])
+                    position += 1
+
+                    # 255 - End
+                    if option_name == 255:
+                        break
+
+                    # 12 - Host name
+                    elif option_name == 12:
+                        option_length = int(unpack("B", packet[position:position + 1])[0])
+                        position += 1
+                        option_value = "".join([str(x) for x in packet[position:position + option_length]])
+                        position += option_length
+
+                    # 50 - Requested IP
+                    elif option_name == 50:
+                        option_value = inet_ntoa(unpack("4s", packet[position + 1:position + 5])[0])
+                        position += 5
+
+                    # 51 - Lease time
+                    elif option_name == 51:
+                        option_value = int(unpack("I", packet[position + 1:position + 5])[0])
+                        position += 5
+
+                    # 53 - Message type
+                    elif option_name == 53:
+                        option_value = int(unpack("B", packet[position + 1:position + 2])[0])
+                        position += 2
+
+                    # 57 - Maximum DHCP message size
+                    elif option_name == 57:
+                        option_value = int(unpack("H", packet[position + 1:position + 3])[0])
+                        position += 3
+
+                    # 61 - Client identifier
+                    elif option_name == 61:
+                        option_value = self.eth.convert_mac(hexlify(unpack("6s", packet[position + 2:position + 8])[0]))
+                        position += 8
+
+                    else:
+                        option_length = int(unpack("B", packet[position:position + 1])[0])
+                        position += 1
+                        option_value = "".join([hexlify(x) for x in packet[position:position + option_length]])
+                        position += option_length
+
+                    dhcp_packet[option_name] = option_value
+
+        return {
+            "BOOTP": bootp_packet,
+            "DHCP": dhcp_packet
+        }
+
     def make_discover_packet(self, source_mac, client_mac, host_name=None, relay_ip=None):
         relay_agent_ip_address = "0.0.0.0"
         if relay_ip is not None:
