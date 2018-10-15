@@ -282,6 +282,38 @@ class IP_raw:
         return pack("!" "2B" "3H" "2B" "H" "4s" "4s",
                     (ver << 4) + ihl, dscp_ecn, tlen, ident,
                     flg_frgoff, ttl, ptcl, chksm, srcip, dstip)
+
+    def parse_header(self, packet):
+        if len(packet) < 20:
+            return None
+
+        version_and_length = int(unpack("!B", packet[0])[0])
+        version = int(int(version_and_length & 0b11110000) >> 4)
+        length = int(int(version_and_length) & 0b00001111)
+        
+        if version != 4:
+            return None
+
+        ip_detailed = unpack("2B" "3H" "2B" "H" "4s" "4s", packet[:20])
+
+        try:
+            return {
+                "version": version,
+                "length": length,
+                "dscp_ecn": int(ip_detailed[1]),
+                "total-length": int(ip_detailed[2]),
+                "identification": int(ip_detailed[3]),
+                "flags": int(int(int(ip_detailed[4]) & 0b1110000000000000) >> 3),
+                "fragment-offset": int(int(ip_detailed[4]) & 0b0001111111111111),
+                "time-to-live": int(ip_detailed[4]),
+                "protocol": int(ip_detailed[6]),
+                "checksum": int(ip_detailed[7]),
+                "sourse-ip": inet_ntoa(ip_detailed[8]),
+                "destination-ip": inet_ntoa(ip_detailed[9])
+            }
+        except IndexError:
+            return None
+
 # endregion
 
 
