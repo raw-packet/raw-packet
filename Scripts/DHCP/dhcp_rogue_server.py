@@ -8,16 +8,14 @@ utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
 from base import Base
-from network import Ethernet_raw, ARP_raw, IP_raw, DHCP_raw
+from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from scanner import Scanner
 
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
-from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
-from socket import socket, AF_PACKET, SOCK_RAW, inet_aton
+from socket import socket, AF_PACKET, SOCK_RAW, htons
 from base64 import b64encode
-from struct import pack
 from netaddr import IPAddress
 from tm import ThreadManager
 from time import sleep
@@ -94,6 +92,8 @@ if not args.quiet:
 
 eth = Ethernet_raw()
 arp = ARP_raw()
+ip = IP_raw()
+udp = UDP_raw()
 dhcp = DHCP_raw()
 
 first_offer_ip_address = None
@@ -464,6 +464,7 @@ def discover_sender(number_of_packets=999999):
 
 # region Reply to DHCP and ARP requests
 def reply(request):
+
     # region Define global variables
     global SOCK
     global clients
@@ -476,11 +477,11 @@ def reply(request):
     # endregion
 
     # region DHCP
-    if request.haslayer(DHCP):
+    if 'DHCP' in request.keys():
 
         # region Get transaction id and client MAC address
-        transaction_id = request[BOOTP].xid
-        client_mac_address = ":".join("{:02x}".format(ord(c)) for c in request[BOOTP].chaddr[0:6])
+        transaction_id = request['BOOTP']['transaction-id']
+        client_mac_address = request['BOOTP']['client-mac-address']
         # endregion
 
         # region Check this client already in dict
@@ -490,7 +491,7 @@ def reply(request):
         # endregion
 
         # region DHCP DISCOVER
-        if request[DHCP].options[0][1] == 1:
+        if request['DHCP'][53] == 1:
 
             # region Print INFO message
             Base.print_info("DHCP DISCOVER from: ", client_mac_address, " transaction id: ", hex(transaction_id))
@@ -536,9 +537,9 @@ def reply(request):
         # endregion
 
         # region DHCP RELEASE
-        if request[DHCP].options[0][1] == 7:
-            if request[BOOTP].ciaddr is not None:
-                client_ip = request[BOOTP].ciaddr
+        if request['DHCP'][53] == 7:
+            if request['BOOTP']['client-ip-address'] is not None:
+                client_ip = request['BOOTP']['client-ip-address']
                 Base.print_info("DHCP RELEASE from: ", client_ip + " (" + client_mac_address + ")",
                                 " transaction id: ", hex(transaction_id))
 
@@ -562,9 +563,9 @@ def reply(request):
         # endregion
 
         # region DHCP INFORM
-        if request[DHCP].options[0][1] == 8:
-            if request[BOOTP].ciaddr is not None:
-                client_ip = request[BOOTP].ciaddr
+        if request['DHCP'][53] == 8:
+            if request['BOOTP']['client-ip-address'] is not None:
+                client_ip = request['BOOTP']['client-ip-address']
                 Base.print_info("DHCP INFORM from: ", client_ip + " (" + client_mac_address + ")",
                                 " transaction id: ", hex(transaction_id))
 
@@ -589,16 +590,15 @@ def reply(request):
         # endregion
 
         # region DHCP REQUEST
-        if request[DHCP].options[0][1] == 3:
+        if request['DHCP'][53] == 3:
             # region Set local variables
             requested_ip = "0.0.0.0"
             offer_ip = None
             # endregion
 
             # region Get requested IP
-            for option in request[DHCP].options:
-                if option[0] == "requested_addr":
-                    requested_ip = str(option[1])
+            if 50 in request['DHCP'].keys():
+                requested_ip = str(request['DHCP'][50])
             # endregion
 
             # region Print info message
@@ -773,12 +773,11 @@ def reply(request):
         # endregion
 
         # region DHCP DECLINE
-        if request[DHCP].options[0][1] == 4:
+        if request['DHCP'][53] == 4:
             # Get requested IP
             requested_ip = "0.0.0.0"
-            for option in request[DHCP].options:
-                if option[0] == "requested_addr":
-                    requested_ip = str(option[1])
+            if 50 in request['DHCP'].keys():
+                requested_ip = str(request['DHCP'][50])
 
             # Print info message
             Base.print_info("DHCP DECLINE from: ", requested_ip + " (" + client_mac_address + ")",
@@ -798,12 +797,13 @@ def reply(request):
     # endregion DHCP
 
     # region ARP
-    if request.haslayer(ARP):
-        if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
+    if 'ARP' in request.keys():
+        if request['Ethernet']['destination'] == "ff:ff:ff:ff:ff:ff" and \
+                request['ARP']['target-mac'] == "00:00:00:00:00:00":
             # region Set local variables
-            arp_sender_mac_address = request[ARP].hwsrc
-            arp_sender_ip_address = request[ARP].psrc
-            arp_target_ip_address = request[ARP].pdst
+            arp_sender_mac_address = request['ARP']['sender-mac']
+            arp_sender_ip_address = request['ARP']['sender-ip']
+            arp_target_ip_address = request['ARP']['target-ip']
             # endregion
 
             # region Print info message
@@ -903,27 +903,122 @@ if __name__ == "__main__":
 
     # region Sniff network
 
-    # Target MAC address is not set
-    if target_mac_address is None:
-        Base.print_info("Waiting for a ARP or DHCP requests ...")
+    # region Create RAW socket for sniffing
+    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+    # endregion
 
-        # DHCP discover sender is not works
-        if dhcp_discover_packets_source_mac is None:
-            sniff(filter="arp or (udp and src port 68 and dst port 67)",
-                  prn=reply, iface=current_network_interface)
+    # region Local variables
+    ethernet_header_length = 14
+    arp_packet_length = 28
+    udp_header_length = 8
+    # endregion
 
-        # DHCP discover sender is works, filter this packets
-        else:
-            sniff(lfilter=lambda d: d.src != dhcp_discover_packets_source_mac,
-                  filter="arp or (udp and src port 68 and dst port 67)",
-                  prn=reply, iface=current_network_interface)
+    # region Print info message
+    Base.print_info("Waiting for a ARP or DHCP requests ...")
+    # endregion
 
-    # Target MAC address is set
-    else:
-        Base.print_info("Waiting for a ARP or DHCP requests from: ", target_mac_address)
-        sniff(lfilter=lambda d: d.src == args.target_mac,
-              filter="arp or (udp and src port 68 and dst port 67)",
-              prn=reply, iface=current_network_interface)
+    # region Start sniffing
+    while True:
+
+        # region Get packets from RAW socket
+        packets = rawSocket.recvfrom(2048)
+
+        for packet in packets:
+
+            # region Get Ethernet header from packet
+            ethernet_header = packet[0:ethernet_header_length]
+            ethernet_header_dict = eth.parse_header(ethernet_header)
+            # endregion
+
+            # region Success parse Ethernet header
+            if ethernet_header_dict is not None:
+
+                # region Target MAC address is Set
+                if target_mac_address is not None:
+                    if ethernet_header_dict['source'] != target_mac_address:
+                        break
+                # endregion
+
+                # region DHCP discover sender is works, filter this packets
+                if dhcp_discover_packets_source_mac is not None:
+                    if ethernet_header_dict['source'] != dhcp_discover_packets_source_mac:
+                        break
+                # endregion
+
+                # region ARP packet
+
+                # 2054 - Type of ARP packet (0x0806)
+                if ethernet_header_dict['type'] == 2054:
+
+                    # Get ARP packet
+                    arp_header = packet[ethernet_header_length:ethernet_header_length + arp_packet_length]
+                    arp_header_dict = arp.parse_packet(arp_header)
+
+                    # Success ARP packet
+                    if arp_header_dict is not None:
+
+                        # Create full request
+                        request = {
+                            "Ethernet": ethernet_header_dict,
+                            "ARP": arp_header_dict
+                        }
+
+                        # Reply to this request
+                        reply(request)
+
+                # endregion
+
+                # region DHCP packet
+
+                # 2048 - Type of IP packet (0x0800)
+                if ethernet_header_dict['type'] == 2048:
+
+                    # Get IP header
+                    ip_header = packet[ethernet_header_length:]
+                    ip_header_dict = ip.parse_header(ip_header)
+
+                    # Success parse IP header
+                    if ip_header_dict is not None:
+
+                        # UDP
+                        if ip_header_dict['protocol'] == 17:
+
+                            # Get UDP header offset
+                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
+
+                            # Get UDP header
+                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
+                            udp_header_dict = udp.parse_header(udp_header)
+
+                            # Success parse UDP header
+                            if udp_header is not None:
+                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
+
+                                    # Get DHCP header offset
+                                    dhcp_packet_offset = udp_header_offset + udp_header_length
+
+                                    # Get DHCP packet
+                                    dhcp_packet = packet[dhcp_packet_offset:]
+                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+
+                                    # Create full request
+                                    request = {
+                                        "Ethernet": ethernet_header_dict,
+                                        "IP": ip_header_dict,
+                                        "UDP": udp_header_dict
+                                    }
+                                    request.update(dhcp_packet_dict)
+
+                                    # Reply to this request
+                                    reply(request)
+
+                # endregion
+
+            # endregion
+
+        # endregion
+
+    # endregion
 
     # endregion
 
