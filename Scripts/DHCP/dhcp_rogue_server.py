@@ -591,6 +591,7 @@ def reply(request):
 
         # region DHCP REQUEST
         if request['DHCP'][53] == 3:
+
             # region Set local variables
             requested_ip = "0.0.0.0"
             offer_ip = None
@@ -800,6 +801,7 @@ def reply(request):
     if 'ARP' in request.keys():
         if request['Ethernet']['destination'] == "ff:ff:ff:ff:ff:ff" and \
                 request['ARP']['target-mac'] == "00:00:00:00:00:00":
+
             # region Set local variables
             arp_sender_mac_address = request['ARP']['sender-mac']
             arp_sender_ip_address = request['ARP']['sender-ip']
