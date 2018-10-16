@@ -420,22 +420,25 @@ class Base:
     @staticmethod
     def get_process_pid_by_listen_port(listen_port, proto='tcp'):
         pids = []
-        for process in ps.process_iter():
-            connections = process.connections()
-            for connection in connections:
-                (listen_address, port) = connection.laddr
-                if listen_address != "127.0.0.1":
-                    if connection.type == sock.SOCK_STREAM and connection.status == ps.CONN_LISTEN:
-                        connection_proto = 'tcp'
-                    elif connection.type == sock.SOCK_DGRAM:
-                        connection_proto = 'udp'
-                    else:
-                        continue
-                    if proto == connection_proto:
+        try:
+            for process in ps.process_iter():
+                connections = process.connections()
+                for connection in connections:
+                    (listen_address, port) = connection.laddr
+                    if listen_address != "127.0.0.1":
                         if connection.type == sock.SOCK_STREAM and connection.status == ps.CONN_LISTEN:
-                            if port == listen_port and process.pid is not None:
-                                pids.append(process.pid)
-        return pids
+                            connection_proto = 'tcp'
+                        elif connection.type == sock.SOCK_DGRAM:
+                            connection_proto = 'udp'
+                        else:
+                            continue
+                        if proto == connection_proto:
+                            if connection.type == sock.SOCK_STREAM and connection.status == ps.CONN_LISTEN:
+                                if port == listen_port and process.pid is not None:
+                                    pids.append(process.pid)
+            return pids
+        except ps.NoSuchProcess:
+            return []
 
     @staticmethod
     def kill_process(process_pid):
