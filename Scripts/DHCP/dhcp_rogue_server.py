@@ -957,14 +957,17 @@ if __name__ == "__main__":
                     # Success ARP packet
                     if arp_header_dict is not None:
 
-                        # Create full request
-                        request = {
-                            "Ethernet": ethernet_header_dict,
-                            "ARP": arp_header_dict
-                        }
+                        # ARP Opcode: 1 - ARP request
+                        if arp_header_dict['opcode'] == 1:
 
-                        # Reply to this request
-                        reply(request)
+                            # Create full request
+                            request = {
+                                "Ethernet": ethernet_header_dict,
+                                "ARP": arp_header_dict
+                            }
+
+                            # Reply to this request
+                            reply(request)
 
                 # endregion
 

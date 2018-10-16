@@ -12,13 +12,12 @@ path.append(scripts_arp_path)
 
 from base import Base
 from scanner import Scanner
-from network import ARP_raw
+from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from tm import ThreadManager
 from arp_scan import ArpScan
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
-from scapy.all import Ether, ARP, DHCP, sniff
-from socket import socket, AF_PACKET, SOCK_RAW
+from socket import socket, AF_PACKET, SOCK_RAW, htons
 from time import sleep
 # endregion
 
@@ -26,7 +25,13 @@ from time import sleep
 Base = Base()
 Scanner = Scanner()
 ArpScan = ArpScan()
+
+eth = Ethernet_raw()
 arp = ARP_raw()
+ip = IP_raw()
+udp = UDP_raw()
+dhcp = DHCP_raw()
+
 Base.check_user()
 Base.check_platform()
 Base.print_banner()
@@ -106,42 +111,160 @@ def send_arp_reply():
 
 
 # region Analyze request in sniffer
-def sniffer_prn(request):
+def reply(request):
+
+    # region Define global variables
     global apple_device
+    # endregion
 
     # region ARP request
-    if request.haslayer(ARP):
-        if request[ARP].op == 1:
-            if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
-                if request[ARP].pdst == apple_device[0]:
-                    Base.print_info("ARP request from: ", request[Ether].src, " \"",
-                                    "Who has " + request[ARP].pdst + "? Tell " + request[ARP].psrc, "\"")
-                    send_arp_reply()
+    if 'ARP' in request.keys():
+        if request['Ethernet']['destination'] == "ff:ff:ff:ff:ff:ff" and \
+                request['ARP']['target-mac'] == "00:00:00:00:00:00" and \
+                request['ARP']['target-ip'] == apple_device[0]:
+
+                Base.print_info("ARP request from: ", request['Ethernet']['source'], " \"",
+                                "Who has " + request['ARP']['target-ip'] +
+                                "? Tell " + request['ARP']['sender-ip'], "\"")
+                send_arp_reply()
     # endregion
 
     # region DHCP request
-    if request.haslayer(DHCP):
-        if request[DHCP].options[0][1] == 3:
-            for option in request[DHCP].options:
-                if option[0] == "requested_addr":
-                    apple_device[0] = str(option[1])
-                    Base.print_success("DHCP REQUEST from: ", apple_device[1], " requested ip: ", apple_device[0])
+    if 'DHCP' in request.keys():
+        if request['DHCP'][53] == 3:
+            if 50 in request['DHCP'].keys():
+                apple_device[0] = str(request['DHCP'][50])
+                Base.print_success("DHCP REQUEST from: ", apple_device[1], " requested ip: ", apple_device[0])
     # endregion
+
 # endregion
 
 
 # region Sniff ARP and DHCP request from target
 def sniffer():
+
+    # region Create RAW socket for sniffing
+    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+    # endregion
+
+    # region Local variables
+    ethernet_header_length = 14
+    arp_packet_length = 28
+    udp_header_length = 8
+    # endregion
+
+    # region Print info message
     Base.print_info("Waiting for ARP or DHCP REQUEST from ", apple_device[0] + " (" + apple_device[1] + ")")
-    sniff(lfilter=lambda d: d.src == apple_device[1],
-          filter="arp or (udp and src port 68 and dst port 67)",
-          prn=sniffer_prn, iface=listen_network_interface)
+    # endregion
+
+    # region Start sniffing
+    while True:
+
+        # region Get packets from RAW socket
+        packets = rawSocket.recvfrom(2048)
+
+        for packet in packets:
+
+            # region Get Ethernet header from packet
+            ethernet_header = packet[0:ethernet_header_length]
+            ethernet_header_dict = eth.parse_header(ethernet_header)
+            # endregion
+
+            # region Success parse Ethernet header
+            if ethernet_header_dict is not None:
+
+                # region Target MAC address is Set
+                if apple_device[1] is not None:
+                    if ethernet_header_dict['source'] != apple_device[1]:
+                        break
+                # endregion
+
+                # region ARP packet
+
+                # 2054 - Type of ARP packet (0x0806)
+                if ethernet_header_dict['type'] == 2054:
+
+                    # Get ARP packet
+                    arp_header = packet[ethernet_header_length:ethernet_header_length + arp_packet_length]
+                    arp_header_dict = arp.parse_packet(arp_header)
+
+                    # Success ARP packet
+                    if arp_header_dict is not None:
+
+                        # ARP Opcode: 1 - ARP request
+                        if arp_header_dict['opcode'] == 1:
+
+                            # Create full request
+                            request = {
+                                "Ethernet": ethernet_header_dict,
+                                "ARP": arp_header_dict
+                            }
+
+                            # Reply to this request
+                            reply(request)
+
+                # endregion
+
+                # region DHCP packet
+
+                # 2048 - Type of IP packet (0x0800)
+                if ethernet_header_dict['type'] == 2048:
+
+                    # Get IP header
+                    ip_header = packet[ethernet_header_length:]
+                    ip_header_dict = ip.parse_header(ip_header)
+
+                    # Success parse IP header
+                    if ip_header_dict is not None:
+
+                        # UDP
+                        if ip_header_dict['protocol'] == 17:
+
+                            # Get UDP header offset
+                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
+
+                            # Get UDP header
+                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
+                            udp_header_dict = udp.parse_header(udp_header)
+
+                            # Success parse UDP header
+                            if udp_header is not None:
+                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
+
+                                    # Get DHCP header offset
+                                    dhcp_packet_offset = udp_header_offset + udp_header_length
+
+                                    # Get DHCP packet
+                                    dhcp_packet = packet[dhcp_packet_offset:]
+                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+
+                                    # Create full request
+                                    request = {
+                                        "Ethernet": ethernet_header_dict,
+                                        "IP": ip_header_dict,
+                                        "UDP": udp_header_dict
+                                    }
+                                    request.update(dhcp_packet_dict)
+
+                                    # Reply to this request
+                                    reply(request)
+
+                # endregion
+
+            # endregion
+
+        # endregion
+
+    # endregion
+
 # endregion
 
 
 # region Main function
 if __name__ == "__main__":
+
     try:
+
         # region Find Apple devices in local network with ArpScan or nmap
         if args.target_ip is None:
             if not args.nmap_scan:
@@ -165,7 +288,7 @@ if __name__ == "__main__":
                 apple_device = [target_ip, target_mac]
         # endregion
 
-        # region Output target IP and MAC address
+        # region Print target IP and MAC address
         Base.print_info("Target: ", apple_device[0] + " (" + apple_device[1] + ")")
         # endregion
 
