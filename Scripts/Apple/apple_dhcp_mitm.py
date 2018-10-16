@@ -56,7 +56,7 @@ args = parser.parse_args()
 # Kill subprocesses
 Base.kill_process_by_name('apple_rogue_dhcp')
 Base.kill_process_by_name('dhcp_rogue_server')
-Base.kill_process_by_name('dns.py')
+Base.kill_process_by_name('dns_server.py')
 Base.kill_process_by_name('aireplay-ng')
 
 try:
@@ -512,20 +512,20 @@ if __name__ == "__main__":
     # region DNS server settings
     Base.print_info("Start DNS server ...")
     try:
-        sub.Popen(['python ' + script_dir + '/Listeners/dns.py -i ' + listen_network_interface + ' -f -q'],
+        sub.Popen(['python ' + script_dir + '/Scripts/DNS/dns_server.py -i ' + listen_network_interface + ' -f -q'],
                   shell=True)
     except OSError as e:
         if e.errno == errno.ENOENT:
             Base.print_error("Program: ", "python", " is not installed!")
             exit(1)
         else:
-            Base.print_error("Something else went wrong while trying to run ", "`dns.py`")
+            Base.print_error("Something else went wrong while trying to run ", "`dns_server.py`")
             exit(2)
     # endregion
 
     # region Check DNS server is running
     sleep(5)
-    dns_pid = Base.get_process_pid("dns.py")
+    dns_pid = Base.get_process_pid("dns_server.py")
     if dns_pid == -1:
         Base.print_error("DNS server is not running!")
         exit(1)
@@ -668,7 +668,7 @@ if __name__ == "__main__":
             # Kill subprocess
             Base.kill_process_by_name('apple_rogue_dhcp')
             Base.kill_process_by_name('dhcp_rogue_server')
-            Base.kill_process_by_name('dns.py')
+            Base.kill_process_by_name('dns_server.py')
             Base.kill_process_by_name('aireplay-ng')
 
             # Exit from Main function

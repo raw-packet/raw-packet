@@ -3,7 +3,7 @@
 # region Import
 from sys import path
 from os.path import dirname, abspath
-project_root_path = dirname(dirname(abspath(__file__)))
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
