@@ -439,7 +439,8 @@ if __name__ == "__main__":
     # endregion
 
     # region Print info message
-    Base.print_info("Waiting for a DNS requests ...")
+    if not args.quiet:
+        Base.print_info("Waiting for a DNS requests ...")
     # endregion
 
     # region Start sniffing
