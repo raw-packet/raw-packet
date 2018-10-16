@@ -309,7 +309,7 @@ class IP_raw:
                 "time-to-live":    int(ip_detailed[4]),
                 "protocol":        int(ip_detailed[6]),
                 "checksum":        int(ip_detailed[7]),
-                "sourse-ip":       inet_ntoa(ip_detailed[8]),
+                "source-ip":       inet_ntoa(ip_detailed[8]),
                 "destination-ip":  inet_ntoa(ip_detailed[9])
             }
         except IndexError:
