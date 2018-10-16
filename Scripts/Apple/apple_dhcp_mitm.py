@@ -549,7 +549,7 @@ if __name__ == "__main__":
 
     # region Find Mac address of Apple device if target IP is set
     if args.target_ip is not None:
-        Base.print_info("Find MAC address of Apple device with IP address: ", target_ip, " ...")
+        Base.print_info("Search MAC address of Apple device with IP address: ", target_ip, " ...")
         target_mac = ArpScan.get_mac_address(listen_network_interface, target_ip)
         if target_mac == "ff:ff:ff:ff:ff:ff":
             Base.print_error("Could not find device MAC address with IP address: ", target_ip)
