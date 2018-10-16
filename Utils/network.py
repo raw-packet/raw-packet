@@ -1476,12 +1476,15 @@ class DHCP_raw:
 
 # region Raw DNS
 class DNS_raw:
-    eth = Ethernet_raw()
-    ip = IP_raw()
-    udp = UDP_raw()
+
+    eth = None
+    ip = None
+    udp = None
 
     def __init__(self):
-        pass
+        self.eth = Ethernet_raw()
+        self.ip = IP_raw()
+        self.udp = UDP_raw()
 
     @staticmethod
     def make_dns_name(name):
@@ -1580,6 +1583,57 @@ class DNS_raw:
 
         return eth_header + ip_header + udp_header + dns_packet
 
+    @staticmethod
+    def parse_request_packet(packet):
+        dns_minimal_packet_length = 12
+
+        if len(packet) < dns_minimal_packet_length:
+            return None
+
+        dns_detailed = unpack("!6H", packet[:dns_minimal_packet_length])
+
+        dns_packet = {
+            "transaction-id": int(dns_detailed[0]),
+            "flags":          int(dns_detailed[1]),
+            "questions":      int(dns_detailed[2]),
+            "answer-rrs":     int(dns_detailed[3]),
+            "authority-rrs":  int(dns_detailed[4]),
+            "additional-rrs": int(dns_detailed[5]),
+        }
+
+        queries = []
+
+        if len(packet) > dns_minimal_packet_length:
+
+            number_of_question = 0
+            position = dns_minimal_packet_length
+
+            while number_of_question < dns_packet['questions']:
+
+                query_name = ""
+                query_name_length = int(unpack("B", packet[position:position + 1])[0])
+
+                while query_name_length != 0:
+                    query_name += "".join([str(x) for x in packet[position + 1:position + query_name_length + 1]]) + "."
+                    position += query_name_length + 1
+                    query_name_length = int(unpack("B", packet[position:position + 1])[0])
+
+                query_type = int(unpack("!H", packet[position + 1:position + 3])[0])
+                query_class = int(unpack("!H", packet[position + 3:position + 5])[0])
+                position += 5
+
+                queries.append({
+                    "name":  query_name,
+                    "type":  query_type,
+                    "class": query_class
+                })
+
+                number_of_question += 1
+
+        dns_packet["queries"] = queries
+
+        return dns_packet
+
     def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
         queries = []
 
@@ -1605,4 +1659,5 @@ class DNS_raw:
                                         tid=tid,
                                         flags=flags,
                                         queries=queries)
+
 # endregion
