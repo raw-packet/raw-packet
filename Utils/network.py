@@ -1,9 +1,11 @@
 # region Import
+from base import Base
 from random import choice, randint
 from struct import pack, unpack
 from binascii import unhexlify, hexlify
 from array import array
 from socket import error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
+from socket import socket, AF_PACKET, SOCK_RAW
 from re import search
 # endregion
 
@@ -1659,5 +1661,271 @@ class DNS_raw:
                                         tid=tid,
                                         flags=flags,
                                         queries=queries)
+
+# endregion
+
+
+# region Raw Sniffer
+class Sniff_raw:
+
+    # region variables
+    Base = None
+
+    eth = None
+    arp = None
+    ip = None
+    ipv6 = None
+    udp = None
+    dhcp = None
+    dns = None
+
+    eth_header_length = 0
+    arp_packet_length = 0
+    udp_header_length = 0
+
+    raw_socket = None
+    # endregion
+
+    # region Init
+    def __init__(self):
+        self.Base = Base()
+
+        self.eth = Ethernet_raw()
+        self.arp = ARP_raw()
+        self.ip = IP_raw()
+        self.ipv6 = IPv6_raw()
+        self.udp = UDP_raw()
+        self.dhcp = DHCP_raw()
+        self.dns = DNS_raw()
+
+        self.eth_header_length = 14
+        self.arp_packet_length = 28
+        self.udp_header_length = 8
+    # endregion
+
+    # region Start sniffer
+    def start(self, protocols, prn, filters={}):
+
+        # region Create RAW socket for sniffing
+        self.raw_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+        # endregion
+
+        # region Start sniffing
+        while True:
+
+            # region Try
+            try:
+
+                # region Sniff packets from RAW socket
+                packets = self.raw_socket.recvfrom(2048)
+
+                for packet in packets:
+
+                    # region Parse Ethernet header
+                    ethernet_header = packet[0:self.eth_header_length]
+                    ethernet_header_dict = self.eth.parse_header(ethernet_header)
+                    # endregion
+
+                    # region Could not parse Ethernet header - break
+                    if ethernet_header_dict is None:
+                        break
+                    # endregion
+
+                    # region Ethernet filter
+                    if 'Ethernet' in filters.keys():
+
+                        if 'source' in filters['Ethernet'].keys():
+                            if ethernet_header_dict['source'] != filters['Ethernet']['source']:
+                                break
+
+                        if 'destination' in filters['Ethernet'].keys():
+                            if ethernet_header_dict['destination'] != filters['Ethernet']['destination']:
+                                break
+
+                        if 'not-source' in filters['Ethernet'].keys():
+                            if ethernet_header_dict['source'] == filters['Ethernet']['not-source']:
+                                break
+
+                        if 'not-destination' in filters['Ethernet'].keys():
+                            if ethernet_header_dict['destination'] == filters['Ethernet']['not-destination']:
+                                break
+
+                    # endregion
+
+                    # region ARP packet
+
+                    # 2054 - Type of ARP packet (0x0806)
+                    if 'ARP' in protocols and ethernet_header_dict['type'] == 2054:
+
+                        # region Parse ARP packet
+                        arp_header = packet[self.eth_header_length:self.eth_header_length + self.arp_packet_length]
+                        arp_packet_dict = self.arp.parse_packet(arp_header)
+                        # endregion
+
+                        # region Could not parse ARP packet - break
+                        if arp_packet_dict is None:
+                            break
+                        # endregion
+
+                        # region ARP filter
+                        if 'ARP' in filters.keys():
+
+                            if 'opcode' in filters['ARP'].keys():
+                                if arp_packet_dict['opcode'] != filters['ARP']['opcode']:
+                                    break
+
+                        # endregion
+
+                        # region Call function with full ARP packet
+                        prn({
+                            'Ethernet': ethernet_header_dict,
+                            'ARP': arp_packet_dict
+                        })
+                        # endregion
+
+                    # endregion
+
+                    # region IP packet
+
+                    # 2048 - Type of IP packet (0x0800)
+                    if 'IP' in protocols and ethernet_header_dict['type'] == 2048:
+
+                        # region Parse IP header
+                        ip_header = packet[self.eth_header_length:]
+                        ip_header_dict = self.ip.parse_header(ip_header)
+                        # endregion
+
+                        # region Could not parse IP header - break
+                        if ip_header_dict is None:
+                            break
+                        # endregion
+
+                        # region IP filter
+                        if 'IP' in filters.keys():
+
+                            if 'source-ip' in filters['IP'].keys():
+                                if ip_header_dict['source-ip'] != filters['IP']['source-ip']:
+                                    break
+
+                            if 'destination-ip' in filters['IP'].keys():
+                                if ip_header_dict['destination-ip'] != filters['IP']['destination-ip']:
+                                    break
+
+                            if 'not-source-ip' in filters['IP'].keys():
+                                if ip_header_dict['source-ip'] == filters['IP']['not-source-ip']:
+                                    break
+
+                            if 'not-destination-ip' in filters['IP'].keys():
+                                if ip_header_dict['destination-ip'] == filters['IP']['not-destination-ip']:
+                                    break
+
+                        # endregion
+
+                        # region UDP
+                        if 'UDP' in protocols and ip_header_dict['protocol'] == 17:
+
+                            # region Parse UDP header
+                            udp_header_offset = self.eth_header_length + (ip_header_dict['length'] * 4)
+                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp_header_length]
+                            udp_header_dict = self.udp.parse_header(udp_header)
+                            # endregion
+
+                            # region Could not parse UDP header - break
+                            if udp_header is None:
+                                break
+                            # endregion
+
+                            # region UDP filter
+                            udp_filter_destination_port = 0
+                            if 'UDP' in filters.keys():
+                                if 'destination-port' in filters['UDP'].keys():
+                                    udp_filter_destination_port = filters['UDP']['destination-port']
+                            # endregion
+
+                            # region DHCP packet
+
+                            # region Set UDP destination port
+                            if udp_filter_destination_port == 0:
+                                destination_port = 67
+                            else:
+                                destination_port = udp_filter_destination_port
+                            # endregion
+
+                            if 'DHCP' in protocols and udp_header_dict['destination-port'] == destination_port:
+
+                                # region Parse DHCP packet
+                                dhcp_packet_offset = udp_header_offset + self.udp_header_length
+                                dhcp_packet = packet[dhcp_packet_offset:]
+                                dhcp_packet_dict = self.dhcp.parse_packet(dhcp_packet)
+                                # endregion
+
+                                # region Could not parse DHCP packet - break
+                                if dhcp_packet_dict is None:
+                                    break
+                                # endregion
+
+                                # region Call function with full DHCP packet
+                                full_dhcp_packet = {
+                                    'Ethernet': ethernet_header_dict,
+                                    'IP': ip_header_dict,
+                                    'UDP': udp_header_dict
+                                }
+                                full_dhcp_packet.update(dhcp_packet_dict)
+
+                                prn(full_dhcp_packet)
+                                # endregion
+
+                            # endregion
+
+                            # region DNS packet
+
+                            # region Set UDP destination port
+                            if udp_filter_destination_port == 0:
+                                destination_port = 53
+                            else:
+                                destination_port = udp_filter_destination_port
+                            # endregion
+
+                            if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
+
+                                # region Parse DNS request packet
+                                dns_packet_offset = udp_header_offset + self.udp_header_length
+                                dns_packet = packet[dns_packet_offset:]
+                                dns_packet_dict = self.dns.parse_request_packet(dns_packet)
+                                # endregion
+
+                                # region Could not parse DNS request packet - break
+                                if dns_packet_dict is None:
+                                    break
+                                # endregion
+
+                                # region Call function with full DNS packet
+                                prn({
+                                    "Ethernet": ethernet_header_dict,
+                                    "IP": ip_header_dict,
+                                    "UDP": udp_header_dict,
+                                    "DNS": dns_packet_dict
+                                })
+                                # endregion
+
+                            # endregion
+
+                        # endregion
+
+                    # endregion
+
+                # endregion
+
+            # endregion
+
+            # region Exception - KeyboardInterrupt
+            except KeyboardInterrupt:
+                self.Base.print_info("Exit")
+                exit(0)
+            # endregion
+
+        # endregion
+
+    # endregion
 
 # endregion
