@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # region Start sniffing
     while True:
 
-        # region Try loop
+        # region Try
         try:
             # region Sniff packets from RAW socket
             packets = raw_socket.recvfrom(2048)
