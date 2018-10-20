@@ -39,13 +39,13 @@ def print_packet(request):
 if __name__ == "__main__":
 
     # region Print info message
-    Base.print_info("Available protocols: ", "Ethernet ARP IP UDP DHCP DNS")
+    Base.print_info("Available protocols: ", "Ethernet ARP IP IPv6 UDP DHCP DNS")
     Base.print_info("Start test sniffing ...")
     # endregion
 
     # region Start sniffer
     sniff = Sniff_raw()
-    sniff.start(protocols=['ARP', 'IP', 'UDP', 'DHCP', 'DNS'], prn=print_packet)
+    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'UDP', 'DHCP', 'DNS'], prn=print_packet)
     # endregion
 
 # endregion
