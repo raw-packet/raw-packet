@@ -8,7 +8,7 @@ utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
 from base import Base
-from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DNS_raw
+from network import Sniff_raw, DNS_raw
 from ipaddress import IPv4Address
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, gaierror, htons
@@ -24,7 +24,12 @@ Base.check_platform()
 parser = ArgumentParser(description='DNS server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send DNS reply packets', default=None)
-parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
+parser.add_argument('-p', '--port', type=int,
+                    help='Set UDP port for listen DNS request packets (default: 53)', default=53)
+
+parser.add_argument('-t', '--target_mac', help='Set target MAC address', default=None)
+parser.add_argument('--T4', help='Set target IPv4 address', default=None)
+parser.add_argument('--T6', help='Set target IPv6 address', default=None)
 
 parser.add_argument('--fake_domains', help='Set fake domain or domains, example: --fake_domains "apple.com,google.com"',
                     default=None)
@@ -47,13 +52,12 @@ if not args.quiet:
 
 # region Set global variables
 
-eth = Ethernet_raw()
-arp = ARP_raw()
-ip = IP_raw()
-udp = UDP_raw()
 dns = DNS_raw()
 
+destination_port = 0
+
 target_ip_address = None
+target_ipv6_address = None
 
 fake_domains = []
 fake_ip_addresses = []
@@ -161,16 +165,33 @@ first_ip_address = str(IPv4Address(unicode(Base.get_netiface_first_ip(current_ne
 last_ip_address = str(IPv4Address(unicode(Base.get_netiface_last_ip(current_network_interface))) + 1)
 # endregion
 
-# region Check target IP
-if args.target_ip is not None:
-    if not Base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address):
-        Base.print_error("Bad value `-t, --target_ip`: ", args.target_ip,
-                         "; target IP address must be in range: ", first_ip_address + " - " + last_ip_address)
-        exit(1)
-    else:
-        target_ip_address = args.target_ip
+# region Check UDP destination port
+if 0 < args.port < 65535:
+    destination_port = args.port
+else:
+    Base.print_error("Bad value `-p, --port`: ", str(args.port),
+                     "; listen UDP port must be in range: ", "1 - 65534")
+    exit(1)
 # endregion
 
+# region Check target IPv4
+if args.T4 is not None:
+    if not Base.ip_address_in_range(args.T4, first_ip_address, last_ip_address):
+        Base.print_error("Bad value `--T4`: ", args.T4,
+                         "; target IPv4 address must be in range: ", first_ip_address + " - " + last_ip_address)
+        exit(1)
+    else:
+        target_ip_address = args.T4
+# endregion
+
+# region Check target IPv6
+if args.T6 is not None:
+    if not Base.ipv6_address_validation(args.T6):
+        Base.print_error("Bad IPv6 address in parameter `--T6`: ", args.T6)
+        exit(1)
+    else:
+        target_ipv6_address = args.T6
+# endregion
 
 # region Get first IPv4 or IPv6 address of domain
 def get_domain_address(query_name, query_type=1):
@@ -341,31 +362,57 @@ def reply(request):
                         # endregion
 
                         # region Make dns answer packet
-                        dns_answer_packet = dns.make_response_packet(src_mac=request['Ethernet']['destination'],
-                                                                     dst_mac=request['Ethernet']['source'],
-                                                                     src_ip=request['IP']['destination-ip'],
-                                                                     dst_ip=request['IP']['source-ip'],
-                                                                     src_port=53,
-                                                                     dst_port=request['UDP']['source-port'],
-                                                                     tid=request['DNS']['transaction-id'],
-                                                                     flags=0x8580,
-                                                                     queries=query,
-                                                                     answers_address=answer)
+                        if 'IP' in request.keys():
+                            dns_answer_packet = dns.make_response_packet(src_mac=request['Ethernet']['destination'],
+                                                                         dst_mac=request['Ethernet']['source'],
+                                                                         src_ip=request['IP']['destination-ip'],
+                                                                         dst_ip=request['IP']['source-ip'],
+                                                                         src_port=53,
+                                                                         dst_port=request['UDP']['source-port'],
+                                                                         tid=request['DNS']['transaction-id'],
+                                                                         flags=0x8580,
+                                                                         queries=query,
+                                                                         answers_address=answer)
+                        elif 'IPv6' in request.keys():
+                            dns_answer_packet = dns.make_response_packet(src_mac=request['Ethernet']['destination'],
+                                                                         dst_mac=request['Ethernet']['source'],
+                                                                         src_ip=request['IPv6']['destination-ip'],
+                                                                         dst_ip=request['IPv6']['source-ip'],
+                                                                         src_port=53,
+                                                                         dst_port=request['UDP']['source-port'],
+                                                                         tid=request['DNS']['transaction-id'],
+                                                                         flags=0x8580,
+                                                                         queries=query,
+                                                                         answers_address=answer)
+                        else:
+                            dns_answer_packet = None
                         # endregion
 
                         # region Send DNS answer packet
-                        SOCK.send(dns_answer_packet)
+                        if dns_answer_packet is not None:
+                            SOCK.send(dns_answer_packet)
                         # endregion
 
                         # region Print info message
-                        if query_type == 1:
-                            Base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                            " to ", request['IP']['destination-ip'], " type: ", "A",
-                                            " domain: ", query_name, " answer: ", (", ".join(addresses)))
-                        if query_type == 28:
-                            Base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                            " to ", request['IP']['destination-ip'], " type: ", "AAAA",
-                                            " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                        if 'IP' in request.keys():
+                            if query_type == 1:
+                                Base.print_info("DNS query from: ", request['IP']['source-ip'],
+                                                " to ", request['IP']['destination-ip'], " type: ", "A",
+                                                " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                            if query_type == 28:
+                                Base.print_info("DNS query from: ", request['IP']['source-ip'],
+                                                " to ", request['IP']['destination-ip'], " type: ", "AAAA",
+                                                " domain: ", query_name, " answer: ", (", ".join(addresses)))
+
+                        if 'IPv6' in request.keys():
+                            if query_type == 1:
+                                Base.print_info("DNS query from: ", request['IPv6']['source-ip'],
+                                                " to ", request['IPv6']['destination-ip'], " type: ", "A",
+                                                " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                            if query_type == 28:
+                                Base.print_info("DNS query from: ", request['IPv6']['source-ip'],
+                                                " to ", request['IPv6']['destination-ip'], " type: ", "AAAA",
+                                                " domain: ", query_name, " answer: ", (", ".join(addresses)))
                         # endregion
 
                     # endregion
@@ -429,103 +476,35 @@ if __name__ == "__main__":
 
     # region Sniff network
 
-    # region Create RAW socket for sniffing
-    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
-    # endregion
-
-    # region Local variables
-    ethernet_header_length = 14
-    udp_header_length = 8
-    # endregion
-
     # region Print info message
     if not args.quiet:
         Base.print_info("Waiting for a DNS requests ...")
     # endregion
 
-    # region Start sniffing
-    while True:
+    # region Set network filter
+    network_filters = {}
 
-        try:
+    if args.target_mac is not None:
+        network_filters['Ethernet'] = {'source': args.target_mac}
+    else:
+        network_filters['Ethernet'] = {'not-source': your_mac_address}
 
-            # region Get packets from RAW socket
-            packets = rawSocket.recvfrom(2048)
+    if target_ip_address is not None:
+        network_filters['IP'] = {'source-ip': target_ip_address}
 
-            for packet in packets:
+    if target_ipv6_address is not None:
+        network_filters['IPv6'] = {'source-ip': target_ipv6_address}
 
-                # region Get Ethernet header from packet
-                ethernet_header = packet[0:ethernet_header_length]
-                ethernet_header_dict = eth.parse_header(ethernet_header)
-                # endregion
+    network_filters['UDP'] = {'destination-port': destination_port}
+    # endregion
 
-                # region Success parse Ethernet header
-                if ethernet_header_dict is not None:
+    # region Start sniffer
+    sniff = Sniff_raw()
 
-                    # region DNS packet
-
-                    # region Filter your Ethernet packets
-                    if ethernet_header_dict['source'] == your_mac_address:
-                        break
-                    # endregion
-
-                    # 2048 - Type of IP packet (0x0800)
-                    if ethernet_header_dict['type'] == 2048:
-
-                        # Get IP header
-                        ip_header = packet[ethernet_header_length:]
-                        ip_header_dict = ip.parse_header(ip_header)
-
-                        # Success parse IP header
-                        if ip_header_dict is not None:
-
-                            # region Target IP address is Set
-                            if target_ip_address is not None:
-                                if ip_header_dict['source-ip'] != target_ip_address:
-                                    break
-                            # endregion
-
-                            # UDP
-                            if ip_header_dict['protocol'] == 17:
-
-                                # Get UDP header offset
-                                udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
-
-                                # Get UDP header
-                                udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
-                                udp_header_dict = udp.parse_header(udp_header)
-
-                                # Success parse UDP header
-                                if udp_header is not None:
-                                    if udp_header_dict['destination-port'] == 53:
-
-                                        # Get DHCP header offset
-                                        dns_packet_offset = udp_header_offset + udp_header_length
-
-                                        # Get DHCP packet
-                                        dns_packet = packet[dns_packet_offset:]
-                                        dns_packet_dict = dns.parse_request_packet(dns_packet)
-
-                                        # Create full request
-                                        request = {
-                                            "Ethernet": ethernet_header_dict,
-                                            "IP": ip_header_dict,
-                                            "UDP": udp_header_dict,
-                                            "DNS": dns_packet_dict
-                                        }
-
-                                        # Reply to this request
-                                        reply(request)
-
-                    # endregion
-
-                # endregion
-
-            # endregion
-
-        except KeyboardInterrupt:
-            Base.print_info("Exit")
-            exit(0)
-
+    if args.ipv6:
+        sniff.start(protocols=['IP', 'IPv6', 'UDP', 'DNS'], prn=reply, filters=network_filters)
+    else:
+        sniff.start(protocols=['IP', 'UDP', 'DNS'], prn=reply, filters=network_filters)
     # endregion
 
     # endregion
