@@ -4,8 +4,8 @@ from random import choice, randint
 from struct import pack, unpack
 from binascii import unhexlify, hexlify
 from array import array
-from socket import error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
-from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop
+from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6
+from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 # endregion
 
@@ -395,7 +395,11 @@ class IPv6_raw:
                 "source-ip":      inet_ntop(AF_INET6, ipv6_detailed[3]),
                 "destination-ip": inet_ntop(AF_INET6, ipv6_detailed[4])
             }
+
         except IndexError:
+            return None
+
+        except sock_error:
             return None
 
 # endregion
@@ -535,6 +539,7 @@ class UDP_raw:
         chksum = self.checksum(psh + udp_header + data)
 
         return pack("!4H", port_src, port_dst, data_length, chksum)
+
 # endregion
 
 
@@ -655,11 +660,13 @@ class ICMPv6_raw:
     # +                         Message Body                          +
     # |                                                               |
 
+    packet_type = 0
     eth = None
     ipv6 = None
     dns = None
 
     def __init__(self):
+        self.packet_type = 58
         self.eth = Ethernet_raw()
         self.ipv6 = IPv6_raw()
         self.dns = DNS_raw()
@@ -702,6 +709,72 @@ class ICMPv6_raw:
         ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58, 255)  # 58 = 0x3a (ICMPv6)
 
         return eth_header + ipv6_header + icmp_packet
+
+    def parse_packet(self, packet):
+        if len(packet) < 4:
+            return None
+
+        offset = 4
+
+        icmpv6_detailed = unpack("!" "2B" "H", packet[:offset])
+
+        icmpv6_packet = {
+            "type":     int(icmpv6_detailed[0]),
+            "code":     int(icmpv6_detailed[1]),
+            "checksum": int(icmpv6_detailed[2]),
+        }
+
+        if len(packet) <= offset + 4:
+            return icmpv6_packet
+
+        # 134 - Router Advertisement
+        if icmpv6_packet['type'] == 134:
+            icmpv6_packet['hop-limit'] = int(unpack("B", packet[offset:offset + 1])[0])
+            icmpv6_packet['flags'] = int(unpack("B", packet[offset + 1:offset + 2])[0])
+            icmpv6_packet['router-lifetime'] = int(unpack("!H", packet[offset + 2:offset + 4])[0])
+            icmpv6_packet['reachable-time'] = int(unpack("!I", packet[offset + 4:offset + 8])[0])
+            icmpv6_packet['retrans-timer'] = int(unpack("!I", packet[offset + 8:offset + 12])[0])
+            offset += 12
+
+        # 135 - Neighbor Solicitation
+        if icmpv6_packet['type'] == 135:
+            icmpv6_packet['target-address'] = inet_pton(AF_INET6, packet[offset + 4:offset + 20])
+            offset += 20
+
+        # Analyze ICMPv6 options
+        if icmpv6_packet['type'] == 133 or 134 or 135:
+            options = []
+
+            while offset < len(packet):
+                option_type = int(unpack("B", packet[offset:offset + 1])[0])
+                option_length = int(unpack("B", packet[offset + 1:offset + 2])[0])
+
+                if option_type == 1:
+                    option_value = self.eth.convert_mac(hexlify(packet[offset + 2:offset + 8]))
+
+                elif option_type == 3:
+                    option_detailed = unpack("!" "2B" "3I" "16s", packet[offset + 2:offset + 32])
+                    option_value = {
+                        "prefix-length": int(option_detailed[0]),
+                        "flag": int(option_detailed[1]),
+                        "valid-lifetime": int(option_detailed[2]),
+                        "reserved-lifetime": int(option_detailed[3]),
+                        "prefix": hexlify(option_detailed[5])
+                    }
+
+                else:
+                    option_value = hexlify(packet[offset + 2:offset + option_length * 8])
+
+                offset += option_length * 8
+
+                options.append({
+                    'type': option_type,
+                    'value': option_value
+                })
+
+            icmpv6_packet['options'] = options
+
+        return icmpv6_packet
 
     def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src,
                                    need_source_link_layer_address=False, source_link_layer_address=""):
@@ -1048,7 +1121,7 @@ class ICMP_raw:
             ip_header = self.ip.make_header(ip_src, ip_dst, len(icmp_packet) - 8, 8, 1)
 
             return eth_header + ip_header + icmp_packet
-        except error:
+        except sock_error:
             return None
 
     def make_host_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, data=None):
@@ -1061,7 +1134,7 @@ class ICMP_raw:
                 icmp_data = ip_data
 
             return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x01, icmp_data)
-        except error:
+        except sock_error:
             return None
 
     def make_udp_port_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst,
@@ -1077,7 +1150,7 @@ class ICMP_raw:
                 icmp_data = ip_data + udp_data
 
             return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
-        except error:
+        except sock_error:
             return None
 # endregion
 
@@ -1208,7 +1281,7 @@ class DHCP_raw:
             udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
 
             return eth_header + ip_header + udp_header + dhcp_packet
-        except error:
+        except sock_error:
             return None
 
     def parse_packet(self, packet):
@@ -1738,6 +1811,7 @@ class Sniff_raw:
     ip = None
     ipv6 = None
     udp = None
+    icmpv6 = None
     dhcp = None
     dns = None
 
@@ -1753,6 +1827,7 @@ class Sniff_raw:
         self.ip = IP_raw()
         self.ipv6 = IPv6_raw()
         self.udp = UDP_raw()
+        self.icmpv6 = ICMPv6_raw()
         self.dhcp = DHCP_raw()
         self.dns = DNS_raw()
     # endregion
@@ -2056,6 +2131,30 @@ class Sniff_raw:
                                 })
                                 # endregion
 
+                            # endregion
+
+                        # endregion
+
+                        # region ICMPv6
+                        if 'ICMPv6' in protocols and ipv6_header_dict['next-header'] == self.icmpv6.packet_type:
+
+                            # region Parse ICMPv6 packet
+                            icmpv6_packet_offset = self.eth.header_length + self.ipv6.header_length
+                            icmpv6_packet = packet[icmpv6_packet_offset:]
+                            icmpv6_packet_dict = self.icmpv6.parse_packet(icmpv6_packet)
+                            # endregion
+
+                            # region Could not parse ICMPv6 packet - break
+                            if icmpv6_packet_dict is None:
+                                break
+                            # endregion
+
+                            # region Call function with full ICMPv6 packet
+                            prn({
+                                "Ethernet": ethernet_header_dict,
+                                "IPv6": ipv6_header_dict,
+                                "ICMPv6": icmpv6_packet_dict
+                            })
                             # endregion
 
                         # endregion
