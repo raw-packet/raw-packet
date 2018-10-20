@@ -5,7 +5,7 @@ from struct import pack, unpack
 from binascii import unhexlify, hexlify
 from array import array
 from socket import error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6, IPPROTO_ICMPV6
-from socket import socket, AF_PACKET, SOCK_RAW
+from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop
 from re import search
 # endregion
 
@@ -22,9 +22,11 @@ class Ethernet_raw:
     # |        Type code              |                               |
     # +-------------------------------+-------------------------------+
 
+    header_length = 0
     macs = []
 
     def __init__(self):
+        self.header_length = 14
         self.macs.append("3c:d9:2b")  # Hewlett Packard
         self.macs.append("9c:8e:99")  # Hewlett Packard
         self.macs.append("b4:99:ba")  # Hewlett Packard
@@ -247,8 +249,10 @@ class IP_raw:
     # |                    Options                    |    Padding    |
     # +-----------------------------------------------+---------------+
 
+    header_type = 0
+
     def __init__(self):
-        pass
+        self.header_type = 2048
 
     @staticmethod
     def get_random_ip():
@@ -297,22 +301,22 @@ class IP_raw:
         if version != 4:
             return None
 
-        ip_detailed = unpack("!" "2B" "3H" "2B" "H" "4s" "4s", packet[:20])
+        ip_detailed = unpack("!" "B" "3H" "2B" "H" "4s" "4s", packet[1:20])
 
         try:
             return {
                 "version":         version,
                 "length":          length,
-                "dscp_ecn":        int(ip_detailed[1]),
-                "total-length":    int(ip_detailed[2]),
-                "identification":  int(ip_detailed[3]),
-                "flags":           int(int(int(ip_detailed[4]) & 0b1110000000000000) >> 3),
-                "fragment-offset": int(int(ip_detailed[4]) & 0b0001111111111111),
+                "dscp_ecn":        int(ip_detailed[0]),
+                "total-length":    int(ip_detailed[1]),
+                "identification":  int(ip_detailed[2]),
+                "flags":           int(int(int(ip_detailed[3]) & 0b1110000000000000) >> 3),
+                "fragment-offset": int(int(ip_detailed[3]) & 0b0001111111111111),
                 "time-to-live":    int(ip_detailed[4]),
-                "protocol":        int(ip_detailed[6]),
-                "checksum":        int(ip_detailed[7]),
-                "source-ip":       inet_ntoa(ip_detailed[8]),
-                "destination-ip":  inet_ntoa(ip_detailed[9])
+                "protocol":        int(ip_detailed[5]),
+                "checksum":        int(ip_detailed[6]),
+                "source-ip":       inet_ntoa(ip_detailed[7]),
+                "destination-ip":  inet_ntoa(ip_detailed[8])
             }
         except IndexError:
             return None
@@ -333,8 +337,12 @@ class IPv6_raw:
     # 192-288 |                    Destination Address                        |
     #         +---------------------------------------------------------------+
 
+    header_type = 0
+    header_length = 0
+
     def __init__(self):
-        pass
+        self.header_type = 34525
+        self.header_length = 40
 
     @staticmethod
     def get_random_ip(octets=1, prefix=""):
@@ -351,15 +359,45 @@ class IPv6_raw:
             return inet_pton(AF_INET6, ipv6_addr)
 
     def make_header(self, source_ip, destination_ip, flow_label, payload_len, next_header, hop_limit=64):
-        srcipv6 = self.pack_addr(source_ip)       # Source IPv6 address
-        dstipv6 = self.pack_addr(destination_ip)  # Destination IPv6 address
+        src_ipv6 = self.pack_addr(source_ip)       # Source IPv6 address
+        dst_ipv6 = self.pack_addr(destination_ip)  # Destination IPv6 address
 
         ver = 6             # IP protocol version
         traffic_class = 0   # Differentiated Services Code Point and Explicit Congestion Notification
 
         return pack("!" "2I",
                     (ver << 28) + (traffic_class << 20) + flow_label,
-                    (payload_len << 16) + (next_header << 8) + hop_limit) + srcipv6 + dstipv6
+                    (payload_len << 16) + (next_header << 8) + hop_limit) + src_ipv6 + dst_ipv6
+
+    @staticmethod
+    def parse_header(packet):
+        if len(packet) < 40:
+            return None
+
+        version_class_and_label = int(unpack("!L", packet[0:4])[0])
+        version = int(int(version_class_and_label & 0b11110000000000000000000000000000) >> 28)
+        traffic_class = int(int(version_class_and_label & 0b00001111111100000000000000000000) >> 20)
+        flow_label = int(version_class_and_label & 0b00000000000011111111111111111111)
+
+        if version != 6:
+            return None
+
+        ipv6_detailed = unpack("!" "H" "2B" "16s" "16s", packet[4:40])
+
+        try:
+            return {
+                "version":        version,
+                "traffic-class":  traffic_class,
+                "flow-label":     flow_label,
+                "payload-length": int(ipv6_detailed[0]),
+                "next-header":    int(ipv6_detailed[1]),
+                "hop-limit":      int(ipv6_detailed[2]),
+                "source-ip":      inet_ntop(AF_INET6, ipv6_detailed[3]),
+                "destination-ip": inet_ntop(AF_INET6, ipv6_detailed[4])
+            }
+        except IndexError:
+            return None
+
 # endregion
 
 
@@ -367,9 +405,13 @@ class IPv6_raw:
 class ARP_raw:
 
     eth = None
+    packet_type = 0
+    packet_length = 0
 
     def __init__(self):
         self.eth = Ethernet_raw()
+        self.packet_type = 2054
+        self.packet_length = 28
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac, sender_mac, sender_ip, target_mac, target_ip, opcode,
                     hardware_type=1, protocol_type=2048, hardware_size=6, protocol_size=4):
@@ -440,9 +482,13 @@ class UDP_raw:
     #  +---------------- ...
 
     ipv6 = None
+    header_type = 0
+    header_length = 0
 
     def __init__(self):
         self.ipv6 = IPv6_raw()
+        self.header_type = 17
+        self.header_length = 8
 
     @staticmethod
     def checksum(pkt):
@@ -482,13 +528,13 @@ class UDP_raw:
         udp_header = self.make_header(port_src, port_dst, data_len)
         placeholder = 0
         protocol = IPPROTO_UDP
-        udp_length = data_len + 8
+        data_length = data_len + self.header_length
 
         psh = self.ipv6.pack_addr(ipv6_src) + self.ipv6.pack_addr(ipv6_dst)
-        psh += pack("!" "2B" "H", placeholder, protocol, udp_length)
+        psh += pack("!" "2B" "H", placeholder, protocol, data_length)
         chksum = self.checksum(psh + udp_header + data)
 
-        return pack("!4H", port_src, port_dst, data_len + 8, chksum)
+        return pack("!4H", port_src, port_dst, data_length, chksum)
 # endregion
 
 
@@ -1479,13 +1525,17 @@ class DHCP_raw:
 # region Raw DNS
 class DNS_raw:
 
+    Base = None
     eth = None
     ip = None
+    ipv6 = None
     udp = None
 
     def __init__(self):
+        self.Base = Base()
         self.eth = Ethernet_raw()
         self.ip = IP_raw()
+        self.ipv6 = IPv6_raw()
         self.udp = UDP_raw()
 
     @staticmethod
@@ -1560,11 +1610,23 @@ class DNS_raw:
                                    len(domain))
                 dns_packet += domain
 
-        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
-        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
-        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+        if self.Base.ip_address_validation(src_ip):
+            eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
+            network_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet),
+                                                 self.udp.header_length, self.udp.header_type)
+            transport_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
 
-        return eth_header + ip_header + udp_header + dns_packet
+        elif self.Base.ipv6_address_validation(src_ip):
+            eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
+            network_header = self.ipv6.make_header(src_ip, dst_ip, 0,
+                                                   len(dns_packet) + self.udp.header_length, self.udp.header_type)
+            transport_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
+                                                                       len(dns_packet), dns_packet)
+
+        else:
+            return None
+
+        return eth_header + network_header + transport_header + dns_packet
 
     def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, queries=[], flags=0):
         transaction_id = tid
@@ -1679,10 +1741,6 @@ class Sniff_raw:
     dhcp = None
     dns = None
 
-    eth_header_length = 0
-    arp_packet_length = 0
-    udp_header_length = 0
-
     raw_socket = None
     # endregion
 
@@ -1697,10 +1755,6 @@ class Sniff_raw:
         self.udp = UDP_raw()
         self.dhcp = DHCP_raw()
         self.dns = DNS_raw()
-
-        self.eth_header_length = 14
-        self.arp_packet_length = 28
-        self.udp_header_length = 8
     # endregion
 
     # region Start sniffer
@@ -1722,7 +1776,7 @@ class Sniff_raw:
                 for packet in packets:
 
                     # region Parse Ethernet header
-                    ethernet_header = packet[0:self.eth_header_length]
+                    ethernet_header = packet[0:self.eth.header_length]
                     ethernet_header_dict = self.eth.parse_header(ethernet_header)
                     # endregion
 
@@ -1755,10 +1809,10 @@ class Sniff_raw:
                     # region ARP packet
 
                     # 2054 - Type of ARP packet (0x0806)
-                    if 'ARP' in protocols and ethernet_header_dict['type'] == 2054:
+                    if 'ARP' in protocols and ethernet_header_dict['type'] == self.arp.packet_type:
 
                         # region Parse ARP packet
-                        arp_header = packet[self.eth_header_length:self.eth_header_length + self.arp_packet_length]
+                        arp_header = packet[self.eth.header_length:self.eth.header_length + self.arp.packet_length]
                         arp_packet_dict = self.arp.parse_packet(arp_header)
                         # endregion
 
@@ -1788,10 +1842,10 @@ class Sniff_raw:
                     # region IP packet
 
                     # 2048 - Type of IP packet (0x0800)
-                    if 'IP' in protocols and ethernet_header_dict['type'] == 2048:
+                    if 'IP' in protocols and ethernet_header_dict['type'] == self.ip.header_type:
 
                         # region Parse IP header
-                        ip_header = packet[self.eth_header_length:]
+                        ip_header = packet[self.eth.header_length:]
                         ip_header_dict = self.ip.parse_header(ip_header)
                         # endregion
 
@@ -1822,11 +1876,11 @@ class Sniff_raw:
                         # endregion
 
                         # region UDP
-                        if 'UDP' in protocols and ip_header_dict['protocol'] == 17:
+                        if 'UDP' in protocols and ip_header_dict['protocol'] == self.udp.header_type:
 
                             # region Parse UDP header
-                            udp_header_offset = self.eth_header_length + (ip_header_dict['length'] * 4)
-                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp_header_length]
+                            udp_header_offset = self.eth.header_length + (ip_header_dict['length'] * 4)
+                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp.header_length]
                             udp_header_dict = self.udp.parse_header(udp_header)
                             # endregion
 
@@ -1854,7 +1908,7 @@ class Sniff_raw:
                             if 'DHCP' in protocols and udp_header_dict['destination-port'] == destination_port:
 
                                 # region Parse DHCP packet
-                                dhcp_packet_offset = udp_header_offset + self.udp_header_length
+                                dhcp_packet_offset = udp_header_offset + self.udp.header_length
                                 dhcp_packet = packet[dhcp_packet_offset:]
                                 dhcp_packet_dict = self.dhcp.parse_packet(dhcp_packet)
                                 # endregion
@@ -1889,7 +1943,7 @@ class Sniff_raw:
                             if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
 
                                 # region Parse DNS request packet
-                                dns_packet_offset = udp_header_offset + self.udp_header_length
+                                dns_packet_offset = udp_header_offset + self.udp.header_length
                                 dns_packet = packet[dns_packet_offset:]
                                 dns_packet_dict = self.dns.parse_request_packet(dns_packet)
                                 # endregion
@@ -1903,6 +1957,100 @@ class Sniff_raw:
                                 prn({
                                     "Ethernet": ethernet_header_dict,
                                     "IP": ip_header_dict,
+                                    "UDP": udp_header_dict,
+                                    "DNS": dns_packet_dict
+                                })
+                                # endregion
+
+                            # endregion
+
+                        # endregion
+
+                    # endregion
+
+                    # region IPv6 packet
+
+                    # 34525 - Type of IP packet (0x86dd)
+                    if 'IPv6' in protocols and ethernet_header_dict['type'] == self.ipv6.header_type:
+
+                        # region Parse IPv6 header
+                        ipv6_header = packet[self.eth.header_length:self.eth.header_length + self.ipv6.header_length]
+                        ipv6_header_dict = self.ipv6.parse_header(ipv6_header)
+                        # endregion
+
+                        # region Could not parse IPv6 header - break
+                        if ipv6_header_dict is None:
+                            break
+                        # endregion
+
+                        # region IPv6 filter
+                        if 'IPv6' in filters.keys():
+
+                            if 'source-ip' in filters['IPv6'].keys():
+                                if ipv6_header_dict['source-ip'] != filters['IPv6']['source-ip']:
+                                    break
+
+                            if 'destination-ip' in filters['IPv6'].keys():
+                                if ipv6_header_dict['destination-ip'] != filters['IPv6']['destination-ip']:
+                                    break
+
+                            if 'not-source-ip' in filters['IPv6'].keys():
+                                if ipv6_header_dict['source-ip'] == filters['IPv6']['not-source-ip']:
+                                    break
+
+                            if 'not-destination-ip' in filters['IPv6'].keys():
+                                if ipv6_header_dict['destination-ip'] == filters['IPv6']['not-destination-ip']:
+                                    break
+
+                        # endregion
+
+                        # region UDP
+                        if 'UDP' in protocols and ipv6_header_dict['next-header'] == self.udp.header_type:
+
+                            # region Parse UDP header
+                            udp_header_offset = self.eth.header_length + self.ipv6.header_length
+                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp.header_length]
+                            udp_header_dict = self.udp.parse_header(udp_header)
+                            # endregion
+
+                            # region Could not parse UDP header - break
+                            if udp_header is None:
+                                break
+                            # endregion
+
+                            # region UDP filter
+                            udp_filter_destination_port = 0
+                            if 'UDP' in filters.keys():
+                                if 'destination-port' in filters['UDP'].keys():
+                                    udp_filter_destination_port = filters['UDP']['destination-port']
+                            # endregion
+
+                            # region DNS packet
+
+                            # region Set UDP destination port
+                            if udp_filter_destination_port == 0:
+                                destination_port = 53
+                            else:
+                                destination_port = udp_filter_destination_port
+                            # endregion
+
+                            if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
+
+                                # region Parse DNS request packet
+                                dns_packet_offset = udp_header_offset + self.udp.header_length
+                                dns_packet = packet[dns_packet_offset:]
+                                dns_packet_dict = self.dns.parse_request_packet(dns_packet)
+                                # endregion
+
+                                # region Could not parse DNS request packet - break
+                                if dns_packet_dict is None:
+                                    break
+                                # endregion
+
+                                # region Call function with full DNS packet
+                                prn({
+                                    "Ethernet": ethernet_header_dict,
+                                    "IPv6": ipv6_header_dict,
                                     "UDP": udp_header_dict,
                                     "DNS": dns_packet_dict
                                 })
