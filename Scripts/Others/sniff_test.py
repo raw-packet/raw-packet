@@ -30,6 +30,9 @@ def print_packet(request):
     if 'DHCP' in request.keys():
         Base.print_info("DHCP packet from: ", request['Ethernet']['source'])
 
+    if 'ICMPv6' in request.keys():
+        Base.print_info("ICMPv6 packet from: ", request['Ethernet']['source'])
+
     print(dumps(request, indent=4))
 
 # endregion
@@ -39,13 +42,13 @@ def print_packet(request):
 if __name__ == "__main__":
 
     # region Print info message
-    Base.print_info("Available protocols: ", "Ethernet ARP IP IPv6 UDP DHCP DNS")
+    Base.print_info("Available protocols: ", "Ethernet ARP IP IPv6 ICMPv6 UDP DNS DHCP")
     Base.print_info("Start test sniffing ...")
     # endregion
 
     # region Start sniffer
     sniff = Sniff_raw()
-    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'UDP', 'DHCP', 'DNS'], prn=print_packet)
+    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'DHCP'], prn=print_packet)
     # endregion
 
 # endregion
