@@ -43,8 +43,8 @@ body
     background-color:#4488dd;
 }
 #branding
-{       
-    /* A background image will be added to the #branding element at run-time once the illustration image is configured in the theme. 
+{
+    /* A background image will be added to the #branding element at run-time once the illustration image is configured in the theme.
        Recommended image dimensions: 1420x1200 pixels, JPG or PNG, 200 kB average, 500 kB maximum. */
     height:100%;
     margin-right:500px; margin-left:0px;
@@ -58,11 +58,11 @@ body
 #contentWrapper
 {
     position:relative;
-    width:500px;    
+    width:500px;
     height:100%;
     overflow:auto;
     background-color:#ffffff; /* for IE7 */
-    margin-left:-500px; margin-right:0px; 
+    margin-left:-500px; margin-right:0px;
 }
 #content
 {
@@ -119,9 +119,9 @@ body
 /* Common content styles */
 
 .clear {clear:both;}
-.float { float:left; } 
-.floatReverse { float:right; } 
-.indent { margin-left:16px; } 
+.float { float:left; }
+.floatReverse { float:right; }
+.indent { margin-left:16px; }
 .indentNonCollapsible { padding-left:16px; }
 .hidden {display:none;}
 .notHidden {display:inherit;}
@@ -138,7 +138,7 @@ h1,h2,h3,h4,h5,label { margin-bottom: 8px; }
 .submitMargin { margin-top:38px; margin-bottom:30px; }
 .topFieldMargin { margin-top:8px; }
 .fieldMargin { margin-bottom:8px; }
-.groupMargin { margin-bottom:30px; } 
+.groupMargin { margin-bottom:30px; }
 .sectionMargin { margin-bottom:64px; }
 .block { display: block; }
 .autoWidth { width:auto; }
@@ -146,7 +146,7 @@ h1,h2,h3,h4,h5,label { margin-bottom: 8px; }
 .fullWidthIndent { width:326px; }
 input
 {
-    max-width:100%; 
+    max-width:100%;
     font-family:inherit;
     margin-bottom:8px;
 }
@@ -168,7 +168,7 @@ span.submit, input[type="submit"]
     color:rgb(255, 255, 255);
     cursor:pointer;
     margin-bottom:8px;
-    
+
     -ms-user-select:none;
     -moz-transition:background 0s;
     -webkit-transition:background 0s;
@@ -197,7 +197,7 @@ select
 {
     height:28px;
     min-width:60px;
-    max-width:100%; 
+    max-width:100%;
     margin-bottom:8px;
 
     white-space:nowrap;
@@ -208,9 +208,9 @@ select
 }
 h1, .giantText
 {
-   font-size:2.0em; 
+   font-size:2.0em;
    font-weight:lighter;
-}          
+}
 h2, .bigText
 {
    font-size:1.33em;
@@ -239,7 +239,7 @@ h5, .tinyText
 {
     font-weight:700;
     color:#2F2F2F;
-} 
+}
 .smallIcon
 {
     height:20px;
@@ -267,7 +267,7 @@ h5, .tinyText
     padding:8px;
     overflow:hidden;
 }
-.idp:hover 
+.idp:hover
 {
     background-color:#cccccc;
 }
@@ -286,7 +286,7 @@ h5, .tinyText
 
     #workArea
     {
-        margin-bottom:60px; 
+        margin-bottom:60px;
     }
 }
 
@@ -297,7 +297,7 @@ h5, .tinyText
         margin-bottom: 30px;
     }
     #workArea{
-        margin-bottom:40px; 
+        margin-bottom:40px;
     }
 }
 
