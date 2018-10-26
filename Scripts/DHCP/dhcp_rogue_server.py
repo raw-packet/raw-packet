@@ -386,7 +386,8 @@ if not args.quiet:
     Base.print_info("Router IP address: ", router_ip_address)
     Base.print_info("DNS server IP address: ", dns_server_ip_address)
     Base.print_info("TFTP server IP address: ", tftp_server_ip_address)
-    Base.print_info("Proxy url: ", args.proxy)
+    if args.proxy is not None:
+        Base.print_info("Proxy url: ", args.proxy)
 # endregion
 
 
