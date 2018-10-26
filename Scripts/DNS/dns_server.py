@@ -495,6 +495,7 @@ if __name__ == "__main__":
     if target_ipv6_address is not None:
         network_filters['IPv6'] = {'source-ip': target_ipv6_address}
 
+    network_filters['IP'] = {'not-source-ip': '127.0.0.1'}
     network_filters['UDP'] = {'destination-port': destination_port}
     # endregion
 
