@@ -386,6 +386,7 @@ if not args.quiet:
     Base.print_info("Router IP address: ", router_ip_address)
     Base.print_info("DNS server IP address: ", dns_server_ip_address)
     Base.print_info("TFTP server IP address: ", tftp_server_ip_address)
+
     if args.proxy is not None:
         Base.print_info("Proxy url: ", args.proxy)
 # endregion
@@ -837,6 +838,7 @@ def reply(request):
                         except KeyError:
                             clients[client_mac_address] = {"mitm": "success"}
                         # endregion
+
                     # endregion
 
                 # endregion
@@ -978,13 +980,7 @@ if __name__ == "__main__":
     # region Sniff network
 
     # region Create RAW socket for sniffing
-    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
-    # endregion
-
-    # region Local variables
-    ethernet_header_length = 14
-    arp_packet_length = 28
-    udp_header_length = 8
+    raw_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
     # endregion
 
     # region Print info message
@@ -994,105 +990,134 @@ if __name__ == "__main__":
     # region Start sniffing
     while True:
 
-        # region Get packets from RAW socket
-        packets = rawSocket.recvfrom(2048)
+        # region Try
+        try:
 
-        for packet in packets:
+            # region Sniff packets from RAW socket
+            packets = raw_socket.recvfrom(2048)
 
-            # region Get Ethernet header from packet
-            ethernet_header = packet[0:ethernet_header_length]
-            ethernet_header_dict = eth.parse_header(ethernet_header)
-            # endregion
+            for packet in packets:
 
-            # region Success parse Ethernet header
-            if ethernet_header_dict is not None:
+                # region Parse Ethernet header
+                ethernet_header = packet[0:eth.header_length]
+                ethernet_header_dict = eth.parse_header(ethernet_header)
+                # endregion
 
-                # region Target MAC address is Set
+                # region Could not parse Ethernet header - break
+                if ethernet_header_dict is None:
+                    break
+                # endregion
+
+                # region Ethernet filter
                 if target_mac_address is not None:
                     if ethernet_header_dict['source'] != target_mac_address:
                         break
-                # endregion
-
-                # region DHCP discover sender is works, filter this packets
-                if dhcp_discover_packets_source_mac is not None:
-                    if ethernet_header_dict['source'] != dhcp_discover_packets_source_mac:
+                else:
+                    if ethernet_header_dict['source'] == your_mac_address:
                         break
+                    if dhcp_discover_packets_source_mac is not None:
+                        if ethernet_header_dict['source'] == dhcp_discover_packets_source_mac:
+                            break
                 # endregion
 
                 # region ARP packet
 
                 # 2054 - Type of ARP packet (0x0806)
-                if ethernet_header_dict['type'] == 2054:
+                if ethernet_header_dict['type'] == arp.packet_type:
 
-                    # Get ARP packet
-                    arp_header = packet[ethernet_header_length:ethernet_header_length + arp_packet_length]
-                    arp_header_dict = arp.parse_packet(arp_header)
+                    # region Parse ARP packet
+                    arp_header = packet[eth.header_length:eth.header_length + arp.packet_length]
+                    arp_packet_dict = arp.parse_packet(arp_header)
+                    # endregion
 
-                    # Success ARP packet
-                    if arp_header_dict is not None:
+                    # region Could not parse ARP packet - break
+                    if arp_packet_dict is None:
+                        break
+                    # endregion
 
-                        # ARP Opcode: 1 - ARP request
-                        if arp_header_dict['opcode'] == 1:
+                    # region ARP filter
+                    if arp_packet_dict['opcode'] != 1:
+                        break
+                    # endregion
 
-                            # Create full request
-                            request = {
-                                "Ethernet": ethernet_header_dict,
-                                "ARP": arp_header_dict
-                            }
-
-                            # Reply to this request
-                            reply(request)
+                    # region Call function with full ARP packet
+                    reply({
+                        'Ethernet': ethernet_header_dict,
+                        'ARP': arp_packet_dict
+                    })
+                    # endregion
 
                 # endregion
 
-                # region DHCP packet
+                # region IP packet
 
                 # 2048 - Type of IP packet (0x0800)
-                if ethernet_header_dict['type'] == 2048:
+                if ethernet_header_dict['type'] == ip.header_type:
 
-                    # Get IP header
-                    ip_header = packet[ethernet_header_length:]
+                    # region Parse IP header
+                    ip_header = packet[eth.header_length:]
                     ip_header_dict = ip.parse_header(ip_header)
+                    # endregion
 
-                    # Success parse IP header
-                    if ip_header_dict is not None:
+                    # region Could not parse IP header - break
+                    if ip_header_dict is None:
+                        break
+                    # endregion
 
-                        # UDP
-                        if ip_header_dict['protocol'] == 17:
+                    # region UDP
+                    if ip_header_dict['protocol'] == udp.header_type:
 
-                            # Get UDP header offset
-                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
+                        # region Parse UDP header
+                        udp_header_offset = eth.header_length + (ip_header_dict['length'] * 4)
+                        udp_header = packet[udp_header_offset:udp_header_offset + udp.header_length]
+                        udp_header_dict = udp.parse_header(udp_header)
+                        # endregion
 
-                            # Get UDP header
-                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
-                            udp_header_dict = udp.parse_header(udp_header)
+                        # region Could not parse UDP header - break
+                        if udp_header is None:
+                            break
+                        # endregion
 
-                            # Success parse UDP header
-                            if udp_header is not None:
-                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
+                        # region DHCP packet
 
-                                    # Get DHCP header offset
-                                    dhcp_packet_offset = udp_header_offset + udp_header_length
+                        if udp_header_dict['destination-port'] == 67 and udp_header_dict['source-port'] == 68:
 
-                                    # Get DHCP packet
-                                    dhcp_packet = packet[dhcp_packet_offset:]
-                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+                            # region Parse DHCP packet
+                            dhcp_packet_offset = udp_header_offset + udp.header_length
+                            dhcp_packet = packet[dhcp_packet_offset:]
+                            dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
+                            # endregion
 
-                                    # Create full request
-                                    request = {
-                                        "Ethernet": ethernet_header_dict,
-                                        "IP": ip_header_dict,
-                                        "UDP": udp_header_dict
-                                    }
-                                    request.update(dhcp_packet_dict)
+                            # region Could not parse DHCP packet - break
+                            if dhcp_packet_dict is None:
+                                break
+                            # endregion
 
-                                    # Reply to this request
-                                    reply(request)
+                            # region Call function with full DHCP packet
+                            full_dhcp_packet = {
+                                'Ethernet': ethernet_header_dict,
+                                'IP': ip_header_dict,
+                                'UDP': udp_header_dict
+                            }
+                            full_dhcp_packet.update(dhcp_packet_dict)
+
+                            reply(full_dhcp_packet)
+                            # endregion
+
+                        # endregion
+
+                    # endregion
 
                 # endregion
 
             # endregion
 
+        # endregion
+
+        # region Exception - KeyboardInterrupt
+        except KeyboardInterrupt:
+            Base.print_info("Exit")
+            exit(0)
         # endregion
 
     # endregion
