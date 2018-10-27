@@ -39,6 +39,7 @@ parser.add_argument('--fake_ipv6', help='Set fake IPv6 address or addresses, exa
                     default=None)
 
 parser.add_argument('--ipv6', action='store_true', help='Enable IPv6')
+parser.add_argument('--disable_ipv4', action='store_true', help='Disable IPv4')
 parser.add_argument('-f', '--fake_answer', action='store_true', help='Set your IPv4 or IPv6 address in all answers')
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
@@ -68,7 +69,10 @@ A_DNS_QUERY = 1
 AAAA_DNS_QUERY = 28
 
 if args.ipv6:
-    DNS_QUERY_TYPES = [1, 28]
+    if args.disable_ipv4:
+        DNS_QUERY_TYPES = [28]
+    else:
+        DNS_QUERY_TYPES = [1, 28]
 else:
     DNS_QUERY_TYPES = [1]
 
@@ -90,17 +94,18 @@ if your_ip_address is None:
     exit(1)
 
 if args.ipv6:
-    your_ipv6_addresses = Base.get_netiface_ipv6_glob_addresses(current_network_interface)
+    your_ipv6_addresses = Base.get_netiface_ipv6_link_address(current_network_interface)
     if len(your_ipv6_addresses) == 0:
         if not args.quiet:
-            Base.print_warning("Network interface: ", current_network_interface, " do not have global IPv6 address!")
+            Base.print_warning("Network interface: ", current_network_interface, " do not have IPv6 local address!")
         fake_addresses[28] = None
     else:
-        fake_addresses[28] = your_ipv6_addresses
+        fake_addresses[28] = [your_ipv6_addresses]
 else:
     fake_addresses[28] = None
 
-fake_addresses[1] = [your_ip_address]
+if not args.disable_ipv4:
+    fake_addresses[1] = [your_ip_address]
 # endregion
 
 # region Create fake domains list
@@ -151,7 +156,10 @@ if args.fake_ipv6 is not None:
     fake_addresses[28] = fake_ipv6_addresses
 
     # Rewrite available DNS query types
-    DNS_QUERY_TYPES = [1, 28]
+    if args.disable_ipv4:
+        DNS_QUERY_TYPES = [28]
+    else:
+        DNS_QUERY_TYPES = [1, 28]
 
 # endregion
 
@@ -434,7 +442,8 @@ if __name__ == "__main__":
 
         # region Argument fake_answer is set
         if args.fake_answer:
-            Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])), " for all DNS queries")
+            if not args.disable_ipv4:
+                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_addresses[1])), " for all DNS queries")
 
             if fake_addresses[28] is not None:
                 Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_addresses[28])), " for all DNS queries")
@@ -503,7 +512,10 @@ if __name__ == "__main__":
     sniff = Sniff_raw()
 
     if args.ipv6:
-        sniff.start(protocols=['IP', 'IPv6', 'UDP', 'DNS'], prn=reply, filters=network_filters)
+        if args.disable_ipv4:
+            sniff.start(protocols=['IPv6', 'UDP', 'DNS'], prn=reply, filters=network_filters)
+        else:
+            sniff.start(protocols=['IP', 'IPv6', 'UDP', 'DNS'], prn=reply, filters=network_filters)
     else:
         sniff.start(protocols=['IP', 'UDP', 'DNS'], prn=reply, filters=network_filters)
     # endregion
