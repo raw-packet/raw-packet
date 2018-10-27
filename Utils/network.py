@@ -727,7 +727,7 @@ class ICMPv6_raw:
         if len(packet) <= offset + 4:
             return icmpv6_packet
 
-        # 134 - Router Solicitation
+        # 133 - Router Solicitation
         if icmpv6_packet['type'] == 133:
             return icmpv6_packet
 
@@ -803,11 +803,9 @@ class ICMPv6_raw:
     def make_router_advertisement_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst,
                                          dns_address, domain_search, prefix=None, ipv6_addr=None, mtu=1500,
                                          advertisement_interval=60000, src_link_layer_address=None,
-                                         router_lifetime=1800):
+                                         router_lifetime=0, reachable_time=0, retrans_timer=0):
         cur_hop_limit = 64  # Cur hop limit
         flags = 0xc0        # Managed address configuration, other configuration, PRF: Medium
-        reachable_time = 0  # Reachable time
-        retrans_timer = 0   # Retrans timer
 
         body = pack("!" "2B" "H" "2I", cur_hop_limit, flags, router_lifetime, reachable_time, retrans_timer)
 
