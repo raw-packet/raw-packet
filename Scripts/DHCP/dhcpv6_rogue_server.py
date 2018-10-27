@@ -534,11 +534,21 @@ def reply(request):
 
             # endregion
 
-            # # DHCPv6 Release
-            # if request.haslayer(DHCP6_Release):
-            #     Base.print_info("Sniff DHCPv6 Release from: " + request[IPv6].src + " (" + \
-            #           request[Ether].src + ") TID: " + hex(request[DHCP6_Release].trid)
-            #
+            # region DHCPv6 Release
+            if request['DHCPv6']['message-type'] == 8:
+                # Print info message
+                Base.print_info("DHCPv6 Release from: ", request['IPv6']['source-ip'] +
+                                " (" + request['Ethernet']['source'] + ")",
+                                " XID: ", hex(request['DHCPv6']['transaction-id']))
+
+                # Delete this client from global clients dictionary
+                try:
+                    del clients[client_mac_address]
+                except KeyError:
+                    pass
+
+            # endregion
+
             # # DHCPv6 Confirm
             # if request.haslayer(DHCP6_Confirm):
             #     Base.print_info("Sniff DHCPv6 Confirm from: " + request[IPv6].src + " (" + \
