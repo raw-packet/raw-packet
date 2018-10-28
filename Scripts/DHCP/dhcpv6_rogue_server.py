@@ -45,7 +45,6 @@ parser.add_argument('-d', '--dns', type=str, help='Set recursive DNS IPv6 addres
 parser.add_argument('-s', '--dns_search', type=str, help='Set DNS search list', default="local")
 parser.add_argument('--delay', type=int, help='Set delay between packets', default=1)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
-parser.add_argument('-a', '--apple', action='store_true', help='Apple devices MiTM')
 args = parser.parse_args()
 # endregion
 
@@ -318,6 +317,13 @@ def reply(request):
             Base.print_info("ICMPv6 Router Advertisement reply to: ", request['IPv6']['source-ip'] +
                             " (" + request['Ethernet']['source'] + ")")
 
+            # Delete this client from global clients dictionary
+            try:
+                del clients[client_mac_address]
+                client_already_in_dictionary = False
+            except KeyError:
+                pass
+
             # Add client info in global clients dictionary
             add_client_info_in_dictionary(client_mac_address,
                                           {"router solicitation": True,
@@ -438,7 +444,9 @@ def reply(request):
                                 " (" + request['Ethernet']['source'] + ")",
                                 " XID: ", hex(request['DHCPv6']['transaction-id']))
                 Base.print_info("DHCPv6 Advertise to: ", request['IPv6']['source-ip'] +
-                                " (" + request['Ethernet']['source'] + ")")
+                                " (" + request['Ethernet']['source'] + ")",
+                                " XID: ", hex(request['DHCPv6']['transaction-id']),
+                                " IAA: ", ipv6_address)
 
                 # Add client info in global clients dictionary
                 add_client_info_in_dictionary(client_mac_address,
@@ -514,8 +522,11 @@ def reply(request):
                                     " IAA: ", client_ipv6_address)
 
                     if dhcpv6_reply is not None:
-                        Base.print_info("DHCPv6 Reply to: ", request['IPv6']['source-ip'] +
-                                        " (" + request['Ethernet']['source'] + ")")
+                        Base.print_info("DHCPv6 Reply to:     ", request['IPv6']['source-ip'] +
+                                        " (" + request['Ethernet']['source'] + ")",
+                                        " XID: ", hex(request['DHCPv6']['transaction-id']),
+                                        " Server: ", server_mac_address,
+                                        " IAA: ", client_ipv6_address)
                     else:
                         if clients[client_mac_address]["dhcpv6 mitm"] == \
                                 "error: server mac address is not your mac address":
@@ -544,6 +555,7 @@ def reply(request):
                 # Delete this client from global clients dictionary
                 try:
                     del clients[client_mac_address]
+                    client_already_in_dictionary = False
                 except KeyError:
                     pass
 
@@ -578,10 +590,15 @@ def reply(request):
 
                 # region Add Client info in global clients dictionary and print info message
                 add_client_info_in_dictionary(client_mac_address,
-                                              {"advertise address": client_ipv6_address, "dhcpv6 mitm": "success"},
+                                              {"advertise address": client_ipv6_address,
+                                               "dhcpv6 mitm": "success"},
                                               client_already_in_dictionary)
 
                 Base.print_info("DHCPv6 Confirm from: ", request['IPv6']['source-ip'] +
+                                " (" + request['Ethernet']['source'] + ")",
+                                " XID: ", hex(request['DHCPv6']['transaction-id']),
+                                " IAA: ", client_ipv6_address)
+                Base.print_info("DHCPv6 Reply to:     ", request['IPv6']['source-ip'] +
                                 " (" + request['Ethernet']['source'] + ")",
                                 " XID: ", hex(request['DHCPv6']['transaction-id']),
                                 " IAA: ", client_ipv6_address)
