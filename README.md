@@ -49,8 +49,8 @@ License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 ### Ubuntu based OS install with apt (recommended):
 ```
 sudo apt update
-sudo apt install python python-pip python-scapy python-netifaces python-ipaddress python-netaddr python-psutil
-sudo apt install apache2 php lsof net-tools wireless-tools nmap aircrack-ng 
+sudo apt install -y python python-pip python-scapy python-netifaces python-ipaddress python-netaddr python-psutil
+sudo apt install -y apache2 php lsof net-tools wireless-tools nmap aircrack-ng 
 git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 ```
@@ -58,8 +58,8 @@ cd ./raw-packet
 ### Ubuntu based OS install with pip:
 ```
 sudo apt update
-sudo apt install python python-pip apache2 php lsof net-tools wireless-tools 
-sudo apt install nmap aircrack-ng 
+sudo apt install -y python python-pip apache2 php lsof net-tools wireless-tools 
+sudo apt install -y nmap aircrack-ng 
 git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 sudo pip install -r requirements.txt
