@@ -37,7 +37,7 @@ parser.add_argument('-f', '--first_suffix', type=int, help='Set first suffix cli
 parser.add_argument('-l', '--last_suffix', type=int, help='Set last suffix client IPv6 for offering', default=255)
 
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
-parser.add_argument('-I', '--target_ipv6', type=str, help='Set client Global IPv6 address with MAC in --target_mac',
+parser.add_argument('-T', '--target_ipv6', type=str, help='Set client Global IPv6 address with MAC in --target_mac',
                     default=None)
 
 parser.add_argument('-D', '--disable_dhcpv6', action='store_true', help='Do not use DHCPv6 protocol')
@@ -124,6 +124,7 @@ if args.target_ipv6 is not None:
             exit(1)
         else:
             target_ipv6_address = args.target_ipv6
+            clients[target_mac_address] = {'advertise address': target_ipv6_address}
     else:
         Base.print_error("Please set target MAC address (example: --target_mac 00:AA:BB:CC:DD:FF)" +
                          ", for target IPv6 address: ", args.target_ipv6)
@@ -376,11 +377,12 @@ def reply(request):
 
                     # ICMPv6 Neighbor Solicitation target address is not DHCPv6 advertise IPv6 address
                     else:
-                        na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                              ipv6_src=your_local_ipv6_address,
-                                                                              target_ipv6_address=target_address)
-                        for _ in range(5):
-                            global_socket.send(na_packet)
+                        if not target_address.startswith('fe80::'):
+                            na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
+                                                                                  ipv6_src=your_local_ipv6_address,
+                                                                                  target_ipv6_address=target_address)
+                            for _ in range(5):
+                                global_socket.send(na_packet)
 
             # endregion
 
