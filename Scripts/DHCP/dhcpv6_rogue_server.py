@@ -120,7 +120,7 @@ if args.target_mac is not None:
 if args.target_ipv6 is not None:
     if args.target_mac is not None:
         if not Base.ipv6_address_validation(args.target_ipv6):
-            Base.print_error("Bad target IPv6 address in `-I, --target_ipv6` parameter: ", args.target_ipv6)
+            Base.print_error("Bad target IPv6 address in `-T, --target_ipv6` parameter: ", args.target_ipv6)
             exit(1)
         else:
             target_ipv6_address = args.target_ipv6
