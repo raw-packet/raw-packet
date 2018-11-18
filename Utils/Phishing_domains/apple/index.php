@@ -1,6 +1,5 @@
 <?php
     $user_agent = $_SERVER['HTTP_USER_AGENT'];
-    echo $user_agent;
 
     if (preg_match("/i(Pad|Pod|Phone)/", $user_agent)) {
         //echo "<br/>This is Apple Mobile device";
