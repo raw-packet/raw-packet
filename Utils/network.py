@@ -705,8 +705,11 @@ class ICMPv6_raw:
 
         icmp_packet = pack("!" "2B" "H", type, code, check_sum) + body
 
-        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
-        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58, 255)  # 58 = 0x3a (ICMPv6)
+        # 34525 = 0x86dd (IPv6)
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)
+
+        # 58 = 0x3a (ICMPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(icmp_packet), 58, 255)
 
         return eth_header + ipv6_header + icmp_packet
 
