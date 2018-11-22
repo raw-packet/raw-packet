@@ -33,6 +33,8 @@ parser.add_argument('--T6', help='Set target IPv6 address', default=None)
 
 parser.add_argument('--fake_domains', help='Set fake domain or domains, example: --fake_domains "apple.com,google.com"',
                     default=None)
+parser.add_argument('--no_such_names', help='Set no such domain or domains, ' +
+                                            'example: --no_such_names "apple.com,google.com"', default=None)
 parser.add_argument('--fake_ip', help='Set fake IP address or addresses, example: --fake_ip "192.168.0.1,192.168.0.2"',
                     default=None)
 parser.add_argument('--fake_ipv6', help='Set fake IPv6 address or addresses, example: --fake_ipv6 "fd00::1,fd00::2"',
@@ -61,6 +63,7 @@ target_ip_address = None
 target_ipv6_address = None
 
 fake_domains = []
+no_such_names = []
 fake_ip_addresses = []
 fake_ipv6_addresses = []
 fake_addresses = {}
@@ -117,6 +120,18 @@ if args.fake_domains is not None:
     # Create list
     for domain_name in fake_domains_string.split(","):
         fake_domains.append(domain_name)
+# endregion
+
+# region Create no such name list
+if args.no_such_names is not None:
+
+    # Delete spaces
+    no_such_names_string = args.no_such_names.replace(" ", "")
+
+    # Create list
+    for no_such_name in no_such_names_string.split(","):
+        no_such_names.append(no_such_name)
+        no_such_names.append("www." + no_such_name)
 # endregion
 
 # region Create fake ipv4 addresses list
@@ -356,17 +371,32 @@ def reply(request):
 
                     # endregion
 
+                    # region Query name in no_such_names list
+
+                    if query_name in no_such_names:
+                        addresses = ['no such name']
+
+                    # endregion
+
                     # region Answer addresses is set
 
                     if addresses is not None:
 
                         # region Create answer list
+                        dns_answer_flags = 0x8580
+
                         for address in addresses:
-                            answer.append({"name": query_name,
-                                           "type": query_type,
-                                           "class": query_class,
-                                           "ttl": 0xffff,
-                                           "address": address})
+                            if address == 'no such name':
+                                dns_answer_flags = 0x8183
+                                answer = []
+                                break
+                            else:
+                                answer.append({"name": query_name,
+                                               "type": query_type,
+                                               "class": query_class,
+                                               "ttl": 0xffff,
+                                               "address": address})
+
                         # endregion
 
                         # region Make dns answer packet
@@ -378,7 +408,7 @@ def reply(request):
                                                                          src_port=53,
                                                                          dst_port=request['UDP']['source-port'],
                                                                          tid=request['DNS']['transaction-id'],
-                                                                         flags=0x8580,
+                                                                         flags=dns_answer_flags,
                                                                          queries=query,
                                                                          answers_address=answer)
                         elif 'IPv6' in request.keys():
@@ -389,7 +419,7 @@ def reply(request):
                                                                          src_port=53,
                                                                          dst_port=request['UDP']['source-port'],
                                                                          tid=request['DNS']['transaction-id'],
-                                                                         flags=0x8580,
+                                                                         flags=dns_answer_flags,
                                                                          queries=query,
                                                                          answers_address=answer)
                         else:
