@@ -624,7 +624,7 @@ if __name__ == "__main__":
 
                 # Start network_conflict_creator.py script
                 sub.Popen(['python ' + script_dir + '/Scripts/Others/network_conflict_creator.py -i ' +
-                           listen_network_interface + ' -I ' + target_ip_address +
+                           listen_network_interface + ' -T ' + target_ip_address +
                            ' -t ' + target_mac_address + ' -q'], shell=True)
 
             # Exceptions
