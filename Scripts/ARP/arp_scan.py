@@ -148,21 +148,21 @@ class ArpScan:
                                                     ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
                                                     sender_mac=self.your_mac_address,
                                                     sender_ip=self.your_ip_address,
-                                                    target_mac="ff:ff:ff:ff:ff:ff",
+                                                    target_mac="00:00:00:00:00:00",
                                                     target_ip=current_ip_address)
                 arp_requests.append(arp_request)
 
-        SOCK = socket(AF_PACKET, SOCK_RAW)
-        SOCK.bind((self.network_interface, 0))
+        send_socket = socket(AF_PACKET, SOCK_RAW)
+        send_socket.bind((self.network_interface, 0))
 
         for arp_request in arp_requests:
             if self.retry_number > 0:
                 for i in range(self.retry_number):
-                    SOCK.send(arp_request)
+                    send_socket.send(arp_request)
             else:
-                SOCK.send(arp_request)
+                send_socket.send(arp_request)
 
-        SOCK.close()
+        send_socket.close()
     # endregion
 
     # region Scanner
