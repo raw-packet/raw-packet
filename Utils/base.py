@@ -7,6 +7,7 @@ from pwd import getpwuid
 from random import choice, randint
 from string import lowercase, uppercase, digits
 from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
+from netifaces import gateways
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from ipaddress import IPv4Address
@@ -355,6 +356,22 @@ class Base:
         except:
             broadcast = None
         return broadcast
+
+    @staticmethod
+    def get_netiface_gateway(interface_name):
+        try:
+            gateway = None
+            gws = gateways()
+            for gw in gws:
+                gateway_iface = gws[gw][AF_INET]
+                gateway_ip, iface = gateway_iface[0], gateway_iface[1]
+                if iface == interface_name:
+                    gateway = gateway_ip
+                    break
+        except:
+            gateway = None
+        return gateway
+
     # endregion
 
     # region Check installed software
