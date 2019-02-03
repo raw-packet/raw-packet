@@ -170,8 +170,8 @@ if __name__ == "__main__":
                 if _current_number_of_packets == _number_of_packets:
                     break
                 else:
-                    Base.print_info("Send Multicast ARP request from: ",
-                                    str(_target_ip_address) + " (" + str(_current_mac_address) + ")")
+                    Base.print_info("Send Multicast ARP request to: ",
+                                    str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
                     _sock.send(_arp_request)
                     sleep(3)
                     _current_number_of_packets += 1
