@@ -46,7 +46,7 @@ License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
 # Install
 
-### Ubuntu based OS install with apt (recommended):
+### Debian based OS install with apt (recommended):
 ```
 sudo apt update
 sudo apt install -y python python-pip python-scapy python-netifaces python-ipaddress python-netaddr python-psutil
@@ -55,7 +55,7 @@ git clone https://github.com/raw-packet/raw-packet
 cd ./raw-packet
 ```
 
-### Ubuntu based OS install with pip:
+### Debian based OS install with pip:
 ```
 sudo apt update
 sudo apt install -y python python-pip apache2 php lsof net-tools wireless-tools 
