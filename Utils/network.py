@@ -7,6 +7,7 @@ from array import array
 from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6
 from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
+from time import time
 # endregion
 
 
@@ -1233,6 +1234,17 @@ class ICMP_raw:
             return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
         except sock_error:
             return None
+
+    def make_ping_request_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst):
+        try:
+            icmp_data = pack("!Q", int(time()))
+            for index in range(0, 32, 1):
+                icmp_data += pack("B", index)
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x08, 0x00, icmp_data)
+        except sock_error:
+            return None
+
 # endregion
 
 
