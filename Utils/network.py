@@ -728,6 +728,14 @@ class ICMPv6_raw:
             "checksum": int(icmpv6_detailed[2]),
         }
 
+        # Type: 128 is Echo (ping) request, 129 is Echo (ping) reply
+        if icmpv6_packet['type'] == 128 or 129:
+            if len(packet) >= offset + 4:
+                icmpv6_ping_detailed = unpack("!2H", packet[offset:offset + 4])
+                icmpv6_packet["identifier"] = int(icmpv6_ping_detailed[0])
+                icmpv6_packet["sequence"] = int(icmpv6_ping_detailed[1])
+                return icmpv6_packet
+
         if len(packet) <= offset + 4:
             return icmpv6_packet
 
@@ -840,14 +848,14 @@ class ICMPv6_raw:
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0xb4755, 134, 0, body)
 
     def make_neighbor_solicitation_packet(self, ethernet_src_mac, ipv6_src, target_ipv6_address=None,
-                                          target_mac_address=None, ethernet_dst_mac=None, ipv6_dst=None):
+                                          icmpv6_source_mac_address=None, ethernet_dst_mac=None, ipv6_dst=None):
         body = pack("!I", 0x00000000)  # Reserved
 
         if target_ipv6_address is not None:
             body += self.ipv6.pack_addr(target_ipv6_address)
 
-        if target_mac_address is not None:
-            body += self.make_option(2, self.eth.convert_mac(target_mac_address))  # Target link-layer address
+        if icmpv6_source_mac_address is not None:
+            body += self.make_option(2, self.eth.convert_mac(icmpv6_source_mac_address))  # Source link-layer address
 
         if ethernet_dst_mac is None:
             ethernet_dst_mac = "33:33:00:00:00:01"
@@ -871,6 +879,21 @@ class ICMPv6_raw:
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 136, 0, body)
 
+    def make_echo_request_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, id, sequence=1):
+        body = pack("!2H", id, sequence)
+        for index in range(0, 56, 1):
+            body += pack("B", index)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 128, 0, body)
+
+    def make_echo_reply_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, id, sequence=1, data=None):
+        body = pack("!2H", id, sequence)
+        if data is None:
+            for index in range(0, 56, 1):
+                body += pack("B", index)
+        else:
+            body += data
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 129, 0, body)
+
     # def make_dad_packet(self, ethernet_src_mac, target_ipv6_address):
     #     body = pack("I", 0)             # 4 reserved bytes
     #     body += self.ipv6.pack_addr(target_ipv6_address)
@@ -878,6 +901,7 @@ class ICMPv6_raw:
     #
     #     return self.make_packet(ethernet_src_mac, "33:33:ff:00:03:2e",
     #                             "::", "ff02::1:ff00:32e", 0, 135, 0, body)
+
 # endregion
 
 
