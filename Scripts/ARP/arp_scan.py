@@ -347,9 +347,9 @@ if __name__ == "__main__":
 
     # region Print results
     if len(results) > 0:
-        Base.print_info("Found devices:")
+        Base.print_success("Found devices:")
         for result in results:
-            Base.print_success(" ", result['ip-address'],
+            Base.print_success("", result['ip-address'],
                                "\t", result['mac-address'],
                                "\t", result['vendor'])
     else:
