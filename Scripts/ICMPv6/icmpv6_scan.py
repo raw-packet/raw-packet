@@ -12,7 +12,6 @@ from network import Ethernet_raw, IPv6_raw, ICMPv6_raw
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from tm import ThreadManager
-from ipaddress import IPv4Address
 from time import sleep
 from random import randint
 # endregion
