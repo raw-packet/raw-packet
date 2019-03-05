@@ -45,6 +45,9 @@ class ICMPv6Scan:
     timeout = 0
 
     icmpv6_identifier = 0
+
+    router_info = None
+    router_search = False
     # endregion
 
     # region Init
@@ -68,6 +71,8 @@ class ICMPv6Scan:
 
         self.retry_number = 3
         self.timeout = 0
+
+        self.router_info = {}
     # endregion
 
     # region Sniffer
@@ -86,13 +91,15 @@ class ICMPv6Scan:
                     break
 
                 # Source MAC address is target mac address
-                if self.target_mac_address != "33:33:00:00:00:01":
-                    if ethernet_header_dict['source'] != self.target_mac_address:
-                        break
+                if not self.router_search:
+                    if self.target_mac_address != "33:33:00:00:00:01":
+                        if ethernet_header_dict['source'] != self.target_mac_address:
+                            break
 
                 # Destination MAC address is your MAC address
-                if ethernet_header_dict['destination'] != self.your_mac_address:
-                    break
+                if not self.router_search:
+                    if ethernet_header_dict['destination'] != self.your_mac_address:
+                        break
 
                 # Check type of ethernet header
                 if ethernet_header_dict['type'] != self.ipv6.header_type:
@@ -118,16 +125,39 @@ class ICMPv6Scan:
                 if icmpv6_packet_dict is None:
                     break
 
-                # 129 Type of ICMPv6 Echo (ping) reply
-                if icmpv6_packet_dict['type'] != 129:
-                    break
+                if self.router_search:
+                    # 134 Type of ICMPv6 Router Advertisement
+                    if icmpv6_packet_dict['type'] != 134:
+                        break
 
-                # Check ICMPv6 Echo (ping) reply identifier
-                if icmpv6_packet_dict['identifier'] == self.icmpv6_identifier:
-                    self.results.append({
-                        "mac-address": ethernet_header_dict['source'],
-                        "ip-address": ipv6_header_dict['source-ip']
-                    })
+                    # Save router information
+                    self.router_info['router_mac_address'] = ethernet_header_dict['source']
+                    self.router_info['router_ipv6_address'] = ipv6_header_dict['source-ip']
+                    self.router_info['flags'] = hex(icmpv6_packet_dict['flags'])
+                    self.router_info['router-lifetime'] = int(icmpv6_packet_dict['router-lifetime'])
+                    self.router_info['reachable-time'] = int(icmpv6_packet_dict['reachable-time'])
+                    self.router_info['retrans-timer'] = int(icmpv6_packet_dict['retrans-timer'])
+
+                    for icmpv6_ra_option in icmpv6_packet_dict['options']:
+                        if icmpv6_ra_option['type'] == 3:
+                            self.router_info['prefix'] = str(icmpv6_ra_option['value']['prefix']) + "/" + \
+                                                         str(icmpv6_ra_option['value']['prefix-length'])
+                        if icmpv6_ra_option['type'] == 5:
+                            self.router_info['mtu'] = int(icmpv6_ra_option['value'], 16)
+                        if icmpv6_ra_option['type'] == 25:
+                            self.router_info['dns-server'] = str(icmpv6_ra_option['value']['address'])
+
+                else:
+                    # 129 Type of ICMPv6 Echo (ping) reply
+                    if icmpv6_packet_dict['type'] != 129:
+                        break
+
+                    # Check ICMPv6 Echo (ping) reply identifier
+                    if icmpv6_packet_dict['identifier'] == self.icmpv6_identifier:
+                        self.results.append({
+                            "mac-address": ethernet_header_dict['source'],
+                            "ip-address": ipv6_header_dict['source-ip']
+                        })
     # endregion
 
     # region Sender
@@ -135,20 +165,25 @@ class ICMPv6Scan:
         self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
         self.your_ipv6_link_address = self.base.get_netiface_ipv6_link_address(self.network_interface)
 
-        if self.target_mac_address is None:
-            self.target_mac_address = "33:33:00:00:00:01"
-
-        echo_request = self.icmpv6.make_echo_request_packet(ethernet_src_mac=self.your_mac_address,
-                                                            ethernet_dst_mac=self.target_mac_address,
-                                                            ipv6_src=self.your_ipv6_link_address,
-                                                            ipv6_dst="ff02::1",
-                                                            id=self.icmpv6_identifier)
-
         send_socket = socket(AF_PACKET, SOCK_RAW)
         send_socket.bind((self.network_interface, 0))
 
+        if self.router_search:
+            request = self.icmpv6.make_router_solicit_packet(ethernet_src_mac=self.your_mac_address,
+                                                             ipv6_src=self.your_ipv6_link_address)
+
+        else:
+            if self.target_mac_address is None:
+                self.target_mac_address = "33:33:00:00:00:01"
+
+            request = self.icmpv6.make_echo_request_packet(ethernet_src_mac=self.your_mac_address,
+                                                           ethernet_dst_mac=self.target_mac_address,
+                                                           ipv6_src=self.your_ipv6_link_address,
+                                                           ipv6_dst="ff02::1",
+                                                           id=self.icmpv6_identifier)
+
         for _ in range(self.retry_number):
-            send_socket.send(echo_request)
+            send_socket.send(request)
             sleep(0.1)
 
         send_socket.close()
@@ -225,6 +260,35 @@ class ICMPv6Scan:
 
     # endregion
 
+    # region Search IPv6 router
+    def search_router(self, network_interface, timeout=3, retry=3):
+
+        # region Set variables
+        self.router_search = True
+        self.network_interface = network_interface
+        self.timeout = int(timeout)
+        self.retry_number = int(retry)
+        # endregion
+
+        # region Run sniffer
+        tm = ThreadManager(2)
+        tm.add_task(self.sniff)
+        # endregion
+
+        # region Run sender
+        self.send()
+        # endregion
+
+        # region Wait
+        sleep(self.timeout)
+        # endregion
+
+        # region Return results
+        return self.router_info
+        # endregion
+
+    # endregion
+
 # endregion
 
 
@@ -244,6 +308,7 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
     parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=5)
     parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=1)', default=3)
+    parser.add_argument('-s', '--router_search', action='store_true', help='Search router IPv6 link local address')
     args = parser.parse_args()
     # endregion
 
@@ -284,20 +349,45 @@ if __name__ == "__main__":
     Base.print_info("Retry: ", str(args.retry))
     # endregion
 
-    # region Start scanner
+    # region Init ICMPv6 scanner
     icmpv6_scan = ICMPv6Scan()
-    results = icmpv6_scan.scan(current_network_interface, args.timeout, args.retry, target_mac_address, True)
     # endregion
 
-    # region Print results
-    if len(results) > 0:
-        Base.print_success("Found devices:")
-        for result in results:
-            Base.print_success("", result['ip-address'],
-                               "\t", result['mac-address'],
-                               "\t", result['vendor'])
+    # region Search IPv6 router
+    if args.router_search:
+        router_info = icmpv6_scan.search_router(current_network_interface, args.timeout, args.retry)
+        if len(router_info.keys()) > 0:
+            Base.print_success("Found IPv6 router:")
+            Base.print_info("Router IPv6 link local address: ", router_info['router_ipv6_address'])
+
+            if 'dns-server' in router_info.keys():
+                Base.print_info("DNS server IPv6 address: ", str(router_info['dns-server']))
+
+            Base.print_info("Router MAC address: ", router_info['router_mac_address'])
+            Base.print_info("Router lifetime (s): ", str(router_info['router-lifetime']))
+            Base.print_info("Reachable time (ms): ", str(router_info['reachable-time']))
+            Base.print_info("Retrans timer (ms): ", str(router_info['retrans-timer']))
+
+            if 'prefix' in router_info.keys():
+                Base.print_info("Prefix: ", str(router_info['prefix']))
+            if 'mtu' in router_info.keys():
+                Base.print_info("MTU: ", str(router_info['mtu']))
+    # endregion
+
+    # region Scan IPv6 hosts
     else:
-        Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
+        results = icmpv6_scan.scan(current_network_interface, args.timeout, args.retry, target_mac_address, True)
+
+        # region Print results
+        if len(results) > 0:
+            Base.print_success("Found devices:")
+            for result in results:
+                Base.print_success("", result['ip-address'],
+                                   "\t", result['mac-address'],
+                                   "\t", result['vendor'])
+        else:
+            Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
+        # endregion
     # endregion
 
 # endregion
