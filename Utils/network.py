@@ -729,7 +729,7 @@ class ICMPv6_raw:
         }
 
         # Type: 128 is Echo (ping) request, 129 is Echo (ping) reply
-        if icmpv6_packet['type'] == 128 or 129:
+        if icmpv6_packet['type'] == 128 or icmpv6_packet['type'] == 129:
             if len(packet) >= offset + 4:
                 icmpv6_ping_detailed = unpack("!2H", packet[offset:offset + 4])
                 icmpv6_packet["identifier"] = int(icmpv6_ping_detailed[0])
@@ -780,6 +780,13 @@ class ICMPv6_raw:
                         "valid-lifetime": int(option_detailed[2]),
                         "reserved-lifetime": int(option_detailed[3]),
                         "prefix": inet_ntop(AF_INET6, option_detailed[5])
+                    }
+
+                elif option_type == 25:
+                    option_detailed = unpack("!" "H" "I" "16s", packet[offset + 2:offset + 24])
+                    option_value = {
+                        "lifetime": int(option_detailed[1]),
+                        "address": inet_ntop(AF_INET6, option_detailed[2])
                     }
 
                 else:
