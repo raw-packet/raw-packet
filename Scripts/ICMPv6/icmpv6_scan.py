@@ -226,6 +226,8 @@ class ICMPv6Scan:
 
     # endregion
 
+# endregion
+
 
 # region Main function
 if __name__ == "__main__":
@@ -298,3 +300,5 @@ if __name__ == "__main__":
     else:
         Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
     # endregion
+
+# endregion
