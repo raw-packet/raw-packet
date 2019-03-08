@@ -66,13 +66,24 @@ class ICMPv6Scan:
         self.unique_results = []
         self.mac_addresses = []
 
-        self.mac_prefixes_file = utils_path + "mac-prefixes.txt"
-        self.vendor_list = []
-
         self.retry_number = 3
         self.timeout = 0
 
         self.router_info = {}
+
+        # region Create vendor list
+        self.mac_prefixes_file = utils_path + "mac-prefixes.txt"
+        self.vendor_list = []
+
+        with open(self.mac_prefixes_file, 'r') as mac_prefixes_descriptor:
+            for string in mac_prefixes_descriptor.readlines():
+                string_list = string.split(" ", 1)
+                self.vendor_list.append({
+                    "prefix": string_list[0],
+                    "vendor": string_list[1][:-1]
+                })
+        # endregion
+
     # endregion
 
     # region Sniffer
@@ -147,6 +158,17 @@ class ICMPv6Scan:
                         if icmpv6_ra_option['type'] == 25:
                             self.router_info['dns-server'] = str(icmpv6_ra_option['value']['address'])
 
+                    # Search router MAC address prefix in vendor list
+                    router_mac_prefix = self.eth.get_mac_prefix(self.router_info['router_mac_address'])
+
+                    for vendor_index in range(len(self.vendor_list)):
+                        if router_mac_prefix == self.vendor_list[vendor_index]['prefix']:
+                            self.router_info['vendor'] = self.vendor_list[vendor_index]['vendor']
+
+                    # Could not find this prefix in vendor list
+                    if 'vendor' not in self.router_info.keys():
+                        self.router_info['vendor'] = "Unknown vendor"
+
                 else:
                     # 129 Type of ICMPv6 Echo (ping) reply
                     if icmpv6_packet_dict['type'] != 129:
@@ -207,17 +229,6 @@ class ICMPv6Scan:
 
         # region Run sender
         self.send()
-        # endregion
-
-        # region Create vendor list
-        if check_vendor:
-            with open(self.mac_prefixes_file, 'r') as mac_prefixes_descriptor:
-                for string in mac_prefixes_descriptor.readlines():
-                    string_list = string.split(" ", 1)
-                    self.vendor_list.append({
-                        "prefix": string_list[0],
-                        "vendor": string_list[1][:-1]
-                    })
         # endregion
 
         # region Wait
@@ -386,7 +397,8 @@ if __name__ == "__main__":
                                    "\t", result['mac-address'],
                                    "\t", result['vendor'])
         else:
-            Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
+            Base.print_error("Could not find devices with IPv6 link local address in local network on interface: ",
+                             current_network_interface)
         # endregion
     # endregion
 
