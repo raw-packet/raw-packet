@@ -9,9 +9,11 @@ scripts_path = dirname(current_path) + "/Scripts"
 
 path.append(current_path)
 path.append(scripts_path + "/ARP")
+path.append(scripts_path + "/ICMPv6")
 
 from base import Base
 from arp_scan import ArpScan
+from icmpv6_scan import ICMPv6Scan
 from os import errno
 import xml.etree.ElementTree as ET
 import subprocess as sub
@@ -24,12 +26,14 @@ class Scanner:
     # region Variables
     Base = None
     ArpScan = None
+    ICMPv6Scan = None
     # endregion
 
     # region Init
     def __init__(self):
         self.Base = Base()
         self.ArpScan = ArpScan()
+        self.ICMPv6Scan = ICMPv6Scan()
 
         if not self.Base.check_installed_software("nmap"):
             exit(2)
@@ -78,6 +82,49 @@ class Scanner:
             exit(0)
     # endregion
 
+    # region IPv6 device selection
+    def ipv6_device_selection(self, ipv6_devices):
+        try:
+            ipv6_device = None
+            if len(ipv6_devices) > 0:
+                if len(ipv6_devices) == 1:
+                    ipv6_device = ipv6_devices[0]
+                    self.Base.print_info("Only one IPv6 device found:")
+                    self.Base.print_success(ipv6_device[0] + " (" + ipv6_device[1] + ") ", ipv6_device[2])
+                if len(ipv6_devices) > 1:
+                    self.Base.print_info("IPv6 devices found:")
+                    device_index = 1
+                    for ipv6_device in ipv6_devices:
+                        self.Base.print_success(
+                            str(device_index) + ") " + ipv6_device[0] + " (" + ipv6_device[1] + ") ",
+                            ipv6_device[2]
+                        )
+                        device_index += 1
+
+                    device_index -= 1
+                    current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
+                                                     str(device_index) + '): ')
+
+                    if not current_device_index.isdigit():
+                        self.Base.print_error("Your input data is not digit!")
+                        exit(1)
+
+                    if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
+                        self.Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
+                        exit(1)
+
+                    current_device_index = int(current_device_index) - 1
+                    ipv6_device = ipv6_devices[current_device_index]
+            else:
+                self.Base.print_error("Could not find IPv6 devices!")
+                exit(1)
+            return ipv6_device
+
+        except KeyboardInterrupt:
+            self.Base.print_info("Exit")
+            exit(0)
+    # endregion
+
     # region Find all devices in local network
     def find_ip_in_local_network(self, network_interface, timeout=3, retry=3):
         try:
@@ -111,6 +158,31 @@ class Scanner:
                 exit(2)
 
             return apple_devices
+
+        except KeyboardInterrupt:
+            self.Base.print_info("Exit")
+            exit(0)
+    # endregion
+
+    # region Find IPv6 devices in local network with ICMPv6Scan
+    def find_ipv6_devices(self, network_interface, timeout=5, retry=3, exclude_ipv6_address=None):
+        try:
+            ipv6_devices = []
+            ipv6_scan_results = self.ICMPv6Scan.scan(network_interface, timeout, retry, None, True)
+
+            if len(ipv6_scan_results) > 0:
+                for device in ipv6_scan_results:
+                    if exclude_ipv6_address is not None:
+                        if exclude_ipv6_address != device['ip-address']:
+                            ipv6_devices.append([device['ip-address'], device['mac-address'], device['vendor']])
+                    else:
+                        ipv6_devices.append([device['ip-address'], device['mac-address'], device['vendor']])
+            else:
+                self.Base.print_error("Could not find devices with IPv6 link local address " +
+                                      "in local network on interface: ", network_interface)
+                exit(2)
+
+            return ipv6_devices
 
         except KeyboardInterrupt:
             self.Base.print_info("Exit")
