@@ -31,7 +31,8 @@ scanner = Scanner()
 parser = ArgumentParser(description='NA (Neighbor Advertisement) spoofing')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
-parser.add_argument('-t', '--target_ip', help='Set client IPv6 link local address', default=None)
+parser.add_argument('-t', '--target_ip', help='Set target IPv6 link local address', default=None)
+parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
 parser.add_argument('-g', '--gateway_ip', help='Set gateway IPv6 link local address', default=None)
 parser.add_argument('-d', '--dns_ip', help='Set DNS server IPv6 link local address', default=None)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
@@ -156,7 +157,17 @@ if __name__ == "__main__":
 
     # endregion
 
-    # region Check argument: target_ip
+    # region Check arguments: target_ip and target_mac
+
+    # region Check argument: target_mac
+    if args.target_mac is not None:
+        if Base.mac_address_validation(args.target_mac):
+            target_mac_address = str(args.target_mac).lower()
+        else:
+            Base.print_error("Bad value `-m, --target_mac`: ", args.target_mac,
+                             "; Example MAC address: ", "12:34:56:78:90:AB")
+            exit(1)
+    # endregion
 
     # region Set variable for scan results
     target = None
@@ -173,6 +184,9 @@ if __name__ == "__main__":
 
     # region Check argument: target_ip
     else:
+        if args.target_mac is None:
+            Base.print_error("Please set target MAC address `-m, --target_mac`")
+            exit(1)
         if Base.ipv6_address_validation(args.target_ip):
             if str(args.target_ip).startswith("fe80::"):
                 if args.target_ip != your_ipv6_link_address:
