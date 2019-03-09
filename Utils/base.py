@@ -12,6 +12,7 @@ from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from ipaddress import IPv4Address
 from os import errno
+from re import match
 import subprocess as sub
 import psutil as ps
 import socket as sock
@@ -496,6 +497,13 @@ class Base:
             sock.inet_aton(ip_address)
             return True
         except sock.error:
+            return False
+
+    @staticmethod
+    def mac_address_validation(mac_address):
+        if match(r"^[a-fA-F0-9:]{17}$", mac_address):
+            return True
+        else:
             return False
 
     @staticmethod
