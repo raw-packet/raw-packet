@@ -501,7 +501,7 @@ class Base:
 
     @staticmethod
     def mac_address_validation(mac_address):
-        if match(r"^[a-fA-F0-9:]{17}$", mac_address):
+        if match(r"^([0-9a-fA-F]{2}[:]){5}([0-9a-fA-F]{2})$", mac_address):
             return True
         else:
             return False
