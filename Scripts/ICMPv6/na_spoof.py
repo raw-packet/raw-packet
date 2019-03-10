@@ -93,7 +93,7 @@ if __name__ == "__main__":
     # region Search Gateway and DNS servers
     if args.gateway_ip is None and args.dns_ip is None:
 
-        Base.print_info("Search IPv6 gateway ....")
+        Base.print_info("Search IPv6 Gateway and DNS server ....")
         router_advertisement_data = icmpv6_scan.search_router(current_network_interface, 5, 3)
 
         if router_advertisement_data is not None:
