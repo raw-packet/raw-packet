@@ -1220,13 +1220,22 @@ class ICMP_raw:
         try:
             check_sum = 0x0000
             unused = 0x00000000
-            icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+
+            if icmp_type != 0x05:
+                icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+            else:
+                icmp_packet = pack("!" "2B" "H", icmp_type, icmp_code, check_sum)
+
             if data is not None:
                 icmp_packet += data
 
             check_sum = self.checksum(icmp_packet)
 
-            icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+            if icmp_type != 0x05:
+                icmp_packet = pack("!" "2B" "H" "I", icmp_type, icmp_code, check_sum, unused)
+            else:
+                icmp_packet = pack("!" "2B" "H", icmp_type, icmp_code, check_sum)
+
             if data is not None:
                 icmp_packet += data
 
@@ -1275,6 +1284,13 @@ class ICMP_raw:
             return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x08, 0x00, icmp_data)
         except sock_error:
             return None
+
+    def make_redirect_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, gateway_address,
+                             payload_ip_src, payload_ip_dst, payload_port_src=53, payload_port_dst=53):
+        icmp_data = inet_aton(gateway_address)
+        icmp_data += self.ip.make_header(payload_ip_src, payload_ip_dst, 0, 8, 17)
+        icmp_data += self.udp.make_header(payload_port_src, payload_port_dst, 0)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x05, 0x01, icmp_data)
 
 # endregion
 
