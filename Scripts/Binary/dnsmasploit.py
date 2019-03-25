@@ -49,7 +49,7 @@ from select import select
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
-__credits__ = ['']
+__credits__ = ['hackituria']
 __license__ = 'MIT'
 __version__ = '0.0.4'
 __maintainer__ = 'Vladimir Ivanov'
