@@ -1,9 +1,20 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+sniff_test.py: Test script for sniffing
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
 from json import dumps
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
 path.append(utils_path)
@@ -12,6 +23,17 @@ from base import Base
 from network import Sniff_raw
 
 Base = Base()
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 

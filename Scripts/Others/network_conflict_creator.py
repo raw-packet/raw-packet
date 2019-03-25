@@ -1,24 +1,53 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+network_conflict_creator.py: Network conflict creator script
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
-
-utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
-
 arp_path = project_root_path + "/Scripts/ARP/"
+utils_path = project_root_path + "/Utils/"
+
+path.append(utils_path)
 path.append(arp_path)
+# endregion
 
-
+# region Raw-packet modules
 from base import Base
 from network import ARP_raw, Sniff_raw
 from tm import ThreadManager
 from arp_scan import ArpScan
+# endregion
+
+# region Import libraries
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from argparse import ArgumentParser
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 # region Check user and platform
