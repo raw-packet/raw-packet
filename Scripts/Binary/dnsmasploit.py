@@ -1,20 +1,40 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+dnsmasploit.py: Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from base import Base
+from tm import ThreadManager
+from network import IPv6_raw, DHCPv6_raw
+# endregion
+
+# region Import libraries
 from argparse import ArgumentParser
 from sys import exit
 from scapy.all import sniff, Ether, IPv6, UDP, DHCP6_Solicit, DHCP6OptRapidCommit, DHCP6OptOptReq, DHCP6_Advertise
 from scapy.all import DHCP6OptElapsedTime, DHCP6OptClientId, DHCP6OptIA_NA, DHCP6_Reply, DHCP6OptServerId
 from socket import socket, AF_INET6, SOCK_DGRAM, SOL_SOCKET, SO_RCVBUF, AF_PACKET, SOCK_RAW, inet_pton, inet_ntoa
 from random import randint
-from tm import ThreadManager
 from time import sleep
 from binascii import unhexlify
 from ipaddress import IPv6Address
@@ -22,7 +42,19 @@ from os import stat, system
 from re import compile
 from collections import OrderedDict
 from select import select
-from network import IPv6_raw, DHCPv6_raw
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 tm = ThreadManager(3)
