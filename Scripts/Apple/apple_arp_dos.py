@@ -1,24 +1,55 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+apple_arp_dos.py: DoS Apple devices in local network with ARP packets
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
 scripts_arp_path = project_root_path + "/Scripts/ARP"
 
 path.append(utils_path)
 path.append(scripts_arp_path)
+# endregion
 
+# region Raw-packet modules
 from base import Base
 from scanner import Scanner
 from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from tm import ThreadManager
 from arp_scan import ArpScan
+# endregion
+
+# region Import libraries
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from time import sleep
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 # region Check user, platform and print banner
@@ -38,7 +69,7 @@ Base.print_banner()
 # endregion
 
 # region Parse script arguments
-parser = ArgumentParser(description='Apple ARP DoS script')
+parser = ArgumentParser(description='DoS Apple devices in local network with ARP packets')
 parser.add_argument('-i', '--iface', type=str, help='Set interface name for send ARP packets')
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-s', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection')
