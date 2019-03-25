@@ -1,6 +1,18 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+scanner.py: Scan local network
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
 
@@ -10,13 +22,31 @@ scripts_path = dirname(current_path) + "/Scripts"
 path.append(current_path)
 path.append(scripts_path + "/ARP")
 path.append(scripts_path + "/ICMPv6")
+# endregion
 
+# region Raw-packet modules
 from base import Base
 from arp_scan import ArpScan
 from icmpv6_scan import ICMPv6Scan
+# endregion
+
+# region Import libraries
 from os import errno
 import xml.etree.ElementTree as ET
 import subprocess as sub
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 

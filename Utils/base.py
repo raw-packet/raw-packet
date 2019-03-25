@@ -1,3 +1,12 @@
+# region Description
+"""
+base.py: Base class for Raw-packet project
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
+
 # region Import
 from platform import system, release, dist
 from sys import exit, stdout
@@ -16,6 +25,17 @@ from re import match
 import subprocess as sub
 import psutil as ps
 import socket as sock
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 

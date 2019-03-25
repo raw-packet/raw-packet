@@ -1,3 +1,12 @@
+# region Description
+"""
+network.py: Class for creating and parsing network packets for Raw-packet project
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
+
 # region Import
 from base import Base
 from random import choice, randint
@@ -8,6 +17,17 @@ from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, 
 from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 
