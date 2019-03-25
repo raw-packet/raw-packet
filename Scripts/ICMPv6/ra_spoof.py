@@ -1,21 +1,51 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+ra_spoof.py: RA (Router Advertisement) spoofing
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
 
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from base import Base
 from scanner import Scanner
+from network import ICMPv6_raw
+from icmpv6_scan import ICMPv6Scan
+# endregion
+
+# region Import libraries
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW
-from network import ICMPv6_raw
 from time import sleep
-from icmpv6_scan import ICMPv6Scan
+# endregion
 
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 # region Check user, platform and create threads
@@ -28,7 +58,7 @@ scanner = Scanner()
 # endregion
 
 # region Parse script arguments
-parser = ArgumentParser(description='NA (Neighbor Advertisement) spoofing')
+parser = ArgumentParser(description='RA (Router Advertisement) spoofing')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
 
