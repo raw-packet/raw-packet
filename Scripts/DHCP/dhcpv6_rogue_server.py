@@ -1,16 +1,34 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+dhcpv6_rogue_server.py: Rogue SLAAC/DHCPv6 server
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from base import Base
 from network import Ethernet_raw, IPv6_raw, ICMPv6_raw, UDP_raw, DHCPv6_raw
 from tm import ThreadManager
+# endregion
 
+# region Import libraries
 from sys import exit
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
@@ -18,6 +36,19 @@ from random import randint
 from time import sleep
 from os import errno
 import subprocess as sub
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 # region Check user, platform and create threads
@@ -28,7 +59,7 @@ tm = ThreadManager(5)
 # endregion
 
 # region Parse script arguments
-parser = ArgumentParser(description='DHCPv6 Rogue server')
+parser = ArgumentParser(description='Rogue SLAAC/DHCPv6 server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 parser.add_argument('-p', '--prefix', type=str, help='Set network prefix', default='fd00::/64')

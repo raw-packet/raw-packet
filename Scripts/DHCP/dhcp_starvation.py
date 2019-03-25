@@ -1,16 +1,34 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+dhcp_starvation.py: DHCP Starvation attack script
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from network import Ethernet_raw, DHCP_raw, Sniff_raw
 from tm import ThreadManager
 from base import Base
+# endregion
 
+# region Import libraries
 from socket import socket, SOCK_RAW, AF_PACKET
 from sys import exit
 from os import system
@@ -19,6 +37,19 @@ from datetime import datetime
 from time import sleep, time
 from random import randint
 from json import dumps
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Production'
 # endregion
 
 # region Check user, platform and print banner
@@ -30,6 +61,7 @@ Base.print_banner()
 
 # region Parse script arguments
 parser = ArgumentParser(description='DHCP Starvation attack script')
+
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for send discover packets')
 parser.add_argument('-d', '--delay', type=int, help='Set delay time in seconds (default: 1)', default=1)
 parser.add_argument('-t', '--timeout', type=int, help='Set receiving timeout in seconds (default: 10)', default=10)
@@ -38,6 +70,7 @@ parser.add_argument('-v', '--dhcp_option_value', type=str, help='Set DHCP option
 parser.add_argument('-c', '--dhcp_option_code', type=int, help='Set DHCP option code (default: 12)', default=12)
 parser.add_argument('-f', '--find_dhcp', action='store_true', help='Only find DHCP server in your network')
 parser.add_argument('-m', '--mac_change', action='store_true', help='Use mac change technique')
+
 args = parser.parse_args()
 # endregion
 

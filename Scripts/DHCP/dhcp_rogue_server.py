@@ -1,17 +1,35 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+dhcp_rogue_server.py: Rogue DHCP server
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from base import Base
 from network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from tm import ThreadManager
 from scanner import Scanner
+# endregion
 
+# region Import libraries
 from sys import exit
 from argparse import ArgumentParser
 from ipaddress import IPv4Address
@@ -25,6 +43,19 @@ from random import randint
 import subprocess as sub
 # endregion
 
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
+# endregion
+
 # region Check user, platform and create threads
 Base = Base()
 Scanner = Scanner()
@@ -34,7 +65,7 @@ tm = ThreadManager(3)
 # endregion
 
 # region Parse script arguments
-parser = ArgumentParser(description='DHCP Rogue server')
+parser = ArgumentParser(description='Rogue DHCP server')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 
