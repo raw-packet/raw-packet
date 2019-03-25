@@ -1,18 +1,50 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# region Description
+"""
+arp_scan.py: ARP scan local network
+Author: Vladimir Ivanov
+License: MIT
+Copyright 2019, Raw-packet Project
+"""
+# endregion
 
 # region Import
+
+# region Add path with Raw-packet modules
 from sys import path
 from os.path import dirname, abspath
+
 project_root_path = dirname(dirname(dirname(abspath(__file__))))
 utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
 
+path.append(utils_path)
+# endregion
+
+# region Raw-packet modules
 from base import Base
+from tm import ThreadManager
+# endregion
+
+# region Import libraries
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
-from tm import ThreadManager
 from ipaddress import IPv4Address
 from time import sleep
+# endregion
+
+# endregion
+
+# region Authorship information
+__author__ = 'Vladimir Ivanov'
+__copyright__ = 'Copyright 2019, Raw-packet Project'
+__credits__ = ['']
+__license__ = 'MIT'
+__version__ = '0.0.4'
+__maintainer__ = 'Vladimir Ivanov'
+__email__ = 'ivanov.vladimir.mail@gmail.com'
+__status__ = 'Development'
 # endregion
 
 
@@ -289,11 +321,13 @@ if __name__ == "__main__":
     # endregion
 
     # region Parse script arguments
-    parser = ArgumentParser(description='ARP scanner script')
+    parser = ArgumentParser(description='ARP scan local network')
+
     parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner')
     parser.add_argument('-I', '--target_ip', type=str, help='Set target IP address', default=None)
     parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=3)
     parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
+
     args = parser.parse_args()
     # endregion
 
