@@ -35,6 +35,7 @@ law violation or personal gain.<br/>The author of this project is not responsibl
 
 # Info
 Author: [Vladimir Ivanov](https://github.com/Vladimir-Ivanov-Git)<br/>
+SubAuthors: [Ilja Bulatov](https://github.com/barrracud4)<br/>
 Project email: [raw.packet.project@gmail.com](mailto:raw.packet.project@gmail.com)<br/>
 PGP Public key: [raw.packet.project@gmail.com PGP Public key](https://raw-packet.github.io/static/pgp/Raw-packet.asc)<br/>
 Current project version: [0.0.4](https://github.com/raw-packet/raw-packet)<br/>
