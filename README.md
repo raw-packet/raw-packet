@@ -70,6 +70,53 @@ sudo apt update && sudo apt install -y python python-pip apache2 php \
 
 # Scripts
 
+# ARP
+[The Address Resolution Protocol (ARP)](https://en.wikipedia.org/wiki/Address_Resolution_Protocol) is a communication protocol used for discovering the link layer address, such as a MAC address, associated with a given internet layer address, typically an IPv4 address.
+
+## Script: arp_scan.py
+This script creates and sends ARP requests (Who has?) to search for alive hosts on the local network.
+
+```
+root@kali:~/raw-packet# python Scripts/ARP/arp_scan.py -h
+usage: arp_scan.py [-h] [-i INTERFACE] [-I TARGET_IP] [-t TIMEOUT] [-r RETRY]
+
+ARP scanner script
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for ARP scanner
+  -I TARGET_IP, --target_ip TARGET_IP
+                        Set target IP address
+  -t TIMEOUT, --timeout TIMEOUT
+                        Set timeout (default=3)
+  -r RETRY, --retry RETRY
+                        Set number of retry (default=3)
+```
+
+## Script: arp_spoof.py
+This script implement the attack - [ARP spoofing](https://en.wikipedia.org/wiki/ARP_spoofing).
+</br>ARP spoofing, ARP cache poisoning, or ARP poison routing, is a technique by which an attacker sends (spoofed) Address Resolution Protocol (ARP) messages onto a local network.
+
+```
+root@kali:~/raw-packet# python Scripts/ARP/arp_spoof.py -h
+usage: arp_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-g GATEWAY_IP] [-r]
+                    [-q]
+
+ARP spoofing
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send ARP packets
+  -t TARGET_IP, --target_ip TARGET_IP
+                        Set client IP address
+  -g GATEWAY_IP, --gateway_ip GATEWAY_IP
+                        Set gateway IP address
+  -r, --requests        Send only ARP requests
+  -q, --quiet           Minimal output
+```
+
 # DHCP
 
 ## Sript: dhcp_starvation.py
