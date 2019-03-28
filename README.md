@@ -47,7 +47,7 @@ License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
 # Publications
 
-Apple Security Advisories: [https://support.apple.com/ru-ru/HT209341](https://support.apple.com/ru-ru/HT209341)<br/>
+Apple security updates: [https://support.apple.com/en-us/HT209341](https://support.apple.com/en-us/HT209341)<br/>
 <br/>
 Yandex [it sec pro course 2018 #0](https://events.yandex.ru/events/yagosti/09-feb-2018/): [https://events.yandex.ru/lib/talks/5519/](https://events.yandex.ru/lib/talks/5519/)<br/>
 <br/>
