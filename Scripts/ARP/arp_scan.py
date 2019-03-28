@@ -32,6 +32,8 @@ from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from ipaddress import IPv4Address
 from time import sleep
+from sys import stdout
+from prettytable import PrettyTable
 # endregion
 
 # endregion
@@ -187,13 +189,24 @@ class ArpScan:
         send_socket = socket(AF_PACKET, SOCK_RAW)
         send_socket.bind((self.network_interface, 0))
 
-        for arp_request in arp_requests:
-            if self.retry_number > 0:
-                for i in range(self.retry_number):
-                    send_socket.send(arp_request)
-            else:
-                send_socket.send(arp_request)
+        number_of_requests = len(arp_requests) * int(self.retry_number)
+        index_of_request = 0
+        percent_complete = 0
 
+        for _ in range(int(self.retry_number)):
+            for arp_request in arp_requests:
+                send_socket.send(arp_request)
+                index_of_request += 1
+                new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
+                if new_percent_complete > percent_complete:
+                    stdout.write('\r')
+                    stdout.write(Base.c_info + 'Scan percentage: ' +
+                                 Base.cINFO + str(new_percent_complete) + '%' + Base.cEND)
+                    stdout.flush()
+                    sleep(0.01)
+                    percent_complete = new_percent_complete
+
+        stdout.write('\n')
         send_socket.close()
     # endregion
 
@@ -382,10 +395,12 @@ if __name__ == "__main__":
     # region Print results
     if len(results) > 0:
         Base.print_success("Found devices:")
+        pretty_table = PrettyTable([Base.cINFO + 'IP address' + Base.cEND,
+                                    Base.cINFO + 'MAC address' + Base.cEND,
+                                    Base.cINFO + 'Vendor' + Base.cEND])
         for result in results:
-            Base.print_success("", result['ip-address'],
-                               "\t", result['mac-address'],
-                               "\t", result['vendor'])
+            pretty_table.add_row([result['ip-address'], result['mac-address'], result['vendor']])
+        print pretty_table
     else:
         Base.print_error("Could not find devices in local network on interface: ", current_network_interface)
     # endregion
