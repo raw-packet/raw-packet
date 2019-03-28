@@ -45,6 +45,20 @@ Python version: [2.7](https://www.python.org/download/releases/2.7/)<br/>
 Scapy version: [2.3.1](https://scapy.net)<br/>
 License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
+# Publications
+
+Apple Security Advisories: [https://support.apple.com/ru-ru/HT209341](https://support.apple.com/ru-ru/HT209341)<br/>
+<br/>
+Yandex [it sec pro course 2018 #0](https://events.yandex.ru/events/yagosti/09-feb-2018/): [https://events.yandex.ru/lib/talks/5519/](https://events.yandex.ru/lib/talks/5519/)<br/>
+<br/>
+Xakep.ru: [https://xakep.ru/2017/09/25/wifi-mitm-advanced/](https://xakep.ru/2017/09/25/wifi-mitm-advanced/)<br/>
+<br/>
+Habr.com:<br/>
+[https://habrahabr.ru/company/dsec/blog/333978/](https://habrahabr.ru/company/dsec/blog/333978/)<br/>
+[https://habrahabr.ru/post/338860/](https://habrahabr.ru/post/338860/)<br/>
+[https://habrahabr.ru/post/338864/](https://habrahabr.ru/post/338864/)<br/>
+[https://habrahabr.ru/post/339666/](https://habrahabr.ru/post/339666/)<br/>
+
 # Install
 
 ### Debian based OS install with apt (recommended):
@@ -118,6 +132,7 @@ optional arguments:
 ```
 
 # DHCP
+[The Dynamic Host Configuration Protocol (DHCP)](https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol) is a network management protocol used on UDP/IP networks whereby a DHCP server dynamically assigns an IP address and other network configuration parameters to each device on a network so they can communicate with other IP networks.
 
 ## Sript: dhcp_starvation.py
 This script implement the attack - [DHCP starvation](https://www.sciencedirect.com/science/article/pii/S0045790612001140).<br/>DHCP starvation attack is an attack that targets DHCP servers whereby forged DHCP requests are crafted by an attacker with the intent of exhausting all available IP addresses that can be allocated by the DHCP server.
