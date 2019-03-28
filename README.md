@@ -108,6 +108,9 @@ optional arguments:
                         Set number of retry (default=3)
 ```
 
+Sample script output:</br>
+![arp_scan.py output](https://raw-packet.github.io/static/images/screenshots/arp_scan.py_screenshot.png)
+
 ## Script: arp_spoof.py
 This script implement the attack - [ARP spoofing](https://en.wikipedia.org/wiki/ARP_spoofing).
 </br>ARP spoofing, ARP cache poisoning, or ARP poison routing, is a technique by which an attacker sends (spoofed) Address Resolution Protocol (ARP) messages onto a local network.
