@@ -200,8 +200,8 @@ class ArpScan:
                 new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
                 if new_percent_complete > percent_complete:
                     stdout.write('\r')
-                    stdout.write(Base.c_info + 'Scan percentage: ' +
-                                 Base.cINFO + str(new_percent_complete) + '%' + Base.cEND)
+                    stdout.write(self.base.c_info + 'Scan percentage: ' +
+                                 self.base.cINFO + str(new_percent_complete) + '%' + self.base.cEND)
                     stdout.flush()
                     sleep(0.01)
                     percent_complete = new_percent_complete
