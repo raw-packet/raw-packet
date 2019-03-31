@@ -34,6 +34,7 @@ from icmpv6_scan import ICMPv6Scan
 from os import errno
 import xml.etree.ElementTree as ET
 import subprocess as sub
+from prettytable import PrettyTable
 # endregion
 
 # endregion
@@ -81,13 +82,17 @@ class Scanner:
                 if len(apple_devices) > 1:
                     self.Base.print_info("Apple devices found:")
                     device_index = 1
+                    apple_devices_pretty_table = PrettyTable([self.Base.cINFO + 'Index' + self.Base.cEND,
+                                                              self.Base.cINFO + 'IP address' + self.Base.cEND,
+                                                              self.Base.cINFO + 'MAC address' + self.Base.cEND,
+                                                              self.Base.cINFO + 'Vendor' + self.Base.cEND])
+
                     for apple_device in apple_devices:
-                        self.Base.print_success(
-                            str(device_index) + ") " + apple_device[0] + " (" + apple_device[1] + ") ",
-                            apple_device[2]
-                        )
+                        apple_devices_pretty_table.add_row([str(device_index), apple_device[0],
+                                                            apple_device[1], apple_device[2]])
                         device_index += 1
 
+                    print apple_devices_pretty_table
                     device_index -= 1
                     current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
                                                      str(device_index) + '): ')
