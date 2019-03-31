@@ -25,6 +25,7 @@ from re import match
 import subprocess as sub
 import psutil as ps
 import socket as sock
+from prettytable import PrettyTable
 # endregion
 
 # region Authorship information
@@ -186,11 +187,20 @@ class Base:
                 self.print_error("Network interface: ", interface_name, " does not exist!")
                 exit(1)
         else:
+            if 'lo' in current_netifaces:
+                current_netifaces.remove('lo')
+
             if len(current_netifaces) > 1:
                 self.print_info("Your interface list:")
+
+                iface_pretty_table = PrettyTable([self.cINFO + 'Index' + self.cEND,
+                                                  self.cINFO + 'Interface name' + self.cEND])
+
                 for netiface in current_netifaces:
-                    print " " + str(netiface_index) + ") " + netiface
+                    iface_pretty_table.add_row([str(netiface_index), netiface])
                     netiface_index += 1
+
+                print iface_pretty_table
 
                 netiface_index -= 1
                 current_netiface_index = raw_input(self.c_warning + 'Set network interface from range (1-' +
@@ -214,6 +224,7 @@ class Base:
                 return current_network_interface
 
             if len(current_netifaces) == 1:
+                self.print_info("You have only one network interface: ", current_netifaces[0])
                 return current_netifaces[0]
 
             if len(current_netifaces) == 0:
