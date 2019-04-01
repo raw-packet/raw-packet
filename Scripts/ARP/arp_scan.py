@@ -211,7 +211,8 @@ class ArpScan:
     # endregion
 
     # region Scanner
-    def scan(self, network_interface, timeout=3, retry=3, target_ip_address=None, check_vendor=True):
+    def scan(self, network_interface, timeout=3, retry=3, target_ip_address=None, check_vendor=True,
+             exclude_ip_address=None):
 
         # region Set variables
         self.target_ip_address = target_ip_address
@@ -254,6 +255,16 @@ class ArpScan:
         # region Reset results and mac addresses list
         self.results = []
         self.mac_addresses = []
+        # endregion
+
+        # region Exclude IP address
+        if exclude_ip_address is not None:
+            self.results = self.unique_results
+            self.unique_results = []
+            for index in range(len(self.results)):
+                if self.results[index]['ip-address'] != exclude_ip_address:
+                    self.unique_results.append(self.results[index])
+            self.results = []
         # endregion
 
         # region Get vendors
