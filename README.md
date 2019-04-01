@@ -137,6 +137,15 @@ optional arguments:
   -q, --quiet           Minimal output
 ```
 
+Sample script output:</br>
+![arp_spoof.py output](https://raw-packet.github.io/static/images/screenshots/arp_spoof.py_screenshot.png)
+
+Generated traffic:</br>
+![arp_spoof.py traffic](https://raw-packet.github.io/static/images/screenshots/arp_spoof.py_traffic.png)
+
+Demo video:</br>
+[![ARP spoofing demo video](https://raw-packet.github.io/static/images/gifs/arp_spoof.gif)](https://youtu.be/bgm_gDzdd0g)
+
 # DHCP
 [The Dynamic Host Configuration Protocol (DHCP)](https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol) is a network management protocol used on UDP/IP networks whereby a DHCP server dynamically assigns an IP address and other network configuration parameters to each device on a network so they can communicate with other IP networks.
 
