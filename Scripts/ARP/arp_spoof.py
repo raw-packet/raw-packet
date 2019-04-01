@@ -31,9 +31,10 @@ from arp_scan import ArpScan
 
 # region Import libraries
 from argparse import ArgumentParser
-from socket import socket, AF_PACKET, SOCK_RAW, htons
+from socket import socket, AF_PACKET, SOCK_RAW
 from ipaddress import IPv4Address
 from time import sleep
+from prettytable import PrettyTable
 # endregion
 
 # region Check user, platform and create threads
@@ -129,33 +130,47 @@ arp_scan = ArpScan()
 
 if args.target_ip is None:
     Base.print_info("Start ARP scan ...")
-    results = arp_scan.scan(network_interface, 3, 3, None, True)
+    results = arp_scan.scan(network_interface, 3, 3, None, True, gateway_ip_address)
+
     if len(results) > 0:
-        Base.print_info("Network devices found:")
-        device_index = 1
-        for device in results:
-            Base.print_success(str(device_index) + ") " + device['ip-address'] + " (" + device['mac-address'] + ") ",
-                               device['vendor'])
-            device_index += 1
+        if len(results) == 1:
+            target_ip_address = results[0]['ip-address']
+            target_mac_address = results[0]['mac-address']
+        else:
+            Base.print_info("Network devices found:")
+            hosts_pretty_table = PrettyTable([Base.cINFO + 'Index' + Base.cEND,
+                                              Base.cINFO + 'IP address' + Base.cEND,
+                                              Base.cINFO + 'MAC address' + Base.cEND,
+                                              Base.cINFO + 'Vendor' + Base.cEND])
+            device_index = 1
+            for device in results:
+                hosts_pretty_table.add_row([str(device_index), device['ip-address'],
+                                      device['mac-address'], device['vendor']])
+                device_index += 1
 
-        device_index -= 1
-        current_device_index = raw_input(Base.c_info + 'Set device index from range (1-' + str(device_index) + '): ')
+            print hosts_pretty_table
+            device_index -= 1
+            current_device_index = raw_input(Base.c_info + 'Set device index from range (1-' + str(device_index) + '): ')
 
-        if not current_device_index.isdigit():
-            Base.print_error("Your input data is not digit!")
-            exit(1)
+            if not current_device_index.isdigit():
+                Base.print_error("Your input data is not digit!")
+                exit(1)
 
-        if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
-            Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
-            exit(1)
+            if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
+                Base.print_error("Your number is not within range (1-" + str(device_index) + ")")
+                exit(1)
 
-        current_device_index = int(current_device_index) - 1
-        device = results[current_device_index]
-        target_ip_address = device['ip-address']
-        target_mac_address = device['mac-address']
+            current_device_index = int(current_device_index) - 1
+            device = results[current_device_index]
+            target_ip_address = device['ip-address']
+            target_mac_address = device['mac-address']
 
         Base.print_info("Target IP address: ", target_ip_address)
         Base.print_info("Target MAC address: ", target_mac_address)
+
+    else:
+        Base.print_error("Сould not find hosts on local network")
+        exit(0)
 else:
     if not Base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address):
         Base.print_error("Bad value `-t, --target_ip`: ", args.target_ip,
