@@ -59,6 +59,17 @@ Habr.com:<br/>
 [https://habrahabr.ru/post/338864/](https://habrahabr.ru/post/338864/)<br/>
 [https://habrahabr.ru/post/339666/](https://habrahabr.ru/post/339666/)<br/>
 
+# Scapy vs. Raw-packet
+
+Script [time_test.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/time_test.py) results:</br>
+
+| Number of Packets                | 10                | 100              | 1000            | 10000         |
+|----------------------------------|-------------------|------------------|-----------------|---------------|
+| ARP requests in Scapy (sec)      |  0.0465049743652  | 0.0591888427734  |  0.33397102356  | 2.69804000854 |
+| ARP requests in Raw-packet (sec) | 0.000494003295898 | 0.00221300125122 | 0.0818431377411 |  1.3009428978 |
+
+![Scapy vs. Raw-packet](https://raw-packet.github.io/static/images/others/ARP_requests_timing.png)
+
 # Install
 
 ### Debian based OS install with apt (recommended):
