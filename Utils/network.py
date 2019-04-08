@@ -1537,7 +1537,11 @@ class DHCP_raw:
             "DHCP": dhcp_packet
         }
 
-    def make_discover_packet(self, source_mac, client_mac, host_name=None, relay_ip=None):
+    def make_discover_packet(self, ethernet_src_mac, client_mac, host_name=None, relay_ip=None,
+                             ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                             ip_src="0.0.0.0", ip_dst="255.255.255.255",
+                             udp_src_port=68, udp_dst_port=67, transaction_id=0):
+
         relay_agent_ip_address = "0.0.0.0"
         if relay_ip is not None:
             relay_agent_ip_address = relay_ip
@@ -1560,12 +1564,17 @@ class DHCP_raw:
 
         options += option_param_req_list + option_end
 
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
-                                ip_src="0.0.0.0", ip_dst="255.255.255.255",
-                                udp_src_port=68, udp_dst_port=67,
+        if transaction_id == 0:
+            trid = randint(1, 4294967295)
+        else:
+            trid = transaction_id
+
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                ip_src=ip_src, ip_dst=ip_dst,
+                                udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                 bootp_message_type=1,
-                                bootp_transaction_id=randint(1, 4294967295),
+                                bootp_transaction_id=trid,
                                 bootp_flags=0,
                                 bootp_client_ip="0.0.0.0",
                                 bootp_your_client_ip="0.0.0.0",
