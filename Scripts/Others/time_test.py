@@ -23,15 +23,16 @@ path.append(utils_path)
 # endregion
 
 # region Raw-packet modules
-from network import ARP_raw
+from network import ARP_raw, DHCP_raw
 from base import Base
 # endregion
 
 # region Import libraries
-from scapy.all import Ether, ARP, sendp
+from scapy.all import Ether, ARP, IP, UDP, BOOTP, DHCP, sendp
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import time
 from prettytable import PrettyTable
+from random import randint
 # endregion
 
 # endregion
@@ -49,6 +50,7 @@ __status__ = 'Development'
 
 # region Global variables
 arp = ARP_raw()
+dhcp = DHCP_raw()
 
 network_interface = "wlan0"
 ethernet_src = "84:16:f9:19:ad:07"
@@ -78,9 +80,35 @@ def raw_packet_send_arp_requests(number_of_packets):
 
 # region Send ARP packets in scapy
 def scapy_send_arp_requests(number_of_packets):
-    arp_request = Ether(src=ethernet_src, dst="ff:ff:ff:ff:ff:ff")\
-                  /ARP(op=ARP.who_has, hwsrc=ethernet_src, hwdst="00:00:00:00:00:00", psrc=ip_src, pdst=ip_dst)
+    arp_request = Ether(src=ethernet_src, dst='ff:ff:ff:ff:ff:ff') /\
+                  ARP(op=ARP.who_has, hwsrc=ethernet_src, hwdst='00:00:00:00:00:00', psrc=ip_src, pdst=ip_dst)
     sendp(arp_request, count=number_of_packets, verbose=False)
+# endregion
+
+
+# region Send DHCP Discover packets in raw-packet
+def raw_packet_send_dhcp_discover_requests(number_of_packets):
+    for _ in range(number_of_packets):
+        dhcp_discover_request = dhcp.make_discover_packet(ethernet_src_mac=ethernet_src,
+                                                          ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                                          ip_src="0.0.0.0", ip_dst="255.255.255.255",
+                                                          udp_src_port=68, udp_dst_port=67,
+                                                          transaction_id=randint(1, 4294967295),
+                                                          client_mac=ethernet_src,
+                                                          host_name="time_test")
+        global_socket.send(dhcp_discover_request)
+# endregion
+
+
+# region Send DHCP Discover packets in scapy
+def scapy_send_dhcp_discover_requests(number_of_packets):
+    for _ in range(number_of_packets):
+        dhcp_discover_request = Ether(src=ethernet_src, dst='ff:ff:ff:ff:ff:ff') /\
+                                IP(src='0.0.0.0', dst='255.255.255.255') /\
+                                UDP(dport=67, sport=68) /\
+                                BOOTP(chaddr=ethernet_src, xid=randint(1, 4294967295)) /\
+                                DHCP(options=[('message-type', 'discover'), 'end'])
+        sendp(dhcp_discover_request, verbose=False)
 # endregion
 
 
@@ -92,20 +120,33 @@ if __name__ == "__main__":
     execution_time['ARP requests']['Scapy'] = {}
     execution_time['ARP requests']['Raw-packet'] = {}
 
+    execution_time['DHCP discover requests'] = {}
+    execution_time['DHCP discover requests']['Scapy'] = {}
+    execution_time['DHCP discover requests']['Raw-packet'] = {}
+
     for number_of_packets in 10, 100, 1000, 10000:
 
         scapy_start_time = time()
         scapy_send_arp_requests(number_of_packets)
         scapy_execution_time = (time() - scapy_start_time)
-        # scapy_execution_time = float("{0:.5f}".format(time() - scapy_start_time))
 
         raw_packet_start_time = time()
         raw_packet_send_arp_requests(number_of_packets)
         raw_packet_execution_time = (time() - raw_packet_start_time)
-        # raw_packet_execution_time = float("{0:.5f}".format(time() - raw_packet_start_time))
 
         execution_time['ARP requests']['Scapy'][number_of_packets] = scapy_execution_time
         execution_time['ARP requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
+
+        scapy_start_time = time()
+        scapy_send_dhcp_discover_requests(number_of_packets)
+        scapy_execution_time = (time() - scapy_start_time)
+
+        raw_packet_start_time = time()
+        raw_packet_send_dhcp_discover_requests(number_of_packets)
+        raw_packet_execution_time = (time() - raw_packet_start_time)
+
+        execution_time['DHCP discover requests']['Scapy'][number_of_packets] = scapy_execution_time
+        execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
 
     pretty_table = PrettyTable([Base.cINFO + 'Number of packets' + Base.cEND,
                                 Base.cINFO + '10' + Base.cEND,
@@ -123,4 +164,5 @@ if __name__ == "__main__":
                      execution_time[test_name][program_name][10000]])
 
     print pretty_table
+    global_socket.close()
 # endregion
