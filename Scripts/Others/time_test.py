@@ -137,16 +137,20 @@ if __name__ == "__main__":
         execution_time['ARP requests']['Scapy'][number_of_packets] = scapy_execution_time
         execution_time['ARP requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
 
-        scapy_start_time = time()
-        scapy_send_dhcp_discover_requests(number_of_packets)
-        scapy_execution_time = (time() - scapy_start_time)
+        if number_of_packets <= 1000:
+            scapy_start_time = time()
+            scapy_send_dhcp_discover_requests(number_of_packets)
+            scapy_execution_time = (time() - scapy_start_time)
 
-        raw_packet_start_time = time()
-        raw_packet_send_dhcp_discover_requests(number_of_packets)
-        raw_packet_execution_time = (time() - raw_packet_start_time)
+            raw_packet_start_time = time()
+            raw_packet_send_dhcp_discover_requests(number_of_packets)
+            raw_packet_execution_time = (time() - raw_packet_start_time)
 
-        execution_time['DHCP discover requests']['Scapy'][number_of_packets] = scapy_execution_time
-        execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
+            execution_time['DHCP discover requests']['Scapy'][number_of_packets] = scapy_execution_time
+            execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
+        else:
+            execution_time['DHCP discover requests']['Scapy'][number_of_packets] = "-"
+            execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = "-"
 
     pretty_table = PrettyTable([Base.cINFO + 'Number of packets' + Base.cEND,
                                 Base.cINFO + '10' + Base.cEND,
