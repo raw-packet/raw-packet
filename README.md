@@ -63,12 +63,16 @@ Habr.com:<br/>
 
 Script [time_test.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/time_test.py) results:</br>
 
-| Number of Packets                | 10                | 100              | 1000            | 10000         |
-|----------------------------------|-------------------|------------------|-----------------|---------------|
-| ARP requests in Scapy (sec)      |  0.0465049743652  | 0.0591888427734  |  0.33397102356  | 2.69804000854 |
-| ARP requests in Raw-packet (sec) | 0.000494003295898 | 0.00221300125122 | 0.0818431377411 |  1.3009428978 |
+| Number of Packets                          | 10                | 100              | 1000            | 10000         |
+|--------------------------------------------|-------------------|------------------|-----------------|---------------|
+| ARP requests in Scapy (sec)                | 0,0522048473358   | 0,0785529613495  | 0,302206039429  | 2,95294880867 |
+| ARP requests in Raw-packet (sec)           | 0,00202298164368  | 0,00270104408264 | 0,090922832489  | 1,3037519455  |
+| DHCP discover requests in Scapy (sec)      | 0,397399187088    | 4,16092181206    | 39,5892789364   |       -       |
+| DHCP discover requests in Raw-packet (sec) | 0,00177597999573  | 0,0219049453735  | 0,162989854813  |       -       |
 
-![Scapy vs. Raw-packet](https://raw-packet.github.io/static/images/others/ARP_requests_timing.png)
+![Scapy vs. Raw-packet ARP requests](https://raw-packet.github.io/static/images/others/ARP_requests_timing.png)
+
+![Scapy vs. Raw-packet DHCP discover requests](https://raw-packet.github.io/static/images/others/DHCP_discover_requests_timing.png)
 
 # Install
 
