@@ -457,6 +457,14 @@ class DnsServer:
         network_filters['UDP'] = {'destination-port': self.port}
         # endregion
 
+        # region Clear fake_answers list
+        if not self.fake_answers:
+            if len(fake_ipv6_addresses) == 0:
+                del self.fake_addresses[self.AAAA_DNS_QUERY]
+            if len(fake_ip_addresses) == 0:
+                del self.fake_addresses[self.A_DNS_QUERY]
+        # endregion
+
         # region Start sniffer
         if listen_ipv6:
             if disable_ipv4:
