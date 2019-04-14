@@ -33,6 +33,7 @@ from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from time import sleep
 from random import randint
+from prettytable import PrettyTable
 # endregion
 
 # endregion
@@ -424,10 +425,12 @@ if __name__ == "__main__":
         # region Print results
         if len(results) > 0:
             Base.print_success("Found devices:")
+            pretty_table = PrettyTable([Base.cINFO + 'IPv6 address' + Base.cEND,
+                                        Base.cINFO + 'MAC address' + Base.cEND,
+                                        Base.cINFO + 'Vendor' + Base.cEND])
             for result in results:
-                Base.print_success("", result['ip-address'],
-                                   "\t", result['mac-address'],
-                                   "\t", result['vendor'])
+                pretty_table.add_row([result['ip-address'], result['mac-address'], result['vendor']])
+            print pretty_table
         else:
             Base.print_error("Could not find devices with IPv6 link local address in local network on interface: ",
                              current_network_interface)
