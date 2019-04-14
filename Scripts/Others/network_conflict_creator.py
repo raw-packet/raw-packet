@@ -152,7 +152,7 @@ def send_arp_reply(request):
             if request['DHCP'][53] == 4:
                 Base.print_success("DHCP Decline from: ", _target_ip_address +
                                    " (" + request['Ethernet']['source'] + ")",
-                                   " IPv4 network conflict created successful!")
+                                   " IPv4 address conflict detection!")
                 exit(0)
 
     except KeyboardInterrupt:
