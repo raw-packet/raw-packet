@@ -1,7 +1,7 @@
-from base import Base
+from raw_packet.Utils.base import Base
 from argparse import ArgumentParser
 from netifaces import ifaddresses, AF_LINK
-from network import Ethernet_raw, DHCP_raw
+from raw_packet.Utils.network import Ethernet_raw, DHCP_raw
 from sys import stdout
 from datetime import datetime
 from time import time

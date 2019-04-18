@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 
-from sys import path
-from os.path import dirname, abspath
-path.append(dirname(dirname(abspath(__file__))))
-
-from base import Base
-from network import IP_raw, TCP_raw, Ethernet_raw, ARP_raw
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.network import IP_raw, TCP_raw, Ethernet_raw, ARP_raw
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW
 from random import randint
 from time import sleep
-from tm import ThreadManager
+from raw_packet.Utils.tm import ThreadManager
 from scapy.all import sniff, TCP, ARP
 
 Base = Base()

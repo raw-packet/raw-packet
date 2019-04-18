@@ -1,14 +1,8 @@
 #!/usr/bin/env python
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
-project_root_path = dirname(dirname(abspath(__file__)))
-utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
-
-from base import Base
-from network import Ethernet_raw, ARP_raw
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.network import Ethernet_raw, ARP_raw
 from argparse import ArgumentParser
 from time import sleep
 from socket import socket, AF_PACKET, SOCK_RAW

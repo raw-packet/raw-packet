@@ -12,22 +12,14 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-# region Add path with Raw-packet modules
-from sys import path
 from os.path import dirname, abspath
 
 current_path = dirname((abspath(__file__)))
-scripts_path = dirname(current_path) + "/Scripts"
-
-path.append(current_path)
-path.append(scripts_path + "/ARP")
-path.append(scripts_path + "/ICMPv6")
-# endregion
 
 # region Raw-packet modules
-from base import Base
-from arp_scan import ArpScan
-from icmpv6_scan import ICMPv6Scan
+from .base import Base
+from raw_packet.Scripts.ARP.arp_scan import ArpScan
+from raw_packet.Scripts.ICMPv6.icmpv6_scan import ICMPv6Scan
 # endregion
 
 # region Import libraries

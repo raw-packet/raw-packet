@@ -1,5 +1,5 @@
-from base import Base
-from network import Ethernet_raw, DNS_raw
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.network import Ethernet_raw, DNS_raw
 from argparse import ArgumentParser
 from sys import exit, stdout
 from ipaddress import ip_network, IPv4Interface

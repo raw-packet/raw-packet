@@ -12,20 +12,10 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-# region Add path with Raw-packet modules
-from sys import path
-from os.path import dirname, abspath
-
-project_root_path = dirname(dirname(dirname(abspath(__file__))))
-utils_path = project_root_path + "/Utils/"
-
-path.append(utils_path)
-# endregion
-
 # region Raw-packet modules
-from base import Base
-from network import Ethernet_raw, IPv6_raw, ICMPv6_raw, UDP_raw, DHCPv6_raw
-from tm import ThreadManager
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.network import Ethernet_raw, IPv6_raw, ICMPv6_raw, UDP_raw, DHCPv6_raw
+from raw_packet.Utils.tm import ThreadManager
 # endregion
 
 # region Import libraries

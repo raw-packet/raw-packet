@@ -1,6 +1,6 @@
-from base import Base
+from raw_packet.Utils.base import Base
 from argparse import ArgumentParser
-from network import DHCP_raw
+from raw_packet.Utils.network import DHCP_raw
 from time import sleep
 from scapy.all import sendp
 from logging import getLogger, ERROR

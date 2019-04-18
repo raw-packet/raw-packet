@@ -12,19 +12,11 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-# region Add path with Raw-packet modules
-from sys import path
-from os.path import dirname, abspath
-
-project_root_path = dirname(dirname(dirname(abspath(__file__))))
-utils_path = project_root_path + "/Utils/"
-
-path.append(utils_path)
-# endregion
-
 # region Raw-packet modules
-from base import Base
-from tm import ThreadManager
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.tm import ThreadManager
+from raw_packet.Utils.network import Ethernet_raw, ARP_raw
+from raw_packet.Utils.mac_prefixes import get_mac_prefixes
 # endregion
 
 # region Import libraries
@@ -79,9 +71,6 @@ class ArpScan:
 
     # region Init
     def __init__(self):
-        from base import Base
-        from network import Ethernet_raw, ARP_raw
-
         self.base = Base()
         self.eth = Ethernet_raw()
         self.arp = ARP_raw()
@@ -90,7 +79,7 @@ class ArpScan:
         self.unique_results = []
         self.mac_addresses = []
 
-        self.mac_prefixes_file = utils_path + "mac-prefixes.txt"
+        self.mac_prefixes_file = "mac-prefixes.txt"
         self.vendor_list = []
 
         self.retry_number = 3
@@ -232,13 +221,7 @@ class ArpScan:
 
         # region Create vendor list
         if check_vendor:
-            with open(self.mac_prefixes_file, 'r') as mac_prefixes_descriptor:
-                for string in mac_prefixes_descriptor.readlines():
-                    string_list = string.split(" ", 1)
-                    self.vendor_list.append({
-                        "prefix": string_list[0],
-                        "vendor": string_list[1][:-1]
-                    })
+            self.vendor_list = get_mac_prefixes(self.mac_prefixes_file)
         # endregion
 
         # region Wait

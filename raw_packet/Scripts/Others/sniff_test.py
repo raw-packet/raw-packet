@@ -12,15 +12,8 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 from json import dumps
-from sys import path
-from os.path import dirname, abspath
-
-project_root_path = dirname(dirname(dirname(abspath(__file__))))
-utils_path = project_root_path + "/Utils/"
-path.append(utils_path)
-
-from base import Base
-from network import Sniff_raw
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.network import Sniff_raw
 
 Base = Base()
 # endregion

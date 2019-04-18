@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 
-from sys import path
-from os.path import dirname, abspath
-path.append(dirname(dirname(abspath(__file__))))
-
-from base import Base
+from raw_packet.Utils.base import Base
 from argparse import ArgumentParser
-from network import ICMPv6_raw, Ethernet_raw
+from raw_packet.Utils.network import ICMPv6_raw, Ethernet_raw
 from socket import socket, AF_PACKET, SOCK_RAW
 from sys import exit
 
