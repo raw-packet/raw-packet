@@ -12,6 +12,12 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
+# region Add project root path
+from sys import path
+from os.path import dirname, abspath
+path.append(dirname(dirname(dirname(abspath(__file__)))))
+# endregion
+
 # region Raw-packet modules
 from raw_packet.Utils.network import Ethernet_raw, DHCP_raw, Sniff_raw
 from raw_packet.Utils.tm import ThreadManager
