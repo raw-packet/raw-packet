@@ -12,11 +12,17 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
+# region Add project root path
+from sys import path
+from os.path import dirname, abspath
+path.append(dirname(dirname(dirname(abspath(__file__)))))
+# endregion
+
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.scanner import Scanner
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from raw_packet.Utils.network import ICMPv6_raw
-from icmpv6_scan import ICMPv6Scan
 # endregion
 
 # region Import libraries
