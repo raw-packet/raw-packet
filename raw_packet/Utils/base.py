@@ -11,7 +11,7 @@ Copyright 2019, Raw-packet Project
 from platform import system, release, dist
 from sys import exit, stdout
 from os import getuid
-from os.path import dirname, abspath, isfile
+from os.path import dirname, abspath, isfile, join
 from pwd import getpwuid
 from random import choice, randint
 from string import lowercase, uppercase, digits
@@ -547,6 +547,19 @@ class Base:
     @staticmethod
     def make_random_string(length):
         return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
+
+    @staticmethod
+    def get_mac_prefixes(prefixes_filename="mac-prefixes.txt"):
+        current_path = dirname(abspath(__file__))
+        vendor_list = []
+        with open(join(current_path, prefixes_filename), 'r') as mac_prefixes_descriptor:
+            for string in mac_prefixes_descriptor.readlines():
+                string_list = string.split(" ", 1)
+                vendor_list.append({
+                    "prefix": string_list[0],
+                    "vendor": string_list[1][:-1]
+                })
+        return vendor_list
     # endregion
 
 # endregion
