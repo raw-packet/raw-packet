@@ -12,12 +12,18 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
+# region Add project root path
+from sys import path
+from os.path import dirname, abspath
+path.append(dirname(dirname(dirname(abspath(__file__)))))
+# endregion
+
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.scanner import Scanner
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Utils.network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
 from raw_packet.Utils.tm import ThreadManager
-from ..ARP.arp_scan import ArpScan
 # endregion
 
 # region Import libraries

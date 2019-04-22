@@ -12,15 +12,18 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
+# region Add project root path
+from sys import path
 from os.path import dirname, abspath
-project_root_path = dirname(dirname(dirname(abspath(__file__))))
+path.append(dirname(dirname(dirname(abspath(__file__)))))
+# endregion
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.scanner import Scanner
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Utils.tm import ThreadManager
 from raw_packet.Utils.network import Sniff_raw, ARP_raw
-from ..ARP.arp_scan import ArpScan
 # endregion
 
 # region Import libraries
@@ -34,6 +37,8 @@ from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW
 from random import randint
 import re
+from os.path import dirname, abspath
+project_root_path = dirname(dirname(dirname(abspath(__file__))))
 # endregion
 
 # endregion
