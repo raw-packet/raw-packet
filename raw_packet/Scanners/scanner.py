@@ -12,13 +12,9 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-from os.path import dirname, abspath
-
-current_path = dirname((abspath(__file__)))
-
 # region Raw-packet modules
-from .base import Base
-from raw_packet.Scripts.ARP.arp_scan import ArpScan
+from raw_packet.Utils.base import Base
+from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Scripts.ICMPv6.icmpv6_scan import ICMPv6Scan
 # endregion
 
@@ -27,6 +23,8 @@ from os import errno
 import xml.etree.ElementTree as ET
 import subprocess as sub
 from prettytable import PrettyTable
+from os.path import dirname, abspath
+current_path = dirname((abspath(__file__)))
 # endregion
 
 # endregion
