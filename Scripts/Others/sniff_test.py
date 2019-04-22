@@ -10,6 +10,12 @@ Copyright 2019, Raw-packet Project
 """
 # endregion
 
+# region Add project root path
+from sys import path
+from os.path import dirname, abspath
+path.append(dirname(dirname(dirname(abspath(__file__)))))
+# endregion
+
 # region Import
 from json import dumps
 from raw_packet.Utils.base import Base
