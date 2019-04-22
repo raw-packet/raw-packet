@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     # region Get your network settings
     if args.interface is None:
-        Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+        Base.print_warning("Please set a network interface for sniffing ARP responses ...")
     current_network_interface = Base.netiface_selection(args.interface)
 
     your_mac_address = Base.get_netiface_mac_address(current_network_interface)
