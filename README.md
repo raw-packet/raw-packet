@@ -164,7 +164,7 @@ Demo video:</br>
 # DHCP
 [The Dynamic Host Configuration Protocol (DHCP)](https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol) is a network management protocol used on UDP/IP networks whereby a DHCP server dynamically assigns an IP address and other network configuration parameters to each device on a network so they can communicate with other IP networks.
 
-## Sript: dhcp_starvation.py
+## Script: dhcp_starvation.py
 This script implement the attack - [DHCP starvation](https://www.sciencedirect.com/science/article/pii/S0045790612001140).<br/>DHCP starvation attack is an attack that targets DHCP servers whereby forged DHCP requests are crafted by an attacker with the intent of exhausting all available IP addresses that can be allocated by the DHCP server.
 
 ```
