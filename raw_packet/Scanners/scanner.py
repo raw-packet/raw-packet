@@ -15,7 +15,7 @@ Copyright 2019, Raw-packet Project
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.arp_scanner import ArpScan
-from raw_packet.Scripts.ICMPv6.icmpv6_scan import ICMPv6Scan
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 # endregion
 
 # region Import libraries
