@@ -149,7 +149,7 @@ def reply(request):
                 else:
                     if request['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and request['ARP']['opcode'] == 1 and \
                             request['ARP']['sender-ip'] == request['ARP']['target-ip']:
-                        Base.print_info("Sniff Gratuitous ARP for ",
+                        Base.print_info("Sniff Gratuitous ARP request for ",
                                         request['ARP']['sender-ip'] + " (" + request['Ethernet']['source'] + ")")
                         arp_response = _arp.make_response(ethernet_src_mac=_current_mac_address,
                                                           ethernet_dst_mac=request['Ethernet']['source'],
@@ -157,7 +157,7 @@ def reply(request):
                                                           sender_ip=request['ARP']['sender-ip'],
                                                           target_mac=request['Ethernet']['source'],
                                                           target_ip=request['ARP']['sender-ip'])
-                        Base.print_info("Send IPv4 Address Conflict ARP response to: ",
+                        Base.print_info("Send Gratuitous ARP reply for ",
                                         request['ARP']['sender-ip'] + " (" + request['Ethernet']['source'] + ")")
                         _sock.send(arp_response)
 
