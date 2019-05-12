@@ -61,9 +61,10 @@ parser.add_argument('-i', '--interface', type=str, help='Set interface name for 
 parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
 parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
 
-parser.add_argument('-a', '--answers', action='store_true', help='Send only ARP answers')
-parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
-parser.add_argument('-p', '--packets', type=int, help='Number of ARP answer packets (default: 10)', default=10)
+parser.add_argument('--replies', action='store_true', help='Send only ARP replies')
+parser.add_argument('--requests', action='store_true', help='Send only ARP requests')
+parser.add_argument('--broadcast', action='store_true', help='Send broadcast ARP requests')
+parser.add_argument('-p', '--packets', type=int, help='Number of ARP packets (default: 10)', default=10)
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 parser.add_argument('-e', '--exit', action='store_true', help='Exit on success')
 
@@ -137,7 +138,7 @@ def reply(request):
     global args
 
     try:
-        if not args.answers and not args.requests:
+        if not args.replies and not args.requests:
             if 'ARP' in request.keys():
                 if _target_ip_address is not None:
                     if request['ARP']['sender-ip'] == _target_ip_address and \
@@ -205,8 +206,12 @@ if __name__ == "__main__":
                                                target_mac=_target_mac_address,
                                                target_ip=_target_ip_address)
 
+            if args.broadcast:
+                destination_mac_address = "ff:ff:ff:ff:ff:ff"
+            else:
+                destination_mac_address = "33:33:00:00:00:01"
             _arp_request = _arp.make_request(ethernet_src_mac=_current_mac_address,
-                                             ethernet_dst_mac="33:33:00:00:00:01",
+                                             ethernet_dst_mac=destination_mac_address,
                                              sender_mac=_current_mac_address,
                                              sender_ip=_target_ip_address,
                                              target_mac="00:00:00:00:00:00",
@@ -218,8 +223,8 @@ if __name__ == "__main__":
             # endregion
 
             # region Send only ARP reply packets
-            if args.answers:
-                Base.print_info("Send only ARP response packets to: ",
+            if args.replies:
+                Base.print_info("Send only ARP reply packets to: ",
                                 str(_target_ip_address) + " (" + str(_target_mac_address) + ")")
                 for _ in range(_number_of_packets):
                     _sock.send(_arp_response)
