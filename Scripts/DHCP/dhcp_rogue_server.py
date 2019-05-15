@@ -108,6 +108,7 @@ parser.add_argument('--iface_name', type=str,
 parser.add_argument('--broadcast_response', action='store_true', help='Send broadcast response')
 parser.add_argument('--dnsop', action='store_true', help='Do not send DHCP OFFER packets')
 parser.add_argument('--exit', action='store_true', help='Exit on success MiTM attack')
+parser.add_argument('--apple', action='store_true', help='Add delay before send DHCP ACK')
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
 
 args = parser.parse_args()
@@ -855,8 +856,14 @@ def reply(request):
                             ack_packet = make_dhcp_ack_packet(transaction_id, client_mac_address, requested_ip,
                                                               client_mac_address, requested_ip)
 
-                        Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
-                        SOCK.send(ack_packet)
+                        if args.apple:
+                            Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
+                            for _ in range(3):
+                                SOCK.send(ack_packet)
+                                sleep(0.2)
+                        else:
+                            SOCK.send(ack_packet)
+                            Base.print_info("DHCP ACK to: ", client_mac_address, " requested ip: ", requested_ip)
                         # endregion
 
                         # region Add client info in global clients dictionary
