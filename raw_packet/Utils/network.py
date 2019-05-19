@@ -2075,8 +2075,8 @@ class MDNS_raw:
             dns_packet += self.dns.make_dns_name(query["name"])
             dns_packet += pack("!2H", query["type"], query["class"])
 
-        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
-        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
+        eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
+        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, self.udp.header_type)
         udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
 
         return eth_header + ip_header + udp_header + dns_packet
@@ -2095,9 +2095,11 @@ class MDNS_raw:
             dns_packet += self.dns.make_dns_name(query["name"])
             dns_packet += pack("!2H", query["type"], query["class"])
 
-        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
-        ipv6_header = self.ipv6.make_header(src_ip, dst_ip, 0xcf2e1, len(dns_packet), 17)
-        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+        eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
+        ipv6_header = self.ipv6.make_header(src_ip, dst_ip, 0, len(dns_packet) + self.udp.header_length,
+                                            self.udp.header_type)
+        udp_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
+                                                             len(dns_packet), dns_packet)
 
         return eth_header + ipv6_header + udp_header + dns_packet
 
