@@ -162,7 +162,7 @@ def dhcp_response_sender():
     ack_packet = make_dhcp_ack_packet(transaction_id_global)
 
     while True:
-        discover_packet = dhcp.make_discover_packet(source_mac=your_mac_address,
+        discover_packet = dhcp.make_discover_packet(ethernet_src_mac=your_mac_address,
                                                     client_mac=eth.get_random_mac(),
                                                     host_name=Base.make_random_string(6))
         SOCK.send(discover_packet)
