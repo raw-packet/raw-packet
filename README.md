@@ -42,7 +42,6 @@ Current project version: [0.0.4](https://github.com/raw-packet/raw-packet)<br/>
 Last stable release: [0.0.3](https://github.com/raw-packet/raw-packet/releases/tag/0.0.3)<br/>
 Required OS: [Linux based](https://en.wikipedia.org/wiki/Linux)<br/>
 Python version: [2.7](https://www.python.org/download/releases/2.7/)<br/>
-Scapy version: [2.3.1](https://scapy.net)<br/>
 License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
 # Publications
