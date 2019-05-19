@@ -921,6 +921,14 @@ class ICMPv6_raw:
             body += data
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 129, 0, body)
 
+    def make_multicast_listener_report_packet(self, ethernet_src_mac, ipv6_src, multicast_addresses=[],
+                                              ethernet_dst_mac="33:33:00:00:00:16", ipv6_dst="ff02::16"):
+        body = pack("!2H", 0, len(multicast_addresses))
+        for multicast_address in multicast_addresses:
+            body += pack("!" "2B" "H", 4, 0, 0)
+            body += self.ipv6.pack_addr(multicast_address)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 143, 0, body)
+
     # def make_dad_packet(self, ethernet_src_mac, target_ipv6_address):
     #     body = pack("I", 0)             # 4 reserved bytes
     #     body += self.ipv6.pack_addr(target_ipv6_address)
