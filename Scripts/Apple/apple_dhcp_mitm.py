@@ -455,7 +455,7 @@ if __name__ == "__main__":
     # region Directory for phishing domain
     if not path.exists(se_path):
         if args.phishing_domain_path == "google" or "apple" or "microsoft":
-            copytree(src=project_root_path + "/Utils/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
+            copytree(src=project_root_path + "/raw_packet/Utils/Phishing_domains/" + args.phishing_domain_path, dst=se_path)
         else:
             Base.print_error("Directory: ", se_path, " does not exist!")
             exit(1)
@@ -505,7 +505,7 @@ if __name__ == "__main__":
 
     # Copy and change redirect script
     redirect_script_name = "redirect.php"
-    redirect_script_src = script_dir + "/Utils/" + redirect_script_name
+    redirect_script_src = script_dir + "/raw_packet/Utils/" + redirect_script_name
     redirect_script_dst = redirect_path + redirect_script_name
 
     copyfile(src=redirect_script_src, dst=redirect_script_dst)
