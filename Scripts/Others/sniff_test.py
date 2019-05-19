@@ -46,19 +46,35 @@ def print_packet(request):
         Base.print_info("ARP packet from: ", request['Ethernet']['source'])
 
     if 'ICMPv6' in request.keys():
-        Base.print_info("ICMPv6 packet from: ", request['Ethernet']['source'])
+        Base.print_info("ICMPv6 packet from: ",
+                        request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
     if 'DNS' in request.keys():
-        Base.print_info("DNS packet from: ", request['Ethernet']['source'])
+
+        if 'IP' in request.keys():
+            Base.print_info("DNS packet from: ",
+                            request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+
+        if 'IPv6' in request.keys():
+            Base.print_info("DNS packet from: ",
+                            request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
     if 'MDNS' in request.keys():
-        Base.print_info("MDNS packet from: ", request['Ethernet']['source'])
+
+        if 'IP' in request.keys():
+            Base.print_info("MDNS packet from: ",
+                            request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+
+        if 'IPv6' in request.keys():
+            Base.print_info("MDNS packet from: ",
+                            request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
     if 'DHCP' in request.keys():
         Base.print_info("DHCP packet from: ", request['Ethernet']['source'])
 
     if 'DHCPv6' in request.keys():
-        Base.print_info("DHCPv6 packet from: ", request['Ethernet']['source'])
+        Base.print_info("DHCPv6 packet from: ",
+                        request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
     print(dumps(request, indent=4))
 
