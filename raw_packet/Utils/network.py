@@ -1987,8 +1987,8 @@ class MDNS_raw:
         self.udp = UDP_raw()
         self.dns = DNS_raw()
 
-    def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, flags,
-                             queries=[], answers_address=[], name_servers={}):
+    def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, queries=[], answers_address=[], name_servers={},
+                             src_port=5353, dst_port=5353, tid=0, flags=0x8400):
         transaction_id = tid
         dns_flags = flags
         questions = len(queries)
@@ -1997,8 +1997,6 @@ class MDNS_raw:
         additional_rrs = len(name_servers.keys())
 
         dns_packet = pack("!6H", transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-
-        query_type = 1
 
         for query in queries:
             query_name = query["name"]
@@ -2011,37 +2009,28 @@ class MDNS_raw:
             dns_packet += self.dns.make_dns_name(query_name)
             dns_packet += pack("!2H", query_type, query_class)
 
-        if query_type == 1:
-            for address in answers_address:
-                if "name" in address.keys():
-                    dns_packet += self.dns.make_dns_name(address["name"])
-                else:
-                    dns_packet += pack("!H", 0xc00c)
+        for address in answers_address:
+            if "name" in address.keys():
+                dns_packet += self.dns.make_dns_name(address["name"])
+            else:
+                dns_packet += pack("!H", 0xc00c)
 
+            if address["type"] == 1:
                 dns_packet += pack("!" "2H" "I" "H" "4s", address["type"], address["class"], address["ttl"],
                                    4, inet_aton(address["address"]))
 
-        if query_type == 28:
-            for address in answers_address:
-                if "name" in address.keys():
-                    dns_packet += self.dns.make_dns_name(address["name"])
-                else:
-                    dns_packet += pack("!H", 0xc00c)
-
+            elif address["type"] == 28:
                 dns_packet += pack("!" "2H" "I" "H" "16s", address["type"], address["class"], address["ttl"],
                                    16, inet_pton(AF_INET6, address["address"]))
 
-        if query_type == 12:
-            for address in answers_address:
+            elif address["type"] == 12:
                 domain = self.dns.make_dns_name(address["address"])
-                if "name" in address.keys():
-                    dns_packet += self.dns.make_dns_name(address["name"])
-                else:
-                    dns_packet += pack("!H", 0xc00c)
-
                 dns_packet += pack("!" "2H" "I" "H", address["type"], address["class"], address["ttl"],
                                    len(domain))
                 dns_packet += domain
+
+            else:
+                return None
 
         if self.Base.ip_address_validation(src_ip):
             eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
