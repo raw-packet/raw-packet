@@ -825,19 +825,20 @@ class ICMPv6_raw:
         else:
             return icmpv6_packet
 
-    def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src,
-                                   need_source_link_layer_address=False, source_link_layer_address=""):
+    def make_router_solicit_packet(self, ethernet_src_mac, ipv6_src, need_source_link_layer_address=False,
+                                   source_link_layer_address=None, ethernet_dst_mac="33:33:00:00:00:02",
+                                   ipv6_dst="ff02::2", ipv6_flow=0x835d1):
 
         body = pack("I", 0)             # 4 reserved bytes
         if need_source_link_layer_address:
             body += pack("!" "2B", 1, 1)    # 1 - Type: source link address, 1 - Length = 1 (8 bytes)
 
-            if source_link_layer_address == "":
+            if source_link_layer_address is None:
                 body += self.eth.convert_mac(ethernet_src_mac)
             else:
                 body += self.eth.convert_mac(source_link_layer_address)
 
-        return self.make_packet(ethernet_src_mac, "33:33:00:00:00:02", ipv6_src, "ff02::2", 0x835d1, 133, 0, body)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, ipv6_flow, 133, 0, body)
 
     def make_router_advertisement_packet(self, ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst,
                                          dns_address, domain_search, prefix=None, ipv6_addr=None, mtu=1500,
