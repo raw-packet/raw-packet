@@ -897,8 +897,8 @@ class ICMPv6_raw:
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ipv6_src, ipv6_dst, 0, 135, 0, body)
 
     def make_neighbor_advertisement_packet(self, ethernet_src_mac, ipv6_src, target_ipv6_address,
-                                           ethernet_dst_mac=None, ipv6_dst=None):
-        body = pack("!I", 0x20000000)   # Flags: 0x20000000, Override
+                                           ethernet_dst_mac=None, ipv6_dst=None, flags=0x20000000):
+        body = pack("!I", flags)   # Flags: 0x20000000, Override
         body += self.ipv6.pack_addr(target_ipv6_address)
         body += self.make_option(2, self.eth.convert_mac(ethernet_src_mac))  # Target link-layer address
 
