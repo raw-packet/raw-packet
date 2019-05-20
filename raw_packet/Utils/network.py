@@ -880,9 +880,13 @@ class ICMPv6_raw:
 
         if target_ipv6_address is not None:
             body += self.ipv6.pack_addr(target_ipv6_address)
+        else:
+            body += self.ipv6.pack_addr("ff02::1")
 
         if icmpv6_source_mac_address is not None:
             body += self.make_option(2, self.eth.convert_mac(icmpv6_source_mac_address))  # Source link-layer address
+        else:
+            body += self.make_option(2, self.eth.convert_mac(ethernet_src_mac))  # Source link-layer address
 
         if ethernet_dst_mac is None:
             ethernet_dst_mac = "33:33:00:00:00:01"
