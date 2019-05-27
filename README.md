@@ -48,6 +48,8 @@ License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
 Apple security updates: [https://support.apple.com/en-us/HT209341](https://support.apple.com/en-us/HT209341)<br/>
 <br/>
+PHDays: [https://www.phdays.com/en/program/reports/apple-all-about-mitm/](https://www.phdays.com/en/program/reports/apple-all-about-mitm/)<br/>
+<br/>
 Yandex [it sec pro course 2018 #0](https://events.yandex.ru/events/yagosti/09-feb-2018/): [https://events.yandex.ru/lib/talks/5519/](https://events.yandex.ru/lib/talks/5519/)<br/>
 <br/>
 Xakep.ru: [https://xakep.ru/2017/09/25/wifi-mitm-advanced/](https://xakep.ru/2017/09/25/wifi-mitm-advanced/)<br/>
