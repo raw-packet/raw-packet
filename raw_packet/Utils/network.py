@@ -1966,6 +1966,19 @@ class DNS_raw:
                                         flags=flags,
                                         queries=queries)
 
+    def make_aaaa_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
+        queries = []
+
+        for name in names:
+            queries.append({"type": 28, "class": 1, "name": name})
+
+        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                        src_ip=src_ip, dst_ip=dst_ip,
+                                        src_port=src_port, dst_port=dst_port,
+                                        tid=tid,
+                                        flags=flags,
+                                        queries=queries)
+
     def make_any_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
         queries = []
 
