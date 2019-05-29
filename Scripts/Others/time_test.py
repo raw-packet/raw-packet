@@ -19,12 +19,12 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 # endregion
 
 # region Raw-packet modules
-from raw_packet.Utils.network import ARP_raw, DHCP_raw
+from raw_packet.Utils.network import ARP_raw, DHCP_raw, DNS_raw
 from raw_packet.Utils.base import Base
 # endregion
 
 # region Import libraries
-from scapy.all import Ether, ARP, IP, UDP, BOOTP, DHCP, sendp
+from scapy.all import Ether, ARP, IP, UDP, BOOTP, DHCP, DNS, DNSQR, sendp
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import time
 from prettytable import PrettyTable
@@ -47,12 +47,13 @@ __status__ = 'Development'
 # region Global variables
 arp = ARP_raw()
 dhcp = DHCP_raw()
+dns = DNS_raw()
 
-network_interface = "wlan0"
-ethernet_src = "84:16:f9:19:ad:07"
-ethernet_dst = "a4:2b:b0:f1:a8:da"
-ip_src = "192.168.43.107"
-ip_dst = "192.168.43.1"
+network_interface = "eth0"
+ethernet_src = "00:0c:29:4f:e6:9c"
+ethernet_dst = "00:50:56:c0:00:01"
+ip_src = "192.168.119.139"
+ip_dst = "192.168.119.1"
 
 global_socket = socket(AF_PACKET, SOCK_RAW)
 global_socket.bind((network_interface, 0))
@@ -108,6 +109,28 @@ def scapy_send_dhcp_discover_requests(number_of_packets):
 # endregion
 
 
+# region Send DNS Request packets in raw-packet
+def raw_packet_send_dns_requests(number_of_packets):
+    for _ in range(number_of_packets):
+        dns_request = dns.make_a_query(src_mac=ethernet_src, dst_mac=ethernet_dst,
+                                       src_ip=ip_src, dst_ip=ip_dst,
+                                       src_port=randint(1024, 65535), dst_port=53,
+                                       tid=randint(1, 1000), names=['www.' + str(randint(1, 1000)) + '.com'])
+        global_socket.send(dns_request)
+# endregion
+
+
+# region Send DNS Request packets in scapy
+def scapy_send_dns_requests(number_of_packets):
+    for _ in range(number_of_packets):
+        dns_request = Ether(src=ethernet_src, dst=ethernet_dst) /\
+                      IP(src=ip_src, dst=ip_dst) /\
+                      UDP(dport=53, sport=randint(1024, 65535)) /\
+                      DNS(id=randint(1, 1000), rd=1, qd=DNSQR(qname="www." + str(randint(1, 1000)) + ".com"))
+        sendp(dns_request, verbose=False)
+# endregion
+
+
 # region Main function
 if __name__ == "__main__":
     Base = Base()
@@ -119,6 +142,10 @@ if __name__ == "__main__":
     execution_time['DHCP discover requests'] = {}
     execution_time['DHCP discover requests']['Scapy'] = {}
     execution_time['DHCP discover requests']['Raw-packet'] = {}
+
+    execution_time['DNS requests'] = {}
+    execution_time['DNS requests']['Scapy'] = {}
+    execution_time['DNS requests']['Raw-packet'] = {}
 
     for number_of_packets in 10, 100, 1000, 10000:
 
@@ -144,9 +171,24 @@ if __name__ == "__main__":
 
             execution_time['DHCP discover requests']['Scapy'][number_of_packets] = scapy_execution_time
             execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
+
+            scapy_start_time = time()
+            scapy_send_dns_requests(number_of_packets)
+            scapy_execution_time = (time() - scapy_start_time)
+
+            raw_packet_start_time = time()
+            raw_packet_send_dns_requests(number_of_packets)
+            raw_packet_execution_time = (time() - raw_packet_start_time)
+
+            execution_time['DNS requests']['Scapy'][number_of_packets] = scapy_execution_time
+            execution_time['DNS requests']['Raw-packet'][number_of_packets] = raw_packet_execution_time
+
         else:
             execution_time['DHCP discover requests']['Scapy'][number_of_packets] = "-"
             execution_time['DHCP discover requests']['Raw-packet'][number_of_packets] = "-"
+
+            execution_time['DNS requests']['Scapy'][number_of_packets] = "-"
+            execution_time['DNS requests']['Raw-packet'][number_of_packets] = "-"
 
     pretty_table = PrettyTable([Base.cINFO + 'Number of packets' + Base.cEND,
                                 Base.cINFO + '10' + Base.cEND,
