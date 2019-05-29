@@ -70,8 +70,8 @@ Script [time_test.py](https://github.com/raw-packet/raw-packet/blob/master/Scrip
 | ARP requests in Raw-packet (sec)           | 0,00202298164368  | 0,00270104408264 | 0,090922832489  | 1,3037519455  |
 | DHCP discover requests in Scapy (sec)      | 0,397399187088    | 4,16092181206    | 39,5892789364   |       -       |
 | DHCP discover requests in Raw-packet (sec) | 0,00177597999573  | 0,0219049453735  | 0,162989854813  |       -       |
-| DNS requests in Scapy                      | 0.608256101608    | 6.05325508118    |  58.4151289463  |       -       |
-| DNS requests in Raw-packet                 | 0.00274395942688  | 0.0127770900726  | 0.0796978473663 |       -       |
+| DNS requests in Scapy (sec)                | 0.608256101608    | 6.05325508118    | 58.4151289463   |       -       |
+| DNS requests in Raw-packet (sec)           | 0.00274395942688  | 0.0127770900726  | 0.0796978473663 |       -       |
 
 ![Scapy vs. Raw-packet ARP requests](https://raw-packet.github.io/static/images/others/ARP_requests_timing.png)
 
