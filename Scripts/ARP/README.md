@@ -1,9 +1,3 @@
----
-layout: page
-title: ARP
-permalink: /scripts/arp/
-parent: Scripts
----
 # ARP
 
 The [Address Resolution Protocol (ARP)](https://en.wikipedia.org/wiki/Address_Resolution_Protocol) is a communication protocol used for discovering the link layer address, such as a MAC address, associated with a given internet layer address, typically an IPv4 address.

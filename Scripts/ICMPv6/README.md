@@ -1,10 +1,3 @@
----
-layout: page
-title: ICMPv6
-permalink: /scripts/icmpv6/
-parent: Scripts
----
-
 # ICMPv6
 
 ## Script: [icmpv6_scan.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/icmpv6_scan.py)

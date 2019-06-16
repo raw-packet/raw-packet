@@ -1,10 +1,3 @@
----
-layout: page
-title: DNS
-permalink: /scripts/dns/
-parent: Scripts
----
-
 # DNS
 
 ## Script: [dns_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DNS/dns_server.py)

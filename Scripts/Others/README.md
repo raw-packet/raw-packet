@@ -1,10 +1,3 @@
----
-layout: page
-title: Miscellaneous
-permalink: /scripts/misc/
-parent: Scripts
----
-
 # Miscellaneous scripts
 
 ## Script: [network_conflict_creator.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/network_conflict_creator.py)

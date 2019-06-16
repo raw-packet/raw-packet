@@ -1,10 +1,3 @@
----
-layout: page
-title: Apple
-permalink: /scripts/apple/
-parent: Scripts
----
-
 # Apple attacks
 
 ## Script: [apple_mitm.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Apple/apple_mitm.py)

@@ -1,10 +1,3 @@
----
-layout: page
-title: Binary Exploits
-permalink: /scripts/binary/
-parent: Scripts
----
-
 # Exploits 
 
 ## Script: [dnsmasploit.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Binary/dnsmasploit.py)
