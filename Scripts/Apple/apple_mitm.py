@@ -809,23 +809,12 @@ if __name__ == "__main__":
 
     # region Scan IPv6 local network
     if technique_index in [4, 5, 6]:
-        # region Find Apple devices in local network with ICMPv6 scan
-        Base.print_info("ARP scan is running ...")
-        apple_devices = Scanner.find_apple_devices_by_mac_ipv6(listen_network_interface)
 
+        # region Find Apple devices in local network with ICMPv6 scan
+        Base.print_info("ICMPv6 scan is running ...")
+        apple_devices = Scanner.find_apple_devices_by_mac_ipv6(listen_network_interface)
         target_apple_device = Scanner.apple_device_selection(apple_devices)
         # endregion
-
-        # # region Find Mac address of Apple device if target IP is set
-        # if args.target_ip is not None:
-        #     Base.print_info("Search MAC address of Apple device with IP address: ", target_ip_address, " ...")
-        #     target_mac_address = ArpScan.get_mac_address(listen_network_interface, target_ip_address)
-        #     if target_mac_address == "ff:ff:ff:ff:ff:ff":
-        #         Base.print_error("Could not find device MAC address with IP address: ", target_ip_address)
-        #         exit(1)
-        #     else:
-        #         target_apple_device = [target_ip_address, target_mac_address]
-        # # endregion
 
     # endregion
 
@@ -945,7 +934,9 @@ if __name__ == "__main__":
     if technique_index == 4:
 
         # region Start Rogue DHCPv6 server
-        target_global_ipv6_address = network_prefix_address + randint(first_suffix, last_suffix)
+        target_global_ipv6_address = network_prefix_address + str(randint(first_suffix, last_suffix))
+        Base.print_info("New global IPv6 address: ", target_global_ipv6_address,
+                        " for target: ", target_ip_address + " (" + target_mac_address + ")")
         rogue_dhcpv6_server(listen_network_interface, network_prefix, target_mac_address, target_global_ipv6_address)
         # endregion
 
