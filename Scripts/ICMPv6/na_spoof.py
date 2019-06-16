@@ -169,14 +169,16 @@ if __name__ == "__main__":
     # endregion
 
     # region Print Gateway and DNS server information
-    Base.print_success("Gateway IPv6 address: ", gateway_ipv6_address)
-    Base.print_success("Gateway MAC address: ", gateway_mac_address)
+    Base.print_success("IPv6 Gateway address: ", gateway_ipv6_address)
+
+    if gateway_mac_address is not None:
+        Base.print_success("Gateway MAC address: ", gateway_mac_address)
 
     if router_advertisement_data is not None:
         Base.print_success("Gateway Vendor: ", router_advertisement_data['vendor'])
 
     if dns_ipv6_address is not None:
-        Base.print_success("DNS IPv6 address: ", dns_ipv6_address)
+        Base.print_success("IPv6 DNS address: ", dns_ipv6_address)
 
     router_advertisement_data = None
     # endregion
@@ -277,10 +279,10 @@ if __name__ == "__main__":
             if len(na_packets) > 1:
                 for na_packet in na_packets:
                     socket_global.send(na_packet)
-                    sleep(1)
+                    sleep(0.5)
             else:
                 socket_global.send(na_packet)
-                sleep(2)
+                sleep(0.5)
 
     except KeyboardInterrupt:
         socket_global.close()
