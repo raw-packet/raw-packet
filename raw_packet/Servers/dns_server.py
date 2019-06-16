@@ -59,6 +59,8 @@ class DnsServer:
     DNS_QUERY_TYPES = []
     A_DNS_QUERY = 0
     AAAA_DNS_QUERY = 0
+
+    success_domains = []
     # endregion
 
     # region Init
@@ -288,23 +290,51 @@ class DnsServer:
                             # region Print info message
                             if 'IP' in request.keys():
                                 if query_type == 1:
-                                    self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                         " to ", request['IP']['destination-ip'], " type: ", "A",
-                                                         " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                                    if query_name in self.success_domains:
+                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
+                                                                " to ", request['IP']['destination-ip'], " type: ",
+                                                                "A", " domain: ", query_name, " answer: ",
+                                                                (", ".join(addresses)))
+                                    else:
+                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
+                                                             " to ", request['IP']['destination-ip'], " type: ", "A",
+                                                             " domain: ", query_name, " answer: ",
+                                                             (", ".join(addresses)))
                                 if query_type == 28:
-                                    self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                         " to ", request['IP']['destination-ip'], " type: ", "AAAA",
-                                                         " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                                    if query_name in self.success_domains:
+                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
+                                                                " to ", request['IP']['destination-ip'], " type: ",
+                                                                "AAAA", " domain: ", query_name, " answer: ",
+                                                                (", ".join(addresses)))
+                                    else:
+                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
+                                                             " to ", request['IP']['destination-ip'], " type: ", "AAAA",
+                                                             " domain: ", query_name, " answer: ",
+                                                             (", ".join(addresses)))
 
                             if 'IPv6' in request.keys():
                                 if query_type == 1:
-                                    self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
-                                                         " to ", request['IPv6']['destination-ip'], " type: ", "A",
-                                                         " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                                    if query_name in self.success_domains:
+                                        self.base.print_success("DNS query from: ", request['IPv6']['source-ip'],
+                                                                " to ", request['IPv6']['destination-ip'], " type: ",
+                                                                "A", " domain: ", query_name, " answer: ",
+                                                                (", ".join(addresses)))
+                                    else:
+                                        self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
+                                                             " to ", request['IPv6']['destination-ip'], " type: ", "A",
+                                                             " domain: ", query_name, " answer: ",
+                                                             (", ".join(addresses)))
                                 if query_type == 28:
-                                    self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
-                                                         " to ", request['IPv6']['destination-ip'], " type: ", "AAAA",
-                                                         " domain: ", query_name, " answer: ", (", ".join(addresses)))
+                                    if query_name in self.success_domains:
+                                        self.base.print_success("DNS query from: ", request['IPv6']['source-ip'],
+                                                                " to ", request['IPv6']['destination-ip'], " type: ",
+                                                                "AAAA", " domain: ", query_name, " answer: ",
+                                                                (", ".join(addresses)))
+                                    else:
+                                        self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
+                                                             " to ", request['IPv6']['destination-ip'], " type: ",
+                                                             "AAAA", " domain: ", query_name, " answer: ",
+                                                             (", ".join(addresses)))
                             # endregion
 
                         # endregion
@@ -320,8 +350,12 @@ class DnsServer:
     # region Start server
     def listen(self, listen_network_interface, listen_port=53, target_mac_address=None,
                target_ip_address=None, target_ipv6_address=None, fake_answers=False,
-               fake_ip_addresses=[], fake_ipv6_addresses=[], fake_domains=[],
-               no_such_names=[], listen_ipv6=False, disable_ipv4=False):
+               fake_ip_addresses=[], fake_ipv6_addresses=[], fake_domains=[], no_such_names=[],
+               listen_ipv6=False, disable_ipv4=False, disable_ipv6=False, success_domains=[]):
+
+        # region Set success domains
+        self.success_domains = success_domains
+        # endregion
 
         # region Set fake answers
         self.fake_answers = fake_answers
@@ -332,7 +366,10 @@ class DnsServer:
             if disable_ipv4:
                 self.DNS_QUERY_TYPES = [28]
             else:
-                self.DNS_QUERY_TYPES = [1, 28]
+                if disable_ipv6:
+                    self.DNS_QUERY_TYPES = [1]
+                else:
+                    self.DNS_QUERY_TYPES = [1, 28]
         else:
             self.DNS_QUERY_TYPES = [1]
         # endregion
