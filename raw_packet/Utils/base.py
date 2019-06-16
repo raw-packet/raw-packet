@@ -343,25 +343,25 @@ class Base:
             netmask = None
         return netmask
 
-    def get_netiface_first_ip(self, interface_name):
+    def get_netiface_first_ip(self, interface_name, index=2):
         try:
             netmask = self.get_netiface_netmask(interface_name)
             ip_address = self.get_netiface_ip_address(interface_name)
             ip = IPNetwork(ip_address + '/' + netmask)
-            first_ip = str(ip[2])
+            first_ip = str(ip[index])
         except:
             first_ip = None
         return first_ip
 
-    def get_netiface_last_ip(self, interface_name):
+    def get_netiface_last_ip(self, interface_name, index=-3):
         try:
             netmask = self.get_netiface_netmask(interface_name)
             ip_address = self.get_netiface_ip_address(interface_name)
             ip = IPNetwork(ip_address + '/' + netmask)
-            first_ip = str(ip[-3])
+            last_ip = str(ip[index])
         except:
-            first_ip = None
-        return first_ip
+            last_ip = None
+        return last_ip
 
     def get_netiface_random_ip(self, interface_name):
         try:
