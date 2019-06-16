@@ -420,7 +420,7 @@ optional arguments:
 
 # ICMPv6
 
-## [icmpv6_scan.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/icmpv6_scan.py)
+## Script: [icmpv6_scan.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/icmpv6_scan.py)
 
 Search for hosts that support IPv6 in local network using ICMPv6 protocol
 
@@ -446,7 +446,7 @@ optional arguments:
 
 ---
 
-## [na_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/na_spoof.py)
+## Script: [na_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/na_spoof.py)
 
 This script implements Neighbor Advertisement spoofing attack
 
@@ -473,7 +473,7 @@ optional arguments:
 
 ---
 
-## [ra_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/ra_spoof.py)
+## Script: [ra_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/ra_spoof.py)
 
 This script implements Router Advertisement spoofing attack
 
@@ -502,7 +502,6 @@ optional arguments:
                         Set DNS domain search; default: "local"
   -q, --quiet           Minimal output
   ```
-
 ---
 
 # Binary exploits
