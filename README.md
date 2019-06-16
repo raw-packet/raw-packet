@@ -105,9 +105,10 @@ sudo apt update && sudo apt install -y python python-pip apache2 php \
 
 # Scripts
 
-# Apple
+# Apple attacks
 
-## Script: apple_mitm.py
+## Script: [apple_mitm.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Apple/apple_mitm.py)
+
 This script automatically finds Apple devices on the local network using an ARP, NMAP or ICMPv6 scan and implements the MiTM attack with the following techniques:
 1. ARP Spoofing
 1. Second DHCP ACK
@@ -163,7 +164,10 @@ optional arguments:
                         Set IPv6 network prefix, default - fd00::/64
 ```
 
-## Script: apple_arp_dos.py
+---
+
+## Script: [apple_arp_dos.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Apple/apple_arp_dos.py)
+
 Disconnect Apple device from the local network using ARP packets
 
 ```
@@ -180,6 +184,8 @@ optional arguments:
                         Set target IP address
   -s, --nmap_scan       Use nmap for Apple device detection
 ```
+
+---
 
 # ARP
 [The Address Resolution Protocol (ARP)](https://en.wikipedia.org/wiki/Address_Resolution_Protocol) is a communication protocol used for discovering the link layer address, such as a MAC address, associated with a given internet layer address, typically an IPv4 address.
@@ -357,6 +363,93 @@ optional arguments:
 
 ### Demo video:
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
+
+# ICMPv6
+
+## [icmpv6_scan.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/icmpv6_scan.py)
+
+Search for hosts that support IPv6 in local network using ICMPv6 protocol
+
+```
+root@shakal:~/raw-packet# python Scripts/ICMPv6/icmpv6_scan.py --help
+usage: icmpv6_scan.py [-h] [-i INTERFACE] [-m TARGET_MAC] [-t TIMEOUT]
+                      [-r RETRY] [-s]
+
+ICMPv6 scanner script
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for ARP scanner
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -t TIMEOUT, --timeout TIMEOUT
+                        Set timeout (default=3)
+  -r RETRY, --retry RETRY
+                        Set number of retry (default=1)
+  -s, --router_search   Search router IPv6 link local address
+```
+
+---
+
+## [na_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/na_spoof.py)
+
+This script implements Neighbor Advertisement spoofing attack
+
+```
+usage: na_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                   [-g GATEWAY_IP] [-d DNS_IP] [-q]
+
+NA (Neighbor Advertisement) spoofing
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send ARP packets
+  -t TARGET_IP, --target_ip TARGET_IP
+                        Set target IPv6 link local address
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -g GATEWAY_IP, --gateway_ip GATEWAY_IP
+                        Set gateway IPv6 link local address
+  -d DNS_IP, --dns_ip DNS_IP
+                        Set DNS server IPv6 link local address
+  -q, --quiet           Minimal output
+```
+
+---
+
+## [ra_spoof.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv6/ra_spoof.py)
+
+This script implements Router Advertisement spoofing attack
+
+```
+usage: ra_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                   [-g GATEWAY_IP] [-p IPV6_PREFIX] [-d DNS_IP]
+                   [-n DNS_DOMAIN_SEARCH] [-q]
+
+RA (Router Advertisement) spoofing
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send ARP packets
+  -t TARGET_IP, --target_ip TARGET_IP
+                        Set target IPv6 link local address
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -g GATEWAY_IP, --gateway_ip GATEWAY_IP
+                        Set gateway IPv6 link local address
+  -p IPV6_PREFIX, --ipv6_prefix IPV6_PREFIX
+                        Set IPv6 prefix, default="fde4:8dba:82e1:ffff::/64"
+  -d DNS_IP, --dns_ip DNS_IP
+                        Set DNS server IPv6 link local address
+  -n DNS_DOMAIN_SEARCH, --dns_domain_search DNS_DOMAIN_SEARCH
+                        Set DNS domain search; default: "local"
+  -q, --quiet           Minimal output
+  ```
+
+---
 
 # Binary exploits
 
