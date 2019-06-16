@@ -195,7 +195,7 @@ def start_dns_server(network_interface, target_mac_address, technique_index,
                          fake_answers=True,
                          fake_ip_addresses=[fake_ip_address],
                          disable_ipv6=True,
-                         success_domains=[mitm_success_domain])
+                         success_domains=['captive.apple.com', mitm_success_domain])
 
     if technique_index in [4, 5, 6]:
         DnsServer.listen(listen_network_interface=network_interface,
@@ -204,7 +204,7 @@ def start_dns_server(network_interface, target_mac_address, technique_index,
                          fake_ip_addresses=[fake_ip_address],
                          listen_ipv6=True,
                          disable_ipv6=True,
-                         success_domains=[mitm_success_domain])
+                         success_domains=['captive.apple.com', mitm_success_domain])
 # endregion
 
 
