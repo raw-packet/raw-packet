@@ -189,6 +189,27 @@ class Scanner:
             exit(0)
     # endregion
 
+    # region Find Apple devices in local network with ICMPv6 scan
+    def find_apple_devices_by_mac_ipv6(self, network_interface, timeout=3, retry=3):
+        try:
+            apple_devices = []
+            icmpv6_scan_results = self.ICMPv6Scan.scan(network_interface, timeout, retry, None, True)
+
+            if len(icmpv6_scan_results) > 0:
+                for device in icmpv6_scan_results:
+                    if "Apple" in device['vendor']:
+                        apple_devices.append([device['ip-address'], device['mac-address'], device['vendor']])
+            else:
+                self.Base.print_error("Could not find devices in local network on interface: ", network_interface)
+                exit(2)
+
+            return apple_devices
+
+        except KeyboardInterrupt:
+            self.Base.print_info("Exit")
+            exit(0)
+    # endregion
+
     # region Find IPv6 devices in local network with ICMPv6Scan
     def find_ipv6_devices(self, network_interface, timeout=5, retry=3, exclude_ipv6_address=None):
         try:
