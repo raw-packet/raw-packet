@@ -57,6 +57,7 @@ parser = ArgumentParser(description='ARP spoofing')
 
 parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
 parser.add_argument('-t', '--target_ip', help='Set client IP address', default=None)
+parser.add_argument('-m', '--target_mac', help='Set client MAC address', default=None)
 parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', default=None)
 parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
 parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
@@ -110,12 +111,13 @@ socket_global.bind((network_interface, 0))
 # endregion
 
 # region General output
-Base.print_info("Network interface: ", network_interface)
-Base.print_info("Gateway IP address: ", gateway_ip_address)
-Base.print_info("Your IP address: ", your_ip_address)
-Base.print_info("Your MAC address: ", your_mac_address)
-Base.print_info("First ip address: ", first_ip_address)
-Base.print_info("Last ip address: ", last_ip_address)
+if not args.quiet:
+    Base.print_info("Network interface: ", network_interface)
+    Base.print_info("Gateway IP address: ", gateway_ip_address)
+    Base.print_info("Your IP address: ", your_ip_address)
+    Base.print_info("Your MAC address: ", your_mac_address)
+    Base.print_info("First ip address: ", first_ip_address)
+    Base.print_info("Last ip address: ", last_ip_address)
 # endregion
 
 # region Set target IP address
@@ -173,13 +175,16 @@ else:
         exit(1)
     else:
         target_ip_address = args.target_ip
-        Base.print_info("Get MAC address of IP: ", target_ip_address)
-        target_mac_address = arp_scan.get_mac_address(network_interface, target_ip_address)
-        if target_mac_address == "ff:ff:ff:ff:ff:ff":
-            Base.print_error("Could not find device MAC address with IP address: ", target_ip_address)
-            exit(1)
+        if args.target_mac is not None:
+            target_mac_address = args.target_mac
         else:
-            Base.print_success("Find target: ", target_ip_address + " (" + target_mac_address + ")")
+            Base.print_info("Get MAC address of IP: ", target_ip_address)
+            target_mac_address = arp_scan.get_mac_address(network_interface, target_ip_address)
+            if target_mac_address == "ff:ff:ff:ff:ff:ff":
+                Base.print_error("Could not find device MAC address with IP address: ", target_ip_address)
+                exit(1)
+            else:
+                Base.print_success("Find target: ", target_ip_address + " (" + target_mac_address + ")")
 # endregion
 
 # region Main function
