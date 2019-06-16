@@ -311,24 +311,9 @@ if __name__ == "__main__":
                                                             retrans_timer=retrans_timer,
                                                             advertisement_interval=advertisement_interval)
 
-        # na_packet_gateway = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-        #                                                               ethernet_dst_mac=target_mac_address,
-        #                                                               ipv6_src=gateway_ipv6_address,
-        #                                                               ipv6_dst=target_ipv6_address,
-        #                                                               target_ipv6_address=gateway_ipv6_address)
-        #
-        # na_packet_dns = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-        #                                                           ethernet_dst_mac=target_mac_address,
-        #                                                           ipv6_src=dns_ipv6_address,
-        #                                                           ipv6_dst=target_ipv6_address,
-        #                                                           target_ipv6_address=dns_ipv6_address)
-
         while True:
             socket_global.send(ra_packet)
-            sleep(1)
-            # socket_global.send(na_packet_gateway)
-            # socket_global.send(na_packet_dns)
-            # sleep(1)
+            sleep(0.5)
 
     except KeyboardInterrupt:
         socket_global.close()
