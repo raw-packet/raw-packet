@@ -926,7 +926,7 @@ if __name__ == "__main__":
                 check_ip = str(IPv4Address(unicode(first_ip)) + index)
                 if check_ip != your_ip_address:
                     if check_ip not in localnet_ip_addresses:
-                        new_ip = check_ip
+                        new_target_ip_address = check_ip
                     else:
                         index += 1
             index = 0
