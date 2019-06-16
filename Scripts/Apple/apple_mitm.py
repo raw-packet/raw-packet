@@ -929,7 +929,8 @@ if __name__ == "__main__":
                         new_target_ip_address = check_ip
                     else:
                         index += 1
-            index = 0
+                else:
+                    index += 1
 
         Base.print_info("Find new IP address: ", new_target_ip_address, " for target")
         # endregion
