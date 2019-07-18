@@ -2545,31 +2545,31 @@ class Sniff_raw:
 
                             # endregion
 
-                            # region MDNS packet
-
-                            if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
-
-                                # region Parse DNS request packet
-                                mdns_packet_offset = udp_header_offset + self.udp.header_length
-                                mdns_packet = packet[mdns_packet_offset:]
-                                mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
-                                # endregion
-
-                                # region Could not parse DNS request packet - break
-                                if mdns_packet_dict is None:
-                                    break
-                                # endregion
-
-                                # region Call function with full DNS packet
-                                prn({
-                                    "Ethernet": ethernet_header_dict,
-                                    "IP": ip_header_dict,
-                                    "UDP": udp_header_dict,
-                                    "MDNS": mdns_packet_dict
-                                })
-                                # endregion
-
-                            # endregion
+                            # # region MDNS packet
+                            #
+                            # if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
+                            #
+                            #     # region Parse DNS request packet
+                            #     mdns_packet_offset = udp_header_offset + self.udp.header_length
+                            #     mdns_packet = packet[mdns_packet_offset:]
+                            #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
+                            #     # endregion
+                            #
+                            #     # region Could not parse DNS request packet - break
+                            #     if mdns_packet_dict is None:
+                            #         break
+                            #     # endregion
+                            #
+                            #     # region Call function with full DNS packet
+                            #     prn({
+                            #         "Ethernet": ethernet_header_dict,
+                            #         "IP": ip_header_dict,
+                            #         "UDP": udp_header_dict,
+                            #         "MDNS": mdns_packet_dict
+                            #     })
+                            #     # endregion
+                            #
+                            # # endregion
 
                         # endregion
 
