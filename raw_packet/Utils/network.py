@@ -1061,7 +1061,7 @@ class DHCPv6_raw:
                     "hardware-type": int(option_detailed[1]),
                     "duid-time": int(option_detailed[2]),
                     "mac-address": self.eth.convert_mac(hexlify(option_detailed[3])),
-                    "raw": packet[offset:offset+option_length]
+                    "raw": hexlify(packet[offset:offset+option_length])
                 }
 
             elif option_type == 2:
@@ -1147,7 +1147,7 @@ class DHCPv6_raw:
         options = {}
 
         if cid is not None:
-                options[1] = cid
+                options[1] = unhexlify(cid)
         else:
             if client_duid_timeval is None:
                     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
