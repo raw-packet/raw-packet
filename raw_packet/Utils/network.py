@@ -1069,7 +1069,8 @@ class DHCPv6_raw:
                 option_value = {
                     "duid-type": int(option_detailed[0]),
                     "duid-time": int(option_detailed[1]),
-                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[2]))
+                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[2])),
+                    "raw": hexlify(packet[offset:offset+option_length])
                 }
 
             elif option_type == 3:
