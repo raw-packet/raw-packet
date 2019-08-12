@@ -1060,7 +1060,8 @@ class DHCPv6_raw:
                     "duid-type": int(option_detailed[0]),
                     "hardware-type": int(option_detailed[1]),
                     "duid-time": int(option_detailed[2]),
-                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[3]))
+                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[3])),
+                    "raw": hexlify(packet[offset:offset+option_length])
                 }
 
             elif option_type == 2:
@@ -1068,19 +1069,21 @@ class DHCPv6_raw:
                 option_value = {
                     "duid-type": int(option_detailed[0]),
                     "duid-time": int(option_detailed[1]),
-                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[2]))
+                    "mac-address": self.eth.convert_mac(hexlify(option_detailed[2])),
+                    "raw": hexlify(packet[offset:offset+option_length])
                 }
 
             elif option_type == 3:
-                try:
-                    option_detailed = unpack("!" "16s", packet[offset + 16:offset + 32])
-                    option_value = {
-                        "ipv6-address": inet_ntop(AF_INET6, option_detailed[0])
-                    }
-                except struct_error:
-                    option_value = {
-                        "ipv6-address": None
-                    }
+                iaid = unpack("!" "L", packet[offset:offset + 4])[0]
+                if option_length >= 40:
+                    ipv6_addr = unpack("!" "16s", packet[offset + 16:offset + 32])[0]
+                    ipv6_addr = inet_ntop(AF_INET6, ipv6_addr)
+                else:
+                    ipv6_addr = None
+                option_value = {
+                    "iaid": int(iaid),
+                    "ipv6-address": ipv6_addr
+                }
 
             elif option_type == 8:
                 option_detailed = unpack("!H", packet[offset:offset + 2])
@@ -1135,7 +1138,8 @@ class DHCPv6_raw:
 
     def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
                               ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None, cid=None, iaid=1,
+                              preference=None):
 
         if 16777215 < transaction_id < 0:
             return None
@@ -1143,22 +1147,28 @@ class DHCPv6_raw:
         packet_body = pack("!L", transaction_id)[1:]
         options = {}
 
-        if client_duid_timeval is None:
-            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        if cid is not None:
+                options[1] = unhexlify(cid)
         else:
-            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+            if client_duid_timeval is None:
+                    options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+            else:
+                options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
 
         if server_duid_mac is None:
             options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
         else:
             options[2] = self.get_duid(server_duid_mac)        # Server Identifier
 
+        if preference is not None:
+            options[7] = pack("!B", preference)
+
         options[20] = ""                                     # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
         options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
         options[82] = pack("!I", 0x3c)                       # SOL_MAX_RT
 
-        options[3] = pack("!" "3I" "2H", 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+        options[3] = pack("!" "3I" "2H", iaid, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
                      pack("!2I", 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac,

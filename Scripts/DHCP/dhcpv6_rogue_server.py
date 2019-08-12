@@ -444,11 +444,27 @@ def reply(request):
             # region DHCPv6 Solicit
             if request['DHCPv6']['message-type'] == 1:
 
+                '''
                 # Get Client DUID time from Client Identifier DUID
                 client_duid_time = 0
                 for dhcpv6_option in request['DHCPv6']['options']:
                     if dhcpv6_option['type'] == 1:
                         client_duid_time = dhcpv6_option['value']['duid-time']
+                '''
+
+                # Get Client Identifier and IA_NA/IAID values
+                cid = None
+                iaid = None
+                for opt in request['DHCPv6']['options']:
+                    if opt['type'] == 1:
+                        cid = opt['value']['raw']
+                    elif opt['type'] == 3:
+                        iaid = opt['value']['iaid']
+                if cid == None or iaid == None:
+                    Base.print_info("Malformed DHCPv6 Solicit from: ", request['IPv6']['source-ip'] +
+                                    " (" + request['Ethernet']['source'] + ")",
+                                    " XID: ", hex(request['DHCPv6']['transaction-id']))
+                    return
 
                 # Set IPv6 address in advertise packet
                 if target_ipv6_address is not None:
@@ -465,7 +481,9 @@ def reply(request):
                                                                 dns_address=recursive_dns_address,
                                                                 domain_search=dns_search,
                                                                 ipv6_address=ipv6_address,
-                                                                client_duid_timeval=client_duid_time)
+                                                                cid=cid,
+                                                                iaid=iaid,
+                                                                preference=255)
                 global_socket.send(dhcpv6_advertise)
 
                 # Print info messages
