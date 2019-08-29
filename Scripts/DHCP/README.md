@@ -171,4 +171,10 @@ optional arguments:
   -q, --quiet           Minimal output
 ```
 
+### Sample script output:
+![dhcpv6_rogue_server.py output](https://raw-packet.github.io/static/images/screenshots/dhcpv6_rogue_server.py_screenshot.png)
+
+### Result:
+![dhcpv6_rogue_server.py result](https://raw-packet.github.io/static/images/screenshots/dhcpv6_rogue_server.py_result.png)
+
 ---
