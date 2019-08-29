@@ -4,7 +4,6 @@ Raw-packet project
 [![Official site][site-label]][site-link]
 [![Required OS][os-label]][os-link]
 [![Python versions][python-versions-label]][python-versions-link]
-[![Scapy minimal versions][scapy-version-label]][scapy-version-link]
 [![License][license-label]][license-link]
 [![Version][version-label]][version-link]
 [![Stability][stability-label]][stability-link]
