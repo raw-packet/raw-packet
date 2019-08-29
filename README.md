@@ -15,8 +15,6 @@ Raw-packet project
 [os-link]: https://en.wikipedia.org/wiki/Linux
 [python-versions-label]: https://raw-packet.github.io/static/images/labels/python.svg
 [python-versions-link]: https://www.python.org/download/releases/2.7/
-[scapy-version-label]: https://raw-packet.github.io/static/images/labels/scapy.svg
-[scapy-version-link]: https://scapy.net
 [license-label]: https://raw-packet.github.io/static/images/labels/license.svg
 [license-link]: https://github.com/raw-packet/raw-packet/blob/master/LICENSE
 [version-label]: https://raw-packet.github.io/static/images/labels/version.svg
