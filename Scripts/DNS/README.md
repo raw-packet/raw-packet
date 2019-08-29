@@ -41,4 +41,10 @@ optional arguments:
   -q, --quiet           Minimal output
 ```
 
+### Sample script output (without parameters):
+![dns_server.py output](https://raw-packet.github.io/static/images/screenshots/dns_server.py_screenshot.png)
+
+### Sample script output (fake answer):
+![dns_server.py output_fake_answer](https://raw-packet.github.io/static/images/screenshots/dns_server.py_screenshot_fake_answer.png)
+
 ---

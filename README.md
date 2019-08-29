@@ -164,6 +164,9 @@ optional arguments:
                         Set IPv6 network prefix, default - fd00::/64
 ```
 
+### Sample script output:
+![apple_mitm.py output](https://raw-packet.github.io/static/images/screenshots/apple_mitm.py_screenshot.png)
+
 ---
 
 ## Script: [apple_arp_dos.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Apple/apple_arp_dos.py)
@@ -381,6 +384,12 @@ optional arguments:
   --tftp TFTP           Set TFTP server IP address
 ```
 
+### Sample script output:
+![dhcp_rogue_server.py output](https://raw-packet.github.io/static/images/screenshots/dhcp_rogue_server.py_screenshot.png)
+
+### Result:
+![dhcp_rogue_server.py result](https://raw-packet.github.io/static/images/screenshots/dhcp_rogue_server.py_result.png)
+
 ### Demo video:
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
 
@@ -558,6 +567,12 @@ optional arguments:
   -f, --fake_answer     Set your IPv4 or IPv6 address in all answers
   -q, --quiet           Minimal output
 ```
+
+### Sample script output (without parameters):
+![dns_server.py output](https://raw-packet.github.io/static/images/screenshots/dns_server.py_screenshot.png)
+
+### Sample script output (fake answer):
+![dns_server.py output_fake_answer](https://raw-packet.github.io/static/images/screenshots/dns_server.py_screenshot_fake_answer.png)
 
 ---
 

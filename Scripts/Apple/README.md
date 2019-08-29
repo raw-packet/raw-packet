@@ -57,6 +57,9 @@ optional arguments:
                         Set IPv6 network prefix, default - fd00::/64
 ```
 
+### Sample script output:
+![apple_mitm.py output](https://raw-packet.github.io/static/images/screenshots/apple_mitm.py_screenshot.png)
+
 ---
 
 

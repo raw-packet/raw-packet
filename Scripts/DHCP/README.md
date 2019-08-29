@@ -116,6 +116,12 @@ optional arguments:
   --tftp TFTP           Set TFTP server IP address
 ```
 
+### Sample script output:
+![dhcp_rogue_server.py output](https://raw-packet.github.io/static/images/screenshots/dhcp_rogue_server.py_screenshot.png)
+
+### Result:
+![dhcp_rogue_server.py result](https://raw-packet.github.io/static/images/screenshots/dhcp_rogue_server.py_result.png)
+
 ### Demo video:
 [![DHCP Rogue server preview](https://j.gifs.com/2R6OEz.gif)](https://youtu.be/OBXol-o2PEU)
 
