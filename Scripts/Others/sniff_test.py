@@ -29,7 +29,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -59,15 +59,15 @@ def print_packet(request):
             Base.print_info("DNS packet from: ",
                             request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
-    if 'MDNS' in request.keys():
-
-        if 'IP' in request.keys():
-            Base.print_info("MDNS packet from: ",
-                            request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
-
-        if 'IPv6' in request.keys():
-            Base.print_info("MDNS packet from: ",
-                            request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+    # if 'MDNS' in request.keys():
+    #
+    #     if 'IP' in request.keys():
+    #         Base.print_info("MDNS packet from: ",
+    #                         request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+    #
+    #     if 'IPv6' in request.keys():
+    #         Base.print_info("MDNS packet from: ",
+    #                         request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
     if 'DHCP' in request.keys():
         Base.print_info("DHCP packet from: ", request['Ethernet']['source'])
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # region Start sniffer
     sniff = Sniff_raw()
-    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'MDNS', 'DHCP', 'DHCPv6'], prn=print_packet)
+    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'DHCP', 'DHCPv6'], prn=print_packet)
     # endregion
 
 # endregion

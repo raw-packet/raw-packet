@@ -43,10 +43,10 @@ if __name__ == "__main__":
     else:
         src_ipv6_address = args.src_ipv6
 
-    print Base.c_info + "Interface: " + current_network_interface
-    print Base.c_info + "Src IPv6 address: " + src_ipv6_address
-    print Base.c_info + "Src MAC address: " + src_mac_address
-    print Base.c_info + "Sending ICMPv6 router solicit packets ..."
+    Base.print_info("Interface: " + current_network_interface)
+    Base.print_info("Src IPv6 address: " + src_ipv6_address)
+    Base.print_info("Src MAC address: " + src_mac_address)
+    Base.print_info("Sending ICMPv6 router solicit packets ...")
 
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
@@ -56,15 +56,15 @@ if __name__ == "__main__":
             rs_packets.append(rs_packet)
 
         for iteration in range(args.number_of_iterations):
-            print Base.c_info + "Iteration: " + str(iteration)
+            Base.print_info("Iteration: " + str(iteration))
             index = 0
             while index < args.number_of_packets:
                 SOCK.send(rs_packets[index])
                 index += 1
     except:
-        print Base.c_error + "Do not send ICMPv6 router solicit packets!"
+        Base.print_error("Do not send ICMPv6 router solicit packets!")
         SOCK.close()
         exit(1)
-    print Base.c_success + "Send all ICMPv6 router solicit packets!"
+    Base.print_success("Send all ICMPv6 router solicit packets!")
     SOCK.close()
 

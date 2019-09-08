@@ -19,7 +19,11 @@ from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 # endregion
 
 # region Import libraries
-from os import errno
+try:
+    from os import errno
+except ImportError:
+    pass
+
 import xml.etree.ElementTree as ET
 import subprocess as sub
 from prettytable import PrettyTable
@@ -34,7 +38,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -82,9 +86,13 @@ class Scanner:
                                                             apple_device[1], apple_device[2]])
                         device_index += 1
 
-                    print apple_devices_pretty_table
+                    print(apple_devices_pretty_table)
                     device_index -= 1
-                    current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
+                    try:
+                        current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
+                                                         str(device_index) + '): ')
+                    except NameError:
+                        current_device_index = input(self.Base.c_info + 'Set device index from range (1-' +
                                                      str(device_index) + '): ')
 
                     if not current_device_index.isdigit():
@@ -127,7 +135,11 @@ class Scanner:
                         device_index += 1
 
                     device_index -= 1
-                    current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
+                    try:
+                        current_device_index = raw_input(self.Base.c_info + 'Set device index from range (1-' +
+                                                         str(device_index) + '): ')
+                    except NameError:
+                        current_device_index = input(self.Base.c_info + 'Set device index from range (1-' +
                                                      str(device_index) + '): ')
 
                     if not current_device_index.isdigit():

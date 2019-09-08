@@ -38,7 +38,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
@@ -88,24 +88,9 @@ if args.interface is None:
 current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-if your_mac_address is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have MAC address!"
-    exit(1)
-
 your_ip_address = Base.get_netiface_ip_address(current_network_interface)
-if your_ip_address is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have IP address!"
-    exit(1)
-
 your_netmask = Base.get_netiface_netmask(current_network_interface)
-if your_netmask is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have network mask!"
-    exit(1)
-
 your_broadcast = Base.get_netiface_broadcast(current_network_interface)
-if your_broadcast is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have broadcast!"
-    exit(1)
 # endregion
 
 # region Create raw socket

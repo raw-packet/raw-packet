@@ -38,7 +38,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
@@ -98,9 +98,6 @@ _sock.bind((_current_network_interface, 0))
 
 # region Get network interface MAC address
 _current_mac_address = Base.get_netiface_mac_address(_current_network_interface)
-if _current_mac_address is None:
-    print "This network interface does not have mac address!"
-    exit(1)
 # endregion
 
 # region Set target IP and MAC address

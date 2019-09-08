@@ -36,7 +36,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -69,14 +69,7 @@ if __name__ == "__main__":
     current_network_interface = Base.netiface_selection(args.interface)
 
     your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-    if your_mac_address is None:
-        Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
-        exit(1)
-
     your_ipv6_link_address = Base.get_netiface_ipv6_link_address(current_network_interface)
-    if your_ipv6_link_address is None:
-        Base.print_error("Network interface: ", current_network_interface, " do not have link local IPv6 address!")
-        exit(1)
     # endregion
 
     # region Target MAC is set
@@ -137,7 +130,7 @@ if __name__ == "__main__":
                                         Base.cINFO + 'Vendor' + Base.cEND])
             for result in results:
                 pretty_table.add_row([result['ip-address'], result['mac-address'], result['vendor']])
-            print pretty_table
+            print(pretty_table)
         else:
             Base.print_error("Could not find devices with IPv6 link local address in local network on interface: ",
                              current_network_interface)

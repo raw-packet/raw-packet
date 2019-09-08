@@ -46,7 +46,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
@@ -73,28 +73,21 @@ if not args.quiet:
 # region Get listen network interface, your IP and MAC address, first and last IP in local network
 if args.interface is None:
     Base.print_warning("Please set a network interface for send ARP packets ...")
-network_interface = Base.netiface_selection(args.interface)
+current_network_interface = Base.netiface_selection(args.interface)
 
-your_mac_address = Base.get_netiface_mac_address(network_interface)
-if your_mac_address is None:
-    print Base.c_error + "Network interface: " + network_interface + " does not have MAC address!"
-    exit(1)
+your_mac_address = Base.get_netiface_mac_address(current_network_interface)
+your_ip_address = Base.get_netiface_ip_address(current_network_interface)
 
-your_ip_address = Base.get_netiface_ip_address(network_interface)
-if your_ip_address is None:
-    Base.print_error("Network interface: ", network_interface, " does not have IP address!")
-    exit(1)
-
-first_ip_address = str(IPv4Address(unicode(Base.get_netiface_first_ip(network_interface))) - 1)
-last_ip_address = str(IPv4Address(unicode(Base.get_netiface_last_ip(network_interface))) + 1)
+first_ip_address = Base.get_netiface_first_ip(current_network_interface, 1)
+last_ip_address = Base.get_netiface_last_ip(current_network_interface, -2)
 # endregion
 
 # region Get gateway IP address
 gateway_ip_address = "1.1.1.1"
 if args.gateway_ip is None:
-    gateway_ip_address = Base.get_netiface_gateway(network_interface)
+    gateway_ip_address = Base.get_netiface_gateway(current_network_interface)
     if gateway_ip_address is None:
-        Base.print_error("Network interface: ", network_interface, " does not have Gateway!")
+        Base.print_error("Network interface: ", current_network_interface, " does not have Gateway!")
         exit(1)
 else:
     if not Base.ip_address_in_range(args.gateway_ip, first_ip_address, last_ip_address):
@@ -107,12 +100,12 @@ else:
 
 # region Create global raw socket
 socket_global = socket(AF_PACKET, SOCK_RAW)
-socket_global.bind((network_interface, 0))
+socket_global.bind((current_network_interface, 0))
 # endregion
 
 # region General output
 if not args.quiet:
-    Base.print_info("Network interface: ", network_interface)
+    Base.print_info("Network interface: ", current_network_interface)
     Base.print_info("Gateway IP address: ", gateway_ip_address)
     Base.print_info("Your IP address: ", your_ip_address)
     Base.print_info("Your MAC address: ", your_mac_address)
@@ -127,7 +120,7 @@ arp_scan = ArpScan()
 
 if args.target_ip is None:
     Base.print_info("Start ARP scan ...")
-    results = arp_scan.scan(network_interface, 3, 3, None, True, gateway_ip_address)
+    results = arp_scan.scan(current_network_interface, 3, 3, None, True, gateway_ip_address)
 
     if len(results) > 0:
         if len(results) == 1:
@@ -145,9 +138,14 @@ if args.target_ip is None:
                                       device['mac-address'], device['vendor']])
                 device_index += 1
 
-            print hosts_pretty_table
+            print(hosts_pretty_table)
             device_index -= 1
-            current_device_index = raw_input(Base.c_info + 'Set device index from range (1-' + str(device_index) + '): ')
+            try:
+                current_device_index = raw_input(Base.c_info + 'Set device index from range (1-' +
+                                                 str(device_index) + '): ')
+            except NameError:
+                current_device_index = input(Base.c_info + 'Set device index from range (1-' +
+                                             str(device_index) + '): ')
 
             if not current_device_index.isdigit():
                 Base.print_error("Your input data is not digit!")
@@ -179,7 +177,7 @@ else:
             target_mac_address = args.target_mac
         else:
             Base.print_info("Get MAC address of IP: ", target_ip_address)
-            target_mac_address = arp_scan.get_mac_address(network_interface, target_ip_address)
+            target_mac_address = arp_scan.get_mac_address(current_network_interface, target_ip_address)
             if target_mac_address == "ff:ff:ff:ff:ff:ff":
                 Base.print_error("Could not find device MAC address with IP address: ", target_ip_address)
                 exit(1)
@@ -200,7 +198,7 @@ if __name__ == "__main__":
                                                sender_mac=your_mac_address,
                                                sender_ip=gateway_ip_address,
                                                target_mac="00:00:00:00:00:00",
-                                               target_ip=Base.get_netiface_random_ip(network_interface))
+                                               target_ip=Base.get_netiface_random_ip(current_network_interface))
                 socket_global.send(arp_request)
                 sleep(1)
         # endregion

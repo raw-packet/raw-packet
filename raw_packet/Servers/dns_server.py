@@ -25,7 +25,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -390,23 +390,11 @@ class DnsServer:
 
         # region Get your MAC, IP and IPv6 addresses
         self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
-        if self.your_mac_address is None:
-            self.base.print_error("Network interface: ", self.network_interface, " do not have MAC address!")
-            exit(1)
-
         self.your_ip_address = self.base.get_netiface_ip_address(self.network_interface)
-        if self.your_ip_address is None:
-            self.base.print_error("Network interface: ", self.network_interface, " do not have IP address!")
-            exit(1)
 
         if listen_ipv6:
             self.your_ipv6_addresses = self.base.get_netiface_ipv6_link_address(self.network_interface)
-            if len(self.your_ipv6_addresses) == 0:
-                self.base.print_error("Network interface: ", self.network_interface,
-                                      " do not have IPv6 link local address!")
-                exit(1)
-            else:
-                self.fake_addresses[self.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
+            self.fake_addresses[self.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
         else:
             self.fake_addresses[self.AAAA_DNS_QUERY] = None
         # endregion

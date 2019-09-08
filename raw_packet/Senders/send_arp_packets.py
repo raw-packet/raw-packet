@@ -6,7 +6,6 @@ from raw_packet.Utils.network import Ethernet_raw, ARP_raw
 from argparse import ArgumentParser
 from time import sleep
 from socket import socket, AF_PACKET, SOCK_RAW
-from ipaddress import IPv4Address
 # endregion
 
 # region Check user, platform and print banner
@@ -47,7 +46,7 @@ current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
 if your_mac_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
+    Base.print_error("Network interface: ", current_network_interface, " does not have MAC address!")
     exit(1)
 # endregion
 
@@ -64,8 +63,8 @@ else:
 # endregion
 
 # region Validate target and sender IP address
-first_ip_address = str(IPv4Address(unicode(Base.get_netiface_first_ip(current_network_interface))) - 1)
-last_ip_address = str(IPv4Address(unicode(Base.get_netiface_last_ip(current_network_interface))) + 1)
+first_ip_address = Base.get_netiface_first_ip(current_network_interface, 1)
+last_ip_address = Base.get_netiface_last_ip(current_network_interface, -2)
 
 if not Base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address):
     Base.print_error("Bad value `-T, --target_ip`: ", args.target_ip,

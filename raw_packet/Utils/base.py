@@ -14,13 +14,15 @@ from os import getuid
 from os.path import dirname, abspath, isfile, join
 from pwd import getpwuid
 from random import choice, randint
-from string import lowercase, uppercase, digits
 from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
 from netifaces import gateways
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from ipaddress import IPv4Address
-from os import errno
+try:
+    from os import errno
+except ImportError:
+    pass
 from re import match
 import subprocess as sub
 import psutil as ps
@@ -33,7 +35,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -56,6 +58,10 @@ class Base:
     c_warning = None
 
     os_installed_packages_list = None
+
+    lowercase = None
+    uppercase = None
+    digits = None
     # endregion
 
     # region Init
@@ -70,6 +76,10 @@ class Base:
         self.c_error = self.cERROR + '[-]' + self.cEND + ' '
         self.c_success = self.cSUCCESS + '[+]' + self.cEND + ' '
         self.c_warning = self.cWARNING + '[!]' + self.cEND + ' '
+
+        self.lowercase = 'abcdefghijklmnopqrstuvwxyz'
+        self.uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        self.digits = '0123456789'
     # endregion
 
     # region Output functions
@@ -80,13 +90,13 @@ class Base:
         greenc = '\033[1;32m'
         yellowc = '\033[1;33m'
         endc = '\033[0m'
-        print greenc + "                                          _        _   " + endc
-        print greenc + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + endc
-        print greenc + "| '__/ _` \ \ /\ / /___ | '_ \ / _` |/ __| |/ / _ \ __|" + endc
-        print greenc + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + endc
-        print greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc
-        print greenc + "                        |_|                      v" + current_version + endc
-        print yellowc + "\r\n             https://raw-packet.github.io/\r\n" + endc
+        print(greenc + "                                          _        _   " + endc)
+        print(greenc + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + endc)
+        print(greenc + "| '__/ _` \ \ /\ / /___ | '_ \ / _` |/ __| |/ / _ \ __|" + endc)
+        print(greenc + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + endc)
+        print(greenc + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + endc)
+        print(greenc + "                        |_|                      v" + current_version + endc)
+        print(yellowc + "\r\n             https://raw-packet.github.io/\r\n" + endc)
 
     def color_print(self, color, *strings):
         if color == "blue":
@@ -129,15 +139,15 @@ class Base:
     @staticmethod
     def check_platform():
         if system() != "Linux":
-            print "This script can run only in Linux platform!"
-            print "Your platform: " + str(system()) + " " + str(release()) + " not supported!"
+            print("This script can run only in Linux platform!")
+            print("Your platform: " + str(system()) + " " + str(release()) + " not supported!")
             exit(1)
 
     @staticmethod
     def check_user():
         if getuid() != 0:
-            print "Only root can run this script!"
-            print "You: " + str(getpwuid(getuid())[0]) + " can not run this script!"
+            print("Only root can run this script!")
+            print("You: " + str(getpwuid(getuid())[0]) + " can not run this script!")
             exit(1)
     # endregion
 
@@ -147,7 +157,7 @@ class Base:
         try:
             return pack("B", data)
         except error:
-            print "Bad value for 8 bit pack: " + str(data)
+            print("Bad value for 8 bit pack: " + str(data))
             exit(1)
 
     @staticmethod
@@ -155,7 +165,7 @@ class Base:
         try:
             return pack("!H", data)
         except error:
-            print "Bad value for 16 bit pack: " + str(data)
+            print("Bad value for 16 bit pack: " + str(data))
             exit(1)
 
     @staticmethod
@@ -163,7 +173,7 @@ class Base:
         try:
             return pack("<I", data)
         except error:
-            print "Bad value for 32 bit pack: " + str(data)
+            print("Bad value for 32 bit pack: " + str(data))
             exit(1)
 
     @staticmethod
@@ -171,7 +181,7 @@ class Base:
         try:
             return pack("<Q", data)
         except error:
-            print "Bad value for 64 bit pack: " + str(data)
+            print("Bad value for 64 bit pack: " + str(data))
             exit(1)
     # endregion
 
@@ -200,10 +210,14 @@ class Base:
                     iface_pretty_table.add_row([str(netiface_index), netiface])
                     netiface_index += 1
 
-                print iface_pretty_table
+                print(iface_pretty_table)
 
                 netiface_index -= 1
-                current_netiface_index = raw_input(self.c_warning + 'Set network interface from range (1-' +
+                try:
+                    current_netiface_index = raw_input(self.c_warning + 'Set network interface from range (1-' +
+                                                       str(netiface_index) + '): ')
+                except NameError:
+                    current_netiface_index = input(self.c_warning + 'Set network interface from range (1-' +
                                                    str(netiface_index) + '): ')
 
                 if not current_netiface_index.isdigit():
@@ -259,20 +273,24 @@ class Base:
     #         frequency = 0
     #     return frequency
 
-    @staticmethod
-    def get_netiface_mac_address(interface_name):
+    def get_netiface_mac_address(self, interface_name, exit_on_failure=True):
         try:
             mac_address = str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
         except:
             mac_address = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have MAC address!")
+                exit(1)
         return mac_address
 
-    @staticmethod
-    def get_netiface_ip_address(interface_name):
+    def get_netiface_ip_address(self, interface_name, exit_on_failure=True):
         try:
             ip_address = str(ifaddresses(interface_name)[AF_INET][0]['addr'])
         except:
             ip_address = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have IP address!")
+                exit(1)
         return ip_address
 
     @staticmethod
@@ -284,17 +302,20 @@ class Base:
             ipv6_address = None
         return ipv6_address
 
-    def get_netiface_ipv6_link_address(self, interface_name):
+    def get_netiface_ipv6_link_address(self, interface_name, exit_on_failure=True):
         for index in range(10):
             ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
             try:
                 if ipv6_address.startswith("fe80::"):
                     return ipv6_address
             except AttributeError:
+                if exit_on_failure:
+                    self.print_error("Network interface: ", interface_name, " does not have IPv6 link local address!")
+                    exit(1)
                 return None
         return None
 
-    def get_netiface_ipv6_glob_address(self, interface_name):
+    def get_netiface_ipv6_glob_address(self, interface_name, exit_on_failure=True):
         for index in range(10):
             ipv6_address = self.get_netiface_ipv6_address(interface_name, index)
             try:
@@ -304,6 +325,9 @@ class Base:
                     return ipv6_address
 
             except AttributeError:
+                if exit_on_failure:
+                    self.print_error("Network interface: ", interface_name, " does not have IPv6 global address!")
+                    exit(1)
                 return None
         return None
 
@@ -335,12 +359,14 @@ class Base:
             ipv6_address = None
         return ipv6_address
 
-    @staticmethod
-    def get_netiface_netmask(interface_name):
+    def get_netiface_netmask(self, interface_name, exit_on_failure=True):
         try:
             netmask = str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
         except:
             netmask = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have network mask!")
+                exit(1)
         return netmask
 
     def get_netiface_first_ip(self, interface_name, index=2):
@@ -384,12 +410,14 @@ class Base:
             network = None
         return network
 
-    @staticmethod
-    def get_netiface_broadcast(interface_name):
+    def get_netiface_broadcast(self, interface_name, exit_on_failure=True):
         try:
             broadcast = str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
         except:
             broadcast = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have broadcast address!")
+                exit(1)
         return broadcast
 
     @staticmethod
@@ -447,7 +475,7 @@ class Base:
                     else:
                         return False
                 else:
-                    if software_name in self.os_installed_packages_list:
+                    if software_name.encode(encoding='utf-8') in self.os_installed_packages_list:
                         return True
                     else:
                         self.print_error("Software: " + software_name + " is not installed!")
@@ -542,14 +570,108 @@ class Base:
 
     @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
-        if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
-            return True
-        else:
-            return False
+        try:
+            if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
+                return True
+            else:
+                return False
+        except NameError:
+            if IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address):
+                return True
+            else:
+                return False
 
     @staticmethod
-    def make_random_string(length):
-        return ''.join(choice(lowercase + uppercase + digits) for _ in range(length))
+    def ip_address_increment(ip_address):
+        try:
+            return str(IPv4Address(unicode(ip_address)) + 1)
+        except NameError:
+            return str(IPv4Address(ip_address) + 1)
+
+    @staticmethod
+    def ip_address_compare(first_ip_address, second_ip_address, operator='eq'):
+        try:
+            if operator == 'eq':
+                if IPv4Address(unicode(first_ip_address)) == IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'ne':
+                if IPv4Address(unicode(first_ip_address)) != IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'gt':
+                if IPv4Address(unicode(first_ip_address)) > IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'ge':
+                if IPv4Address(unicode(first_ip_address)) >= IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'lt':
+                if IPv4Address(unicode(first_ip_address)) < IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'le':
+                if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(second_ip_address)):
+                    return True
+                else:
+                    return False
+
+            else:
+                return False
+
+        except NameError:
+            if operator == 'eq':
+                if IPv4Address(first_ip_address) == IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'ne':
+                if IPv4Address(first_ip_address) != IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'gt':
+                if IPv4Address(first_ip_address) > IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'ge':
+                if IPv4Address(first_ip_address) >= IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'lt':
+                if IPv4Address(first_ip_address) < IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            elif operator == 'le':
+                if IPv4Address(first_ip_address) <= IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
+
+            else:
+                return False
+
+    def make_random_string(self, length):
+        return ''.join(choice(self.lowercase + self.uppercase + self.digits) for _ in range(length))
 
     @staticmethod
     def get_mac_prefixes(prefixes_filename="mac-prefixes.txt"):
@@ -566,5 +688,3 @@ class Base:
     # endregion
 
 # endregion
-
-# 500th commit!!!

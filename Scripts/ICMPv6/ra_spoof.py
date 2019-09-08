@@ -38,7 +38,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -84,14 +84,7 @@ if args.interface is None:
 current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-if your_mac_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have MAC address!")
-    exit(1)
-
 your_ipv6_link_address = Base.get_netiface_ipv6_link_address(current_network_interface)
-if your_ipv6_link_address is None:
-    Base.print_error("Network interface: ", current_network_interface, " do not have link local IPv6 address!")
-    exit(1)
 # endregion
 
 # region Global variables

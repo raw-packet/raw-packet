@@ -100,7 +100,7 @@ def get_syn_and_ack_numbers(request):
         response_timestamp = request[TCP].time
         response_payload_len += len(request[TCP].payload)
 
-        print Base.c_success + "Response seq: " + str(response_sequence_number) + " ack: " + \
+        print(Base.c_success + "Response seq: " + str(response_sequence_number) + " ack: " + \)
               str(response_acknowledgement_number) + " timestamp: " + str(response_timestamp) + " len: " + \
               str(len(request[TCP].payload))
 
@@ -163,17 +163,17 @@ if __name__ == "__main__":
 
     data = args.data
 
-    print Base.c_info + "Interface: " + current_network_interface
-    print Base.c_info + "Src MAC:   " + src_mac_address
-    print Base.c_info + "Src IP:    " + src_ip_address
-    print Base.c_info + "Src PORT:  " + str(src_port)
-    print Base.c_info + "Dst MAC:   " + dst_mac_address
-    print Base.c_info + "Dst IP:    " + dst_ip_address
-    print Base.c_info + "Dst PORT:  " + str(dst_port)
+    print(Base.c_info + "Interface: " + current_network_interface)
+    print(Base.c_info + "Src MAC:   " + src_mac_address)
+    print(Base.c_info + "Src IP:    " + src_ip_address)
+    print(Base.c_info + "Src PORT:  " + str(src_port))
+    print(Base.c_info + "Dst MAC:   " + dst_mac_address)
+    print(Base.c_info + "Dst IP:    " + dst_ip_address)
+    print(Base.c_info + "Dst PORT:  " + str(dst_port))
 
     tm.add_task(sender)
 
-    print Base.c_info + "Waiting for TCP connection from " + dst_ip_address + " or ARP ... "
+    print(Base.c_info + "Waiting for TCP connection from " + dst_ip_address + " or ARP ... ")
     sniff(filter="(tcp and src host " + dst_ip_address + " and src port " + str(dst_port) +
                  " and dst host " + src_ip_address + " and dst port " + str(src_port) + ") or arp",
           prn=get_syn_and_ack_numbers, iface=current_network_interface)

@@ -38,7 +38,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -78,7 +78,7 @@ def raw_packet_send_arp_requests(number_of_packets):
 # region Send ARP packets in scapy
 def scapy_send_arp_requests(number_of_packets):
     arp_request = Ether(src=ethernet_src, dst='ff:ff:ff:ff:ff:ff') /\
-                  ARP(op=ARP.who_has, hwsrc=ethernet_src, hwdst='00:00:00:00:00:00', psrc=ip_src, pdst=ip_dst)
+                  ARP(op=1, hwsrc=ethernet_src, hwdst='00:00:00:00:00:00', psrc=ip_src, pdst=ip_dst)
     sendp(arp_request, count=number_of_packets, verbose=False)
 # endregion
 
@@ -205,6 +205,6 @@ if __name__ == "__main__":
                      execution_time[test_name][program_name][1000],
                      execution_time[test_name][program_name][10000]])
 
-    print pretty_table
+    print(pretty_table)
     global_socket.close()
 # endregion

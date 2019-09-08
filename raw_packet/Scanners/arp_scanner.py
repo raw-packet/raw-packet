@@ -19,7 +19,7 @@ from raw_packet.Utils.base import Base
 # endregion
 
 # region Import libraries
-from socket import socket, AF_PACKET, SOCK_RAW, htons
+from socket import socket, AF_PACKET, SOCK_RAW, htons, error
 from ipaddress import IPv4Address
 from sys import stdout
 from time import sleep
@@ -32,7 +32,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -143,8 +143,8 @@ class ArpScan:
         self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
         self.your_ip_address = self.base.get_netiface_ip_address(self.network_interface)
 
-        first_ip_address = str(IPv4Address(unicode(self.base.get_netiface_first_ip(self.network_interface))) - 1)
-        last_ip_address = str(IPv4Address(unicode(self.base.get_netiface_last_ip(self.network_interface))) + 1)
+        first_ip_address = self.base.get_netiface_first_ip(self.network_interface, 1)
+        last_ip_address = self.base.get_netiface_last_ip(self.network_interface, -2)
 
         if self.target_ip_address is not None:
             if self.base.ip_address_in_range(self.target_ip_address, first_ip_address, last_ip_address):
@@ -158,42 +158,59 @@ class ArpScan:
 
         index = 0
         while True:
-            current_ip_address = str(IPv4Address(unicode(first_ip_address)) + index)
+            try:
+                current_ip_address = str(IPv4Address(unicode(first_ip_address)) + index)
+            except NameError:
+                current_ip_address = str(IPv4Address(first_ip_address) + index)
             index += 1
 
-            if IPv4Address(unicode(current_ip_address)) > IPv4Address(unicode(last_ip_address)):
-                break
-            else:
-                arp_request = self.arp.make_request(ethernet_src_mac=self.your_mac_address,
-                                                    ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
-                                                    sender_mac=self.your_mac_address,
-                                                    sender_ip=self.your_ip_address,
-                                                    target_mac="00:00:00:00:00:00",
-                                                    target_ip=current_ip_address)
-                arp_requests.append(arp_request)
+            try:
+                if IPv4Address(unicode(current_ip_address)) > IPv4Address(unicode(last_ip_address)):
+                    break
+            except NameError:
+                if IPv4Address(current_ip_address) > IPv4Address(last_ip_address):
+                    break
 
-        send_socket = socket(AF_PACKET, SOCK_RAW)
-        send_socket.bind((self.network_interface, 0))
+            arp_request = self.arp.make_request(ethernet_src_mac=self.your_mac_address,
+                                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
+                                                sender_mac=self.your_mac_address,
+                                                sender_ip=self.your_ip_address,
+                                                target_mac="00:00:00:00:00:00",
+                                                target_ip=current_ip_address)
+            arp_requests.append(arp_request)
 
-        number_of_requests = len(arp_requests) * int(self.retry_number)
-        index_of_request = 0
-        percent_complete = 0
+        try:
+            send_socket = socket(AF_PACKET, SOCK_RAW)
+            send_socket.bind((self.network_interface, 0))
 
-        for _ in range(int(self.retry_number)):
-            for arp_request in arp_requests:
-                send_socket.send(arp_request)
-                index_of_request += 1
-                new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
-                if new_percent_complete > percent_complete:
-                    stdout.write('\r')
-                    stdout.write(self.base.c_info + 'Scan percentage: ' +
-                                 self.base.cINFO + str(new_percent_complete) + '%' + self.base.cEND)
-                    stdout.flush()
-                    sleep(0.01)
-                    percent_complete = new_percent_complete
+            number_of_requests = len(arp_requests) * int(self.retry_number)
+            index_of_request = 0
+            percent_complete = 0
 
-        stdout.write('\n')
-        send_socket.close()
+            for _ in range(int(self.retry_number)):
+                for arp_request in arp_requests:
+                    send_socket.send(arp_request)
+                    index_of_request += 1
+                    new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
+                    if new_percent_complete > percent_complete:
+                        stdout.write('\r')
+                        stdout.write(self.base.c_info + 'Scan percentage: ' +
+                                     self.base.cINFO + str(new_percent_complete) + '%' + self.base.cEND)
+                        stdout.flush()
+                        sleep(0.01)
+                        percent_complete = new_percent_complete
+
+            stdout.write('\n')
+            send_socket.close()
+
+        except OSError as e:
+            self.base.print_error('Exception: ', str(e))
+            exit(1)
+
+        except error as e:
+            self.base.print_error('Exception: ', str(e))
+            exit(1)
+
     # endregion
 
     # region Scanner

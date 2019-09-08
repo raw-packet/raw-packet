@@ -34,7 +34,7 @@ if __name__ == "__main__":
     try:
         current_mac_address = str(ifaddresses(current_network_interface)[AF_LINK][0]['addr'])
     except:
-        print "This network interface does not have mac address!"
+        print("This network interface does not have mac address!")
         exit(1)
 
     count = 0
@@ -43,10 +43,10 @@ if __name__ == "__main__":
     index_percent = 0
     count_percent = 0
 
-    print "Creating packets..."
+    print("Creating packets...")
 
     if args.notspoofmac:
-        print " Your MAC address is not spoofed!"
+        print(" Your MAC address is not spoofed!")
 
     eth = Ethernet_raw()
     dhcp = DHCP_raw()
@@ -77,9 +77,9 @@ if __name__ == "__main__":
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
-    print "\r\nSending packets..."
-    print "Number of packets:       " + str(args.packets)
-    print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print("\r\nSending packets...")
+    print("Number of packets:       " + str(args.packets))
+    print("Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
     start_time = time()
 
     for _ in range(NUMBER_OF_ITERATIONS):
@@ -87,8 +87,8 @@ if __name__ == "__main__":
             SOCK.send(PACKETS[index])
 
     stop_time = time()
-    print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print("All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
     SOCK.close()
     delta_time = stop_time - start_time
     speed = (NUMBER_OF_PACKETS * NUMBER_OF_ITERATIONS) / delta_time
-    print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"
+    print("Speed:                   " + str(int(speed)) + " pkt/sec\r\n")

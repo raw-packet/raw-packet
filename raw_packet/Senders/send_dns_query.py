@@ -42,16 +42,16 @@ if __name__ == "__main__":
     dns = DNS_raw()
 
     if args.pathtodomainlist is not None:
-        print "Create your DNS name list..."
+        print("Create your DNS name list...")
         try:
             with open(args.pathtodomainlist, "r") as domain_list:
                 for domain_name in domain_list:
                     NAMES.append(domain_name[:-1])
-            print " List of domains len: " + str(len(NAMES))
-            print " List of domains created: " + NAMES[0] + " ... " + NAMES[len(NAMES) - 1]
+            print(" List of domains len: " + str(len(NAMES)))
+            print(" List of domains created: " + NAMES[0] + " ... " + NAMES[len(NAMES) - 1])
 
         except:
-            print "File: " + args.pathtodomainlist + " not found!"
+            print("File: " + args.pathtodomainlist + " not found!")
             exit(1)
 
     if args.interface is None:
@@ -79,22 +79,22 @@ if __name__ == "__main__":
                 spoofed_hosts = [str(args.netspoofed[:-3])]
 
         if len(spoofed_hosts) > 1:
-            print "Spoofing IP: " + str(spoofed_hosts[0]) + " ... " + str(spoofed_hosts[len(spoofed_hosts) - 1])
+            print("Spoofing IP: " + str(spoofed_hosts[0]) + " ... " + str(spoofed_hosts[len(spoofed_hosts) - 1]))
         elif len(spoofed_hosts) == 1:
-            print "Spoofing IP: " + str(spoofed_hosts[0])
+            print("Spoofing IP: " + str(spoofed_hosts[0]))
         else:
-            print "Can't make spoofed IP list!"
+            print("Can't make spoofed IP list!")
             exit(1)
 
     PORT = 0
     try:
         PORT = int(args.dstport)
     except:
-        print "Bad dst port!"
+        print("Bad dst port!")
         exit(1)
 
     if any([PORT < 1, PORT > 65535]):
-        print "Dst port is not within range 1 - 65535"
+        print("Dst port is not within range 1 - 65535")
         exit(1)
 
     NS_list = {}
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     IP_ns_list = []
 
     if args.nsservers is None and args.nsservers_ip is None:
-        print "Please set NS servers ip or domain names!"
+        print("Please set NS servers ip or domain names!")
         exit(1)
     else:
 
@@ -121,19 +121,19 @@ if __name__ == "__main__":
             NS_list[NAME]["PORT"] = PORT
 
             try:
-                print "Resolving NS Server: " + NAME
+                print("Resolving NS Server: " + NAME)
                 NS_list[NAME]["IP"] = str(gethostbyname(NAME))
-                print NAME + ": " + NS_list[NAME]["IP"]
+                print(NAME + ": " + NS_list[NAME]["IP"])
             except:
-                print "Fail to resolving NS Server: " + NAME
+                print("Fail to resolving NS Server: " + NAME)
                 exit(1)
 
             try:
-                print "Receiving mac address for NS Server: " + NS_list[NAME]["IP"]
+                print("Receiving mac address for NS Server: " + NS_list[NAME]["IP"])
                 NS_list[NAME]["MAC"] = Base.get_mac(current_network_interface, NS_list[NAME]["IP"])
-                print NS_list[NAME]["IP"] + ": " + NS_list[NAME]["MAC"]
+                print(NS_list[NAME]["IP"] + ": " + NS_list[NAME]["MAC"])
             except:
-                print "Fail to get MAC address for NS Server: " + NAME
+                print("Fail to get MAC address for NS Server: " + NAME)
                 exit(1)
 
     if len(IP_ns_list) > 0:
@@ -143,11 +143,11 @@ if __name__ == "__main__":
             NS_list[IP]["PORT"] = PORT
 
             try:
-                print "Receiving mac address for NS Server: " + NS_list[IP]["IP"]
+                print("Receiving mac address for NS Server: " + NS_list[IP]["IP"])
                 NS_list[IP]["MAC"] = Base.get_mac(current_network_interface, NS_list[IP]["IP"])
-                print NS_list[IP]["IP"] + ": " + NS_list[IP]["MAC"]
+                print(NS_list[IP]["IP"] + ": " + NS_list[IP]["MAC"])
             except:
-                print "Fail to get MAC address for NS Server: " + IP
+                print("Fail to get MAC address for NS Server: " + IP)
                 exit(1)
 
 
@@ -162,13 +162,13 @@ if __name__ == "__main__":
     index_percent = 0
     count_percent = 0
 
-    print "Creating packets..."
+    print("Creating packets...")
 
     if args.notspoofip:
-        print " Your IP is not spoofed!"
+        print(" Your IP is not spoofed!")
 
     if args.notspoofmac:
-        print " Your MAC address is not spoofed!"
+        print(" Your MAC address is not spoofed!")
 
     while count < count_max:
 
@@ -195,7 +195,7 @@ if __name__ == "__main__":
                 elif len(spoofed_hosts) == 1:
                     SRC_IP = str(spoofed_hosts[0])
                 else:
-                    print "Bad spoofed network!"
+                    print("Bad spoofed network!")
                     exit(1)
 
             TID = randint(1, 65535)
@@ -227,9 +227,9 @@ if __name__ == "__main__":
     SOCK = socket(AF_PACKET, SOCK_RAW)
     SOCK.bind((current_network_interface, 0))
 
-    print "\r\nSending packets..."
-    print "Number of packets:       " + str(args.packets)
-    print "Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print("\r\nSending packets...")
+    print("Number of packets:       " + str(args.packets))
+    print("Start sending packets:   " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
     start_time = time()
 
     for _ in range(NUMBER_OF_ITERATIONS):
@@ -237,9 +237,9 @@ if __name__ == "__main__":
             SOCK.send(PACKETS[index])
 
     stop_time = time()
-    print "All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    print("All packets sent:        " + str(datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
 
     SOCK.close()
     delta_time = stop_time - start_time
     speed = (NUMBER_OF_PACKETS * NUMBER_OF_ITERATIONS) / delta_time
-    print "Speed:                   " + str(int(speed)) + " pkt/sec\r\n"
+    print("Speed:                   " + str(int(speed)) + " pkt/sec\r\n")

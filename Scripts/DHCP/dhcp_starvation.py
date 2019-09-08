@@ -42,7 +42,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
@@ -95,14 +95,7 @@ if args.interface is None:
 listen_network_interface = Base.netiface_selection(args.interface)
 
 your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
-if your_ip_address is None:
-    Base.print_error("Network interface: ", listen_network_interface, " does not have IP address!")
-    exit(1)
-
 your_mac_address = Base.get_netiface_mac_address(listen_network_interface)
-if your_mac_address is None:
-    Base.print_error("Network interface: ", listen_network_interface, " does not have mac address!")
-    exit(1)
 # endregion
 
 # region Create raw socket

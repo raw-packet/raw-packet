@@ -30,7 +30,10 @@ from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from random import randint
 from time import sleep
-from os import errno
+try:
+    from os import errno
+except ImportError:
+    pass
 import subprocess as sub
 # endregion
 
@@ -41,7 +44,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -113,14 +116,7 @@ if args.interface is None:
 current_network_interface = Base.netiface_selection(args.interface)
 
 your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-if your_mac_address is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have MAC address!"
-    exit(1)
-
 your_local_ipv6_address = Base.get_netiface_ipv6_link_address(current_network_interface)
-if your_local_ipv6_address is None:
-    print Base.c_error + "Network interface: " + current_network_interface + " do not have IPv6 link local address!"
-    exit(1)
 # endregion
 
 # region Create raw socket
@@ -678,11 +674,11 @@ if __name__ == "__main__":
         mcast_addresses = sub.Popen(['ip maddress show ' + current_network_interface], shell=True, stdout=sub.PIPE)
         out, err = mcast_addresses.communicate()
 
-        if icmpv6_router_solicitation_address not in out:
+        if icmpv6_router_solicitation_address not in str(out):
             icmpv6_mcast_address = sub.Popen(['ip maddress add ' + icmpv6_router_solicitation_address +
                                               ' dev ' + current_network_interface], shell=True, stdout=sub.PIPE)
             out, err = icmpv6_mcast_address.communicate()
-            if out == "":
+            if out == "" or out == b'':
                 Base.print_info("Add milticast MAC address: ", icmpv6_router_solicitation_address,
                                 " on interface: ", current_network_interface)
             else:
@@ -690,11 +686,11 @@ if __name__ == "__main__":
                                  " on interface: ", current_network_interface)
                 exit(1)
 
-        if dhcpv6_requests_address not in out:
+        if dhcpv6_requests_address not in str(out):
             dhcp6_mcast_address = sub.Popen(['ip maddress add ' + dhcpv6_requests_address +
                                              ' dev ' + current_network_interface], shell=True, stdout=sub.PIPE)
             out, err = dhcp6_mcast_address.communicate()
-            if out == "":
+            if out == "" or out == b'':
                 Base.print_info("Add milticast MAC address: ", dhcpv6_requests_address,
                                 " on interface: ", current_network_interface)
             else:

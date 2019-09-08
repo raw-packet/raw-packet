@@ -8,7 +8,10 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-from Queue import Queue
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 from threading import Thread
 # endregion
 
@@ -17,7 +20,7 @@ __author__ = 'Evgeny @4ekin Bechkalo'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
@@ -35,8 +38,8 @@ class ThreadManager(object):
                 func, args, kwargs = self._threads.get()
                 # and execute it
                 func(*args, **kwargs)
-            except Exception, e:
-                print e
+            except Exception as e:
+                print("Exception: " + str(e))
             self._threads.task_done()
 
     def __init__(self, thread_count):

@@ -28,7 +28,6 @@ from raw_packet.Utils.tm import ThreadManager
 
 # region Import libraries
 from argparse import ArgumentParser
-from ipaddress import IPv4Address
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from time import sleep
 # endregion
@@ -40,7 +39,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -82,14 +81,7 @@ if args.iface is None:
 listen_network_interface = Base.netiface_selection(args.iface)
 
 your_mac_address = Base.get_netiface_mac_address(listen_network_interface)
-if your_mac_address is None:
-    print Base.c_error + "Network interface: " + listen_network_interface + " do not have MAC address!"
-    exit(1)
-
 your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
-if your_ip_address is None:
-    Base.print_error("Network interface: ", listen_network_interface, " does not have IP address!")
-    exit(1)
 
 first_ip = Base.get_netiface_first_ip(listen_network_interface)
 last_ip = Base.get_netiface_last_ip(listen_network_interface)
@@ -111,7 +103,7 @@ Base.print_info("Last ip address: ", last_ip)
 # region Check target IP and new IP addresses
 if args.target_ip is not None:
     if Base.ip_address_validation(args.target_ip):
-        if IPv4Address(unicode(first_ip)) <= IPv4Address(unicode(args.target_ip)) <= IPv4Address(unicode(last_ip)):
+        if Base.ip_address_in_range(args.target_ip, first_ip, last_ip):
             target_ip = args.target_ip
             Base.print_info("Target IP address: ", target_ip)
         else:

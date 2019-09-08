@@ -30,7 +30,10 @@ from raw_packet.Servers.dns_server import DnsServer
 
 # region Import libraries
 from prettytable import PrettyTable
-from os import path, errno, makedirs, stat
+try:
+    from os import path, errno, makedirs, stat
+except ImportError:
+    from os import path, makedirs, stat
 from shutil import copyfile, copytree
 import subprocess as sub
 from argparse import ArgumentParser, RawTextHelpFormatter
@@ -51,7 +54,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -408,8 +411,12 @@ if __name__ == "__main__":
         for technique_key in techniques.keys():
             technique_pretty_table.add_row([str(technique_key), techniques[technique_key]])
 
-        print technique_pretty_table
-        current_technique_index = raw_input(Base.c_info + 'Set MiTM technique index from range (1 - ' +
+        print(technique_pretty_table)
+        try:
+            current_technique_index = raw_input(Base.c_info + 'Set MiTM technique index from range (1 - ' +
+                                                str(len(techniques.keys())) + '): ')
+        except NameError:
+            current_technique_index = input(Base.c_info + 'Set MiTM technique index from range (1 - ' +
                                             str(len(techniques.keys())) + '): ')
 
     else:
@@ -440,8 +447,12 @@ if __name__ == "__main__":
         for technique_key in disconnect_techniques.keys():
             disconnect_pretty_table.add_row([str(technique_key), disconnect_techniques[technique_key]])
 
-        print disconnect_pretty_table
-        current_technique_index = raw_input(Base.c_info + 'Set Disconnect technique index from range (1 - ' +
+        print(disconnect_pretty_table)
+        try:
+            current_technique_index = raw_input(Base.c_info + 'Set Disconnect technique index from range (1 - ' +
+                                                str(len(disconnect_techniques.keys())) + '): ')
+        except NameError:
+            current_technique_index = input(Base.c_info + 'Set Disconnect technique index from range (1 - ' +
                                             str(len(disconnect_techniques.keys())) + '): ')
 
     else:
@@ -490,22 +501,11 @@ if __name__ == "__main__":
     listen_network_interface = Base.netiface_selection(args.listen_iface)
 
     your_mac_address = Base.get_netiface_mac_address(listen_network_interface)
-    if your_mac_address is None:
-        Base.print_error("Network interface: ", listen_network_interface, " does not have MAC address!")
-        exit(1)
-
     your_ip_address = Base.get_netiface_ip_address(listen_network_interface)
-    if your_ip_address is None:
-        Base.print_error("Network interface: ", listen_network_interface, " does not have IP address!")
-        exit(1)
 
     your_local_ipv6_address = None
     if technique_index in [4, 5, 6]:
         your_local_ipv6_address = Base.get_netiface_ipv6_link_address(listen_network_interface)
-        if your_local_ipv6_address is None:
-            print Base.c_error + "Network interface: " + listen_network_interface + \
-                  " do not have IPv6 link local address!"
-            exit(1)
 
         network_prefix = args.ipv6_prefix
         network_prefix_address = network_prefix.split('/')[0]
@@ -612,7 +612,7 @@ if __name__ == "__main__":
 
     if args.new_ip is not None:
         if ip_pattern.match(args.new_ip):
-            if IPv4Address(unicode(first_ip)) <= IPv4Address(unicode(args.new_ip)) <= IPv4Address(unicode(last_ip)):
+            if Base.ip_address_in_range(args.new_ip, first_ip, last_ip):
                 new_target_ip_address = args.new_ip
                 Base.print_info("Target new IP address: ", new_target_ip_address)
             else:
@@ -875,7 +875,10 @@ if __name__ == "__main__":
 
         if gateway_ip_address is None:
             Base.print_error("Could not found gateway on interface: ", listen_network_interface)
-            gateway_ip_address_input = raw_input(Base.c_info + 'Set gateway IP address: ')
+            try:
+                gateway_ip_address_input = raw_input(Base.c_info + 'Set gateway IP address: ')
+            except NameError:
+                gateway_ip_address_input = input(Base.c_info + 'Set gateway IP address: ')
             if ip_pattern.match(gateway_ip_address_input):
                 if Base.ip_address_in_range(gateway_ip_address_input, first_ip, last_ip):
                     gateway_ip_address = gateway_ip_address_input
@@ -917,7 +920,10 @@ if __name__ == "__main__":
 
             index = 0
             while new_target_ip_address is None:
-                check_ip = str(IPv4Address(unicode(first_ip)) + index)
+                try:
+                    check_ip = str(IPv4Address(unicode(first_ip)) + index)
+                except NameError:
+                    check_ip = str(IPv4Address(first_ip) + index)
                 if check_ip != your_ip_address:
                     if check_ip not in localnet_ip_addresses:
                         new_target_ip_address = check_ip

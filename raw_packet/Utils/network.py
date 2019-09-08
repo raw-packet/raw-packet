@@ -8,7 +8,7 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-from base import Base
+from raw_packet.Utils.base import Base
 from random import choice, randint
 from struct import pack, unpack, error as struct_error
 from binascii import unhexlify, hexlify
@@ -17,6 +17,7 @@ from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, 
 from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
+from sys import version_info
 # endregion
 
 # region Authorship information
@@ -24,7 +25,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.0.4'
+__version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -173,11 +174,11 @@ class Ethernet_raw:
     @staticmethod
     def convert_mac(mac_address):
         if len(mac_address) < 12:
-            print "Too short mac address: " + mac_address
+            print("Too short mac address: " + mac_address)
             exit(1)
 
         if len(mac_address) > 17:
-            print "Too long mac address: " + mac_address
+            print("Too long mac address: " + mac_address)
             exit(1)
 
         if len(mac_address) == 17:
@@ -185,28 +186,36 @@ class Ethernet_raw:
             if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
                 return unhexlify(mac_address.replace(':', ''))
             else:
-                print "Bad mac address: " + mac_address
+                print("Bad mac address: " + mac_address)
                 exit(1)
 
         elif len(mac_address) == 12:
-            mac_address = mac_address[:12].lower()
             result_mac_address = ""
-            for index in range(0, 12, 2):
-                result_mac_address += mac_address[index] + mac_address[index + 1] + ":"
+
+            if version_info >= (3, 0):
+                mac_address = unhexlify(mac_address)
+                for byte_of_address in mac_address:
+                    result_mac_address += '{:02x}'.format(byte_of_address) + ":"
+
+            if version_info < (3, 0):
+                mac_address = mac_address[:12].lower()
+                for index in range(0, 12, 2):
+                    result_mac_address += str(mac_address[index]) + str(mac_address[index + 1]) + ":"
+
             return result_mac_address[:17]
 
         else:
-            print "Bad mac address: " + mac_address
+            print("Bad mac address: " + mac_address)
             exit(1)
 
     @staticmethod
     def get_mac_prefix(mac_address, prefix_length=6):
         if len(mac_address) < 12:
-            print "Too short mac address: " + mac_address
+            print("Too short mac address: " + mac_address)
             exit(1)
 
         if len(mac_address) > 17:
-            print "Too long mac address: " + mac_address
+            print("Too long mac address: " + mac_address)
             exit(1)
 
         if len(mac_address) == 17:
@@ -215,7 +224,7 @@ class Ethernet_raw:
                 result_mac_address = mac_address.replace(':', '')
                 return result_mac_address[:prefix_length].upper()
             else:
-                print "Bad mac address: " + mac_address
+                print("Bad mac address: " + mac_address)
                 exit(1)
 
         elif len(mac_address) == 12:
@@ -226,7 +235,7 @@ class Ethernet_raw:
             return result_mac_address[:prefix_length].upper()
 
         else:
-            print "Bad mac address: " + mac_address
+            print("Bad mac address: " + mac_address)
             exit(1)
 
     def make_header(self, source_mac, destination_mac, network_type):
@@ -315,7 +324,7 @@ class IP_raw:
         if len(packet) < 20:
             return None
 
-        version_and_length = int(unpack("!B", packet[0])[0])
+        version_and_length = int(unpack("!B", packet[:1])[0])
         version = int(int(version_and_length & 0b11110000) >> 4)
         length = int(int(version_and_length) & 0b00001111)
         
@@ -375,7 +384,7 @@ class IPv6_raw:
     @staticmethod
     def pack_addr(ipv6_addr):
         if ipv6_addr == "::":
-            return ''.join(pack("B", 0) for _ in range(16))
+            return b''.join(pack("B", 0) for _ in range(16))
         else:
             return inet_pton(AF_INET6, ipv6_addr)
 
@@ -518,7 +527,7 @@ class UDP_raw:
     @staticmethod
     def checksum(pkt):
         if len(pkt) % 2 == 1:
-            pkt += "\0"
+            pkt += b'\x00'
         s = sum(array("H", pkt))
         s = (s >> 16) + (s & 0xffff)
         s += s >> 16
@@ -705,12 +714,12 @@ class ICMPv6_raw:
     @staticmethod
     def make_option(option_type, option_value):
         if (len(option_value) + 2) / 8 > 255:
-            print "ICMPv6 option value too big!"
+            print("ICMPv6 option value too big!")
             return ""
         else:
             if (len(option_value) + 2) % 8 != 0:
-                option_value = ''.join(pack("B", 0) for _ in range(8 - ((len(option_value) + 2) % 8))) + option_value
-            return pack("!2B", option_type, (len(option_value) + 2) / 8) + option_value
+                option_value = b''.join(pack("B", 0) for _ in range(8 - ((len(option_value) + 2) % 8))) + option_value
+            return pack("!2B", option_type, int((len(option_value) + 2) / 8)) + option_value
 
     def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
                     ipv6_src, ipv6_dst, ipv6_flow, type, code, body):
@@ -864,11 +873,11 @@ class ICMPv6_raw:
         body += self.make_option(25, pack("!H", 6000) + self.ipv6.pack_addr(dns_address))
 
         if len(domain_search) > 22:
-            print "Too big domain search value!"
+            print("Too big domain search value!")
         else:
             domain_search = self.dns.make_dns_name(domain_search)
             padding = 24 - len(domain_search)
-            domain_search += ''.join(pack("B", 0) for _ in range(padding))
+            domain_search += b''.join(pack("B", 0) for _ in range(padding))
             body += self.make_option(31, pack("!I", 6000) + domain_search)
 
         body += self.make_option(7, pack("!H", advertisement_interval))
@@ -1021,7 +1030,10 @@ class DHCPv6_raw:
         if options_raw == "":
             for option_code in options.keys():
                 dhcp_packet += pack("!" "2H", int(option_code), len(options[option_code]))
-                dhcp_packet += options[option_code]
+                try:
+                    dhcp_packet += options[option_code]
+                except TypeError:
+                    dhcp_packet += options[option_code].encode('utf-8')
         else:
             dhcp_packet += options_raw
 
@@ -1440,9 +1452,9 @@ class DHCP_raw:
             # test_command = bytes("() { :; }; echo test > /tmp/test ")
             # test_command = pack("!%ds" % (len(test_command)), test_command)
 
-            client_hw_padding = ''.join(pack("B", 0) for _ in range(10))  # Client hardware address padding
-            server_host_name = ''.join(pack("B", 0) for _ in range(64))  # Server host name
-            boot_file_name = ''.join(pack("B", 0) for _ in range(128))  # Boot file name
+            client_hw_padding = b''.join(pack("B", 0) for _ in range(10))  # Client hardware address padding
+            server_host_name = b''.join(pack("B", 0) for _ in range(64))  # Server host name
+            boot_file_name = b''.join(pack("B", 0) for _ in range(128))  # Boot file name
             magic_cookie = pack("!4B", 99, 130, 83, 99)  # Magic cookie: DHCP
 
             dhcp_packet = pack("!" "4B" "L" "2H",
@@ -1455,9 +1467,9 @@ class DHCP_raw:
             dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
 
             if padding != 0:
-                dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(int(padding)))
+                dhcp_packet += dhcp_options + b''.join(pack("B", 0) for _ in range(int(padding)))
             else:
-                dhcp_packet += dhcp_options + ''.join(pack("B", 0) for _ in range(24))
+                dhcp_packet += dhcp_options + b''.join(pack("B", 0) for _ in range(24))
 
             eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
             ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
@@ -1473,6 +1485,7 @@ class DHCP_raw:
 
         dhcp_packet_start = 240
         dhcp_magic_cookie = '63825363'
+        dhcp_magic_cookie_bytes = b'63825363'
 
         if len(packet) < bootp_packet_length:
             return None
@@ -1503,7 +1516,7 @@ class DHCP_raw:
 
         if len(packet) > 240:
             magic_cookie = hexlify(unpack("!4s", packet[bootp_packet_length:dhcp_packet_start])[0])
-            if magic_cookie == dhcp_magic_cookie:
+            if magic_cookie == dhcp_magic_cookie or magic_cookie == dhcp_magic_cookie_bytes:
 
                 position = dhcp_packet_start
 
@@ -1550,7 +1563,10 @@ class DHCP_raw:
                     else:
                         option_length = int(unpack("B", packet[position:position + 1])[0])
                         position += 1
-                        option_value = "".join([hexlify(x) for x in packet[position:position + option_length]])
+                        try:
+                            option_value = "".join([hexlify(x) for x in packet[position:position + option_length]])
+                        except TypeError:
+                            option_value = "".join(map(chr, packet[position:position + option_length]))
                         position += option_length
 
                     dhcp_packet[option_name] = option_value
@@ -1573,7 +1589,10 @@ class DHCP_raw:
         options = option_discover
 
         if host_name is not None:
-            host_name = bytes(host_name)
+            try:
+                host_name = bytes(host_name)
+            except TypeError:
+                host_name = host_name.encode('utf-8')
             if len(host_name) < 255:
                 host_name = pack("!%ds" % (len(host_name)), host_name)
                 option_host_name = pack("!2B", 12, len(host_name)) + host_name
@@ -1617,7 +1636,10 @@ class DHCP_raw:
             options += option_requested_ip
 
         if host_name is not None:
-            host_name = bytes(host_name)
+            try:
+                host_name = bytes(host_name)
+            except TypeError:
+                host_name = host_name.encode('utf-8')
             if len(host_name) < 255:
                 host_name = pack("!%ds" % (len(host_name)), host_name)
                 option_host_name = pack("!2B", 12, len(host_name)) + host_name
@@ -1806,14 +1828,30 @@ class DNS_raw:
     @staticmethod
     def make_dns_name(name):
         name_list = name.split(".")
+
         result_name = ""
+        result_name_bytes = b''
+
         for part_of_name in name_list:
             if len(part_of_name) > 256:
-                return ""
+                return None
             else:
-                result_name += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name), part_of_name)
+                try:
+                    result_name += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name),
+                                        part_of_name)
+                except struct_error:
+                    result_name_bytes += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name),
+                                              part_of_name.encode('utf-8'))
+
         result_name += "\x00"
-        return result_name
+        result_name_bytes += b'\x00'
+
+        if len(result_name) > 1:
+            return result_name
+        if len(result_name_bytes) > 1:
+            return result_name_bytes
+        else:
+            return None
 
     @staticmethod
     def make_dns_ptr(ip_address):
@@ -1943,7 +1981,7 @@ class DNS_raw:
                 query_name_length = int(unpack("B", packet[position:position + 1])[0])
 
                 while query_name_length != 0:
-                    query_name += "".join([str(x) for x in packet[position + 1:position + query_name_length + 1]]) + "."
+                    query_name += packet[position + 1:position + query_name_length + 1].decode('utf-8') + "."
                     position += query_name_length + 1
                     query_name_length = int(unpack("B", packet[position:position + 1])[0])
 
