@@ -1,6 +1,6 @@
-netifaces>=0.10.5
-ipaddress>=1.0.18
-netaddr>=0.7.18
-scapy>=2.3.1
-psutil>=5.0.1
+netifaces>=0.10.4
+ipaddress>=1.0.17
+netaddr>=0.7.19
+scapy>=2.4.2
+psutil>=5.5.1
 prettytable>=0.7.2
