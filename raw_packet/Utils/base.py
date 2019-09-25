@@ -171,7 +171,7 @@ class Base:
     @staticmethod
     def pack32(data):
         try:
-            return pack("<I", data)
+            return pack("!I", data)
         except error:
             print("Bad value for 32 bit pack: " + str(data))
             exit(1)
@@ -179,7 +179,7 @@ class Base:
     @staticmethod
     def pack64(data):
         try:
-            return pack("<Q", data)
+            return pack("!Q", data)
         except error:
             print("Bad value for 64 bit pack: " + str(data))
             exit(1)
