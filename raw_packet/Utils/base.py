@@ -133,6 +133,28 @@ class Base:
 
     def print_success(self, *strings):
         self.color_print("green", *strings)
+
+    def color_text(self, color, string):
+        if color == "blue":
+            return self.cINFO + string + self.cEND
+        if color == "red":
+            return self.cERROR + string + self.cEND
+        if color == "orange":
+            return self.cWARNING + string + self.cEND
+        if color == "green":
+            return self.cSUCCESS + string + self.cEND
+
+    def info_text(self, text):
+        return self.color_text("blue", text)
+
+    def error_text(self, text):
+        return self.color_text("red", text)
+
+    def warning_text(self, text):
+        return self.color_text("orange", text)
+
+    def success_text(self, text):
+        return self.color_text("green", text)
     # endregion
 
     # region Check platform and user functions
@@ -420,8 +442,7 @@ class Base:
                 exit(1)
         return broadcast
 
-    @staticmethod
-    def get_netiface_gateway(interface_name):
+    def get_netiface_gateway(self, interface_name, exit_on_failure=True):
         try:
             gateway = None
             gws = gateways()
@@ -433,6 +454,26 @@ class Base:
                     break
         except:
             gateway = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have IPv4 gateway!")
+                exit(1)
+        return gateway
+
+    def get_netiface_ipv6_gateway(self, interface_name, exit_on_failure=True):
+        try:
+            gateway = None
+            gws = gateways()
+            for gw in gws:
+                gateway_iface = gws[gw][AF_INET6]
+                gateway_ip, iface = gateway_iface[0], gateway_iface[1]
+                if iface == interface_name:
+                    gateway = gateway_ip
+                    break
+        except:
+            gateway = None
+            if exit_on_failure:
+                self.print_error("Network interface: ", interface_name, " does not have IPv6 gateway!")
+                exit(1)
         return gateway
 
     # endregion
@@ -580,6 +621,10 @@ class Base:
                 return True
             else:
                 return False
+
+    @staticmethod
+    def ip_address_in_network(ip_address, network):
+        return IPAddress(ip_address) in IPNetwork(network)
 
     @staticmethod
     def ip_address_increment(ip_address):
