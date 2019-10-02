@@ -1827,7 +1827,7 @@ class DNS_raw:
 
     @staticmethod
     def make_dns_name(name):
-        name_list = name.split(".")
+        name_list = str(name).split(".")
 
         result_name = ""
         result_name_bytes = b''
@@ -1969,13 +1969,15 @@ class DNS_raw:
         }
 
         queries = []
+        answers = []
 
         if len(packet) > dns_minimal_packet_length:
 
-            number_of_question = 0
+            number_of_queries = 0
+            number_of_answers = 0
             position = dns_minimal_packet_length
 
-            while number_of_question < dns_packet['questions']:
+            while number_of_queries < dns_packet['questions']:
 
                 query_name = ""
                 query_name_length = int(unpack("B", packet[position:position + 1])[0])
@@ -1995,9 +1997,32 @@ class DNS_raw:
                     "class": query_class
                 })
 
-                number_of_question += 1
+                number_of_queries += 1
+
+            while number_of_answers < dns_packet['answer-rrs']:
+
+                answer_name = ""
+                answer_name_length = int(unpack("B", packet[position:position + 1])[0])
+
+                while answer_name_length != 0:
+                    answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + "."
+                    position += answer_name_length + 1
+                    answer_name_length = int(unpack("B", packet[position:position + 1])[0])
+
+                answer_type = int(unpack("!H", packet[position + 1:position + 3])[0])
+                answer_class = int(unpack("!H", packet[position + 3:position + 5])[0])
+                position += 5
+
+                answers.append({
+                    "name":  answer_name,
+                    "type":  answer_type,
+                    "class": answer_class
+                })
+
+                number_of_answers += 1
 
         dns_packet["queries"] = queries
+        dns_packet["answers"] = answers
 
         return dns_packet
 
@@ -2520,9 +2545,12 @@ class Sniff_raw:
 
                             # region UDP filter
                             udp_filter_destination_port = 0
+                            udp_filter_source_port = 0
                             if 'UDP' in filters.keys():
                                 if 'destination-port' in filters['UDP'].keys():
                                     udp_filter_destination_port = filters['UDP']['destination-port']
+                                if 'source-port' in filters['UDP'].keys():
+                                    udp_filter_source_port = filters['UDP']['source-port']
                             # endregion
 
                             # region DHCP packet
@@ -2561,15 +2589,7 @@ class Sniff_raw:
                             # endregion
 
                             # region DNS packet
-
-                            # region Set UDP destination port
-                            if udp_filter_destination_port == 0:
-                                destination_port = 53
-                            else:
-                                destination_port = udp_filter_destination_port
-                            # endregion
-
-                            if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
+                            if 'DNS' in protocols:
 
                                 # region Parse DNS request packet
                                 dns_packet_offset = udp_header_offset + self.udp.header_length
