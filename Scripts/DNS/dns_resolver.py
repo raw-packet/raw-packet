@@ -29,6 +29,7 @@ from raw_packet.Utils.tm import ThreadManager
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, gaierror
 from random import randint
+from time import sleep
 # endregion
 
 # endregion
@@ -48,16 +49,13 @@ __status__ = 'Development'
 # region Parse DNS packet function
 def parse_packet(request):
     _base = Base()
-    print(request)
     if 'DNS' in request.keys():
-
-        if 'IP' in request.keys():
-            _base.print_info("DNS packet from: ",
-                             request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
-
-        if 'IPv6' in request.keys():
-            _base.print_info("DNS packet from: ",
-                             request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+        if len(request['DNS']['answers']) > 0:
+            for answer in request['DNS']['answers']:
+                if answer['type'] == 1:
+                    _base.print_success('Domain: ', answer['name'][:-1], " IPv4: ", answer['address'])
+                if answer['type'] == 28:
+                    _base.print_success('Domain: ', answer['name'][:-1], " IPv6: ", answer['address'])
 # endregion
 
 
@@ -70,7 +68,7 @@ def sniff_packets(destination_mac_address, destination_ipv4_address, destination
         'UDP': {'source-port': source_port}
     }
     sniff = Sniff_raw()
-    sniff.start(protocols=['Ethernet', 'IP', 'IPv6', 'UDP', 'DNS'], prn=parse_packet)
+    sniff.start(protocols=['Ethernet', 'IP', 'IPv6', 'UDP', 'DNS'], prn=parse_packet, filters=network_filters)
 # endregion
 
 
@@ -308,10 +306,9 @@ if __name__ == '__main__':
         # endregion
 
         # region Sniff DNS answers
-        # tm = ThreadManager(2)
-        # tm.add_task(sniff_packets, your_mac_address, your_ipv4_address, your_ipv6_address, args.port)
         base.print_info("Start DNS answers sniffer ...")
-        sniff_packets(your_mac_address, your_ipv4_address, your_ipv6_address, args.port)
+        tm = ThreadManager(2)
+        tm.add_task(sniff_packets, your_mac_address, your_ipv4_address, your_ipv6_address, args.port)
         # end
 
         # region Send DNS queries
@@ -342,6 +339,8 @@ if __name__ == '__main__':
                                                             tid=dns_transaction_id,
                                                             queries=[query]))
         # endregion
+
+        sleep(30)
 
     except AssertionError as Error:
         base.print_error(Error.args[0])
