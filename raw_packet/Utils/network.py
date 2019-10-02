@@ -1951,80 +1951,102 @@ class DNS_raw:
         return eth_header + ip_header + udp_header + dns_packet
 
     @staticmethod
-    def parse_request_packet(packet):
-        dns_minimal_packet_length = 12
+    def parse_packet(packet):
+        try:
+            dns_minimal_packet_length = 12
 
-        if len(packet) < dns_minimal_packet_length:
-            return None
+            if len(packet) < dns_minimal_packet_length:
+                return None
 
-        dns_detailed = unpack("!6H", packet[:dns_minimal_packet_length])
+            dns_detailed = unpack("!6H", packet[:dns_minimal_packet_length])
 
-        dns_packet = {
-            "transaction-id": int(dns_detailed[0]),
-            "flags":          int(dns_detailed[1]),
-            "questions":      int(dns_detailed[2]),
-            "answer-rrs":     int(dns_detailed[3]),
-            "authority-rrs":  int(dns_detailed[4]),
-            "additional-rrs": int(dns_detailed[5]),
-        }
+            dns_packet = {
+                "transaction-id": int(dns_detailed[0]),
+                "flags":          int(dns_detailed[1]),
+                "questions":      int(dns_detailed[2]),
+                "answer-rrs":     int(dns_detailed[3]),
+                "authority-rrs":  int(dns_detailed[4]),
+                "additional-rrs": int(dns_detailed[5]),
+            }
 
-        queries = []
-        answers = []
+            if dns_packet['transaction-id'] == 0:
+                return None
 
-        if len(packet) > dns_minimal_packet_length:
+            queries = []
+            answers = []
 
-            number_of_queries = 0
-            number_of_answers = 0
-            position = dns_minimal_packet_length
+            if len(packet) > dns_minimal_packet_length:
 
-            while number_of_queries < dns_packet['questions']:
+                number_of_queries = 0
+                number_of_answers = 0
+                position = dns_minimal_packet_length
 
-                query_name = ""
-                query_name_length = int(unpack("B", packet[position:position + 1])[0])
+                while number_of_queries < dns_packet['questions']:
 
-                while query_name_length != 0:
-                    query_name += packet[position + 1:position + query_name_length + 1].decode('utf-8') + "."
-                    position += query_name_length + 1
+                    query_name = ""
                     query_name_length = int(unpack("B", packet[position:position + 1])[0])
 
-                query_type = int(unpack("!H", packet[position + 1:position + 3])[0])
-                query_class = int(unpack("!H", packet[position + 3:position + 5])[0])
-                position += 5
+                    while query_name_length != 0:
+                        query_name += packet[position + 1:position + query_name_length + 1].decode('utf-8') + "."
+                        position += query_name_length + 1
+                        query_name_length = int(unpack("B", packet[position:position + 1])[0])
 
-                queries.append({
-                    "name":  query_name,
-                    "type":  query_type,
-                    "class": query_class
-                })
+                    query_type = int(unpack("!H", packet[position + 1:position + 3])[0])
+                    query_class = int(unpack("!H", packet[position + 3:position + 5])[0])
+                    position += 5
 
-                number_of_queries += 1
+                    queries.append({
+                        "name":  query_name,
+                        "type":  query_type,
+                        "class": query_class
+                    })
 
-            while number_of_answers < dns_packet['answer-rrs']:
+                    number_of_queries += 1
 
-                answer_name = ""
-                answer_name_length = int(unpack("B", packet[position:position + 1])[0])
+                dns_packet["queries"] = queries
 
-                while answer_name_length != 0:
-                    answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + "."
-                    position += answer_name_length + 1
-                    answer_name_length = int(unpack("B", packet[position:position + 1])[0])
+                while number_of_answers < dns_packet['answer-rrs']:
 
-                answer_type = int(unpack("!H", packet[position + 1:position + 3])[0])
-                answer_class = int(unpack("!H", packet[position + 3:position + 5])[0])
-                position += 5
+                    answer_name = ""
+                    if packet[position:position + 2] == b'\xc0\x0c':
+                        answer_name = dns_packet["queries"][0]["name"]
+                        position += 2
+                    else:
+                        answer_name_length = int(unpack("B", packet[position:position + 1])[0])
 
-                answers.append({
-                    "name":  answer_name,
-                    "type":  answer_type,
-                    "class": answer_class
-                })
+                        while answer_name_length != 0:
+                            answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + "."
+                            position += answer_name_length + 1
+                            answer_name_length = int(unpack("B", packet[position:position + 1])[0])
 
-                number_of_answers += 1
+                    answer_type = int(unpack("!H", packet[position:position + 2])[0])
+                    answer_class = int(unpack("!H", packet[position + 2:position + 4])[0])
+                    answer_ttl = int(unpack("!I", packet[position + 4:position + 8])[0])
+                    answer_data_len = int(unpack("!H", packet[position + 8:position + 10])[0])
+                    position += 10
 
-        dns_packet["queries"] = queries
-        dns_packet["answers"] = answers
+                    answer_address = ""
+                    if answer_type == 1:
+                        answer_address = inet_ntoa(packet[position:position + answer_data_len])
 
-        return dns_packet
+                    position += answer_data_len
+
+                    answers.append({
+                        "name":  answer_name,
+                        "type":  answer_type,
+                        "class": answer_class,
+                        "ttl": answer_ttl,
+                        "address": answer_address
+                    })
+
+                    number_of_answers += 1
+
+            dns_packet["answers"] = answers
+
+            return dns_packet
+
+        except UnicodeDecodeError:
+            return None
 
     def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
         queries = []
@@ -2594,7 +2616,7 @@ class Sniff_raw:
                                 # region Parse DNS request packet
                                 dns_packet_offset = udp_header_offset + self.udp.header_length
                                 dns_packet = packet[dns_packet_offset:]
-                                dns_packet_dict = self.dns.parse_request_packet(dns_packet)
+                                dns_packet_dict = self.dns.parse_packet(dns_packet)
                                 # endregion
 
                                 # region Could not parse DNS request packet - break
