@@ -289,7 +289,7 @@ class ArpScan:
     # endregion
 
     # region Get MAC address
-    def get_mac_address(self, network_interface, target_ip_address, timeout=5, retry=5):
+    def get_mac_address(self, network_interface, target_ip_address, timeout=5, retry=5, exit_on_failure=True):
         try:
 
             # region Set variables
@@ -320,7 +320,11 @@ class ArpScan:
             # endregion
 
         except IndexError:
-            return "ff:ff:ff:ff:ff:ff"
+            if exit_on_failure:
+                self.base.print_error("Could not find MAC address of IP address: ", target_ip_address)
+                exit(1)
+            else:
+                return "ff:ff:ff:ff:ff:ff"
 
         except KeyboardInterrupt:
             self.base.print_info("Exit")
