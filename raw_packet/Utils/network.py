@@ -1952,12 +1952,36 @@ class DNS_raw:
 
     @staticmethod
     def parse_packet(packet):
-        try:
-            dns_minimal_packet_length = 12
+        #  0                 16                 31
+        #  +------------------+------------------+
+        #  |  Transaction ID  |      Flags       |
+        #  +------------------+------------------+
+        #  |    Questions     |    Answer RRS    |
+        #  +------------------+------------------+
+        #  |  Authority RRs   |  Additional RRs  |
+        #  +------------------+------------------+
+        #  |          Queries ...
+        #  +---------------- ...
 
+        try:
+            # region Variables
+            queries = list()
+            answers = list()
+            dns_minimal_packet_length = 12
+            # endregion
+
+            # Check length of packet
             if len(packet) < dns_minimal_packet_length:
                 return None
 
+            # region Parse DNS packet header
+
+            # Transaction ID: 2 bytes
+            # Flags: 2 bytes
+            # Questions: 2 bytes
+            # Answer RRS: 2 bytes
+            # Authority RRs: 2 bytes
+            # Additional RRs: 2 bytes
             dns_detailed = unpack("!6H", packet[:dns_minimal_packet_length])
 
             dns_packet = {
@@ -1971,16 +1995,16 @@ class DNS_raw:
 
             if dns_packet['transaction-id'] == 0:
                 return None
+            # endregion
 
-            queries = []
-            answers = []
-
+            # region Parse DNS queries and answers
             if len(packet) > dns_minimal_packet_length:
 
                 number_of_queries = 0
                 number_of_answers = 0
                 position = dns_minimal_packet_length
 
+                # region Parse DNS queries
                 while number_of_queries < dns_packet['questions']:
 
                     query_name = ""
@@ -2004,7 +2028,9 @@ class DNS_raw:
                     number_of_queries += 1
 
                 dns_packet["queries"] = queries
+                # endregion
 
+                # region Parse DNS answers
                 while number_of_answers < dns_packet['answer-rrs']:
 
                     answer_name = ""
@@ -2026,8 +2052,14 @@ class DNS_raw:
                     position += 10
 
                     answer_address = ""
+
+                    # Answer type: 1 - Type A (IPv4 address)
                     if answer_type == 1:
                         answer_address = inet_ntoa(packet[position:position + answer_data_len])
+
+                    # Answer type: 28 - Type AAAA (IPv6 address)
+                    if answer_type == 28:
+                        answer_address = inet_ntop(AF_INET6, packet[position:position + answer_data_len])
 
                     position += answer_data_len
 
@@ -2041,8 +2073,12 @@ class DNS_raw:
 
                     number_of_answers += 1
 
-            dns_packet["answers"] = answers
+                dns_packet["answers"] = answers
+                # endregion
 
+            # endregion
+
+            # Return parsed packet: dictionary
             return dns_packet
 
         except UnicodeDecodeError:
