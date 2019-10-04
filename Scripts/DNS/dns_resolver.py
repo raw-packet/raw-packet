@@ -113,7 +113,10 @@ if __name__ == '__main__':
         # endregion
 
         # region Init DnsResolver class
-        dns_resolver = DnsResolver(current_network_interface)
+        dns_resolver = DnsResolver(
+            network_interface=current_network_interface,
+            quiet=args.quiet
+        )
         # endregion
 
         # region Variables
