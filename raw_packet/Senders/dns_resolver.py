@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 # region Description
 """
 dns_resolver.py: DNS resolver class
@@ -12,10 +9,16 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
+# region Import future
+try:
+    from __future__ import annotations
+except ImportError:
+    pass
+# endregion
+
 # region Add project root path
 from sys import path
 from os.path import dirname, abspath, isfile
-
 path.append(dirname(abspath(__file__)))
 # endregion
 
@@ -52,41 +55,68 @@ __status__ = 'Development'
 
 # region class DNS resolver
 class DnsResolver:
+    """
+    DNS resolver class
+    """
 
     # region Set variables
+
+    # region Init Raw-packet classes
     base = Base()
     arp_scan = ArpScan()
     dns = DNS_raw()
+    # endregion
 
-    domain = ""
+    # region Variables
+    domain = ''
     subdomains = list()
-    available_characters = list(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-                                 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-                                 'w', 'x', 'y', 'z', '-'])
+    available_characters = list(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
+                                 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                                 'u', 'v', 'w', 'x', 'y', 'z', '-'])
     results = list()
+    # endregion
+
     # endregion
 
     # region Init
     def __init__(self,
-                 network_interface: str,
-                 quiet=False):
+                 network_interface,     # type: str
+                 quiet=False            # type: bool
+                 ):                     # -> None
+        """
+        Init class DnsResolver
+        :param network_interface: Network interface (example: eth0)
+        :param quiet:
+        """
 
-        self.network_interface = network_interface
-        self.quiet = quiet
+        self.network_interface = network_interface  # type: str
+        self.quiet = quiet                          # type: bool
 
-        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
-        self.your_ipv4_address = self.base.get_netiface_ip_address(self.network_interface)
-        self.your_ipv6_address = self.base.get_netiface_ipv6_link_address(self.network_interface, False)
+        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)                  # type: str
+        self.your_ipv4_address = self.base.get_netiface_ip_address(self.network_interface)                  # type: str
+        self.your_ipv6_address = self.base.get_netiface_ipv6_link_address(self.network_interface, False)    # type: str
+
+    __init__.__annotations__ = {
+        'network_interface': str,
+        'quiet': bool,
+        'return': None
+    }
     # endregion
 
     # region Parse DNS packet function
     def _parse_packet(self,
-                      request: Dict[str, Union[int, str, Dict]]):
-        if 'DNS' in request.keys():
+                      response  # type: Dict[str, Dict[str, Union[str, Dict[str, str]]]]
+                      ):        # -> None:
+        """
+        Parse DNS answers
+        :param response: DNS answer
+        :return: None
+        """
+        if 'DNS' in response.keys():
 
-            if len(request['DNS']['answers']) > 0:
+            if len(response['DNS']['answers']) > 0:
 
-                for answer in request['DNS']['answers']:
+                for answer in response['DNS']['answers']:
 
                     if self.domain in answer['name']:
 
@@ -106,14 +136,19 @@ class DnsResolver:
                             })
 
                             self.base.print_success('Domain: ', answer['name'][:-1], ' IPv6: ', answer['address'])
+    _parse_packet.__annotations__ = {
+        'request': Dict[str, Dict[str, Union[str, Dict[str, str]]]],
+        'return': None
+    }
     # endregion
 
     # region Sniff DNS packets function
     def _sniff_packets(self,
-                       destination_mac_address: str,
-                       destination_ipv4_address: str,
-                       destination_ipv6_address: str,
-                       source_port=53):
+                       destination_mac_address,     # type: str
+                       destination_ipv4_address,    # type: str
+                       destination_ipv6_address,    # type: str
+                       source_port=53               # type: int
+                       ):                           # -> None
 
         network_filters = {
             'Ethernet': {'destination': destination_mac_address},
@@ -127,22 +162,30 @@ class DnsResolver:
         sniff.start(protocols=['Ethernet', 'IP', 'IPv6', 'UDP', 'DNS'],
                     prn=self._parse_packet,
                     filters=network_filters)
+    _sniff_packets.__annotations__ = {
+        'destination_mac_address': str,
+        'destination_ipv4_address': str,
+        'destination_ipv6_address': str,
+        'source_port': int,
+        'return': None
+    }
     # endregion
 
     # region Send DNS queries to IPv4 NS server
     def _send_ipv4_queries(self,
-                           source_mac_address: str,
-                           source_ipv4_address: str,
-                           ns_server_mac_address: str,
-                           ns_server_ipv4_address: str,
-                           ns_server_port: int,
-                           queries: List[Dict[str, Union[int, str]]],
-                           send_socket):
+                           source_mac_address,      # type: str
+                           source_ipv4_address,     # type: str
+                           ns_server_mac_address,   # type: str
+                           ns_server_ipv4_address,  # type: str
+                           ns_server_port,          # type: int
+                           queries,                 # type: List[Dict[str, Union[int, str]]]
+                           send_socket              # type: socket
+                           ):                       # -> None
 
         for query in queries:
 
-            udp_source_port = randint(2049, 65535)
-            dns_transaction_id = randint(1, 65535)
+            udp_source_port = randint(2049, 65535)  # type: int
+            dns_transaction_id = randint(1, 65535)  # type: int
 
             send_socket.send(self.dns.make_request_packet(src_mac=source_mac_address,
                                                           dst_mac=ns_server_mac_address,
@@ -152,22 +195,33 @@ class DnsResolver:
                                                           dst_port=ns_server_port,
                                                           tid=dns_transaction_id,
                                                           queries=[query]))
+    _send_ipv4_queries.__annotations__ = {
+        'source_mac_address': str,
+        'source_ipv4_address': str,
+        'ns_server_mac_address': str,
+        'ns_server_ipv4_address': str,
+        'ns_server_port': int,
+        'queries': List[Dict[str, Union[int, str]]],
+        'send_socket': socket,
+        'return': None
+    }
     # endregion
 
     # region Send IPv6 DNS queries to IPv6 NS server
     def _send_ipv6_queries(self,
-                           source_mac_address: str,
-                           source_ipv6_address: str,
-                           ns_server_mac_address: str,
-                           ns_server_ipv6_address: str,
-                           ns_server_port: str,
-                           queries: List[Dict[str, Union[int, str]]],
-                           send_socket):
+                           source_mac_address,      # type: str
+                           source_ipv6_address,     # type: str
+                           ns_server_mac_address,   # type: str
+                           ns_server_ipv6_address,  # type: str
+                           ns_server_port,          # type: int
+                           queries,                 # type: List[Dict[str, Union[int, str]]]
+                           send_socket              # type: socket
+                           ):                       # -> None
 
         for query in queries:
 
-            udp_source_port = randint(2049, 65535)
-            dns_transaction_id = randint(1, 65535)
+            udp_source_port = randint(2049, 65535)  # type: int
+            dns_transaction_id = randint(1, 65535)  # type: int
 
             send_socket.send(self.dns.make_request_packet(src_mac=source_mac_address,
                                                           dst_mac=ns_server_mac_address,
@@ -177,32 +231,43 @@ class DnsResolver:
                                                           dst_port=ns_server_port,
                                                           tid=dns_transaction_id,
                                                           queries=[query]))
+    _send_ipv6_queries.__annotations__ = {
+        'source_mac_address': str,
+        'source_ipv6_address': str,
+        'ns_server_mac_address': str,
+        'ns_server_ipv6_address': str,
+        'ns_server_port': int,
+        'queries': List[Dict[str, Union[int, str]]],
+        'send_socket': socket,
+        'return': None
+    }
     # endregion
 
     # region Send DNS queries function
     def _send_queries(self,
-                      send_socket,
-                      source_mac_address: str,
-                      source_ipv4_address: str,
-                      source_ipv6_address: str,
-                      domain: str,
-                      ns_servers: List[Dict[str, str]],
-                      destination_port=53,
-                      max_threats_count=9,
-                      subdomains=['www'],
-                      queries_type=[1, 28],
-                      queries_class=[1]):
+                      send_socket,              # type: socket
+                      source_mac_address,       # type: str
+                      source_ipv4_address,      # type: str
+                      source_ipv6_address,      # type: str
+                      domain,                   # type: str
+                      ns_servers,               # type: List[Dict[str, str]]
+                      destination_port=53,      # type: int
+                      max_threats_count=9,      # type: int
+                      subdomains=['www'],       # type: List[str]
+                      queries_type=[1, 28],     # type: List[int]
+                      queries_class=[1]         # type: List[int]
+                      ):                        # -> None
 
         # DNS query type: 1 (A)
         # DNS query type: 28 (AAAA)
         # DNS query class: 1 (IN)
 
         # region Init threat manager
-        send_threats = ThreadManager(max_threats_count)
+        send_threats: ThreadManager = ThreadManager(max_threats_count)
         # endregion
 
         # region Make queries list
-        queries = list()
+        queries: List[Dict[str, Union[int, str]]] = list()
         for subdomain in subdomains:
             for query_type in queries_type:
                 for query_class in queries_class:
@@ -210,9 +275,9 @@ class DnsResolver:
         # endregion
 
         # region Calculate number of DNS queries for one threat
-        queries_len = len(queries)
-        ipv4_ns_servers_len = 0
-        ipv6_ns_servers_len = 0
+        queries_len: int = len(queries)
+        ipv4_ns_servers_len: int = 0
+        ipv6_ns_servers_len: int = 0
 
         for ns_server in ns_servers:
             if 'ipv4 address' in ns_server.keys():
@@ -264,19 +329,44 @@ class DnsResolver:
         # region Wait all threats
         send_threats.wait_for_completion()
         # endregion
-
+    _send_queries.__annotations__ = {
+        'send_socket': socket,
+        'source_mac_address': str,
+        'source_ipv4_address': str,
+        'domain': str,
+        'ns_servers': List[Dict[str, str]],
+        'destination_port': int,
+        'max_threats_count': int,
+        'subdomains': List[str],
+        'queries_type': List[int],
+        'queries_class': List[int],
+        'return': None
+    }
     # endregion
 
     # region Main function: resolve
     def resolve(self,
-                ns_servers: List[Dict[str, str]],
-                domain: str,
-                max_threats_count=10,
-                udp_destination_port=53,
-                timeout=30,
-                subdomains_list=[],
-                subdomains_file=None,
-                subdomains_brute=False) -> List[Dict[str, str]]:
+                ns_servers,                 # type: List[Dict[str, str]]
+                domain,                     # type: str
+                max_threats_count=10,       # type: int
+                udp_destination_port=53,    # type: int
+                timeout=30,                 # type: int
+                subdomains_list=[],         # type: List[str]
+                subdomains_file=None,       # type: str
+                subdomains_brute=False      # type: bool
+                ):                          # -> List[Dict[str, str]]
+        """
+        Resolve all subdomains in target domain
+        :param ns_servers: List of NS servers
+        :param domain: Target domain
+        :param max_threats_count:
+        :param udp_destination_port:
+        :param timeout:
+        :param subdomains_list:
+        :param subdomains_file:
+        :param subdomains_brute:
+        :return:
+        """
         try:
 
             # region Set target domain
@@ -364,6 +454,17 @@ class DnsResolver:
             self.base.print_error(Error.args[0])
             exit(1)
 
+    resolve.__annotations__ = {
+        'ns_servers': List[Dict[str, str]],
+        'domain': str,
+        'max_threats_count': int,
+        'udp_destination_port': int,
+        'timeout': int,
+        'subdomains_list': List[str],
+        'subdomains_file': str,
+        'subdomains_brute': bool,
+        'return': List[Dict[str, str]]
+    }
     # endregion
 
 # endregion
