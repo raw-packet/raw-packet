@@ -18,6 +18,7 @@ from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
 from sys import version_info
+from typing import Dict, List, Union
 # endregion
 
 # region Authorship information
@@ -1811,12 +1812,9 @@ class DHCP_raw:
 
 # region Raw DNS
 class DNS_raw:
-
-    Base = None
-    eth = None
-    ip = None
-    ipv6 = None
-    udp = None
+    """
+    Class for making and parsing DNS packets
+    """
 
     def __init__(self):
         self.Base = Base()
@@ -1826,15 +1824,29 @@ class DNS_raw:
         self.udp = UDP_raw()
 
     @staticmethod
-    def make_dns_name(name):
-        name_list = str(name).split(".")
+    def make_dns_name(
+                      name  # type: str
+                     ):
+        # type: (...) -> Union[None, str, bytes]
+        """
+        Convert dns name to bytes
+        :param name: DNS name (example: 'test.com')
+        :return: None if error, string for Python 2, bytes for Python 3 (example: '\x04test\x03com\x00')
+        """
 
-        result_name = ""
-        result_name_bytes = b''
+        # region Variables
+        name_list = str(name).split(".")    # type: List[str]
+        result_name = ""                    # type: str
+        result_name_bytes = b''             # type: bytes
+        # endregion
 
         for part_of_name in name_list:
+
+            # Name is too big
             if len(part_of_name) > 256:
                 return None
+
+            # Length of name is normal
             else:
                 try:
                     result_name += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name),
@@ -1843,15 +1855,25 @@ class DNS_raw:
                     result_name_bytes += pack("!" "B" "%ds" % (len(part_of_name)), len(part_of_name),
                                               part_of_name.encode('utf-8'))
 
+        # Add last symbol in result
         result_name += "\x00"
         result_name_bytes += b'\x00'
 
+        # region Return
+
+        # For Python 2
         if len(result_name) > 1:
             return result_name
+
+        # For Python 3
         if len(result_name_bytes) > 1:
             return result_name_bytes
+
+        # Error
         else:
             return None
+
+        # endregion
 
     @staticmethod
     def make_dns_ptr(ip_address):
@@ -1951,7 +1973,18 @@ class DNS_raw:
         return eth_header + ip_header + udp_header + dns_packet
 
     @staticmethod
-    def parse_packet(packet):
+    def parse_packet(
+                     packet     # type: bytes
+                    ):
+        # type: (...) -> Union[None, Dict[str, Union[str, Dict[str, Union[int, str]]]]]
+        """
+        Parse DNS Packet
+        :param packet: Bytes of network packet
+        :return: None if error or Dictionary
+        """
+
+        #  DNS packet:
+        #
         #  0                 16                 31
         #  +------------------+------------------+
         #  |  Transaction ID  |      Flags       |
@@ -1965,9 +1998,14 @@ class DNS_raw:
 
         try:
             # region Variables
-            queries = list()
-            answers = list()
-            dns_minimal_packet_length = 12
+
+            # Init lists for DNS queries and answers
+            queries = list()    # type: List[Dict[str, Union[int, str]]]
+            answers = list()    # type: List[Dict[str, Union[int, str]]]
+
+            # Set minimal DNS packet length: 12
+            dns_minimal_packet_length = 12  # type: int
+
             # endregion
 
             # Check length of packet
@@ -2064,8 +2102,8 @@ class DNS_raw:
                     position += answer_data_len
 
                     answers.append({
-                        "name":  answer_name,
-                        "type":  answer_type,
+                        "name": answer_name,
+                        "type": answer_type,
                         "class": answer_class,
                         "ttl": answer_ttl,
                         "address": answer_address
