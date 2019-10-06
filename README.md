@@ -4,7 +4,6 @@ Raw-packet project
 [![Official site][site-label]][site-link]
 [![Required OS][os-label]][os-link]
 [![Python3 version][python3-versions-label]][python3-versions-link]
-[![Python2 version][python2-versions-label]][python2-versions-link]
 [![License][license-label]][license-link]
 [![Version][version-label]][version-link]
 [![Stability][stability-label]][stability-link]
@@ -15,8 +14,6 @@ Raw-packet project
 [os-link]: https://en.wikipedia.org/wiki/Linux
 [python3-versions-label]: https://raw-packet.github.io/static/images/labels/python3.svg
 [python3-versions-link]: https://www.python.org/downloads/release/python-374/
-[python2-versions-label]: https://raw-packet.github.io/static/images/labels/python2.svg
-[python2-versions-link]: https://www.python.org/download/releases/2.7/
 [license-label]: https://raw-packet.github.io/static/images/labels/license.svg
 [license-link]: https://github.com/raw-packet/raw-packet/blob/master/LICENSE
 [version-label]: https://raw-packet.github.io/static/images/labels/version.svg
@@ -38,10 +35,10 @@ Author: [Vladimir Ivanov](https://github.com/Vladimir-Ivanov-Git)<br/>
 SubAuthors: [Ilja Bulatov](https://github.com/barrracud4)<br/>
 Project email: [raw.packet.project@gmail.com](mailto:raw.packet.project@gmail.com)<br/>
 PGP Public key: [raw.packet.project@gmail.com PGP Public key](https://raw-packet.github.io/static/pgp/Raw-packet.asc)<br/>
-Current project version: [0.1.1](https://github.com/raw-packet/raw-packet)<br/>
-Last stable release: [0.0.4](https://github.com/raw-packet/raw-packet/releases/tag/v0.0.4)<br/>
+Current project version: [0.2.1](https://github.com/raw-packet/raw-packet)<br/>
+Last stable release: [0.1.1](https://github.com/raw-packet/raw-packet/releases/tag/v0.1.1)<br/>
 Required OS: [Linux based](https://en.wikipedia.org/wiki/Linux)<br/>
-Python versions: [3.7](https://www.python.org/downloads/release/python-374/) or [2.7](https://www.python.org/download/releases/2.7/)<br/>
+Python versions: [3.7](https://www.python.org/downloads/release/python-374/)
 License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
 # Publications
@@ -101,29 +98,6 @@ sudo apt update && sudo apt install -y python3 python3-pip apache2 php \
                                        lsof net-tools wireless-tools \
                                        nmap aircrack-ng
 sudo pip3 install -r requirements.txt
-```
-
-## Python 2
-
-### Debian based OS install with apt (recommended):
-```
-git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
-sudo apt update && sudo apt install -y python python-pip python-scapy \
-                                       python-netifaces python-ipaddress \
-                                       python-netaddr python-psutil \
-                                       python-prettytable php lsof \
-                                       net-tools wireless-tools \
-                                       nmap aircrack-ng
-```
-
-### Debian based OS install with pip:
-```
-git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
-sudo apt update && sudo apt install -y python python-pip apache2 php \
-                                       lsof net-tools wireless-tools \
-                                       nmap aircrack-ng
-
-sudo pip install -r requirements.txt
 ```
 
 # Scripts
