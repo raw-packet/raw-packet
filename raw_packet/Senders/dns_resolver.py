@@ -509,7 +509,9 @@ class DnsResolver:
             # endregion
 
             # region Send DNS queries
-            self.base.print_info('Start sending DNS queries, time: ', str(datetime.now()))
+            if not self.quiet:
+                self.base.print_info('Start sending DNS queries, time: ', str(datetime.now()))
+
             self._send_queries(send_socket=raw_socket,
                                source_mac_address=self.your_mac_address,
                                source_ipv4_address=self.your_ipv4_address,
@@ -519,11 +521,12 @@ class DnsResolver:
                                destination_port=udp_destination_port,
                                max_threats_count=int(max_threats_count) - 1,
                                subdomains=self.subdomains)
-            self.base.print_info('All DNS queries is send, time: ', str(datetime.now()))
             # endregion
 
             # region Timeout
-            self.base.print_info('Wait timeout: ', str(timeout) + ' sec')
+            if not self.quiet:
+                self.base.print_info('Wait timeout: ', str(timeout) + ' sec')
+
             sleep(timeout)
             # endregion
 
