@@ -19,15 +19,12 @@ from netifaces import gateways
 from netaddr import IPNetwork, IPAddress
 from struct import pack, error
 from ipaddress import IPv4Address
-try:
-    from os import errno
-except ImportError:
-    pass
 from re import match
 import subprocess as sub
 import psutil as ps
 import socket as sock
 from prettytable import PrettyTable
+from typing import Dict, List, Union
 # endregion
 
 # region Authorship information
@@ -35,7 +32,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -235,12 +232,8 @@ class Base:
                 print(iface_pretty_table)
 
                 netiface_index -= 1
-                try:
-                    current_netiface_index = raw_input(self.c_warning + 'Set network interface from range (1-' +
-                                                       str(netiface_index) + '): ')
-                except NameError:
-                    current_netiface_index = input(self.c_warning + 'Set network interface from range (1-' +
-                                                   str(netiface_index) + '): ')
+                current_netiface_index = input(self.c_warning + 'Set network interface from range (1-' +
+                                               str(netiface_index) + '): ')
 
                 if not current_netiface_index.isdigit():
                     self.print_error("Your input data: ", current_netiface_index, " is not digit!")
@@ -611,16 +604,10 @@ class Base:
 
     @staticmethod
     def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
-        try:
-            if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(ip_address)) <= IPv4Address(unicode(last_ip_address)):
-                return True
-            else:
-                return False
-        except NameError:
-            if IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address):
-                return True
-            else:
-                return False
+        if IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address):
+            return True
+        else:
+            return False
 
     @staticmethod
     def ip_address_in_network(ip_address, network):
@@ -628,100 +615,85 @@ class Base:
 
     @staticmethod
     def ip_address_increment(ip_address):
-        try:
-            return str(IPv4Address(unicode(ip_address)) + 1)
-        except NameError:
-            return str(IPv4Address(ip_address) + 1)
+        return str(IPv4Address(ip_address) + 1)
 
     @staticmethod
-    def ip_address_compare(first_ip_address, second_ip_address, operator='eq'):
-        try:
-            if operator == 'eq':
-                if IPv4Address(unicode(first_ip_address)) == IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
+    def ip_address_compare(
+            first_ip_address: str,
+            second_ip_address: str,
+            operator: str = 'eq'
+    ) -> bool:
+        """
+        Compare IPv4 addresses
+        :param first_ip_address: First IPv4 address for compare (example: 192.168.0.1)
+        :param second_ip_address: Second IPv4 address for compare (example: 192.168.0.2)
+        :param operator: eq - equal; ne - not equal; gt - greater; ge - greater or equal; lt - less; le - less or equal (default: eq)
+        :return: True or False
+        """
 
-            elif operator == 'ne':
-                if IPv4Address(unicode(first_ip_address)) != IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'gt':
-                if IPv4Address(unicode(first_ip_address)) > IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'ge':
-                if IPv4Address(unicode(first_ip_address)) >= IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'lt':
-                if IPv4Address(unicode(first_ip_address)) < IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'le':
-                if IPv4Address(unicode(first_ip_address)) <= IPv4Address(unicode(second_ip_address)):
-                    return True
-                else:
-                    return False
-
+        if operator == 'eq':
+            if IPv4Address(first_ip_address) == IPv4Address(second_ip_address):
+                return True
             else:
                 return False
 
-        except NameError:
-            if operator == 'eq':
-                if IPv4Address(first_ip_address) == IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'ne':
-                if IPv4Address(first_ip_address) != IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'gt':
-                if IPv4Address(first_ip_address) > IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'ge':
-                if IPv4Address(first_ip_address) >= IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'lt':
-                if IPv4Address(first_ip_address) < IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
-            elif operator == 'le':
-                if IPv4Address(first_ip_address) <= IPv4Address(second_ip_address):
-                    return True
-                else:
-                    return False
-
+        elif operator == 'ne':
+            if IPv4Address(first_ip_address) != IPv4Address(second_ip_address):
+                return True
             else:
                 return False
 
-    def make_random_string(self, length):
+        elif operator == 'gt':
+            if IPv4Address(first_ip_address) > IPv4Address(second_ip_address):
+                return True
+            else:
+                return False
+
+        elif operator == 'ge':
+            if IPv4Address(first_ip_address) >= IPv4Address(second_ip_address):
+                return True
+            else:
+                return False
+
+        elif operator == 'lt':
+            if IPv4Address(first_ip_address) < IPv4Address(second_ip_address):
+                return True
+            else:
+                return False
+
+        elif operator == 'le':
+            if IPv4Address(first_ip_address) <= IPv4Address(second_ip_address):
+                return True
+            else:
+                return False
+
+        else:
+            return False
+
+    def make_random_string(
+            self,
+            length: int = 8
+    ) -> str:
+        """
+        Make random string from lowercase letter, uppercase letter and digits
+        :param length: Length of string (default: 8)
+        :return: Random string (example: d1dfJ3a032)
+        """
         return ''.join(choice(self.lowercase + self.uppercase + self.digits) for _ in range(length))
 
     @staticmethod
-    def get_mac_prefixes(prefixes_filename="mac-prefixes.txt"):
-        current_path = dirname(abspath(__file__))
-        vendor_list = []
+    def get_mac_prefixes(
+            prefixes_filename: str = "mac-prefixes.txt"
+    ) -> List[Dict[str, str]]:
+        """
+        Get MAC address prefixes from file
+        :param prefixes_filename: Name of file with MAC address prefixes (content example: 0050BA D-Link\n00179A D-Link)
+        :return: MAC prefixes list (example: [{'prefix': '0050BA', 'vendor': 'D-Link'}])
+        """
+
+        current_path: str = dirname(abspath(__file__))
+        vendor_list: List[Dict[str, str]] = list()
+
         with open(join(current_path, prefixes_filename), 'r') as mac_prefixes_descriptor:
             for string in mac_prefixes_descriptor.readlines():
                 string_list = string.split(" ", 1)
