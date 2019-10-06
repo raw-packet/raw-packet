@@ -9,12 +9,13 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-# region Import future
-try:
-    from __future__ import annotations
-except ImportError:
-    pass
-# endregion
+# # region Import future
+# import __future__
+# if hasattr(__future__, 'annotations'):
+#     from __future__ import annotations
+# else:
+#     raise ImportError('Python >= 3.7 is required')
+# # endregion
 
 # region Add project root path
 from sys import path
@@ -59,21 +60,34 @@ class DnsResolver:
     DNS resolver class
     """
 
+    #  DNS packet:
+    #
+    #  0                 16                 31
+    #  +------------------+------------------+
+    #  |  Transaction ID  |      Flags       |
+    #  +------------------+------------------+
+    #  |    Questions     |    Answer RRS    |
+    #  +------------------+------------------+
+    #  |  Authority RRs   |  Additional RRs  |
+    #  +------------------+------------------+
+    #  |          Queries ...
+    #  +---------------- ...
+
     # region Set variables
 
     # region Init Raw-packet classes
-    base = Base()
-    arp_scan = ArpScan()
-    dns = DNS_raw()
+    base = Base()           # type: Base
+    arp_scan = ArpScan()    # type: ArpScan
+    dns = DNS_raw()         # type: DNS_raw
     # endregion
 
     # region Variables
-    domain = ''
-    subdomains = list()
+    domain = ''             # type: str
+    subdomains = list()     # type: List[str]
     available_characters = list(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
                                  'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-                                 'u', 'v', 'w', 'x', 'y', 'z', '-'])
-    results = list()
+                                 'u', 'v', 'w', 'x', 'y', 'z', '-'])    # type: List[str]
+    results = list()        # type: List[Dict[str, str]]
     # endregion
 
     # endregion
@@ -82,31 +96,37 @@ class DnsResolver:
     def __init__(self,
                  network_interface,     # type: str
                  quiet=False            # type: bool
-                 ):                     # -> None
+                 ):
+        # type: (...) -> None
         """
         Init class DnsResolver
         :param network_interface: Network interface (example: eth0)
         :param quiet: Quiet mode on if True, quiet mode off if False (default: False)
         """
 
+        # Set network interface for sending DNS queries
         self.network_interface = network_interface  # type: str
+
+        # Set quiet mode
         self.quiet = quiet                          # type: bool
 
+        # Get MAC, IPv4 and IPv6 addresses for network interface
         self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)                  # type: str
         self.your_ipv4_address = self.base.get_netiface_ip_address(self.network_interface)                  # type: str
         self.your_ipv6_address = self.base.get_netiface_ipv6_link_address(self.network_interface, False)    # type: str
 
-    __init__.__annotations__ = {
-        'network_interface': str,
-        'quiet': bool,
-        'return': None
-    }
+    # __init__.__annotations__ = {
+    #     'network_interface': str,
+    #     'quiet': bool,
+    #     'return': None
+    # }
     # endregion
 
     # region Parse DNS packet function
     def _parse_packet(self,
                       response  # type: Dict[str, Dict[str, Union[str, Dict[str, str]]]]
-                      ):        # -> None:
+                      ):
+        # type: (...) -> None
         """
         Parse DNS answers
         :param response: DNS answer dictionary
@@ -138,10 +158,10 @@ class DnsResolver:
 
                             self.base.print_success('Domain: ', answer['name'][:-1], ' IPv6: ', answer['address'])
 
-    _parse_packet.__annotations__ = {
-        'request': Dict[str, Dict[str, Union[str, Dict[str, str]]]],
-        'return': None
-    }
+    # _parse_packet.__annotations__ = {
+    #     'request': Dict[str, Dict[str, Union[str, Dict[str, str]]]],
+    #     'return': None
+    # }
     # endregion
 
     # region Sniff DNS packets function
@@ -150,7 +170,8 @@ class DnsResolver:
                        destination_ipv4_address,    # type: str
                        destination_ipv6_address,    # type: str
                        source_port=53               # type: int
-                       ):                           # -> None
+                       ):
+        # type: (...) -> None
         """
         Sniff DNS answers
         :param destination_mac_address: Destination MAC address in DNS answer (most likely this is MAC address on your network interface)
@@ -173,13 +194,13 @@ class DnsResolver:
                     prn=self._parse_packet,
                     filters=network_filters)
 
-    _sniff_packets.__annotations__ = {
-        'destination_mac_address': str,
-        'destination_ipv4_address': str,
-        'destination_ipv6_address': str,
-        'source_port': int,
-        'return': None
-    }
+    # _sniff_packets.__annotations__ = {
+    #     'destination_mac_address': str,
+    #     'destination_ipv4_address': str,
+    #     'destination_ipv6_address': str,
+    #     'source_port': int,
+    #     'return': None
+    # }
     # endregion
 
     # region Send DNS queries to IPv4 NS server
@@ -191,7 +212,8 @@ class DnsResolver:
                            ns_server_port,          # type: int
                            queries,                 # type: List[Dict[str, Union[int, str]]]
                            send_socket              # type: socket
-                           ):                       # -> None
+                           ):
+        # type: (...) -> None
         """
         Send DNS queries to IPv4 DNS servers
         :param source_mac_address: Source MAC address for DNS query (most likely this is MAC address on your network interface)
@@ -206,6 +228,7 @@ class DnsResolver:
 
         for query in queries:
 
+            # Set source UDP port and DNS transaction ID for sending DNS query
             udp_source_port = randint(2049, 65535)  # type: int
             dns_transaction_id = randint(1, 65535)  # type: int
 
@@ -218,16 +241,16 @@ class DnsResolver:
                                                           tid=dns_transaction_id,
                                                           queries=[query]))
 
-    _send_ipv4_queries.__annotations__ = {
-        'source_mac_address': str,
-        'source_ipv4_address': str,
-        'ns_server_mac_address': str,
-        'ns_server_ipv4_address': str,
-        'ns_server_port': int,
-        'queries': List[Dict[str, Union[int, str]]],
-        'send_socket': socket,
-        'return': None
-    }
+    # _send_ipv4_queries.__annotations__ = {
+    #     'source_mac_address': str,
+    #     'source_ipv4_address': str,
+    #     'ns_server_mac_address': str,
+    #     'ns_server_ipv4_address': str,
+    #     'ns_server_port': int,
+    #     'queries': List[Dict[str, Union[int, str]]],
+    #     'send_socket': socket,
+    #     'return': None
+    # }
     # endregion
 
     # region Send IPv6 DNS queries to IPv6 NS server
@@ -239,7 +262,8 @@ class DnsResolver:
                            ns_server_port,          # type: int
                            queries,                 # type: List[Dict[str, Union[int, str]]]
                            send_socket              # type: socket
-                           ):                       # -> None
+                           ):
+        # type: (...) -> None
         """
         Send DNS queries to IPv6 DNS servers
         :param source_mac_address: Source MAC address for DNS query (most likely this is MAC address on your network interface)
@@ -254,6 +278,7 @@ class DnsResolver:
 
         for query in queries:
 
+            # Set source UDP port and DNS transaction ID for sending DNS query
             udp_source_port = randint(2049, 65535)  # type: int
             dns_transaction_id = randint(1, 65535)  # type: int
 
@@ -266,16 +291,16 @@ class DnsResolver:
                                                           tid=dns_transaction_id,
                                                           queries=[query]))
 
-    _send_ipv6_queries.__annotations__ = {
-        'source_mac_address': str,
-        'source_ipv6_address': str,
-        'ns_server_mac_address': str,
-        'ns_server_ipv6_address': str,
-        'ns_server_port': int,
-        'queries': List[Dict[str, Union[int, str]]],
-        'send_socket': socket,
-        'return': None
-    }
+    # _send_ipv6_queries.__annotations__ = {
+    #     'source_mac_address': str,
+    #     'source_ipv6_address': str,
+    #     'ns_server_mac_address': str,
+    #     'ns_server_ipv6_address': str,
+    #     'ns_server_port': int,
+    #     'queries': List[Dict[str, Union[int, str]]],
+    #     'send_socket': socket,
+    #     'return': None
+    # }
     # endregion
 
     # region Send DNS queries function
@@ -291,7 +316,8 @@ class DnsResolver:
                       subdomains=['www'],       # type: List[str]
                       queries_type=[1, 28],     # type: List[int]
                       queries_class=[1]         # type: List[int]
-                      ):                        # -> None
+                      ):
+        # type: (...) -> None
         """
         Send DNS queries to IPv4/IPv6 DNS servers
         :param send_socket: Raw socket for sending DNS queries
@@ -316,7 +342,7 @@ class DnsResolver:
         send_threats = ThreadManager(max_threats_count)
         # endregion
 
-        # region Make queries list
+        # region Make DNS queries list
         queries = list()
         for subdomain in subdomains:
             for query_type in queries_type:
@@ -380,19 +406,19 @@ class DnsResolver:
         send_threats.wait_for_completion()
         # endregion
 
-    _send_queries.__annotations__ = {
-        'send_socket': socket,
-        'source_mac_address': str,
-        'source_ipv4_address': str,
-        'domain': str,
-        'ns_servers': List[Dict[str, str]],
-        'destination_port': int,
-        'max_threats_count': int,
-        'subdomains': List[str],
-        'queries_type': List[int],
-        'queries_class': List[int],
-        'return': None
-    }
+    # _send_queries.__annotations__ = {
+    #     'send_socket': socket,
+    #     'source_mac_address': str,
+    #     'source_ipv4_address': str,
+    #     'domain': str,
+    #     'ns_servers': List[Dict[str, str]],
+    #     'destination_port': int,
+    #     'max_threats_count': int,
+    #     'subdomains': List[str],
+    #     'queries_type': List[int],
+    #     'queries_class': List[int],
+    #     'return': None
+    # }
     # endregion
 
     # region Main function: resolve
@@ -405,7 +431,8 @@ class DnsResolver:
                 max_threats_count=10,       # type: int
                 udp_destination_port=53,    # type: int
                 timeout=30                  # type: int
-                ):                          # -> List[Dict[str, str]]
+                ):
+        # type: (...) -> List[Dict[str, str]]
         """
         DNS resolve all subdomains in target domain
         :param ns_servers: List of DNS servers (example: [{'ipv4 address': '8.8.8.8', 'mac address': '01:23:45:67:89:0a'}])
@@ -508,17 +535,17 @@ class DnsResolver:
             self.base.print_error(Error.args[0])
             exit(1)
 
-    resolve.__annotations__ = {
-        'ns_servers': List[Dict[str, str]],
-        'domain': str,
-        'max_threats_count': int,
-        'udp_destination_port': int,
-        'timeout': int,
-        'subdomains_list': List[str],
-        'subdomains_file': str,
-        'subdomains_brute': bool,
-        'return': List[Dict[str, str]]
-    }
+    # resolve.__annotations__ = {
+    #     'ns_servers': List[Dict[str, str]],
+    #     'domain': str,
+    #     'max_threats_count': int,
+    #     'udp_destination_port': int,
+    #     'timeout': int,
+    #     'subdomains_list': List[str],
+    #     'subdomains_file': str,
+    #     'subdomains_brute': bool,
+    #     'return': List[Dict[str, str]]
+    # }
     # endregion
 
 # endregion
