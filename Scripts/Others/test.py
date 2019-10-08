@@ -20,7 +20,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import MDNS_raw, ICMPv6_raw
+from raw_packet.Utils.network import MDNS_raw, ICMPv6_raw, RawEthernet
 from raw_packet.Utils.network import Sniff_raw
 # endregion
 
@@ -46,6 +46,7 @@ __status__ = 'Development'
 # endregion
 
 # region Check user, platform and print banner
+Ethernet = RawEthernet()
 Base = Base()
 Base.check_user()
 Base.check_platform()
@@ -125,6 +126,27 @@ if __name__ == "__main__":
 
         print('\nProcess pid by listen port 80:')
         print(Base.get_process_pid_by_listen_port(80))
+
+        print('\n')
+        Base.print_info('Ethernet functions:')
+
+        print('\nConvert MAC address string to bytes:')
+        print(Ethernet.convert_mac('01:23:45:67:89:0a', True))
+
+        print('\nConvert MAC address bytes to string:')
+        print(Ethernet.convert_mac(b'01234567890a', True))
+
+        print('\nGet MAC address prefix:')
+        print(Ethernet.get_mac_prefix('ab:c3:45:67:89:0a', 3, True))
+
+        print('\nGet MAC address prefix:')
+        print(Ethernet.get_mac_prefix(b'abc34567890a', 3, True))
+
+        print('\nMake Ethernet header:')
+        print(Ethernet.make_header('01:23:45:67:89:0a', '01:23:45:67:89:0a', 2048))
+
+        print('\nParse Ethernet header:')
+        print(Ethernet.parse_header(b'\x01#Eg\x89\n\x01#Eg\x89\n\x08\x00'))
 
     except KeyboardInterrupt:
         Base.print_info("Exit")
