@@ -8,10 +8,7 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-try:
-    from queue import Queue
-except ImportError:
-    from Queue import Queue
+from queue import Queue
 from threading import Thread
 # endregion
 
@@ -20,7 +17,7 @@ __author__ = 'Evgeny @4ekin Bechkalo'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
