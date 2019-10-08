@@ -8,7 +8,7 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-from platform import system, release, dist
+from platform import system, release
 from sys import exit, stdout
 from os import getuid
 from os.path import dirname, abspath, isfile, join
@@ -956,7 +956,12 @@ class Base:
 
     # region Others functions
     @staticmethod
-    def ipv6_address_validation(ipv6_address):
+    def ipv6_address_validation(ipv6_address: str) -> bool:
+        """
+        Validate IPv6 address string
+        :param ipv6_address: IPv6 address string (example: 'fd00::1')
+        :return: True if a valid IPv6 address or False if not
+        """
         try:
             sock.inet_pton(sock.AF_INET6, ipv6_address)
             return True
@@ -964,7 +969,12 @@ class Base:
             return False
 
     @staticmethod
-    def ip_address_validation(ip_address):
+    def ip_address_validation(ip_address: str) -> bool:
+        """
+        Validate IPv4 address string
+        :param ip_address: IPv4 address string (example: '192.168.1.1')
+        :return: True if a valid IPv4 address or False if not
+        """
         try:
             sock.inet_aton(ip_address)
             return True
@@ -972,26 +982,60 @@ class Base:
             return False
 
     @staticmethod
-    def mac_address_validation(mac_address):
+    def mac_address_validation(mac_address: str) -> bool:
+        """
+        Validate MAC address string
+        :param mac_address: MAC address string (example: '01:23:45:67:89:0a')
+        :return: True if a valid MAC address or False if not
+        """
         if match(r'^([0-9a-fA-F]{2}[:]){5}([0-9a-fA-F]{2})$', mac_address):
             return True
         else:
             return False
 
     @staticmethod
-    def ip_address_in_range(ip_address, first_ip_address, last_ip_address):
+    def ip_address_in_range(ip_address: str,
+                            first_ip_address: str,
+                            last_ip_address: str) -> bool:
+        """
+        Check IPv4 address in range
+        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :param first_ip_address: First IPv4 address in range (example: '192.168.1.1')
+        :param last_ip_address: Last IPv4 address in range (example: '192.168.1.254')
+        :return: True if IPv4 address in range or False if not
+        """
         if IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address):
             return True
         else:
             return False
 
     @staticmethod
-    def ip_address_in_network(ip_address, network):
+    def ip_address_in_network(ip_address: str, network: str) -> bool:
+        """
+        Check IPv4 address in network
+        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :param network: IPv4 network string (example: '192.168.1.0/24')
+        :return: True if IPv4 address in network or False if not
+        """
         return IPAddress(ip_address) in IPNetwork(network)
 
     @staticmethod
-    def ip_address_increment(ip_address):
+    def ip_address_increment(ip_address: str) -> str:
+        """
+        Increment IPv4 address
+        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :return: IPv4 address string (example: '192.168.1.124')
+        """
         return str(IPv4Address(ip_address) + 1)
+
+    @staticmethod
+    def ip_address_decrement(ip_address: str) -> str:
+        """
+        Decrement IPv4 address
+        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :return: IPv4 address string (example: '192.168.1.122')
+        """
+        return str(IPv4Address(ip_address) - 1)
 
     @staticmethod
     def ip_address_compare(first_ip_address: str, second_ip_address: str, operator: str = 'eq') -> bool:
@@ -1057,17 +1101,21 @@ class Base:
         :param prefixes_filename: Name of file with MAC address prefixes (content example: 0050BA D-Link\n00179A D-Link)
         :return: MAC prefixes list (example: [{'prefix': '0050BA', 'vendor': 'D-Link'}])
         """
-
-        current_path: str = dirname(abspath(__file__))
         vendor_list: List[Dict[str, str]] = list()
-
-        with open(join(current_path, prefixes_filename), 'r') as mac_prefixes_descriptor:
-            for string in mac_prefixes_descriptor.readlines():
-                string_list = string.split(' ', 1)
-                vendor_list.append({
-                    'prefix': string_list[0],
-                    'vendor': string_list[1][:-1]
-                })
+        try:
+            if not isfile(prefixes_filename):
+                prefixes_filename = join(dirname(abspath(__file__)), prefixes_filename)
+                assert isfile(prefixes_filename), \
+                    'File with MAC addresses list: ' + Base.error_text(prefixes_filename) + ' not found!'
+            with open(prefixes_filename, 'r') as mac_prefixes_descriptor:
+                for mac_and_vendor_string in mac_prefixes_descriptor.read().splitlines():
+                    mac_and_vendor_list = mac_and_vendor_string.split(' ', 1)
+                    vendor_list.append({
+                        'prefix': mac_and_vendor_list[0],
+                        'vendor': mac_and_vendor_list[1]
+                    })
+        except AssertionError:
+            pass
         return vendor_list
     # endregion
 
