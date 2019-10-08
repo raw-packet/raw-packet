@@ -34,7 +34,7 @@ __status__ = 'Development'
 
 
 # region Raw Ethernet
-class Ethernet_raw:
+class RawEthernet:
     # +---------------------------------------------------------------+
     # |       Ethernet destination address (first 32 bits)            |
     # +-------------------------------+-------------------------------+
@@ -45,11 +45,19 @@ class Ethernet_raw:
     # |        Type code              |                               |
     # +-------------------------------+-------------------------------+
 
-    header_length = 0
-    macs = []
+    # Set length of Ethernet header
+    header_length: int = 14
+
+    # List of MAC address prefixes
+    macs: List[str] = list()
+
+    # Init Raw-packet Base class
+    base: Base = Base()
 
     def __init__(self):
-        self.header_length = 14
+        """
+        Init
+        """
         self.macs.append("3c:d9:2b")  # Hewlett Packard
         self.macs.append("9c:8e:99")  # Hewlett Packard
         self.macs.append("b4:99:ba")  # Hewlett Packard
@@ -165,97 +173,148 @@ class Ethernet_raw:
         self.macs.append("00:18:de")  # Intel Corporate
 
     def __enter__(self):
+        """
+        Enter
+        :return: self
+        """
         return self
 
-    def get_random_mac(self):
+    def get_random_mac(self) -> str:
+        """
+        Get random MAC address
+        :return: Random MAC address string (example: '01:23:45:67:89:0a')
+        """
         mac_prefix = choice(self.macs)
         mac_suffix = ':'.join('{0:02x}'.format(randint(0x00, 0xff), 'x') for _ in range(3))
         return mac_prefix + ':' + mac_suffix
 
-    @staticmethod
-    def convert_mac(mac_address):
-        if len(mac_address) < 12:
-            print("Too short mac address: " + mac_address)
-            exit(1)
-
-        if len(mac_address) > 17:
-            print("Too long mac address: " + mac_address)
-            exit(1)
-
-        if len(mac_address) == 17:
-            mac_address = mac_address[:17].lower()
-            if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
-                return unhexlify(mac_address.replace(':', ''))
-            else:
-                print("Bad mac address: " + mac_address)
-                exit(1)
-
-        elif len(mac_address) == 12:
-            result_mac_address = ""
-
-            if version_info >= (3, 0):
-                mac_address = unhexlify(mac_address)
-                for byte_of_address in mac_address:
-                    result_mac_address += '{:02x}'.format(byte_of_address) + ":"
-
-            if version_info < (3, 0):
-                mac_address = mac_address[:12].lower()
-                for index in range(0, 12, 2):
-                    result_mac_address += str(mac_address[index]) + str(mac_address[index + 1]) + ":"
-
-            return result_mac_address[:17]
-
-        else:
-            print("Bad mac address: " + mac_address)
-            exit(1)
-
-    @staticmethod
-    def get_mac_prefix(mac_address, prefix_length=6):
-        if len(mac_address) < 12:
-            print("Too short mac address: " + mac_address)
-            exit(1)
-
-        if len(mac_address) > 17:
-            print("Too long mac address: " + mac_address)
-            exit(1)
-
-        if len(mac_address) == 17:
-            mac_address = mac_address[:17].lower()
-            if search("([0-9a-f]{2}[:-]){5}([0-9a-f]{2})", mac_address):
-                result_mac_address = mac_address.replace(':', '')
-                return result_mac_address[:prefix_length].upper()
-            else:
-                print("Bad mac address: " + mac_address)
-                exit(1)
-
-        elif len(mac_address) == 12:
-            mac_address = mac_address[:12].lower()
-            result_mac_address = ""
-            for index in range(0, 12, 2):
-                result_mac_address += mac_address[index] + mac_address[index + 1] + ":"
-            return result_mac_address[:prefix_length].upper()
-
-        else:
-            print("Bad mac address: " + mac_address)
-            exit(1)
-
-    def make_header(self, source_mac, destination_mac, network_type):
-        return self.convert_mac(destination_mac) + self.convert_mac(source_mac) + pack("!" "H", network_type)
-
-    def parse_header(self, packet):
-        if len(packet) != 14:
-            return None
-
-        ethernet_detailed = unpack("!" "6s" "6s" "H", packet)
-
+    def convert_mac(self,
+                    mac_address: Union[str, bytes] = '01:23:45:67:89:0a',
+                    exit_on_failure: bool = True) -> Union[None, bytes, str]:
+        """
+        Convert MAC address string or bytes to bytes
+        :param mac_address: MAC address string or bytes (example: '01:23:45:67:89:0a' or b'\x01#Eg\x89\n')
+        :param exit_on_failure: Exit in case of error (default: True)
+        :return: Result bytes or string (example: b'\x01#Eg\x89\n' or '01:23:45:67:89:0a')
+        """
         try:
+            assert not len(mac_address) < 12, \
+                'Too short mac address: ' + self.base.error_text(str(mac_address))
+
+            assert not len(mac_address) > 17, \
+                'Too long mac address: ' + self.base.error_text(str(mac_address))
+
+            assert not (len(mac_address) != 12 and len(mac_address) != 17), \
+                'Bad length: ' + self.base.error_text(str(len(mac_address))) + \
+                ' of mac address: ' + self.base.error_text(str(mac_address))
+
+            if len(mac_address) == 17:
+                mac_address: str = str(mac_address).lower()
+                assert search('([0-9a-f]{2}[:-]){5}([0-9a-f]{2})', mac_address), \
+                    'Bad MAC address: ' + self.base.error_text(str(mac_address))
+                return unhexlify(mac_address.replace(':', ''))
+
+            if len(mac_address) == 12:
+                mac_address = unhexlify(mac_address)
+                result_mac_address: str = ''
+                for byte_of_address in mac_address:
+                    result_mac_address += '{:02x}'.format(byte_of_address) + ':'
+                return result_mac_address[:-1].lower()
+
+        except AssertionError as Error:
+            if exit_on_failure:
+                self.base.print_error(Error.args[0])
+                exit(1)
+            else:
+                return None
+
+    def get_mac_prefix(self,
+                       mac_address: Union[str, bytes] = '01:23:45:67:89:0a',
+                       prefix_length: int = 3,
+                       exit_on_failure: bool = True) -> Union[None, str]:
+        """
+        Get MAC address prefix string
+        :param mac_address: MAC address string or bytes (example: 'ab:c3:45:67:89:0a' or b'\xab\xc3Eg\x89\n')
+        :param prefix_length: Length bytes of prefix (default: 3)
+        :param exit_on_failure: Exit in case of error (default: True)
+        :return: MAC address prefix string (example: 'ABC345')
+        """
+        try:
+            assert not len(mac_address) < 12, \
+                'Too short mac address: ' + self.base.error_text(str(mac_address))
+
+            assert not len(mac_address) > 17, \
+                'Too long mac address: ' + self.base.error_text(str(mac_address))
+
+            assert not (len(mac_address) != 12 and len(mac_address) != 17), \
+                'Bad length: ' + self.base.error_text(str(len(mac_address))) + \
+                ' of mac address: ' + self.base.error_text(str(mac_address))
+
+            if len(mac_address) == 17:
+                mac_address: str = str(mac_address).lower()
+                assert search('([0-9a-f]{2}[:-]){5}([0-9a-f]{2})', mac_address), \
+                    'Bad MAC address: ' + self.base.error_text(str(mac_address))
+                result_mac_address: str = mac_address.replace(':', '')
+                return result_mac_address[:(prefix_length * 2)].upper()
+
+            if len(mac_address) == 12:
+                mac_address = unhexlify(mac_address)
+                result_mac_address: str = ''
+                for byte_of_address in mac_address[0:prefix_length]:
+                    result_mac_address += '{:02x}'.format(byte_of_address)
+                return result_mac_address.upper()
+
+        except AssertionError as Error:
+            if exit_on_failure:
+                self.base.print_error(Error.args[0])
+                exit(1)
+            else:
+                return None
+
+    def make_header(self,
+                    source_mac: str = '01:23:45:67:89:0a',
+                    destination_mac: str = '01:23:45:67:89:0a',
+                    network_type: int = 2048) -> bytes:
+        """
+        Make Ethernet packet header
+        :param source_mac: Source MAC address string (example: '01:23:45:67:89:0a')
+        :param destination_mac: Destination MAC address string (example: '01:23:45:67:89:0a')
+        :param network_type: Network type integer (example: 2048 - IPv4, 34525 - IPv6)
+        :return: Bytes of packet
+        """
+        return self.convert_mac(destination_mac) + self.convert_mac(source_mac) + pack("!H", network_type)
+
+    def parse_header(self,
+                     packet: bytes,
+                     exit_on_failure: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
+        """
+        Parse Ethernet packet
+        :param packet: Bytes of packet
+        :param exit_on_failure: Exit in case of error (default: False)
+        :return: Parsed Ethernet dictionary (example: {'destination': '01:23:45:67:89:0a', 'source': '01:23:45:67:89:0a', 'type': 2048}) or None if failure
+        """
+        try:
+            assert not len(packet) != self.header_length, \
+                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' normal Ethernet packet length: ' + self.base.success_text(str(self.header_length))
+
+            ethernet_detailed = unpack("!" "6s" "6s" "H", packet)
+
             return {
-                "destination": self.convert_mac(hexlify(ethernet_detailed[0])),
-                "source":      self.convert_mac(hexlify(ethernet_detailed[1])),
-                "type":        int(ethernet_detailed[2])
+                'destination': self.convert_mac(hexlify(ethernet_detailed[0])),
+                'source':      self.convert_mac(hexlify(ethernet_detailed[1])),
+                'type':        int(ethernet_detailed[2])
             }
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
         except IndexError:
-            return None
+            error_text = 'Failed to parse Ethernet packet!'
+
+        if exit_on_failure:
+            self.base.print_error(error_text)
+            exit(1)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
