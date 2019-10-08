@@ -220,7 +220,7 @@ if __name__ == '__main__':
         # region Check file with subdomains list
         if args.subdomains_file is not None:
             assert isfile(args.subdomains_file), \
-                'File with subdomains list:' + base.error_text(args.subdomains_file) + ' not found!'
+                'File with subdomains list: ' + base.error_text(args.subdomains_file) + ' not found!'
         # endregion
 
         # region Check arguments with subdomains
