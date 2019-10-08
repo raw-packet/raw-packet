@@ -179,9 +179,9 @@ class RawEthernet:
         """
         return self
 
-    def get_random_mac(self) -> str:
+    def make_random_mac(self) -> str:
         """
-        Get random MAC address
+        Make random MAC address
         :return: Random MAC address string (example: '01:23:45:67:89:0a')
         """
         mac_prefix = choice(self.macs)
@@ -315,6 +315,8 @@ class RawEthernet:
         if exit_on_failure:
             self.base.print_error(error_text)
             exit(1)
+        else:
+            return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
