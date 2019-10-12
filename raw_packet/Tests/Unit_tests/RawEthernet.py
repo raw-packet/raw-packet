@@ -16,6 +16,7 @@ path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Raw-packet modules
+from raw_packet.Utils.base import Base
 from raw_packet.Utils.network import RawEthernet
 # endregion
 
@@ -41,12 +42,16 @@ __status__ = 'Development'
 class RawEthernetTest(unittest.TestCase):
 
     # region Properties
+    base: Base = Base()
     ethernet: RawEthernet = RawEthernet()
     # endregion
 
     # region Test methods
     def test_init(self):
         self.assertIn('00:18:de', self.ethernet.macs)
+
+    def test_make_random_mac(self):
+        self.assertTrue(self.base.mac_address_validation(self.ethernet.make_random_mac()))
 
     def test_convert_mac(self):
         # Convert string MAC address to bytes
