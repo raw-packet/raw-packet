@@ -713,16 +713,17 @@ class RawIPv4:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed IPv4 header dictionary (example: {'version': 4, 'length': 5, 'dscp_ecn': 0, 'total-length': 28, 'identification': 36143, 'flags': 0, 'fragment-offset': 0, 'time-to-live': 64, 'protocol': 17, 'checksum': 27214, 'source-ip': '192.168.1.1', 'destination-ip': '192.168.1.2'}) or None if error
         """
+        error_text: str = 'Failed to parse IPv4 header!'
         try:
             assert not len(packet) < self.header_length, \
-                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
                 ' minimal IPv4 header length: ' + self.base.success_text(str(self.header_length))
 
             version_and_length = int(unpack('!B', packet[:1])[0])
             version = int(int(version_and_length & 0b11110000) >> 4)
             length = int(int(version_and_length) & 0b00001111)
 
-            assert version == self.version, 'Bad IP version: ' + self.base.error_text(str(version))
+            assert version == self.version, ' Bad IP version: ' + self.base.error_text(str(version))
 
             ip_detailed = unpack('!' 'B' '3H' '2B' 'H' '4s' '4s', packet[1:self.header_length])
 
@@ -742,10 +743,10 @@ class RawIPv4:
             }
 
         except AssertionError as Error:
-            error_text = Error.args[0]
+            error_text += Error.args[0]
 
         except IndexError:
-            error_text = 'Failed to parse IPv4 header!'
+            pass
 
         if not quiet:
             self.base.print_error(error_text)
@@ -757,6 +758,7 @@ class RawIPv4:
     def make_header(self,
                     source_ip: str = '192.168.1.1',
                     destination_ip: str = '192.168.1.2',
+                    identification: Union[None, int] = None,
                     data_len: int = 0,
                     transport_protocol_len: int = 8,
                     transport_protocol_type: int = 17,
@@ -768,6 +770,7 @@ class RawIPv4:
         Make IPv4 packet header
         :param source_ip: Source IPv4 address string (example: '192.168.1.1')
         :param destination_ip: Destination IPv4 address string (example: '192.168.1.1')
+        :param identification: Identification integer or None (default: None)
         :param data_len: Length of data integer (example: 0)
         :param transport_protocol_len: Length of transport protocol header integer (example: 8)
         :param transport_protocol_type: Transport protocol type integer (example: 17 - UDP)
@@ -777,29 +780,71 @@ class RawIPv4:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of packet or None if error
         """
+        error_text: str = 'Failed to make IPv4 header!'
+        ip_header: bytes = b''
         try:
-            source_ip: bytes = inet_aton(source_ip)            # Source port
-            destination_ip: bytes = inet_aton(destination_ip)  # Destination port
+            # Source IPv4
+            source_ip: bytes = inet_aton(source_ip)
 
-            header_length: int = 5  # Internet Header Length
-            dscp_ecn: int = 0       # Differentiated Services Code Point and Explicit Congestion Notification
+            # Destination IPv4
+            destination_ip: bytes = inet_aton(destination_ip)
 
-            total_len = data_len + transport_protocol_len + self.header_length  # Packet length
-            ident = htons(randint(1, 65535))    # Identification
-            flg_frgoff = 0                      # Flags and fragmentation offset
-            protocol = transport_protocol_type  # Transport protocol
-            checksum = 0                        # Checksum
+            # Differentiated Services Code Point and Explicit Congestion Notification
+            dscp_ecn: int = 0
 
-            ip_header = pack('!' '2B' '3H' '2B' 'H' '4s' '4s',
-                             (self.version << 4) + header_length, dscp_ecn, total_len, ident,
-                             flg_frgoff, ttl, protocol, checksum, source_ip, destination_ip)
+            # Packet length
+            total_len = data_len + transport_protocol_len + self.header_length
+
+            # Identification
+            if identification is None:
+                ident = htons(randint(1, 65535))
+            else:
+                assert 1 <= identification <= 65535, \
+                    ' Bad identifation integer: ' + self.base.error_text(str(identification)) + \
+                    ' identification must be in range: ' + self.base.info_text('1 - 65535')
+                ident = htons(identification)
+
+            # Flags and fragmentation offset
+            flg_frgoff = 0
+
+            ip_header += pack('!B', (self.version << 4) + int(self.header_length/4))
+            ip_header += pack('!B', dscp_ecn)
+            ip_header += pack('!H', total_len)
+            ip_header += pack('!H', ident)
+            ip_header += pack('!H', flg_frgoff)
+            ip_header += pack('!B', ttl)
+            ip_header += pack('!B', transport_protocol_type)
+            ip_header += pack('!H', 0)
+            ip_header += pack('4s', source_ip)
+            ip_header += pack('4s', destination_ip)
             checksum = self._checksum(ip_header)
             return pack('!' '2B' '3H' '2B' 'H' '4s' '4s',
-                        (self.version << 4) + header_length, dscp_ecn, total_len, ident,
-                        flg_frgoff, ttl, protocol, checksum, source_ip, destination_ip)
+                        (self.version << 4) + int(self.header_length/4), dscp_ecn, total_len,
+                        ident, flg_frgoff, ttl, transport_protocol_type, checksum, source_ip, destination_ip)
 
-        except struct_error:
-            error_text = 'Failed to make IPv4 header!'
+        except AssertionError as Error:
+            error_text += Error.args[0]
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'total_len' in traceback_text:
+                error_text += ' Bad data length: ' + self.base.error_text(str(data_len)) + \
+                              ' or transport protocol length: ' + self.base.error_text(str(transport_protocol_len))
+            if 'transport_protocol_type' in traceback_text:
+                error_text += ' Bad data transport protocol type: ' + \
+                              self.base.error_text(str(transport_protocol_type)) + \
+                              ' acceptable transport protocol type: ' + \
+                              self.base.info_text('17 - UDP')
+            if 'ttl' in traceback_text:
+                error_text += ' Bad ttl: ' + self.base.error_text(str(ttl)) + \
+                              ' default ttl: ' + self.base.error_text('64')
+
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'source_ip' in traceback_text:
+                error_text += ' Bad source IPv4: ' + self.base.error_text(str(source_ip))
+            if 'destination_ip' in traceback_text:
+                error_text += ' Bad destination IPv4: ' + self.base.error_text(str(destination_ip))
 
         if not quiet:
             self.base.print_error(error_text)
