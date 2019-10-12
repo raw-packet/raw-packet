@@ -17,7 +17,6 @@ from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, 
 from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
-from sys import version_info
 from typing import Dict, List, Union
 # endregion
 
@@ -198,13 +197,13 @@ class RawEthernet:
     def convert_mac(self,
                     mac_address: Union[str, bytes] = '01:23:45:67:89:0a',
                     exit_on_failure: bool = True,
-                    exit_code: int = 21,
+                    exit_code: int = 41,
                     quiet: bool = False) -> Union[None, bytes, str]:
         """
         Convert MAC address string or bytes to bytes
         :param mac_address: MAC address string or bytes (example: '01:23:45:67:89:0a' or b'\x01#Eg\x89\n')
         :param exit_on_failure: Exit in case of error (default: True)
-        :param exit_code: Set exit code integer (default: 21)
+        :param exit_code: Set exit code integer (default: 41)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Result bytes or string (example: b'\x01#Eg\x89\n' or '01:23:45:67:89:0a') or None if error
         """
@@ -243,14 +242,14 @@ class RawEthernet:
                        mac_address: Union[str, bytes] = '01:23:45:67:89:0a',
                        prefix_length: int = 3,
                        exit_on_failure: bool = True,
-                       exit_code: int = 22,
+                       exit_code: int = 42,
                        quiet: bool = False) -> Union[None, str]:
         """
         Get MAC address prefix string
         :param mac_address: MAC address string or bytes (example: 'ab:c3:45:67:89:0a' or b'\xab\xc3Eg\x89\n')
         :param prefix_length: Length bytes of prefix (default: 3)
         :param exit_on_failure: Exit in case of error (default: True)
-        :param exit_code: Set exit code integer (default: 22)
+        :param exit_code: Set exit code integer (default: 42)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: MAC address prefix string (example: 'ABC345') or None if error
         """
@@ -289,13 +288,13 @@ class RawEthernet:
     def parse_header(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 23,
+                     exit_code: int = 43,
                      quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse Ethernet packet
         :param packet: Bytes of packet
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 23)
+        :param exit_code: Set exit code integer (default: 43)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed Ethernet header dictionary (example: {'destination': '01:23:45:67:89:0a', 'source': '01:23:45:67:89:0a', 'type': 2048}) or None if error
         """
@@ -336,7 +335,7 @@ class RawEthernet:
                     destination_mac: str = '01:23:45:67:89:0a',
                     network_type: int = 2048,
                     exit_on_failure: bool = False,
-                    exit_code: int = 24,
+                    exit_code: int = 44,
                     quiet: bool = False) -> Union[None, bytes]:
         """
         Make Ethernet packet header
@@ -344,7 +343,7 @@ class RawEthernet:
         :param destination_mac: Destination MAC address string (example: '01:23:45:67:89:0a')
         :param network_type: Network type integer (example: 2048 - IPv4, 2054 - ARP, 34525 - IPv6)
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 24)
+        :param exit_code: Set exit code integer (default: 44)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of packet or None if error
         """
