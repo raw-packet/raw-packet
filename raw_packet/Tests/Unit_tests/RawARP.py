@@ -79,6 +79,34 @@ class RawARPTest(unittest.TestCase):
         self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0a', '01:23:45:67:89:0a',
                                                '192.168.1.1', '01:23:45:67:890ab', '192.168.1.2', 1, 1, 2048, 6, 4,
                                                False, 46))
+        # Bad sender IP address
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.300', '01:23:45:67:89:0b', '192.168.1.2', 1, 1, 2048, 6, 4,
+                                               False, 46))
+        # Bad target IP address
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.400', 1, 1, 2048, 6, 4,
+                                               False, 46))
+        # Bad ARP opcode
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.2', 123123, 1, 2048, 6, 4,
+                                               False, 46))
+        # Bad hardware type
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.2', 1, 123123, 2048, 6, 4,
+                                               False, 46))
+        # Bad protocol type
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.2', 1, 1, 123123, 6, 4,
+                                               False, 46))
+        # Bad hardware size
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.2', 1, 1, 2048, 123123, 4,
+                                               False, 46))
+        # Bad protocol size
+        self.assertIsNone(self.arp.make_packet('01:23:45:67:89:0a', '01:23:45:67:89:0b', '01:23:45:67:89:0a',
+                                               '192.168.1.1', '01:23:45:67:89:0b', '192.168.1.2', 1, 1, 2048, 6, 123123,
+                                               False, 46))
 
     def test_make_request(self):
         # Normal
