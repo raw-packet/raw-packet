@@ -1,6 +1,6 @@
 # region Description
 """
-base_unit_tests.py: Unit tests for Raw-packet Base class
+Base.py: Unit tests for Raw-packet Base class
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -12,7 +12,7 @@ Copyright 2019, Raw-packet Project
 # region Add project root path
 from sys import path
 from os.path import dirname, abspath
-path.append(dirname(abspath(__file__)))
+path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Raw-packet modules
@@ -24,9 +24,9 @@ from platform import system
 from os import getuid
 from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET
 from subprocess import run, PIPE
-from netaddr import IPNetwork, IPAddress
+from netaddr import IPNetwork
 from time import sleep
-from typing import Dict, List, Union
+from typing import List
 import unittest
 # endregion
 
@@ -44,7 +44,7 @@ __status__ = 'Development'
 # endregion
 
 
-# region Main class - Base
+# region Main class - BaseTest
 class BaseTest(unittest.TestCase):
 
     # region Properties
