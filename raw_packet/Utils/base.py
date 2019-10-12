@@ -17,8 +17,9 @@ from random import choice, randint
 from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
 from netifaces import gateways
 from netaddr import IPNetwork, IPAddress
+from netaddr.core import AddrFormatError
 from struct import pack, error
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, AddressValueError
 from re import match
 import subprocess as sub
 import psutil as ps
@@ -205,80 +206,134 @@ class Base:
 
     # region Check platform and user functions
     @staticmethod
-    def check_platform() -> None:
+    def check_platform(exit_on_failure: bool = True,
+                       exit_code: int = 1,
+                       quiet: bool = False) -> bool:
         """
         Check Python version and OS
-        :return: None
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 1)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: True if OS is Linux or False if not
         """
         if system() != 'Linux':
-            print('This script can run only in Linux platform!')
-            print('Your platform: ' + str(system()) + ' ' + str(release()) + ' not supported!')
-            exit(1)
+            if not quiet:
+                print('This script can run only in Linux platform!')
+                print('Your platform: ' + str(system()) + ' ' + str(release()) + ' not supported!')
+            if exit_on_failure:
+                exit(exit_code)
+            return False
+        return True
 
     @staticmethod
-    def check_user() -> None:
+    def check_user(exit_on_failure: bool = True,
+                   exit_code: int = 2,
+                   quiet: bool = False) -> bool:
         """
         Check user privileges
-        :return: None
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 2)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: True if user is root or False if not
         """
         if getuid() != 0:
-            print('Only root can run this script!')
-            print('You: ' + str(getpwuid(getuid())[0]) + ' can not run this script!')
-            exit(1)
+            if not quiet:
+                print('Only root can run this script!')
+                print('User: ' + str(getpwuid(getuid())[0]) + ' can not run this script!')
+            if exit_on_failure:
+                exit(exit_code)
+            return False
+        return True
     # endregion
 
     # region Pack functions
     @staticmethod
-    def pack8(data: Union[int, str, bytes]) -> bytes:
+    def pack8(data: Union[int, str, bytes],
+              exit_on_failure: bool = True,
+              exit_code: int = 3,
+              quiet: bool = False) -> Union[None, bytes]:
         """
         Pack 8 bit data
         :param data: Input data
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 3)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Packed 8 bit data
         """
         try:
             return pack('B', data)
         except error:
-            print('Bad value for 8 bit pack: ' + str(data))
-            exit(1)
+            if not quiet:
+                print('Bad value for 8 bit pack: ' + str(data))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
     @staticmethod
-    def pack16(data: Union[str, bytes]) -> bytes:
+    def pack16(data: Union[int, str, bytes],
+               exit_on_failure: bool = True,
+               exit_code: int = 4,
+               quiet: bool = False) -> Union[None, bytes]:
         """
         Pack 16 bit data
         :param data: Input data
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 4)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Packed 16 bit data
         """
         try:
             return pack('!H', data)
         except error:
-            print('Bad value for 16 bit pack: ' + str(data))
-            exit(1)
+            if not quiet:
+                print('Bad value for 16 bit pack: ' + str(data))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
     @staticmethod
-    def pack32(data: Union[str, bytes]) -> bytes:
+    def pack32(data: Union[int, str, bytes],
+               exit_on_failure: bool = True,
+               exit_code: int = 5,
+               quiet: bool = False) -> Union[None, bytes]:
         """
         Pack 32 bit data
         :param data: Input data
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 5)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Packed 32 bit data
         """
         try:
             return pack('!I', data)
         except error:
-            print('Bad value for 32 bit pack: ' + str(data))
-            exit(1)
+            if not quiet:
+                print('Bad value for 32 bit pack: ' + str(data))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
     @staticmethod
-    def pack64(data: Union[str, bytes]) -> bytes:
+    def pack64(data: Union[int, str, bytes],
+               exit_on_failure: bool = True,
+               exit_code: int = 6,
+               quiet: bool = False) -> Union[None, bytes]:
         """
         Pack 64 bit data
         :param data: Input data
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 6)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Packed 64 bit data
         """
         try:
             return pack('!Q', data)
         except error:
-            print('Bad value for 64 bit pack: ' + str(data))
-            exit(1)
+            if not quiet:
+                print('Bad value for 64 bit pack: ' + str(data))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
     # endregion
 
     # region Network interface functions
@@ -375,55 +430,73 @@ class Base:
 
     def get_interface_mac_address(self,
                                   interface_name: str = 'eth0',
-                                  exit_on_failure: bool = True) -> Union[None, str]:
+                                  exit_on_failure: bool = True,
+                                  exit_code: int = 7,
+                                  quiet: bool = False) -> Union[None, str]:
         """
         Get MAC address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 7)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: MAC address string (example: '01:23:45:67:89:0a') or None in case of error
         """
         try:
             return str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
+
         except ValueError:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have MAC address!')
-                exit(1)
-            else:
-                return None
+            pass
+
+        except KeyError:
+            pass
+
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have MAC address!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_interface_ip_address(self,
                                  interface_name: str = 'eth0',
-                                 exit_on_failure: bool = True) -> Union[None, str]:
+                                 exit_on_failure: bool = True,
+                                 exit_code: int = 8,
+                                 quiet: bool = False) -> Union[None, str]:
         """
         Get IPv4 address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 8)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
         try:
-            ipv4_address = str(ifaddresses(interface_name)[AF_INET][0]['addr'])
+            return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
 
         except ValueError:
-            ipv4_address = None
+            pass
 
         except KeyError:
-            ipv4_address = None
+            pass
 
-        if ipv4_address is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have IPv4 address!')
-                exit(1)
-        return ipv4_address
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have IP address!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_interface_ipv6_address(self,
                                    interface_name: str = 'eth0',
                                    address_index: int = 0,
-                                   exit_on_failure: bool = False) -> Union[None, str]:
+                                   exit_on_failure: bool = False,
+                                   exit_code: int = 9,
+                                   quiet: bool = False) -> Union[None, str]:
         """
         Get IPv6 address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
         :param address_index: Index of IPv6 address (default: 0)
         :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 9)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 address string (example: 'fd00::1') or None in case of error
         """
         try:
@@ -440,41 +513,55 @@ class Base:
             ipv6_address = None
 
         if ipv6_address is None:
-            if exit_on_failure:
+            if not quiet:
                 self.print_error('Network interface: ', interface_name,
                                  ' does not have IPv6 address with index: ', str(address_index))
-                exit(1)
+            if exit_on_failure:
+                exit(exit_code)
         return ipv6_address
 
     def get_interface_ipv6_link_address(self,
                                         interface_name: str = 'eth0',
-                                        exit_on_failure: bool = True) -> Union[None, str]:
+                                        exit_on_failure: bool = True,
+                                        exit_code: int = 10,
+                                        quiet: bool = False) -> Union[None, str]:
         """
         Get IPv6 link local address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 10)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 link local address string (example: 'fe80::1') or None in case of error
         """
         for address_index in range(0, 10, 1):
-            ipv6_address = self.get_interface_ipv6_address(interface_name, address_index)
+            ipv6_address = self.get_interface_ipv6_address(interface_name=interface_name,
+                                                           address_index=address_index,
+                                                           exit_on_failure=exit_on_failure,
+                                                           exit_code=exit_code,
+                                                           quiet=quiet)
             try:
                 # IPv6 link local address starts with: 'fe80::'
                 if ipv6_address.startswith('fe80::'):
                     return ipv6_address
             except AttributeError:
-                if exit_on_failure:
+                if not quiet:
                     self.print_error('Network interface: ', interface_name, ' does not have IPv6 link local address!')
-                    exit(1)
+                if exit_on_failure:
+                    exit(exit_code)
                 return None
         return None
 
     def get_interface_ipv6_glob_address(self,
                                         interface_name: str = 'eth0',
-                                        exit_on_failure: bool = True) -> Union[None, str]:
+                                        exit_on_failure: bool = True,
+                                        exit_code: int = 11,
+                                        quiet: bool = False) -> Union[None, str]:
         """
         Get IPv6 global address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 11)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 global address string (example: 'fd00::1') or None in case of error
         """
         for address_index in range(0, 10, 1):
@@ -484,9 +571,10 @@ class Base:
                 if not ipv6_address.startswith('fe80::'):
                     return ipv6_address
             except AttributeError:
-                if exit_on_failure:
+                if not quiet:
                     self.print_error('Network interface: ', interface_name, ' does not have IPv6 global address!')
-                    exit(1)
+                if exit_on_failure:
+                    exit(exit_code)
                 return None
         return None
 
@@ -509,221 +597,300 @@ class Base:
         return ipv6_addresses
 
     def make_ipv6_link_address(self,
-                               mac_address: str = '01:23:45:67:89:0a') -> Union[None, str]:
+                               mac_address: str = '01:23:45:67:89:0a',
+                               exit_on_failure: bool = True,
+                               exit_code: int = 12,
+                               quiet: bool = False) -> Union[None, str]:
         """
         Make IPv6 link local address by MAC address
         :param mac_address: MAC address (default: '01:23:45:67:89:0a')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 12)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 link local address string (example: 'fe80::1') or None in case of error
         """
-        if not self.mac_address_validation(mac_address):
+        try:
+            assert self.mac_address_validation(mac_address=mac_address,
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code,
+                                               quiet=quiet), \
+                'Failed to make IPv6 link local address from MAC address: ' + self.error_text(str(mac_address))
+            parts: List[str] = mac_address.split(':')
+            parts.insert(3, 'ff')
+            parts.insert(4, 'fe')
+            parts[0] = '%x' % (int(parts[0], 16) ^ 2)
+            ipv6_parts: List[str] = list()
+            for index in range(0, len(parts), 2):
+                ipv6_parts.append(''.join(parts[index:index + 2]))
+            return 'fe80::%s' % (':'.join(ipv6_parts))
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        if not quiet:
+            self.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
             return None
-        parts: List[str] = mac_address.split(':')
-        parts.insert(3, 'ff')
-        parts.insert(4, 'fe')
-        parts[0] = '%x' % (int(parts[0], 16) ^ 2)
-        ipv6_parts: List[str] = list()
-        for index in range(0, len(parts), 2):
-            ipv6_parts.append(''.join(parts[index:index + 2]))
-        return 'fe80::%s' % (':'.join(ipv6_parts))
 
     def get_interface_netmask(self,
                               interface_name: str = 'eth0',
-                              exit_on_failure: bool = True) -> Union[None, str]:
+                              exit_on_failure: bool = True,
+                              exit_code: int = 13,
+                              quiet: bool = False) -> Union[None, str]:
         """
         Get network interface mask
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 13)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Network interface mask string (example: '255.255.255.0') or None in case of error
         """
         try:
-            network_mask = str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
+            return str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
 
         except ValueError:
-            network_mask = None
+            pass
 
         except KeyError:
-            network_mask = None
+            pass
 
-        if network_mask is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have network mask!')
-                exit(1)
-        return network_mask
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have network mask!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_interface_network(self,
                               interface_name: str = 'eth0',
-                              exit_on_failure: bool = True) -> Union[None, str]:
+                              exit_on_failure: bool = True,
+                              exit_code: int = 14,
+                              quiet: bool = False) -> Union[None, str]:
         """
         Get IPv4 network on interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 14)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 network string (example: '192.168.1.0/24') or None in case of error
         """
         try:
-            netmask = self.get_interface_netmask(interface_name, exit_on_failure)
-            ip_address = self.get_interface_ip_address(interface_name, exit_on_failure)
+            netmask = self.get_interface_netmask(interface_name=interface_name,
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
+            ip_address = self.get_interface_ip_address(interface_name=interface_name,
+                                                       exit_on_failure=exit_on_failure,
+                                                       exit_code=exit_code,
+                                                       quiet=quiet)
             ip = IPNetwork(ip_address + '/' + netmask)
-            network = str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
+            return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
 
         except KeyError:
-            network = None
+            pass
 
         except ValueError:
-            network = None
+            pass
 
         except TypeError:
-            network = None
+            pass
 
-        if network is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
-                exit(1)
-        return network
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_ip_on_interface_by_index(self,
                                      interface_name: str = 'eth0',
                                      index: int = 1,
-                                     exit_on_failure: bool = True) -> Union[None, str]:
+                                     exit_on_failure: bool = True,
+                                     exit_code: int = 15,
+                                     quiet: bool = False) -> Union[None, str]:
         """
         Get IPv4 address on network interface by index of address
         :param interface_name: Network interface name (default: 'eth0')
         :param index: Index of IPv4 address integer (default: 1)
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 15)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
         try:
-            network = IPNetwork(self.get_interface_network(interface_name, exit_on_failure))
-            result_address = str(network[index])
+            network: IPNetwork = IPNetwork(self.get_interface_network(interface_name=interface_name,
+                                                                      exit_on_failure=exit_on_failure,
+                                                                      exit_code=exit_code,
+                                                                      quiet=quiet))
+            return str(network[index])
 
         except KeyError:
-            result_address = None
+            pass
 
         except ValueError:
-            result_address = None
+            pass
 
         except TypeError:
-            result_address = None
+            pass
 
-        if result_address is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
-                exit(1)
-        return result_address
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_first_ip_on_interface(self,
                                   interface_name: str = 'eth0',
-                                  exit_on_failure: bool = True) -> Union[None, str]:
+                                  exit_on_failure: bool = True,
+                                  exit_code: int = 16,
+                                  quiet: bool = False) -> Union[None, str]:
         """
         Get first IPv4 address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 16)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=1,
-                                                 exit_on_failure=exit_on_failure)
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_second_ip_on_interface(self,
                                    interface_name: str = 'eth0',
-                                   exit_on_failure: bool = True) -> Union[None, str]:
+                                   exit_on_failure: bool = True,
+                                   exit_code: int = 17,
+                                   quiet: bool = False) -> Union[None, str]:
         """
         Get second IPv4 address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 17)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.2') or None in case of error
         """
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=2,
-                                                 exit_on_failure=exit_on_failure)
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_penultimate_ip_on_interface(self,
                                         interface_name: str = 'eth0',
-                                        exit_on_failure: bool = True) -> Union[None, str]:
+                                        exit_on_failure: bool = True,
+                                        exit_code: int = 18,
+                                        quiet: bool = False) -> Union[None, str]:
         """
         Get penultimate IPv4 address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 18)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.253') or None in case of error
         """
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=-3,
-                                                 exit_on_failure=exit_on_failure)
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_last_ip_on_interface(self,
                                  interface_name: str = 'eth0',
-                                 exit_on_failure: bool = True) -> Union[None, str]:
+                                 exit_on_failure: bool = True,
+                                 exit_code: int = 19,
+                                 quiet: bool = False) -> Union[None, str]:
         """
         Get last IPv4 address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 19)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.254') or None in case of error
         """
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=-2,
-                                                 exit_on_failure=exit_on_failure)
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_random_ip_on_interface(self,
                                    interface_name: str = 'eth0',
-                                   exit_on_failure: bool = True) -> Union[None, str]:
+                                   exit_on_failure: bool = True,
+                                   exit_code: int = 20,
+                                   quiet: bool = False) -> Union[None, str]:
         """
         Get random IPv4 address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 20)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.123') or None in case of error
         """
         try:
-            network = IPNetwork(self.get_interface_network(interface_name, exit_on_failure))
-            random_index = randint(2, len(network) - 3)
-            result_address = str(network[random_index])
+            network = IPNetwork(self.get_interface_network(interface_name=interface_name,
+                                                           exit_on_failure=exit_on_failure,
+                                                           exit_code=exit_code,
+                                                           quiet=quiet))
+            return str(network[randint(2, len(network) - 3)])
 
         except KeyError:
-            result_address = None
+            pass
 
         except ValueError:
-            result_address = None
+            pass
 
         except TypeError:
-            result_address = None
+            pass
 
-        if result_address is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
-                exit(1)
-        return result_address
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have IPv4 address or network mask!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_interface_broadcast(self,
                                 interface_name: str = 'eth0',
-                                exit_on_failure: bool = True) -> Union[None, str]:
+                                exit_on_failure: bool = True,
+                                exit_code: int = 21,
+                                quiet: bool = False) -> Union[None, str]:
         """
         Get IPv4 broadcast address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 21)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.255') or None in case of error
         """
         try:
-            broadcast = str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
+            return str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
 
         except KeyError:
-            broadcast = None
+            pass
 
         except ValueError:
-            broadcast = None
+            pass
 
-        if broadcast is None:
-            if exit_on_failure:
-                self.print_error('Network interface: ', interface_name, ' does not have broadcast address!')
-                exit(1)
-        return broadcast
+        if not quiet:
+            self.print_error('Network interface: ', interface_name, ' does not have broadcast address!')
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def get_interface_gateway(self,
                               interface_name: str = 'eth0',
+                              network_type: int = AF_INET,
                               exit_on_failure: bool = True,
-                              network_type: int = AF_INET) -> Union[None, str]:
+                              exit_code: int = 22,
+                              quiet: bool = False) -> Union[None, str]:
         """
         Get gateway address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
         :param network_type: Set network type AF_INET for IPv4 network or AF_INET6 for IPv6 (default: AF_INET)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 22)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: Address string (example: '192.168.1.254') or None in case of error
         """
         try:
@@ -746,110 +913,156 @@ class Base:
             gateway_address = None
 
         if gateway_address is None:
-            if exit_on_failure:
+            if not quiet:
                 self.print_error('Network interface: ', interface_name, ' does not have IPv4 gateway!')
-                exit(1)
+            if exit_on_failure:
+                exit(exit_code)
         return gateway_address
 
     def get_interface_ipv4_gateway(self,
                                    interface_name: str = 'eth0',
-                                   exit_on_failure: bool = True) -> Union[None, str]:
+                                   exit_on_failure: bool = True,
+                                   exit_code: int = 23,
+                                   quiet: bool = False) -> Union[None, str]:
         """
         Get IPv4 gateway address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 23)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.254') or None in case of error
         """
         return self.get_interface_gateway(interface_name=interface_name,
+                                          network_type=AF_INET,
                                           exit_on_failure=exit_on_failure,
-                                          network_type=AF_INET)
+                                          exit_code=exit_code,
+                                          quiet=quiet)
 
     def get_interface_ipv6_gateway(self,
                                    interface_name: str = 'eth0',
-                                   exit_on_failure: bool = True) -> Union[None, str]:
+                                   exit_on_failure: bool = True,
+                                   exit_code: int = 24,
+                                   quiet: bool = False) -> Union[None, str]:
         """
         Get IPv6 gateway address on network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 24)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 address string (example: 'fd00::1') or None in case of error
         """
         return self.get_interface_gateway(interface_name=interface_name,
+                                          network_type=AF_INET6,
                                           exit_on_failure=exit_on_failure,
-                                          network_type=AF_INET6)
+                                          exit_code=exit_code,
+                                          quiet=quiet)
 
     # endregion
 
     # region Check installed software
     def apt_list_installed_packages(self,
-                                    exit_on_failure: bool = True) -> Union[None, bytes]:
+                                    exit_on_failure: bool = True,
+                                    exit_code: int = 25,
+                                    quiet: bool = False) -> Union[None, bytes]:
         """
         Get output of bash command: apt list --installed
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 25)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: result bytes
         """
-        apt_list_out = None
         try:
-            apt_list = sub.Popen(['apt list --installed'], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
-            apt_list_out, apt_list_err = apt_list.communicate()
-        except OSError:
-            if exit_on_failure:
-                self.print_error('Something else went wrong while trying to run ', '`apt list --installed`')
-                exit(1)
-        if apt_list_out is not None:
+            apt_list_command = sub.Popen(['apt list --installed'], shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+            apt_list_out, apt_list_err = apt_list_command.communicate()
+            assert apt_list_out is not None, \
+                'Something else went wrong while trying to run command: ' + \
+                self.error_text('`apt list --installed`')
             self.os_installed_packages_list = apt_list_out
-        return apt_list_out
+            return apt_list_out
+
+        except OSError:
+            error_text = 'Something else went wrong while trying to run command: ' + \
+                         self.error_text('`apt list --installed`')
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        if not quiet:
+            self.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def check_installed_software(self,
-                                 software_name: str = 'apache2',
-                                 exit_on_failure: bool = True) -> bool:
+                                 software_name: str = 'python3',
+                                 exit_on_failure: bool = True,
+                                 exit_code: int = 26,
+                                 quiet: bool = False) -> bool:
         """
         Check software is installed or not
         :param software_name: Name of software (default: 'apache2')
-        :param exit_on_failure: Exit in case of error (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 26)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True or False
         """
-        self.check_platform()
+        try:
+            assert self.check_platform(exit_on_failure=exit_on_failure,
+                                       exit_code=exit_code,
+                                       quiet=quiet), \
+                'This is not a Linux platform'
 
-        if 'Kali' or 'Ubuntu' or 'Debian' in linux_distribution():
+            assert not ('Kali' in linux_distribution()
+                        or 'Debian' in linux_distribution()
+                        or 'Ubuntu' in linux_distribution()), \
+                'Unable to verify OS installed software. ' + \
+                'This function works normal only in Debian, Ubuntu or Kali linux.'
 
             if self.os_installed_packages_list is None:
                 self.apt_list_installed_packages(exit_on_failure)
 
-            if self.os_installed_packages_list is None:
-                if exit_on_failure:
-                    self.print_error('Unable to verify OS installed software.')
-                    exit(1)
+            assert self.os_installed_packages_list is not None, 'Unable to verify OS installed software.'
 
-            else:
-                if software_name.encode(encoding='utf-8') in self.os_installed_packages_list:
-                    return True
-                else:
-                    if isfile('/bin/' + software_name) or isfile('/sbin/' + software_name) or \
-                            isfile('/usr/bin/' + software_name) or isfile('/usr/sbin/' + software_name) or \
-                            isfile('/usr/local/bin/' + software_name) or isfile('/usr/local/sbin/' + software_name):
-                        return True
-                    else:
-                        return False
-
-        else:
-            self.print_warning('Unable to verify OS installed software. ' +
-                               'This function works normal only in Debian, Ubuntu or Kali linux.')
-
-            if isfile('/bin/' + software_name) or isfile('/sbin/' + software_name) or \
-                    isfile('/usr/bin/' + software_name) or isfile('/usr/sbin/' + software_name) or \
-                    isfile('/usr/local/bin/' + software_name) or isfile('/usr/local/sbin/' + software_name):
+            if software_name.encode(encoding='utf-8') in self.os_installed_packages_list:
                 return True
             else:
+                if isfile('/bin/' + software_name) or isfile('/sbin/' + software_name) or \
+                        isfile('/usr/bin/' + software_name) or isfile('/usr/sbin/' + software_name) or \
+                        isfile('/usr/local/bin/' + software_name) or isfile('/usr/local/sbin/' + software_name):
+                    return True
+                else:
+                    return False
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+            if 'Debian, Ubuntu or Kali linux' in error_text:
+                if not quiet:
+                    self.print_warning(error_text)
+
+                if isfile('/bin/' + software_name) or isfile('/sbin/' + software_name) or \
+                        isfile('/usr/bin/' + software_name) or isfile('/usr/sbin/' + software_name) or \
+                        isfile('/usr/local/bin/' + software_name) or isfile('/usr/local/sbin/' + software_name):
+                    return True
+                else:
+                    return False
+
+            else:
+                if not quiet:
+                    self.print_error(error_text)
+                if exit_on_failure:
+                    exit(exit_code)
                 return False
+
     # endregion
 
     # region Process control functions
     @staticmethod
-    def check_process(process_name: str = 'apache2') -> int:
+    def check_process(process_name: str = 'systemd') -> int:
         """
         Check process is running
-        :param process_name: Process name string (default: 'apache2')
-        :return: Process ID integer (example: 1234)
+        :param process_name: Process name string (default: 'systemd')
+        :return: Process ID integer (example: 1)
         """
         for process in ps.process_iter():
             if 'python' in process.name():
@@ -860,7 +1073,7 @@ class Base:
                 return int(process.pid)
         return -1
 
-    def get_process_pid(self, process_name: str = 'apache2') -> int:
+    def get_process_pid(self, process_name: str = 'systemd') -> int:
         """
         Get process ID
         :param process_name: Process name string (default: 'apache2')
@@ -868,19 +1081,33 @@ class Base:
         """
         return self.check_process(process_name)
 
-    @staticmethod
-    def get_process_pid_by_listen_port(listen_port: int = 80,
+    def get_process_pid_by_listen_port(self,
+                                       listen_port: int = 80,
                                        listen_address: Union[None, str] = None,
-                                       listen_proto: str = 'tcp') -> List[int]:
+                                       listen_proto: Union[None, str] = None,
+                                       exit_on_failure: bool = True,
+                                       exit_code: int = 27,
+                                       quiet: bool = False) -> Union[None, List[int]]:
         """
         Get list of processes ID by listen TCP or UDP port
         :param listen_port: Listening TCP or UDP port integer (default: 80)
         :param listen_address: Listening IPv4 or IPv6 address string (default: None)
         :param listen_proto: Listening protocol string 'tcp' or 'udp' (default: 'tcp')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 27)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: List of processes ID by listen TCP or UDP port
         """
         pids: List[int] = list()
         try:
+            assert 1 < listen_port < 65535, \
+                'Bad listen port: ' + self.error_text(str(listen_port)) + \
+                ' listen port must be in range: ' + self.info_text('1 - 65535')
+            assert (listen_proto is None or listen_proto == 'tcp' or listen_proto == 'udp'), \
+                'Bad value in listen proto: ' + self.error_text(str(listen_proto)) + \
+                ' listen proto must be ' + self.info_text('None' + ' or ' + '\'tcp\'' + ' or ' + '\'udp\'')
+            if listen_proto is None:
+                listen_proto = 'tcp'
             for process in ps.process_iter():
                 connections = process.connections()
                 for connection in connections:
@@ -901,8 +1128,16 @@ class Base:
                         if proto == listen_proto and port == listen_port and process.pid is not None:
                             pids.append(process.pid)
             return pids
+
         except ps.NoSuchProcess:
             return pids
+
+        except AssertionError as Error:
+            if not quiet:
+                self.print_error(Error.args[0])
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
     @staticmethod
     def kill_process(process_pid: int) -> bool:
@@ -926,7 +1161,9 @@ class Base:
         """
         process_pid = self.get_process_pid(process_name)
         if process_pid != -1:
-            return self.kill_process(process_pid)
+            while (self.get_process_pid(process_name) != -1):
+                self.kill_process(process_pid)
+            return True
         else:
             return False
 
@@ -942,149 +1179,275 @@ class Base:
         :return: True if kill all processes or False if not
         """
         # Get pids all process and kill
-        pids: List[int] = self.get_process_pid_by_listen_port(listen_port, listen_address, listen_proto)
-        if len(pids) > 0:
-            for pid in pids:
-                self.kill_process(pid)
-
-        pids: List[int] = self.get_process_pid_by_listen_port(listen_port, listen_address, listen_proto)
-        if len(pids) > 0:
-            return False
-        else:
+        pid_list: List[int] = self.get_process_pid_by_listen_port(listen_port, listen_address, listen_proto)
+        if len(pid_list) > 0:
+            for pid in pid_list:
+                if not self.kill_process(pid):
+                    return False
             return True
+        else:
+            return False
+
     # endregion
 
     # region Others functions
-    @staticmethod
-    def ipv6_address_validation(ipv6_address: str) -> bool:
+    def ipv6_address_validation(self,
+                                ipv6_address: str = 'fd00::1',
+                                exit_on_failure: bool = False,
+                                exit_code: int = 28,
+                                quiet: bool = False) -> bool:
         """
         Validate IPv6 address string
         :param ipv6_address: IPv6 address string (example: 'fd00::1')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 28)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if a valid IPv6 address or False if not
         """
         try:
             sock.inet_pton(sock.AF_INET6, ipv6_address)
             return True
         except sock.error:
+            if not quiet:
+                self.print_error('Failed to validate IPv6 address: ', str(ipv6_address))
+            if exit_on_failure:
+                exit(exit_code)
             return False
 
-    @staticmethod
-    def ip_address_validation(ip_address: str) -> bool:
+    def ip_address_validation(self,
+                              ip_address: str = '192.168.1.1',
+                              exit_on_failure: bool = False,
+                              exit_code: int = 29,
+                              quiet: bool = False) -> bool:
         """
         Validate IPv4 address string
         :param ip_address: IPv4 address string (example: '192.168.1.1')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 29)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if a valid IPv4 address or False if not
         """
         try:
             sock.inet_aton(ip_address)
             return True
         except sock.error:
+            if not quiet:
+                self.print_error('Failed to validate IP address: ', str(ip_address))
+            if exit_on_failure:
+                exit(exit_code)
             return False
 
-    @staticmethod
-    def mac_address_validation(mac_address: str) -> bool:
+    def mac_address_validation(self,
+                               mac_address: str = '01:23:45:67:89:0a',
+                               exit_on_failure: bool = False,
+                               exit_code: int = 30,
+                               quiet: bool = False) -> bool:
         """
         Validate MAC address string
         :param mac_address: MAC address string (example: '01:23:45:67:89:0a')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 10)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if a valid MAC address or False if not
         """
         if match(r'^([0-9a-fA-F]{2}[:]){5}([0-9a-fA-F]{2})$', mac_address):
             return True
         else:
+            if not quiet:
+                self.print_error('Failed to validate MAC address: ', str(mac_address))
+            if exit_on_failure:
+                exit(exit_code)
             return False
 
-    @staticmethod
-    def ip_address_in_range(ip_address: str,
-                            first_ip_address: str,
-                            last_ip_address: str) -> bool:
+    def ip_address_in_range(self,
+                            ip_address: str = '192.168.1.2',
+                            first_ip_address: str = '192.168.1.1',
+                            last_ip_address: str = '192.168.1.3',
+                            exit_on_failure: bool = False,
+                            exit_code: int = 31,
+                            quiet: bool = False) -> bool:
         """
         Check IPv4 address in range
-        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :param ip_address: IPv4 address string (example: '192.168.1.2')
         :param first_ip_address: First IPv4 address in range (example: '192.168.1.1')
-        :param last_ip_address: Last IPv4 address in range (example: '192.168.1.254')
+        :param last_ip_address: Last IPv4 address in range (example: '192.168.1.3')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 31)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if IPv4 address in range or False if not
         """
-        if IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address):
+        try:
+            assert (IPv4Address(first_ip_address) <= IPv4Address(ip_address) <= IPv4Address(last_ip_address)), \
+                'IP address: ' + self.error_text(str(ip_address)) + \
+                ' not in range: ' + self.error_text(str(first_ip_address) + ' - ' + str(last_ip_address))
             return True
-        else:
-            return False
 
-    @staticmethod
-    def ip_address_in_network(ip_address: str, network: str) -> bool:
+        except AddressValueError:
+            error_text = 'Bad IPv4 address in input parameters!'
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        if not quiet:
+            self.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return False
+
+    def ip_address_in_network(self,
+                              ip_address: str = '192.168.1.1',
+                              network: str = '192.168.1.0/24',
+                              exit_on_failure: bool = False,
+                              exit_code: int = 32,
+                              quiet: bool = False) -> bool:
         """
         Check IPv4 address in network
-        :param ip_address: IPv4 address string (example: '192.168.1.123')
+        :param ip_address: IPv4 address string (example: '192.168.1.1')
         :param network: IPv4 network string (example: '192.168.1.0/24')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 32)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if IPv4 address in network or False if not
         """
-        return IPAddress(ip_address) in IPNetwork(network)
+        try:
+            assert IPAddress(ip_address) in IPNetwork(network), \
+                'IPv4 address: ' + self.error_text(str(ip_address)) + \
+                ' not in IPv4 network: ' + self.error_text(str(network))
+            return True
 
-    @staticmethod
-    def ip_address_increment(ip_address: str) -> str:
+        except AddressValueError:
+            error_text = 'Bad IPv4 address: ' + self.error_text(str(ip_address))
+
+        except AddrFormatError:
+            error_text = 'Bad IPv4 network: ' + self.error_text(str(network)) + \
+                         ' or IPv4 address: ' + self.error_text(str(ip_address)) + \
+                         ' not in IPv4 network: ' + self.error_text(str(network))
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        if not quiet:
+            self.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return False
+
+    def ip_address_increment(self,
+                             ip_address: str = '192.168.1.1',
+                             exit_on_failure: bool = False,
+                             exit_code: int = 33,
+                             quiet: bool = False) -> Union[None, str]:
         """
         Increment IPv4 address
-        :param ip_address: IPv4 address string (example: '192.168.1.123')
-        :return: IPv4 address string (example: '192.168.1.124')
+        :param ip_address: IPv4 address string (example: '192.168.1.1')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 33)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: IPv4 address string (example: '192.168.1.2')
         """
-        return str(IPv4Address(ip_address) + 1)
+        try:
+            return str(IPv4Address(ip_address) + 1)
+        except AddressValueError:
+            if quiet:
+                self.print_error('Bad IPv4 address: ', str(ip_address))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
-    @staticmethod
-    def ip_address_decrement(ip_address: str) -> str:
+    def ip_address_decrement(self,
+                             ip_address: str = '192.168.1.2',
+                             exit_on_failure: bool = False,
+                             exit_code: int = 34,
+                             quiet: bool = False) -> Union[None, str]:
         """
         Decrement IPv4 address
-        :param ip_address: IPv4 address string (example: '192.168.1.123')
-        :return: IPv4 address string (example: '192.168.1.122')
+        :param ip_address: IPv4 address string (example: '192.168.1.2')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 33)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: IPv4 address string (example: '192.168.1.1')
         """
-        return str(IPv4Address(ip_address) - 1)
+        try:
+            return str(IPv4Address(ip_address) - 1)
+        except AddressValueError:
+            if quiet:
+                self.print_error('Bad IPv4 address: ', str(ip_address))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
-    @staticmethod
-    def ip_address_compare(first_ip_address: str, second_ip_address: str, operator: str = 'eq') -> bool:
+    def ip_address_compare(self,
+                           first_ip_address: str = '192.168.1.1',
+                           second_ip_address: str = '192.168.1.1',
+                           operator: str = 'eq',
+                           exit_on_failure: bool = False,
+                           exit_code: int = 35,
+                           quiet: bool = False) -> bool:
         """
         Compare IPv4 addresses
         :param first_ip_address: First IPv4 address for compare (example: 192.168.0.1)
         :param second_ip_address: Second IPv4 address for compare (example: 192.168.0.2)
         :param operator: eq - equal; ne - not equal; gt - greater; ge - greater or equal; lt - less; le - less or equal (default: eq)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 33)
+        :param quiet: Quiet mode, if True no console output (default: False)
         :return: True or False
         """
+        try:
+            assert (operator == 'eq' or operator == 'ne' or operator == 'gt' or operator == 'ge'
+                    or operator == 'lt' or operator == 'le'), \
+                'Bad operator: ' + self.error_text(str(operator)) + \
+                ' acceptable operator values: ' + self.info_text('eq - equal; ne - not equal; ' +
+                                                                 'gt - greater; ge - greater or equal; ' +
+                                                                 'lt - less; le - less or equal')
 
-        if operator == 'eq':
-            if IPv4Address(first_ip_address) == IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            if operator == 'eq':
+                if IPv4Address(first_ip_address) == IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        elif operator == 'ne':
-            if IPv4Address(first_ip_address) != IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            elif operator == 'ne':
+                if IPv4Address(first_ip_address) != IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        elif operator == 'gt':
-            if IPv4Address(first_ip_address) > IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            elif operator == 'gt':
+                if IPv4Address(first_ip_address) > IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        elif operator == 'ge':
-            if IPv4Address(first_ip_address) >= IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            elif operator == 'ge':
+                if IPv4Address(first_ip_address) >= IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        elif operator == 'lt':
-            if IPv4Address(first_ip_address) < IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            elif operator == 'lt':
+                if IPv4Address(first_ip_address) < IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        elif operator == 'le':
-            if IPv4Address(first_ip_address) <= IPv4Address(second_ip_address):
-                return True
-            else:
-                return False
+            elif operator == 'le':
+                if IPv4Address(first_ip_address) <= IPv4Address(second_ip_address):
+                    return True
+                else:
+                    return False
 
-        else:
-            return False
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        except AddressValueError:
+            error_text = 'Bad ip address in input parameters'
+
+        if not quiet:
+            self.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return False
 
     def make_random_string(self, length: int = 8) -> str:
         """
