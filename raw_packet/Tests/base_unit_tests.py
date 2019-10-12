@@ -396,15 +396,46 @@ class BaseTest(unittest.TestCase):
         self.assertIsNone(self.base.ip_address_decrement('192.168.1.1.1', False, 34))
 
     def test_ip_address_compare(self):
-        # Normal equal
-        self.assertTrue(self.base.ip_address_compare('192.168.1.1', '192.168.1.1', 'eq', True, 35))
-        # Not equal
-        self.assertFalse(self.base.ip_address_compare('192.168.1.1', '192.168.1.2', 'eq', False, 35))
         # Bad first address equal
         self.assertFalse(self.base.ip_address_compare('192.168.1.1.1', '192.168.1.2', 'eq', False, 35))
         # Bad second address equal
         self.assertFalse(self.base.ip_address_compare('192.168.1.1', '192.168.1.2.2', 'eq', False, 35))
 
+        # Normal equal
+        self.assertTrue(self.base.ip_address_compare('192.168.1.1', '192.168.1.1', 'eq', True, 35))
+        # Not equal
+        self.assertFalse(self.base.ip_address_compare('192.168.1.1', '192.168.1.2', 'eq', False, 35))
+
+        # Normal not equal
+        self.assertTrue(self.base.ip_address_compare('192.168.1.1', '192.168.1.2', 'ne', True, 35))
+        # Equal
+        self.assertFalse(self.base.ip_address_compare('192.168.1.1', '192.168.1.1', 'ne', False, 35))
+
+        # Normal greater
+        self.assertTrue(self.base.ip_address_compare('192.168.1.2', '192.168.1.1', 'gt', True, 35))
+        # Not greater
+        self.assertFalse(self.base.ip_address_compare('192.168.1.2', '192.168.1.2', 'gt', False, 35))
+
+        # Normal greater or equal
+        self.assertTrue(self.base.ip_address_compare('192.168.1.2', '192.168.1.1', 'ge', True, 35))
+        # Not greater or equal
+        self.assertFalse(self.base.ip_address_compare('192.168.1.2', '192.168.1.3', 'ge', False, 35))
+
+        # Normal less
+        self.assertTrue(self.base.ip_address_compare('192.168.1.1', '192.168.1.2', 'lt', True, 35))
+        # Not less
+        self.assertFalse(self.base.ip_address_compare('192.168.1.2', '192.168.1.2', 'lt', False, 35))
+
+        # Normal less or equal
+        self.assertTrue(self.base.ip_address_compare('192.168.1.1', '192.168.1.2', 'le', True, 35))
+        # Not less or equal
+        self.assertFalse(self.base.ip_address_compare('192.168.1.2', '192.168.1.1', 'le', False, 35))
+
+    def test_make_random_string(self):
+        self.assertEqual(len(self.base.make_random_string(8)), 8)
+
+    def test_get_mac_prefixes(self):
+        self.assertIn({'prefix': '0050BA', 'vendor': 'D-Link'}, self.base.get_mac_prefixes('mac-prefixes.txt'))
     # endregion
 
     # region End of tests
