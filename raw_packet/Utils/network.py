@@ -18,6 +18,7 @@ from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
 from typing import Dict, List, Union
+from traceback import format_tb
 # endregion
 
 # region Authorship information
@@ -503,6 +504,8 @@ class RawARP:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of ARP packet or None if error
         """
+        error_text = 'Failed to make ARP packet!'
+        arp_packet: bytes = b''
         try:
             sender_ip = inet_aton(sender_ip)
             target_ip = inet_aton(target_ip)
@@ -514,7 +517,12 @@ class RawARP:
                                               exit_on_failure=exit_on_failure,
                                               exit_code=exit_code,
                                               quiet=quiet)
-            arp_packet = pack('!' '2H' '2B' 'H', hardware_type, protocol_type, hardware_size, protocol_size, opcode)
+
+            arp_packet += pack('!H', hardware_type)
+            arp_packet += pack('!H', protocol_type)
+            arp_packet += pack('!B', hardware_size)
+            arp_packet += pack('!B', protocol_size)
+            arp_packet += pack('!H', opcode)
             arp_packet += sender_mac + pack('!' '4s', sender_ip)
             arp_packet += target_mac + pack('!' '4s', target_ip)
 
@@ -527,10 +535,32 @@ class RawARP:
             return eth_header + arp_packet
 
         except TypeError:
-            error_text = 'Failed to make ARP packet!'
+            pass
 
-        except struct_error:
-            error_text = 'Failed to make ARP packet!'
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'opcode' in traceback_text:
+                error_text += ' Bad opcode: ' + self.base.error_text(str(opcode)) + \
+                              ' acceptable opcodes: ' + self.base.info_text('1 - request, 2 - response')
+            if 'hardware_type' in traceback_text:
+                error_text += ' Bad hardware type: ' + self.base.error_text(str(hardware_type)) + \
+                              ' acceptable hardware type: ' + self.base.info_text('1 - Ethernet')
+            if 'protocol_type' in traceback_text:
+                error_text += ' Bad protocol type: ' + self.base.error_text(str(protocol_type)) + \
+                              ' acceptable protocol type: ' + self.base.info_text('2048 - IPv4 protocol')
+            if 'hardware_size' in traceback_text:
+                error_text += ' Bad hardware size: ' + self.base.error_text(str(hardware_size)) + \
+                              ' acceptable hardware size: ' + self.base.info_text('6')
+            if 'protocol_size' in traceback_text:
+                error_text += ' Bad protocol size: ' + self.base.error_text(str(protocol_size)) + \
+                              ' acceptable protocol size: ' + self.base.info_text('4')
+
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'sender_ip' in traceback_text:
+                error_text += ' Bad sender IP: ' + self.base.error_text(str(sender_ip))
+            if 'target_ip' in traceback_text:
+                error_text += ' Bad target IP: ' + self.base.error_text(str(target_ip))
 
         if not quiet:
             self.base.print_error(error_text)
@@ -648,7 +678,7 @@ class RawIPv4:
     # endregion
 
     @staticmethod
-    def get_random_ip() -> str:
+    def make_random_ip() -> str:
         """
         Get random IPv4 address string
         :return: Random IPv4 address string (example: '123.123.123.123')
@@ -656,7 +686,7 @@ class RawIPv4:
         return '.'.join(str(randint(0, 255)) for _ in range(4))
 
     @staticmethod
-    def checksum(packet: bytes) -> int:
+    def _checksum(packet: bytes) -> int:
         """
         Calculate packet checksum
         :param packet: Bytes of packet
@@ -673,13 +703,13 @@ class RawIPv4:
     def parse_header(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 29,
+                     exit_code: int = 49,
                      quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse IPv4 header
         :param packet: Bytes of packet
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 29)
+        :param exit_code: Set exit code integer (default: 49)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed IPv4 header dictionary (example: {'version': 4, 'length': 5, 'dscp_ecn': 0, 'total-length': 28, 'identification': 36143, 'flags': 0, 'fragment-offset': 0, 'time-to-live': 64, 'protocol': 17, 'checksum': 27214, 'source-ip': '192.168.1.1', 'destination-ip': '192.168.1.2'}) or None if error
         """
@@ -732,7 +762,7 @@ class RawIPv4:
                     transport_protocol_type: int = 17,
                     ttl: int = 64,
                     exit_on_failure: bool = False,
-                    exit_code: int = 30,
+                    exit_code: int = 50,
                     quiet: bool = False) -> Union[None, bytes]:
         """
         Make IPv4 packet header
@@ -743,7 +773,7 @@ class RawIPv4:
         :param transport_protocol_type: Transport protocol type integer (example: 17 - UDP)
         :param ttl: Time to live (default: 64)
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 30)
+        :param exit_code: Set exit code integer (default: 50)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of packet or None if error
         """
@@ -763,7 +793,7 @@ class RawIPv4:
             ip_header = pack('!' '2B' '3H' '2B' 'H' '4s' '4s',
                              (self.version << 4) + header_length, dscp_ecn, total_len, ident,
                              flg_frgoff, ttl, protocol, checksum, source_ip, destination_ip)
-            checksum = self.checksum(ip_header)
+            checksum = self._checksum(ip_header)
             return pack('!' '2B' '3H' '2B' 'H' '4s' '4s',
                         (self.version << 4) + header_length, dscp_ecn, total_len, ident,
                         flg_frgoff, ttl, protocol, checksum, source_ip, destination_ip)
