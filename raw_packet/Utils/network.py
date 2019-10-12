@@ -422,13 +422,13 @@ class RawARP:
     def parse_packet(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 25,
+                     exit_code: int = 45,
                      quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse ARP packet
         :param packet: Bytes of packet
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 25)
+        :param exit_code: Set exit code integer (default: 45)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed ARP packet dictionary or None if error
         """
@@ -483,7 +483,7 @@ class RawARP:
                     hardware_size: int = 6,
                     protocol_size: int = 4,
                     exit_on_failure: bool = False,
-                    exit_code: int = 26,
+                    exit_code: int = 46,
                     quiet: bool = False) -> Union[None, bytes]:
         """
         Make ARP packet bytes
@@ -499,7 +499,7 @@ class RawARP:
         :param hardware_size: Size of hardware address integer (default: 6)
         :param protocol_size: Size of network protocol address integer (default: 4)
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 26)
+        :param exit_code: Set exit code integer (default: 46)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of ARP packet or None if error
         """
@@ -520,8 +520,9 @@ class RawARP:
 
             eth_header = self.eth.make_header(source_mac=ethernet_src_mac,
                                               destination_mac=ethernet_dst_mac,
-                                              network_type=2054,
+                                              network_type=self.packet_type,
                                               exit_on_failure=exit_on_failure,
+                                              exit_code=exit_code,
                                               quiet=quiet)
             return eth_header + arp_packet
 
@@ -546,7 +547,7 @@ class RawARP:
                      target_mac: str = '01:23:45:67:89:0b',
                      target_ip: str = '192.168.1.2',
                      exit_on_failure: bool = False,
-                     exit_code: int = 27,
+                     exit_code: int = 47,
                      quiet: bool = False) -> Union[None, bytes]:
         """
         Make ARP request packet bytes
@@ -557,7 +558,7 @@ class RawARP:
         :param target_mac: Target MAC address string in ARP packet (example: '01:23:45:67:89:0b')
         :param target_ip: Target IP address string in ARP packet (example: '192.168.1.2')
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 27)
+        :param exit_code: Set exit code integer (default: 47)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of ARP request packet or None if error
         """
@@ -580,7 +581,7 @@ class RawARP:
                       target_mac: str = '01:23:45:67:89:0b',
                       target_ip: str = '192.168.1.2',
                       exit_on_failure: bool = False,
-                      exit_code: int = 28,
+                      exit_code: int = 48,
                       quiet: bool = False) -> Union[None, bytes]:
         """
         Make ARP response packet bytes
@@ -591,7 +592,7 @@ class RawARP:
         :param target_mac: Target MAC address string in ARP packet (example: '01:23:45:67:89:0b')
         :param target_ip: Target IP address string in ARP packet (example: '192.168.1.2')
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 28)
+        :param exit_code: Set exit code integer (default: 48)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of ARP response packet or None if error
         """
