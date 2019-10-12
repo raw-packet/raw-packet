@@ -433,9 +433,10 @@ class RawARP:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed ARP packet dictionary or None if error
         """
+        error_text: str = 'Failed to parse ARP packet!'
         try:
             assert not len(packet) != self.packet_length, \
-                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
                 ' normal ARP packet length: ' + self.base.success_text(str(self.packet_length))
 
             arp_detailed = unpack('!' '2H' '2B' 'H' '6s' '4s' '6s' '4s', packet)
@@ -459,10 +460,10 @@ class RawARP:
             }
 
         except AssertionError as Error:
-            error_text = Error.args[0]
+            error_text += Error.args[0]
 
         except IndexError:
-            error_text = 'Failed to parse ARP packet!'
+            pass
 
         if not quiet:
             self.base.print_error(error_text)
@@ -504,7 +505,7 @@ class RawARP:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of ARP packet or None if error
         """
-        error_text = 'Failed to make ARP packet!'
+        error_text: str = 'Failed to make ARP packet!'
         arp_packet: bytes = b''
         try:
             sender_ip = inet_aton(sender_ip)
