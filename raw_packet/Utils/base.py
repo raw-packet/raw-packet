@@ -428,6 +428,58 @@ class Base:
     #         frequency = 0
     #     return frequency
 
+    def get_interface_settings(self,
+                               interface_name: str = 'eth0',
+                               exit_on_failure: bool = False,
+                               quiet: bool = False) -> Dict[str, Union[None, str, List[str]]]:
+        """
+        Get network interface settings
+        :param interface_name: Network interface name (default: 'eth0')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Network interface settings (example: {})
+        """
+        return {
+            'MAC address': self.get_interface_mac_address(interface_name=interface_name,
+                                                          exit_on_failure=exit_on_failure,
+                                                          quiet=quiet),
+            'IPv4 address': self.get_interface_ip_address(interface_name=interface_name,
+                                                          exit_on_failure=exit_on_failure,
+                                                          quiet=quiet),
+            'IPv6 link local address': self.get_interface_ipv6_link_address(interface_name=interface_name,
+                                                                            exit_on_failure=exit_on_failure,
+                                                                            quiet=quiet),
+            'IPv6 global address': self.get_interface_ipv6_glob_address(interface_name=interface_name),
+            'IPv6 global addresses': self.get_interface_ipv6_glob_addresses(interface_name=interface_name),
+            'IPv4 netmask': self.get_interface_netmask(interface_name=interface_name,
+                                                       exit_on_failure=exit_on_failure,
+                                                       quiet=quiet),
+            'IPv4 network': self.get_interface_network(interface_name=interface_name,
+                                                       exit_on_failure=exit_on_failure,
+                                                       quiet=quiet),
+            'First IPv4 address': self.get_first_ip_on_interface(interface_name=interface_name,
+                                                                 exit_on_failure=exit_on_failure,
+                                                                 quiet=quiet),
+            'Second IPv4 address': self.get_second_ip_on_interface(interface_name=interface_name,
+                                                                   exit_on_failure=exit_on_failure,
+                                                                   quiet=quiet),
+            'Penultimate IPv4 address': self.get_penultimate_ip_on_interface(interface_name=interface_name,
+                                                                             exit_on_failure=exit_on_failure,
+                                                                             quiet=quiet),
+            'Last IPv4 address': self.get_last_ip_on_interface(interface_name=interface_name,
+                                                               exit_on_failure=exit_on_failure,
+                                                               quiet=quiet),
+            'IPv4 broadcast': self.get_interface_broadcast(interface_name=interface_name,
+                                                           exit_on_failure=exit_on_failure,
+                                                           quiet=quiet),
+            'IPv4 gateway': self.get_interface_ipv4_gateway(interface_name=interface_name,
+                                                            exit_on_failure=exit_on_failure,
+                                                            quiet=quiet),
+            'IPv6 gateway': self.get_interface_ipv6_gateway(interface_name=interface_name,
+                                                            exit_on_failure=exit_on_failure,
+                                                            quiet=quiet)
+        }
+
     def get_interface_mac_address(self,
                                   interface_name: str = 'eth0',
                                   exit_on_failure: bool = True,
@@ -436,7 +488,7 @@ class Base:
         """
         Get MAC address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_on_failure: Exit in case of error (default: True)
         :param exit_code: Set exit code integer (default: 7)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: MAC address string (example: '01:23:45:67:89:0a') or None in case of error
@@ -552,30 +604,27 @@ class Base:
         return None
 
     def get_interface_ipv6_glob_address(self,
-                                        interface_name: str = 'eth0',
-                                        exit_on_failure: bool = True,
-                                        exit_code: int = 11,
-                                        quiet: bool = False) -> Union[None, str]:
+                                        interface_name: str = 'eth0') -> Union[None, str]:
         """
         Get IPv6 global address of the network interface
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 11)
-        :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 global address string (example: 'fd00::1') or None in case of error
         """
-        for address_index in range(0, 10, 1):
-            ipv6_address = self.get_interface_ipv6_address(interface_name, address_index)
-            try:
-                # IPv6 link local address starts with: 'fe80::'
-                if not ipv6_address.startswith('fe80::'):
-                    return ipv6_address
-            except AttributeError:
-                if not quiet:
-                    self.print_error('Network interface: ', interface_name, ' does not have IPv6 global address!')
-                if exit_on_failure:
-                    exit(exit_code)
-                return None
+        address_index: int = 0
+        ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
+                                                                         address_index=address_index,
+                                                                         exit_on_failure=False,
+                                                                         quiet=True)
+        while ipv6_address is not None:
+            # IPv6 link local address starts with: 'fe80::'
+            if not ipv6_address.startswith('fe80::'):
+                return ipv6_address
+            address_index += 1
+            ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
+                                                                             address_index=address_index,
+                                                                             exit_on_failure=False,
+                                                                             quiet=True)
+
         return None
 
     def get_interface_ipv6_glob_addresses(self,
@@ -586,14 +635,21 @@ class Base:
         :return: IPv6 global addresses list (example: ['fd00::1', 'fd00::2'])
         """
         ipv6_addresses: List[str] = list()
-        for address_index in range(0, 10, 1):
-            try:
-                ipv6_address = self.get_interface_ipv6_address(interface_name, address_index)
-                # IPv6 link local address starts with: 'fe80::'
-                if not ipv6_address.startswith('fe80::'):
-                    ipv6_addresses.append(ipv6_address)
-            except AttributeError:
-                break
+        address_index: int = 0
+        ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
+                                                                         address_index=address_index,
+                                                                         exit_on_failure=False,
+                                                                         quiet=True)
+        while ipv6_address is not None:
+            # IPv6 link local address starts with: 'fe80::'
+            if not ipv6_address.startswith('fe80::'):
+                ipv6_addresses.append(ipv6_address)
+            address_index += 1
+            ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
+                                                                             address_index=address_index,
+                                                                             exit_on_failure=False,
+                                                                             quiet=True)
+
         return ipv6_addresses
 
     def make_ipv6_link_address(self,
