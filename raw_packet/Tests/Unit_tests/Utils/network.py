@@ -17,7 +17,7 @@ path.append(dirname(dirname(abspath(__file__))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP
+from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS
 # endregion
 
 # region Import libraries
@@ -48,6 +48,7 @@ class NetworkTest(unittest.TestCase):
     ipv4: RawIPv4 = RawIPv4()
     ipv6: RawIPv6 = RawIPv6()
     udp: RawUDP = RawUDP()
+    dns: RawDNS = RawDNS()
     # endregion
 
     # region Test RawEthernet methods
@@ -96,6 +97,8 @@ class NetworkTest(unittest.TestCase):
         self.assertIsNone(self.ethernet.make_header('30:31:32:33:34567', '36:37:38:39:40:41', 2048, False, 44))
         # Bad second MAC address bytes
         self.assertIsNone(self.ethernet.make_header('30:31:32:33:34:56', '36:37:38:39:40123', 2048, False, 44))
+        # Bad network type
+        self.assertIsNone(self.ethernet.make_header('30:31:32:33:34:56', '36:37:38:39:40:41', 123123, False, 44))
     # endregion
 
     # region Test RawARP methods
@@ -198,22 +201,38 @@ class NetworkTest(unittest.TestCase):
 
     def test_ipv4_make_header(self):
         # Normal
-        self.assertEqual(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 1, 0, 8, 17, 64, True, 50),
+        self.assertEqual(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=0,
+                                               transport_protocol_len=8, transport_protocol_type=17, ttl=64,
+                                               identification=1, exit_on_failure=True, exit_code=50),
                          b'E\x00\x00\x1c\x01\x00\x00\x00@\x11\xf6}\xc0\xa8\x01\x01\xc0\xa8\x01\x02')
         # Bad source IP
-        self.assertIsNone(self.ipv4.make_header('192.168.1.300', '192.168.1.2', 1, 0, 8, 17, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.300', destination_ip='192.168.1.2', data_len=0,
+                                                transport_protocol_len=8, transport_protocol_type=17, ttl=64,
+                                                identification=1, exit_on_failure=False, exit_code=50))
         # Bad destination IP
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.400', 1, 0, 8, 17, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.400', data_len=0,
+                                                transport_protocol_len=8, transport_protocol_type=17, ttl=64,
+                                                identification=1, exit_on_failure=False, exit_code=50))
         # Bad identification
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 123123, 0, 8, 17, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=0,
+                                                transport_protocol_len=8, transport_protocol_type=17, ttl=64,
+                                                identification=123123, exit_on_failure=False, exit_code=50))
         # Bad data length
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 1, 123123, 8, 17, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=123123,
+                                                transport_protocol_len=8, transport_protocol_type=17, ttl=64,
+                                                identification=1, exit_on_failure=False, exit_code=50))
         # Bad transport protocol header length
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 1, 0, 123123, 17, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=0,
+                                                transport_protocol_len=123123, transport_protocol_type=17, ttl=64,
+                                                identification=1, exit_on_failure=False, exit_code=50))
         # Bad transport protocol type
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 1, 0, 8, 123123, 64, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=0,
+                                                transport_protocol_len=8, transport_protocol_type=123123, ttl=64,
+                                                identification=1, exit_on_failure=False, exit_code=50))
         # Bad ttl
-        self.assertIsNone(self.ipv4.make_header('192.168.1.1', '192.168.1.2', 1, 0, 8, 17, 123123, False, 50))
+        self.assertIsNone(self.ipv4.make_header(source_ip='192.168.1.1', destination_ip='192.168.1.2', data_len=0,
+                                                transport_protocol_len=8, transport_protocol_type=17, ttl=123123,
+                                                identification=1, exit_on_failure=False, exit_code=50))
     # endregion
 
     # region Test RawIPv6 methods
@@ -345,3 +364,153 @@ class NetworkTest(unittest.TestCase):
                                                                   payload_data=b'', exit_on_failure=False,
                                                                   exit_code=57))
     # endregion
+
+    # region Test RawDNS methods
+    def test_dns_make_dns_name(self):
+        # Normal
+        self.assertEqual(self.dns.make_dns_name(name='test.com', exit_on_failure=True, exit_code=65),
+                         b'\x04test\x03com\x00')
+        # Bad name
+        self.assertIsNone(self.dns.make_dns_name(name='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+                                                      '.com', exit_on_failure=False, exit_code=65))
+
+    def test_dns_make_ipv4_request_packet(self):
+        # Normal
+        self.assertEqual(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                           src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                           ip_ttl=64, ip_ident=1,
+                                                           src_port=5353, dst_port=53, transaction_id=1,
+                                                           queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                           flags=0),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x006\x01\x00\x00\x00@\x11\xf6c\xc0\xa8\x01\x01' +
+                         b'\xc0\xa8\x01\x02\x14\xe9\x005\x00"\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00' +
+                         b'\x04test\x03com\x00\x00\x01\x00\x01')
+        # Bad source MAC address
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:890ab', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad destination MAC address
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:890ab',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad source IPv4 address
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.300', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad destination IPv4 address
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.400',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad source UDP port
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=123123, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad destination UDP port
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=123123, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad transaction id
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=123123123,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad query type
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 123123, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad query class
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 123123, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad flags
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=123123))
+        # Bad queries
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad queries
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad queries
+        self.assertIsNone(self.dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='192.168.1.1', dst_ip='192.168.1.2',
+                                                            ip_ttl=64, ip_ident=1,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'class': 1, 'type': 1}],
+                                                            flags=0))
+
+    def test_dns_make_ipv6_request_packet(self):
+        # Normal
+        self.assertEqual(self.dns.make_ipv6_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                           src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64,
+                                                           src_port=5353, dst_port=53, transaction_id=1,
+                                                           queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                           flags=0),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00"\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x14\xe9\x005\x00"B)\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00' +
+                         b'\x04test\x03com\x00\x00\x01\x00\x01')
+        # Bad source IPv6 address
+        self.assertIsNone(self.dns.make_ipv6_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='fd00:::1', dst_ip='fd00::2', ip_ttl=64,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+        # Bad destination IPv6 address
+        self.assertIsNone(self.dns.make_ipv6_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                            src_ip='fd00::1', dst_ip='fd00:::2', ip_ttl=64,
+                                                            src_port=5353, dst_port=53, transaction_id=1,
+                                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                            flags=0))
+
+
+    # endregion
+
+# endregion

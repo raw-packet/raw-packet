@@ -9,14 +9,6 @@ Copyright 2019, Raw-packet Project
 
 # region Import
 
-# # region Import future
-# import __future__
-# if hasattr(__future__, 'annotations'):
-#     from __future__ import annotations
-# else:
-#     raise ImportError('Python >= 3.7 is required')
-# # endregion
-
 # region Add project root path
 from sys import path
 from os.path import dirname, abspath, isfile
@@ -25,7 +17,7 @@ path.append(dirname(abspath(__file__)))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import DNS_raw, Sniff_raw
+from raw_packet.Utils.network import RawDNS, RawSniff
 from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Utils.tm import ThreadManager
 # endregion
@@ -76,18 +68,18 @@ class DnsResolver:
     # region Set variables
 
     # region Init Raw-packet classes
-    base = Base()           # type: Base
-    arp_scan = ArpScan()    # type: ArpScan
-    dns = DNS_raw()         # type: DNS_raw
+    base: Base = Base()
+    arp_scan: ArpScan = ArpScan()
+    dns: RawDNS = RawDNS()
     # endregion
 
     # region Variables
-    domain = ''             # type: str
-    subdomains = list()     # type: List[str]
-    available_characters = list(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
-                                 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-                                 'u', 'v', 'w', 'x', 'y', 'z', '-'])    # type: List[str]
-    results = list()        # type: List[Dict[str, str]]
+    domain: str = ''
+    subdomains: List[str] = list()
+    available_characters: List[str] = list(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
+                                            'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                                            'u', 'v', 'w', 'x', 'y', 'z', '-'])
+    results: List[Dict[str, str]] = list()
     # endregion
 
     # endregion
@@ -111,9 +103,9 @@ class DnsResolver:
         self.quiet = quiet                          # type: bool
 
         # Get MAC, IPv4 and IPv6 addresses for network interface
-        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)                  # type: str
-        self.your_ipv4_address = self.base.get_netiface_ip_address(self.network_interface)                  # type: str
-        self.your_ipv6_address = self.base.get_netiface_ipv6_link_address(self.network_interface, False)    # type: str
+        self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)                  # type: str
+        self.your_ipv4_address = self.base.get_interface_ip_address(self.network_interface)                  # type: str
+        self.your_ipv6_address = self.base.get_interface_ipv6_link_address(self.network_interface, False)    # type: str
 
     # __init__.__annotations__ = {
     #     'network_interface': str,
@@ -183,14 +175,14 @@ class DnsResolver:
 
         network_filters = {
             'Ethernet': {'destination': destination_mac_address},
-            'IP': {'destination-ip': destination_ipv4_address},
+            'IPv4': {'destination-ip': destination_ipv4_address},
             'IPv6': {'destination-ip': destination_ipv6_address},
             'UDP': {'source-port': source_port}
         }
 
-        sniff = Sniff_raw()
+        sniff = RawSniff()
 
-        sniff.start(protocols=['Ethernet', 'IP', 'IPv6', 'UDP', 'DNS'],
+        sniff.start(protocols=['Ethernet', 'IPv4', 'IPv6', 'UDP', 'DNS'],
                     prn=self._parse_packet,
                     filters=network_filters)
 
@@ -232,14 +224,14 @@ class DnsResolver:
             udp_source_port = randint(2049, 65535)  # type: int
             dns_transaction_id = randint(1, 65535)  # type: int
 
-            send_socket.send(self.dns.make_request_packet(src_mac=source_mac_address,
-                                                          dst_mac=ns_server_mac_address,
-                                                          src_ip=source_ipv4_address,
-                                                          dst_ip=ns_server_ipv4_address,
-                                                          src_port=udp_source_port,
-                                                          dst_port=ns_server_port,
-                                                          tid=dns_transaction_id,
-                                                          queries=[query]))
+            send_socket.send(self.dns.make_ipv4_request_packet(src_mac=source_mac_address,
+                                                               dst_mac=ns_server_mac_address,
+                                                               src_ip=source_ipv4_address,
+                                                               dst_ip=ns_server_ipv4_address,
+                                                               src_port=udp_source_port,
+                                                               dst_port=ns_server_port,
+                                                               transaction_id=dns_transaction_id,
+                                                               queries=[query]))
 
     # _send_ipv4_queries.__annotations__ = {
     #     'source_mac_address': str,
@@ -282,14 +274,14 @@ class DnsResolver:
             udp_source_port = randint(2049, 65535)  # type: int
             dns_transaction_id = randint(1, 65535)  # type: int
 
-            send_socket.send(self.dns.make_request_packet(src_mac=source_mac_address,
-                                                          dst_mac=ns_server_mac_address,
-                                                          src_ip=source_ipv6_address,
-                                                          dst_ip=ns_server_ipv6_address,
-                                                          src_port=udp_source_port,
-                                                          dst_port=ns_server_port,
-                                                          tid=dns_transaction_id,
-                                                          queries=[query]))
+            send_socket.send(self.dns.make_ipv4_request_packet(src_mac=source_mac_address,
+                                                               dst_mac=ns_server_mac_address,
+                                                               src_ip=source_ipv6_address,
+                                                               dst_ip=ns_server_ipv6_address,
+                                                               src_port=udp_source_port,
+                                                               dst_port=ns_server_port,
+                                                               transaction_id=dns_transaction_id,
+                                                               queries=[query]))
 
     # _send_ipv6_queries.__annotations__ = {
     #     'source_mac_address': str,

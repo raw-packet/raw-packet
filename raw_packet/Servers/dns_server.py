@@ -11,7 +11,7 @@ Copyright 2019, Raw-packet Project
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import Sniff_raw, DNS_raw
+from raw_packet.Utils.network import RawSniff, RawDNS
 # endregion
 
 # region Import libraries
@@ -66,8 +66,8 @@ class DnsServer:
     # region Init
     def __init__(self):
         self.base = Base()
-        self.sniff = Sniff_raw()
-        self.dns = DNS_raw()
+        self.sniff = RawSniff()
+        self.dns = RawDNS()
 
         self.rawSocket = socket(AF_PACKET, SOCK_RAW)
 
@@ -260,7 +260,7 @@ class DnsServer:
                                     dst_ip=request['IP']['source-ip'],
                                     src_port=53,
                                     dst_port=request['UDP']['source-port'],
-                                    tid=request['DNS']['transaction-id'],
+                                    transaction_id=request['DNS']['transaction-id'],
                                     flags=dns_answer_flags,
                                     queries=query,
                                     answers_address=answer)
@@ -273,7 +273,7 @@ class DnsServer:
                                     dst_ip=request['IPv6']['source-ip'],
                                     src_port=53,
                                     dst_port=request['UDP']['source-port'],
-                                    tid=request['DNS']['transaction-id'],
+                                    transaction_id=request['DNS']['transaction-id'],
                                     flags=dns_answer_flags,
                                     queries=query,
                                     answers_address=answer)
@@ -389,11 +389,11 @@ class DnsServer:
         # endregion
 
         # region Get your MAC, IP and IPv6 addresses
-        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
-        self.your_ip_address = self.base.get_netiface_ip_address(self.network_interface)
+        self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)
+        self.your_ip_address = self.base.get_interface_ip_address(self.network_interface)
 
         if listen_ipv6:
-            self.your_ipv6_addresses = self.base.get_netiface_ipv6_link_address(self.network_interface)
+            self.your_ipv6_addresses = self.base.get_interface_ipv6_link_address(self.network_interface)
             self.fake_addresses[self.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
         else:
             self.fake_addresses[self.AAAA_DNS_QUERY] = None
@@ -456,12 +456,12 @@ class DnsServer:
             network_filters['Ethernet'] = {'not-source': self.your_mac_address}
 
         if self.target_ip_address is not None:
-            network_filters['IP'] = {'source-ip': self.target_ip_address}
+            network_filters['IPv4'] = {'source-ip': self.target_ip_address}
 
         if self.target_ipv6_address is not None:
             network_filters['IPv6'] = {'source-ip': self.target_ipv6_address}
 
-        network_filters['IP'] = {'not-source-ip': '127.0.0.1'}
+        network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
         network_filters['UDP'] = {'destination-port': self.port}
         # endregion
 

@@ -17,7 +17,7 @@ from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, 
 from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
 from re import search
 from time import time
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple, Any
 from traceback import format_tb
 # endregion
 
@@ -290,7 +290,7 @@ class RawEthernet:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 43,
-                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse Ethernet packet
         :param packet: Bytes of packet
@@ -333,7 +333,7 @@ class RawEthernet:
 
     def make_header(self,
                     source_mac: str = '01:23:45:67:89:0a',
-                    destination_mac: str = '01:23:45:67:89:0a',
+                    destination_mac: str = '01:23:45:67:89:0b',
                     network_type: int = 2048,
                     exit_on_failure: bool = False,
                     exit_code: int = 44,
@@ -341,26 +341,38 @@ class RawEthernet:
         """
         Make Ethernet packet header
         :param source_mac: Source MAC address string (example: '01:23:45:67:89:0a')
-        :param destination_mac: Destination MAC address string (example: '01:23:45:67:89:0a')
+        :param destination_mac: Destination MAC address string (example: '01:23:45:67:89:0b')
         :param network_type: Network type integer (example: 2048 - IPv4, 2054 - ARP, 34525 - IPv6)
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 44)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of packet or None if error
         """
+        error_text: str = 'Failed to make Ethernet header!'
+        packet: bytes = b''
         try:
-            return self.convert_mac(mac_address=destination_mac,
-                                    exit_on_failure=exit_on_failure,
-                                    exit_code=exit_code,
-                                    quiet=quiet) + \
-                   self.convert_mac(mac_address=source_mac,
-                                    exit_on_failure=exit_on_failure,
-                                    exit_code=exit_code,
-                                    quiet=quiet) + \
-                   pack('!H', network_type)
+            packet += self.convert_mac(exit_on_failure=exit_on_failure,
+                                       exit_code=exit_code,
+                                       quiet=quiet,
+                                       mac_address=destination_mac)
+            packet += self.convert_mac(exit_on_failure=exit_on_failure,
+                                       exit_code=exit_code,
+                                       quiet=quiet,
+                                       mac_address=source_mac)
+            return packet + pack('!H', network_type)
 
-        except TypeError:
-            error_text = 'Failed to make Ethernet header!'
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'destination_mac' in traceback_text:
+                error_text += ' Bad destination MAC address: ' + self.base.error_text(str(destination_mac)) + \
+                              ' example MAC address: ' + self.base.info_text('01:23:45:67:89:0a')
+            if 'source_mac' in traceback_text:
+                error_text += ' Bad source MAC address: ' + self.base.error_text(str(source_mac)) + \
+                              ' example MAC address: ' + self.base.info_text('01:23:45:67:89:0a')
+
+        except struct_error:
+            error_text += ' Bad network type: ' + self.base.error_text(str(network_type)) + \
+                          ' example network type: ' + self.base.info_text(str('2048 - IPv4, 2054 - ARP, 34525 - IPv6'))
 
         if not quiet:
             self.base.print_error(error_text)
@@ -641,7 +653,7 @@ class RawARP:
 # endregion
 
 
-# region Raw IP
+# region Raw IPv4
 class RawIPv4:
     """
     Class for making and parsing IPv4 header
@@ -759,11 +771,11 @@ class RawIPv4:
     def make_header(self,
                     source_ip: str = '192.168.1.1',
                     destination_ip: str = '192.168.1.2',
-                    identification: Union[None, int] = None,
                     data_len: int = 0,
                     transport_protocol_len: int = 8,
                     transport_protocol_type: int = 17,
                     ttl: int = 64,
+                    identification: Union[None, int] = None,
                     exit_on_failure: bool = False,
                     exit_code: int = 50,
                     quiet: bool = False) -> Union[None, bytes]:
@@ -771,11 +783,11 @@ class RawIPv4:
         Make IPv4 packet header
         :param source_ip: Source IPv4 address string (example: '192.168.1.1')
         :param destination_ip: Destination IPv4 address string (example: '192.168.1.1')
-        :param identification: Identification integer or None (default: None)
         :param data_len: Length of data integer (example: 0)
         :param transport_protocol_len: Length of transport protocol header integer (example: 8)
         :param transport_protocol_type: Transport protocol type integer (example: 17 - UDP)
         :param ttl: Time to live (default: 64)
+        :param identification: Identification integer or None (default: None)
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 50)
         :param quiet: Quiet mode, if True no console output (default: False)
@@ -808,19 +820,19 @@ class RawIPv4:
             # Flags and fragmentation offset
             flg_frgoff = 0
 
-            ip_header += pack('!B', (self.version << 4) + int(self.header_length/4))
+            ip_header += pack('!B', (self.version << 4) + int(self.header_length / 4))
             ip_header += pack('!B', dscp_ecn)
             ip_header += pack('!H', total_len)
             ip_header += pack('!H', ident)
             ip_header += pack('!H', flg_frgoff)
             ip_header += pack('!B', ttl)
             ip_header += pack('!B', transport_protocol_type)
-            ip_header += pack('!H', 0)
+            ip_header += pack('!H', 0)  # Check sum
             ip_header += pack('4s', source_ip)
             ip_header += pack('4s', destination_ip)
             checksum = self._checksum(ip_header)
             return pack('!' '2B' '3H' '2B' 'H' '4s' '4s',
-                        (self.version << 4) + int(self.header_length/4), dscp_ecn, total_len,
+                        (self.version << 4) + int(self.header_length / 4), dscp_ecn, total_len,
                         ident, flg_frgoff, ttl, transport_protocol_type, checksum, source_ip, destination_ip)
 
         except AssertionError as Error:
@@ -843,9 +855,11 @@ class RawIPv4:
         except OSError as Error:
             traceback_text: str = format_tb(Error.__traceback__)[0]
             if 'source_ip' in traceback_text:
-                error_text += ' Bad source IPv4: ' + self.base.error_text(str(source_ip))
+                error_text += ' Bad source IPv4: ' + self.base.error_text(str(source_ip)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
             if 'destination_ip' in traceback_text:
-                error_text += ' Bad destination IPv4: ' + self.base.error_text(str(destination_ip))
+                error_text += ' Bad destination IPv4: ' + self.base.error_text(str(destination_ip)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
 
         if not quiet:
             self.base.print_error(error_text)
@@ -1494,15 +1508,15 @@ class RawDNS:
     def make_dns_name(self,
                       name: str = 'test.com',
                       exit_on_failure: bool = False,
-                      exit_code: int = 33,
+                      exit_code: int = 65,
                       quiet: bool = False) -> Union[None, bytes]:
         """
         Convert DNS name to bytes
         :param name: DNS name (example: 'test.com')
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 31)
+        :param exit_code: Set exit code integer (default: 65)
         :param quiet: Quiet mode, if True no console output (default: False)
-        :return: Bytes of DNS name (example: '\x04test\x03com\x00') or None if error
+        :return: Bytes of DNS name (example: b'\x04test\x03com\x00') or None if error
         """
 
         # region Variables
@@ -1528,101 +1542,8 @@ class RawDNS:
     def make_dns_ptr(ip_address):
         pass
 
-    def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, flags,
-                             queries=[], answers_address=[], name_servers={}):
-        transaction_id = tid
-        dns_flags = flags
-        questions = len(queries)
-        answer_rrs = len(answers_address)
-        authority_rrs = len(name_servers.keys())
-        additional_rrs = len(name_servers.keys())
-
-        dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-
-        query_type = 1
-
-        for query in queries:
-            query_name = query['name']
-            query_type = query['type']
-            query_class = query['class']
-
-            if query_name.endswith('.'):
-                query_name = query_name[:-1]
-
-            dns_packet += self.make_dns_name(query_name)
-            dns_packet += pack('!2H', query_type, query_class)
-
-        if query_type == 1:
-            for address in answers_address:
-                if 'name' in address.keys():
-                    dns_packet += self.make_dns_name(address['name'])
-                else:
-                    dns_packet += pack('!H', 0xc00c)
-
-                dns_packet += pack('!' '2H' 'I' 'H' '4s', address['type'], address['class'], address['ttl'],
-                                   4, inet_aton(address['address']))
-
-        if query_type == 28:
-            for address in answers_address:
-                if 'name' in address.keys():
-                    dns_packet += self.make_dns_name(address['name'])
-                else:
-                    dns_packet += pack('!H', 0xc00c)
-
-                dns_packet += pack('!' '2H' 'I' 'H' '16s', address['type'], address['class'], address['ttl'],
-                                   16, inet_pton(AF_INET6, address['address']))
-
-        if query_type == 12:
-            for address in answers_address:
-                domain = self.make_dns_name(address['address'])
-                if 'name' in address.keys():
-                    dns_packet += self.make_dns_name(address['name'])
-                else:
-                    dns_packet += pack('!H', 0xc00c)
-
-                dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
-                                   len(domain))
-                dns_packet += domain
-
-        if self.Base.ip_address_validation(src_ip):
-            eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
-            network_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet),
-                                                 self.udp.header_length, self.udp.header_type)
-            transport_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
-
-        elif self.Base.ipv6_address_validation(src_ip):
-            eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
-            network_header = self.ipv6.make_header(src_ip, dst_ip, 0,
-                                                   len(dns_packet) + self.udp.header_length, self.udp.header_type)
-            transport_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
-                                                                       len(dns_packet), dns_packet)
-
-        else:
-            return None
-
-        return eth_header + network_header + transport_header + dns_packet
-
-    def make_request_packet(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, queries=[], flags=0):
-        transaction_id = tid
-        dns_flags = flags
-        questions = len(queries)
-        answer_rrs = 0
-        authority_rrs = 0
-        additional_rrs = 0
-
-        dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-        for query in queries:
-            dns_packet += self.make_dns_name(query['name'])
-            dns_packet += pack('!2H', query['type'], query['class'])
-
-        eth_header = self.eth.make_header(src_mac, dst_mac, 2048)
-        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, 17)
-        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
-
-        return eth_header + ip_header + udp_header + dns_packet
-
-    @staticmethod
-    def parse_packet(packet: bytes) -> Union[None, Dict[str, Union[str, Dict[str, Union[int, str]]]]]:
+    def parse_packet(self,
+                     packet: bytes) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
         """
         Parse DNS Packet
         :param packet: Bytes of network packet
@@ -1634,7 +1555,7 @@ class RawDNS:
             answers: List[Dict[str, Union[int, str]]] = list()
 
             # Check length of packet
-            if len(packet) < dns_minimal_packet_length:
+            if len(packet) < self.packet_length:
                 return None
 
             # region Parse DNS packet header
@@ -1645,7 +1566,7 @@ class RawDNS:
             # Answer RRS: 2 bytes
             # Authority RRs: 2 bytes
             # Additional RRs: 2 bytes
-            dns_detailed = unpack('!6H', packet[:dns_minimal_packet_length])
+            dns_detailed = unpack('!6H', packet[:self.packet_length])
 
             dns_packet = {
                 'transaction-id': int(dns_detailed[0]),
@@ -1661,11 +1582,11 @@ class RawDNS:
             # endregion
 
             # region Parse DNS queries and answers
-            if len(packet) > dns_minimal_packet_length:
+            if len(packet) > self.packet_length:
 
                 number_of_queries = 0
                 number_of_answers = 0
-                position = dns_minimal_packet_length
+                position = self.packet_length
 
                 # region Parse DNS queries
                 while number_of_queries < dns_packet['questions']:
@@ -1747,44 +1668,516 @@ class RawDNS:
         except UnicodeDecodeError:
             return None
 
-    def make_a_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
-        queries = []
+        except struct_error:
+            return None
 
-        for name in names:
-            queries.append({'type': 1, 'class': 1, 'name': name})
+    def make_response_packet(self,
+                             src_mac: str = '01:23:45:67:89:0a',
+                             dst_mac: str = '01:23:45:67:89:0b',
+                             src_ip: str = '192.168.1.1',
+                             dst_ip: str = '192.168.1.3',
+                             ip_ttl: int = 64,
+                             ip_ident: Union[None, int] = None,
+                             src_port: int = 53,
+                             dst_port: int = 5353,
+                             transaction_id: int = 1,
+                             flags: int = 0,
+                             queries: List[Dict[str, Union[int, str]]] = [],
+                             answers_address=[],
+                             name_servers={},
+                             exit_on_failure: bool = False,
+                             exit_code: int = 65,
+                             quiet: bool = False) -> Union[None, bytes]:
 
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
+        error_text: str = 'Failed to make DNS response packet!'
+        packet: bytes = b''
+        try:
+            dns_packet: bytes = b''
+            dns_packet += pack('!H', transaction_id)            # DNS transaction ID
+            dns_packet += pack('!H', flags)                     # DNS flags
+            dns_packet += pack('!H', len(queries))              # Questions
+            dns_packet += pack('!H', len(answers_address))      # Answer RRs
+            dns_packet += pack('!H', len(name_servers.keys()))  # Authority RRs
+            dns_packet += pack('!H', len(name_servers.keys()))  # Additionsl RRS
 
-    def make_aaaa_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
-        queries = []
+            query_type = 1
 
-        for name in names:
-            queries.append({'type': 28, 'class': 1, 'name': name})
+            for query in queries:
+                query_name = query['name']
+                query_type = query['type']
+                query_class = query['class']
 
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
+                if query_name.endswith('.'):
+                    query_name = query_name[:-1]
 
-    def make_any_query(self, src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, tid, names=[], flags=0):
-        queries = []
+                dns_packet += self.make_dns_name(query_name)
+                dns_packet += pack('!2H', query_type, query_class)
 
-        for name in names:
-            queries.append({'type': 255, 'class': 1, 'name': name})
+            if query_type == 1:
+                for address in answers_address:
+                    if 'name' in address.keys():
+                        dns_packet += self.make_dns_name(address['name'])
+                    else:
+                        dns_packet += pack('!H', 0xc00c)
 
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
+                    dns_packet += pack('!' '2H' 'I' 'H' '4s', address['type'], address['class'], address['ttl'],
+                                       4, inet_aton(address['address']))
+
+            if query_type == 28:
+                for address in answers_address:
+                    if 'name' in address.keys():
+                        dns_packet += self.make_dns_name(address['name'])
+                    else:
+                        dns_packet += pack('!H', 0xc00c)
+
+                    dns_packet += pack('!' '2H' 'I' 'H' '16s', address['type'], address['class'], address['ttl'],
+                                       16, inet_pton(AF_INET6, address['address']))
+
+            if query_type == 12:
+                for address in answers_address:
+                    domain = self.make_dns_name(address['address'])
+                    if 'name' in address.keys():
+                        dns_packet += self.make_dns_name(address['name'])
+                    else:
+                        dns_packet += pack('!H', 0xc00c)
+
+                    dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
+                                       len(domain))
+                    dns_packet += domain
+
+            # region IPv4 request
+            if self.base.ip_address_validation(ip_address=src_ip, exit_on_failure=False, quiet=True):
+
+                packet += self.eth.make_header(network_type=self.ipv4.header_type,
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code,
+                                               quiet=quiet,
+                                               source_mac=src_mac,
+                                               destination_mac=dst_mac)
+
+                packet += self.ipv4.make_header(data_len=len(dns_packet),
+                                                transport_protocol_len=self.udp.header_length,
+                                                transport_protocol_type=self.udp.header_type,
+                                                ttl=ip_ttl,
+                                                identification=ip_ident,
+                                                exit_on_failure=exit_on_failure,
+                                                exit_code=exit_code,
+                                                quiet=quiet,
+                                                source_ip=src_ip,
+                                                destination_ip=dst_ip)
+
+                packet += self.udp.make_header(data_length=len(dns_packet),
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code,
+                                               quiet=quiet,
+                                               source_port=src_port,
+                                               destination_port=dst_port)
+            # endregion
+
+            # region IPv6 request
+            elif self.base.ipv6_address_validation(ipv6_address=src_ip, exit_on_failure=False, quiet=True):
+
+                packet += self.eth.make_header(network_type=self.ipv6.header_type,
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code,
+                                               quiet=quiet,
+                                               source_mac=src_mac,
+                                               destination_mac=dst_mac)
+
+                packet += self.ipv6.make_header(traffic_class=0,
+                                                flow_label=0,
+                                                payload_len=self.udp.header_length + len(dns_packet),
+                                                next_header=self.udp.header_type,
+                                                hop_limit=ip_ttl,
+                                                exit_on_failure=exit_on_failure,
+                                                exit_code=exit_code,
+                                                quiet=quiet,
+                                                source_ip=src_ip,
+                                                destination_ip=dst_ip)
+
+                packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=src_ip,
+                                                                  ipv6_dst=dst_ip,
+                                                                  payload_len=len(dns_packet),
+                                                                  payload_data=dns_packet,
+                                                                  exit_on_failure=exit_on_failure,
+                                                                  exit_code=exit_code,
+                                                                  quiet=quiet,
+                                                                  port_src=src_port,
+                                                                  port_dst=dst_port)
+
+            # endregion
+
+            # region Unknown network - return None
+            else:
+                return None
+            # endregion
+
+            return packet + dns_packet
+
+        except TypeError:
+            return None
+
+    def make_ipv4_request_packet(self,
+                                 src_mac: str = '01:23:45:67:89:0a',
+                                 dst_mac: str = '01:23:45:67:89:0b',
+                                 src_ip: str = '192.168.1.1',
+                                 dst_ip: str = '192.168.1.2',
+                                 ip_ttl: int = 64,
+                                 ip_ident: Union[None, int] = None,
+                                 src_port: int = 5353,
+                                 dst_port: int = 53,
+                                 transaction_id: int = 1,
+                                 queries: List[Dict[str, Union[int, str]]] =
+                                 [{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                 flags=0,
+                                 exit_on_failure: bool = False,
+                                 exit_code: int = 65,
+                                 quiet: bool = False) -> Union[None, bytes]:
+        """
+
+        :param src_mac:
+        :param dst_mac:
+        :param src_ip:
+        :param dst_ip:
+        :param ip_ttl:
+        :param ip_ident:
+        :param src_port:
+        :param dst_port:
+        :param transaction_id:
+        :param queries:
+        :param flags:
+        :param exit_on_failure:
+        :param exit_code:
+        :param quiet:
+        :return:
+        """
+        error_text: str = 'Failed to make IPv4 DNS request packet!'
+        packet: bytes = b''
+        try:
+            dns_packet: bytes = b''
+            dns_packet += pack('!H', transaction_id)  # DNS transaction ID
+            dns_packet += pack('!H', flags)           # DNS flags
+            dns_packet += pack('!H', len(queries))    # Questions
+            dns_packet += pack('!H', 0)               # Answer RRs
+            dns_packet += pack('!H', 0)               # Authority RRs
+            dns_packet += pack('!H', 0)               # Additionsl RRS
+
+            for query in queries:
+                dns_packet += self.make_dns_name(query['name'])
+                dns_packet += pack('!H', query['type'])
+                dns_packet += pack('!H', query['class'])
+
+            packet += self.eth.make_header(network_type=self.ipv4.header_type,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code,
+                                           quiet=quiet,
+                                           source_mac=src_mac,
+                                           destination_mac=dst_mac)
+
+            packet += self.ipv4.make_header(data_len=len(dns_packet),
+                                            transport_protocol_len=self.udp.header_length,
+                                            transport_protocol_type=self.udp.header_type,
+                                            ttl=ip_ttl,
+                                            identification=ip_ident,
+                                            exit_on_failure=exit_on_failure,
+                                            exit_code=exit_code,
+                                            quiet=quiet,
+                                            source_ip=src_ip,
+                                            destination_ip=dst_ip)
+
+            packet += self.udp.make_header(data_length=len(dns_packet),
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code,
+                                           quiet=quiet,
+                                           source_port=src_port,
+                                           destination_port=dst_port)
+
+            return packet + dns_packet
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'destination_mac' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'destination_ip' in traceback_text:
+                error_text += ' Bad source or destination IP address!'
+            if 'destination_port' in traceback_text:
+                error_text += ' Bad source or destination UDP port!'
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'transaction_id' in traceback_text:
+                error_text += ' Bad transaction ID: ' + self.base.error_text(str(transaction_id)) + \
+                              ' transaction ID must be in range: ' + self.base.info_text('1 - 65535')
+            if 'flags' in traceback_text:
+                error_text += ' Bad flags: ' + self.base.error_text(str(flags)) + \
+                              ' flags must be in range: ' + self.base.info_text('1 - 65535')
+            if 'type' in traceback_text:
+                error_text += ' Query type be in range: ' + self.base.info_text('1 - 65535')
+            if 'class' in traceback_text:
+                error_text += ' Query class must be in range: ' + self.base.info_text('1 - 65535')
+
+        except KeyError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'class' in traceback_text:
+                error_text += ' Query class not find in queries!'
+            if 'type' in traceback_text:
+                error_text += ' Query type not find in queries!'
+            if 'name' in traceback_text:
+                error_text += ' Query name not find in queries!'
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
+
+    def make_ipv6_request_packet(self,
+                                 src_mac: str = '01:23:45:67:89:0a',
+                                 dst_mac: str = '01:23:45:67:89:0b',
+                                 src_ip: str = 'fd00::1',
+                                 dst_ip: str = 'fd00::2',
+                                 ip_ttl: int = 64,
+                                 src_port: int = 5353,
+                                 dst_port: int = 53,
+                                 transaction_id: int = 1,
+                                 queries: List[Dict[str, Union[int, str]]] =
+                                 [{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                 flags=0,
+                                 exit_on_failure: bool = False,
+                                 exit_code: int = 65,
+                                 quiet: bool = False) -> Union[None, bytes]:
+        """
+
+        :param src_mac:
+        :param dst_mac:
+        :param src_ip:
+        :param dst_ip:
+        :param ip_ttl:
+        :param ip_ident:
+        :param src_port:
+        :param dst_port:
+        :param transaction_id:
+        :param queries:
+        :param flags:
+        :param exit_on_failure:
+        :param exit_code:
+        :param quiet:
+        :return:
+        """
+        error_text: str = 'Failed to make IPv6 DNS request packet!'
+        packet: bytes = b''
+        try:
+            dns_packet: bytes = b''
+            dns_packet += pack('!H', transaction_id)  # DNS transaction ID
+            dns_packet += pack('!H', flags)           # DNS flags
+            dns_packet += pack('!H', len(queries))    # Questions
+            dns_packet += pack('!H', 0)               # Answer RRs
+            dns_packet += pack('!H', 0)               # Authority RRs
+            dns_packet += pack('!H', 0)               # Additionsl RRS
+
+            for query in queries:
+                dns_packet += self.make_dns_name(query['name'])
+                dns_packet += pack('!H', query['type'])
+                dns_packet += pack('!H', query['class'])
+
+            packet += self.eth.make_header(network_type=self.ipv6.header_type,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code,
+                                           quiet=quiet,
+                                           source_mac=src_mac,
+                                           destination_mac=dst_mac)
+
+            packet += self.ipv6.make_header(traffic_class=0,
+                                            flow_label=0,
+                                            payload_len=self.udp.header_length + len(dns_packet),
+                                            next_header=self.udp.header_type,
+                                            hop_limit=ip_ttl,
+                                            exit_on_failure=exit_on_failure,
+                                            exit_code=exit_code,
+                                            quiet=quiet,
+                                            source_ip=src_ip,
+                                            destination_ip=dst_ip)
+
+            packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=src_ip,
+                                                              ipv6_dst=dst_ip,
+                                                              payload_len=len(dns_packet),
+                                                              payload_data=dns_packet,
+                                                              exit_on_failure=exit_on_failure,
+                                                              exit_code=exit_code,
+                                                              quiet=quiet,
+                                                              port_src=src_port,
+                                                              port_dst=dst_port)
+
+            return packet + dns_packet
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'destination_mac' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'destination_ip' in traceback_text:
+                error_text += ' Bad source or destination IPv6 address!'
+            if 'port_dst' in traceback_text:
+                error_text += ' Bad source or destination UDP port!'
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'transaction_id' in traceback_text:
+                error_text += ' Bad transaction ID: ' + self.base.error_text(str(transaction_id)) + \
+                              ' transaction ID must be in range: ' + self.base.info_text('1 - 65535')
+            if 'flags' in traceback_text:
+                error_text += ' Bad flags: ' + self.base.error_text(str(flags)) + \
+                              ' flags must be in range: ' + self.base.info_text('1 - 65535')
+            if 'type' in traceback_text:
+                error_text += ' Query type be in range: ' + self.base.info_text('1 - 65535')
+            if 'class' in traceback_text:
+                error_text += ' Query class must be in range: ' + self.base.info_text('1 - 65535')
+
+        except KeyError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'class' in traceback_text:
+                error_text += ' Query class not find in queries!'
+            if 'type' in traceback_text:
+                error_text += ' Query type not find in queries!'
+            if 'name' in traceback_text:
+                error_text += ' Query name not find in queries!'
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
+
+    def make_a_query(self,
+                     src_mac: str = '01:23:45:67:89:0a',
+                     dst_mac: str = '01:23:45:67:89:0b',
+                     src_ip: str = '192.168.1.1',
+                     dst_ip: str = '192.168.1.1',
+                     src_port: int = 5353,
+                     dst_port: int = 53,
+                     transaction_id: int = 1,
+                     name: str = 'test.com',
+                     flags: int = 0) -> Union[None, bytes]:
+        """
+
+        :param src_mac:
+        :param dst_mac:
+        :param src_ip:
+        :param dst_ip:
+        :param src_port:
+        :param dst_port:
+        :param transaction_id:
+        :param name:
+        :param flags:
+        :return:
+        """
+        queries: List[Dict[str, Union[int, str]]] = [{'type': 1, 'class': 1, 'name': name}]
+
+        if self.base.ip_address_validation(src_ip):
+            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        elif self.base.ipv6_address_validation(src_ip):
+            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        else:
+            return None
+
+    def make_aaaa_query(self,
+                        src_mac: str = '01:23:45:67:89:0a',
+                        dst_mac: str = '01:23:45:67:89:0b',
+                        src_ip: str = '192.168.1.1',
+                        dst_ip: str = '192.168.1.1',
+                        src_port: int = 5353,
+                        dst_port: int = 53,
+                        transaction_id: int = 1,
+                        name: str = 'test.com',
+                        flags: int = 0) -> Union[None, bytes]:
+        """
+
+        :param src_mac:
+        :param dst_mac:
+        :param src_ip:
+        :param dst_ip:
+        :param src_port:
+        :param dst_port:
+        :param transaction_id:
+        :param name:
+        :param flags:
+        :return:
+        """
+        queries: List[Dict[str, Union[int, str]]] = [{'type': 28, 'class': 1, 'name': name}]
+
+        if self.base.ip_address_validation(src_ip):
+            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        elif self.base.ipv6_address_validation(src_ip):
+            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        else:
+            return None
+
+    def make_any_query(self,
+                       src_mac: str = '01:23:45:67:89:0a',
+                       dst_mac: str = '01:23:45:67:89:0b',
+                       src_ip: str = '192.168.1.1',
+                       dst_ip: str = '192.168.1.1',
+                       src_port: int = 5353,
+                       dst_port: int = 53,
+                       transaction_id: int = 1,
+                       name: str = 'test.com',
+                       flags: int = 0) -> Union[None, bytes]:
+        """
+
+        :param src_mac:
+        :param dst_mac:
+        :param src_ip:
+        :param dst_ip:
+        :param src_port:
+        :param dst_port:
+        :param transaction_id:
+        :param name:
+        :param flags:
+        :return:
+        """
+        queries: List[Dict[str, Union[int, str]]] = [{'type': 255, 'class': 1, 'name': name}]
+
+        if self.base.ip_address_validation(src_ip):
+            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        elif self.base.ipv6_address_validation(src_ip):
+            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+                                                 src_ip=src_ip, dst_ip=dst_ip,
+                                                 src_port=src_port, dst_port=dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        else:
+            return None
 
 # endregion
 
@@ -3427,330 +3820,317 @@ class DHCP_raw:
 # endregion
 
 
-# region Raw MDNS
-class MDNS_raw:
-
-    Base = None
-    eth = None
-    ip = None
-    ipv6 = None
-    udp = None
-    dns = None
-
-    def __init__(self):
-        self.Base = Base()
-        self.eth = Ethernet_raw()
-        self.ip = IP_raw()
-        self.ipv6 = IPv6_raw()
-        self.udp = UDP_raw()
-        self.dns = DNS_raw()
-
-    def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, queries=[], answers_address=[], name_servers={},
-                             src_port=5353, dst_port=5353, tid=0, flags=0x8400):
-        transaction_id = tid
-        dns_flags = flags
-        questions = len(queries)
-        answer_rrs = len(answers_address)
-        authority_rrs = len(name_servers.keys())
-        additional_rrs = len(name_servers.keys())
-
-        dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-
-        for query in queries:
-            query_name = query['name']
-            query_type = query['type']
-            query_class = query['class']
-
-            if query_name.endswith('.'):
-                query_name = query_name[:-1]
-
-            dns_packet += self.dns.make_dns_name(query_name)
-            dns_packet += pack('!2H', query_type, query_class)
-
-        for address in answers_address:
-            if 'name' in address.keys():
-                dns_packet += self.dns.make_dns_name(address['name'])
-            else:
-                dns_packet += pack('!H', 0xc00c)
-
-            if address['type'] == 1:
-                dns_packet += pack('!' '2H' 'I' 'H' '4s', address['type'], address['class'], address['ttl'],
-                                   4, inet_aton(address['address']))
-
-            elif address['type'] == 28:
-                dns_packet += pack('!' '2H' 'I' 'H' '16s', address['type'], address['class'], address['ttl'],
-                                   16, inet_pton(AF_INET6, address['address']))
-
-            elif address['type'] == 12:
-                domain = self.dns.make_dns_name(address['address'])
-                dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
-                                   len(domain))
-                dns_packet += domain
-
-            else:
-                return None
-
-        if self.Base.ip_address_validation(src_ip):
-            eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
-            network_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet),
-                                                 self.udp.header_length, self.udp.header_type)
-            transport_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
-
-        elif self.Base.ipv6_address_validation(src_ip):
-            eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
-            network_header = self.ipv6.make_header(src_ip, dst_ip, 0, len(dns_packet) + self.udp.header_length,
-                                                   self.udp.header_type)
-            transport_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
-                                                                       len(dns_packet), dns_packet)
-
-        else:
-            return None
-
-        return eth_header + network_header + transport_header + dns_packet
-
-    def make_request_packet(self, src_mac, src_ip, queries=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
-                            tid=0, flags=0, src_port=5353, dst_port=5353):
-        transaction_id = tid
-        dns_flags = flags
-        questions = len(queries)
-        answer_rrs = 0
-        authority_rrs = 0
-        additional_rrs = 0
-
-        dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-        for query in queries:
-            dns_packet += self.dns.make_dns_name(query['name'])
-            dns_packet += pack('!2H', query['type'], query['class'])
-
-        eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
-        ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, self.udp.header_type)
-        udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
-
-        return eth_header + ip_header + udp_header + dns_packet
-
-    def make_ipv6_request_packet(self, src_mac, src_ip, queries=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
-                                 tid=0, flags=0, src_port=5353, dst_port=5353):
-        transaction_id = tid
-        dns_flags = flags
-        questions = len(queries)
-        answer_rrs = 0
-        authority_rrs = 0
-        additional_rrs = 0
-
-        dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
-        for query in queries:
-            dns_packet += self.dns.make_dns_name(query['name'])
-            dns_packet += pack('!2H', query['type'], query['class'])
-
-        eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
-        ipv6_header = self.ipv6.make_header(src_ip, dst_ip, 0, len(dns_packet) + self.udp.header_length,
-                                            self.udp.header_type)
-        udp_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
-                                                             len(dns_packet), dns_packet)
-
-        return eth_header + ipv6_header + udp_header + dns_packet
-
-    @staticmethod
-    def parse_packet(packet):
-        mdns_minimal_packet_length = 12
-
-        if len(packet) < mdns_minimal_packet_length:
-            return None
-
-        mdns_detailed = unpack('!6H', packet[:mdns_minimal_packet_length])
-
-        mdns_packet = {
-            'transaction-id': int(mdns_detailed[0]),
-            'flags':          int(mdns_detailed[1]),
-            'questions':      int(mdns_detailed[2]),
-            'answer-rrs':     int(mdns_detailed[3]),
-            'authority-rrs':  int(mdns_detailed[4]),
-            'additional-rrs': int(mdns_detailed[5]),
-        }
-
-        queries = []
-        answers = []
-        authority = []
-        additional = []
-
-        if len(packet) > mdns_minimal_packet_length:
-
-            number_of_question = 0
-            number_of_answers = 0
-            position = mdns_minimal_packet_length
-
-            while number_of_question < mdns_packet['questions']:
-
-                query_name = ''
-                query_name_length = int(unpack('B', packet[position:position + 1])[0])
-
-                while query_name_length != 0:
-                    query_name += ''.join([str(x) for x in packet[position + 1:position + query_name_length + 1]]) + '.'
-                    position += query_name_length + 1
-                    query_name_length = int(unpack('B', packet[position:position + 1])[0])
-
-                query_type = int(unpack('!H', packet[position + 1:position + 3])[0])
-                query_class = int(unpack('!H', packet[position + 3:position + 5])[0])
-                position += 5
-
-                queries.append({
-                    'name':  query_name,
-                    'type':  query_type,
-                    'class': query_class
-                })
-
-                number_of_question += 1
-
-            while number_of_answers < mdns_packet['answer-rrs']:
-
-                name = ''
-                name_length = int(unpack('B', packet[position:position + 1])[0])
-
-                while name_length != 0:
-                    name += ''.join([str(x) for x in packet[position + 1:position + name_length + 1]]) + '.'
-                    position += name_length + 1
-                    name_length = int(unpack('B', packet[position:position + 1])[0])
-
-                type = int(unpack('!H', packet[position + 1:position + 3])[0])
-                answer_class = int(unpack('!H', packet[position + 3:position + 5])[0])
-                ttl = int(unpack('!I', packet[position + 5:position + 9])[0])
-                data_len = int(unpack('!H', packet[position + 9:position + 11])[0])
-                position += 11
-
-                if type == 1:
-                    data = inet_ntoa(unpack('!4s', packet[position:position + 4])[0])
-                    position += data_len
-
-                elif type == 28:
-                    data = inet_ntop(AF_INET6, unpack('!16s', packet[position:position + 16])[0])
-                    position += data_len
-
-                else:
-                    data = ''
-                    for _ in range(data_len):
-                        data += str(unpack('c', packet[position:position + 1])[0]).decode(errors='replace')
-                        position += 1
-
-                answers.append({
-                    'name': name,
-                    'type': type,
-                    'class': answer_class,
-                    'ttl': ttl,
-                    'data length': data_len,
-                    'data': data
-                })
-
-                number_of_answers += 1
-
-        mdns_packet['queries'] = queries
-        mdns_packet['answers'] = answers
-
-        return mdns_packet
-
-    def make_a_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
-                     tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 1, 'class': 1, 'name': name})
-
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
-
-    def make_ipv6_a_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
-                          tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 1, 'class': 1, 'name': name})
-
-        return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                             src_ip=src_ip, dst_ip=dst_ip,
-                                             src_port=src_port, dst_port=dst_port,
-                                             tid=tid,
-                                             flags=flags,
-                                             queries=queries)
-
-    def make_aaaa_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
-                        tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 28, 'class': 1, 'name': name})
-
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
-
-    def make_ipv6_aaaa_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
-                             tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 28, 'class': 1, 'name': name})
-
-        return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                             src_ip=src_ip, dst_ip=dst_ip,
-                                             src_port=src_port, dst_port=dst_port,
-                                             tid=tid,
-                                             flags=flags,
-                                             queries=queries)
-
-    def make_any_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
-                       tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 255, 'class': 1, 'name': name})
-
-        return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                        src_ip=src_ip, dst_ip=dst_ip,
-                                        src_port=src_port, dst_port=dst_port,
-                                        tid=tid,
-                                        flags=flags,
-                                        queries=queries)
-
-    def make_ipv6_any_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
-                            tid=0, flags=0, src_port=5353, dst_port=5353):
-        queries = []
-
-        for name in names:
-            queries.append({'type': 255, 'class': 1, 'name': name})
-
-        return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                             src_ip=src_ip, dst_ip=dst_ip,
-                                             src_port=src_port, dst_port=dst_port,
-                                             tid=tid,
-                                             flags=flags,
-                                             queries=queries)
-
-# endregion
+# # region Raw MDNS
+# class MDNS_raw:
+#
+#     Base = None
+#     eth = None
+#     ip = None
+#     ipv6 = None
+#     udp = None
+#     dns = None
+#
+#     def __init__(self):
+#         self.Base = Base()
+#         self.eth = Ethernet_raw()
+#         self.ip = IP_raw()
+#         self.ipv6 = IPv6_raw()
+#         self.udp = UDP_raw()
+#         self.dns = DNS_raw()
+#
+#     def make_response_packet(self, src_mac, dst_mac, src_ip, dst_ip, queries=[], answers_address=[], name_servers={},
+#                              src_port=5353, dst_port=5353, tid=0, flags=0x8400):
+#         transaction_id = tid
+#         dns_flags = flags
+#         questions = len(queries)
+#         answer_rrs = len(answers_address)
+#         authority_rrs = len(name_servers.keys())
+#         additional_rrs = len(name_servers.keys())
+#
+#         dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+#
+#         for query in queries:
+#             query_name = query['name']
+#             query_type = query['type']
+#             query_class = query['class']
+#
+#             if query_name.endswith('.'):
+#                 query_name = query_name[:-1]
+#
+#             dns_packet += self.dns.make_dns_name(query_name)
+#             dns_packet += pack('!2H', query_type, query_class)
+#
+#         for address in answers_address:
+#             if 'name' in address.keys():
+#                 dns_packet += self.dns.make_dns_name(address['name'])
+#             else:
+#                 dns_packet += pack('!H', 0xc00c)
+#
+#             if address['type'] == 1:
+#                 dns_packet += pack('!' '2H' 'I' 'H' '4s', address['type'], address['class'], address['ttl'],
+#                                    4, inet_aton(address['address']))
+#
+#             elif address['type'] == 28:
+#                 dns_packet += pack('!' '2H' 'I' 'H' '16s', address['type'], address['class'], address['ttl'],
+#                                    16, inet_pton(AF_INET6, address['address']))
+#
+#             elif address['type'] == 12:
+#                 domain = self.dns.make_dns_name(address['address'])
+#                 dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
+#                                    len(domain))
+#                 dns_packet += domain
+#
+#             else:
+#                 return None
+#
+#         if self.Base.ip_address_validation(src_ip):
+#             eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
+#             network_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet),
+#                                                  self.udp.header_length, self.udp.header_type)
+#             transport_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+#
+#         elif self.Base.ipv6_address_validation(src_ip):
+#             eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
+#             network_header = self.ipv6.make_header(src_ip, dst_ip, 0, len(dns_packet) + self.udp.header_length,
+#                                                    self.udp.header_type)
+#             transport_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
+#                                                                        len(dns_packet), dns_packet)
+#
+#         else:
+#             return None
+#
+#         return eth_header + network_header + transport_header + dns_packet
+#
+#     def make_request_packet(self, src_mac, src_ip, queries=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
+#                             tid=0, flags=0, src_port=5353, dst_port=5353):
+#         transaction_id = tid
+#         dns_flags = flags
+#         questions = len(queries)
+#         answer_rrs = 0
+#         authority_rrs = 0
+#         additional_rrs = 0
+#
+#         dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+#         for query in queries:
+#             dns_packet += self.dns.make_dns_name(query['name'])
+#             dns_packet += pack('!2H', query['type'], query['class'])
+#
+#         eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
+#         ip_header = self.ip.make_header(src_ip, dst_ip, len(dns_packet), 8, self.udp.header_type)
+#         udp_header = self.udp.make_header(src_port, dst_port, len(dns_packet))
+#
+#         return eth_header + ip_header + udp_header + dns_packet
+#
+#     def make_ipv6_request_packet(self, src_mac, src_ip, queries=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
+#                                  tid=0, flags=0, src_port=5353, dst_port=5353):
+#         transaction_id = tid
+#         dns_flags = flags
+#         questions = len(queries)
+#         answer_rrs = 0
+#         authority_rrs = 0
+#         additional_rrs = 0
+#
+#         dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
+#         for query in queries:
+#             dns_packet += self.dns.make_dns_name(query['name'])
+#             dns_packet += pack('!2H', query['type'], query['class'])
+#
+#         eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
+#         ipv6_header = self.ipv6.make_header(src_ip, dst_ip, 0, len(dns_packet) + self.udp.header_length,
+#                                             self.udp.header_type)
+#         udp_header = self.udp.make_header_with_ipv6_checksum(src_ip, dst_ip, src_port, dst_port,
+#                                                              len(dns_packet), dns_packet)
+#
+#         return eth_header + ipv6_header + udp_header + dns_packet
+#
+#     @staticmethod
+#     def parse_packet(packet):
+#         mdns_minimal_packet_length = 12
+#
+#         if len(packet) < mdns_minimal_packet_length:
+#             return None
+#
+#         mdns_detailed = unpack('!6H', packet[:mdns_minimal_packet_length])
+#
+#         mdns_packet = {
+#             'transaction-id': int(mdns_detailed[0]),
+#             'flags':          int(mdns_detailed[1]),
+#             'questions':      int(mdns_detailed[2]),
+#             'answer-rrs':     int(mdns_detailed[3]),
+#             'authority-rrs':  int(mdns_detailed[4]),
+#             'additional-rrs': int(mdns_detailed[5]),
+#         }
+#
+#         queries = []
+#         answers = []
+#         authority = []
+#         additional = []
+#
+#         if len(packet) > mdns_minimal_packet_length:
+#
+#             number_of_question = 0
+#             number_of_answers = 0
+#             position = mdns_minimal_packet_length
+#
+#             while number_of_question < mdns_packet['questions']:
+#
+#                 query_name = ''
+#                 query_name_length = int(unpack('B', packet[position:position + 1])[0])
+#
+#                 while query_name_length != 0:
+#                     query_name += ''.join([str(x) for x in packet[position + 1:position + query_name_length + 1]]) + '.'
+#                     position += query_name_length + 1
+#                     query_name_length = int(unpack('B', packet[position:position + 1])[0])
+#
+#                 query_type = int(unpack('!H', packet[position + 1:position + 3])[0])
+#                 query_class = int(unpack('!H', packet[position + 3:position + 5])[0])
+#                 position += 5
+#
+#                 queries.append({
+#                     'name':  query_name,
+#                     'type':  query_type,
+#                     'class': query_class
+#                 })
+#
+#                 number_of_question += 1
+#
+#             while number_of_answers < mdns_packet['answer-rrs']:
+#
+#                 name = ''
+#                 name_length = int(unpack('B', packet[position:position + 1])[0])
+#
+#                 while name_length != 0:
+#                     name += ''.join([str(x) for x in packet[position + 1:position + name_length + 1]]) + '.'
+#                     position += name_length + 1
+#                     name_length = int(unpack('B', packet[position:position + 1])[0])
+#
+#                 type = int(unpack('!H', packet[position + 1:position + 3])[0])
+#                 answer_class = int(unpack('!H', packet[position + 3:position + 5])[0])
+#                 ttl = int(unpack('!I', packet[position + 5:position + 9])[0])
+#                 data_len = int(unpack('!H', packet[position + 9:position + 11])[0])
+#                 position += 11
+#
+#                 if type == 1:
+#                     data = inet_ntoa(unpack('!4s', packet[position:position + 4])[0])
+#                     position += data_len
+#
+#                 elif type == 28:
+#                     data = inet_ntop(AF_INET6, unpack('!16s', packet[position:position + 16])[0])
+#                     position += data_len
+#
+#                 else:
+#                     data = ''
+#                     for _ in range(data_len):
+#                         data += str(unpack('c', packet[position:position + 1])[0]).decode(errors='replace')
+#                         position += 1
+#
+#                 answers.append({
+#                     'name': name,
+#                     'type': type,
+#                     'class': answer_class,
+#                     'ttl': ttl,
+#                     'data length': data_len,
+#                     'data': data
+#                 })
+#
+#                 number_of_answers += 1
+#
+#         mdns_packet['queries'] = queries
+#         mdns_packet['answers'] = answers
+#
+#         return mdns_packet
+#
+#     def make_a_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
+#                      tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 1, 'class': 1, 'name': name})
+#
+#         return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                         src_ip=src_ip, dst_ip=dst_ip,
+#                                         src_port=src_port, dst_port=dst_port,
+#                                         tid=tid,
+#                                         flags=flags,
+#                                         queries=queries)
+#
+#     def make_ipv6_a_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
+#                           tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 1, 'class': 1, 'name': name})
+#
+#         return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                              src_ip=src_ip, dst_ip=dst_ip,
+#                                              src_port=src_port, dst_port=dst_port,
+#                                              tid=tid,
+#                                              flags=flags,
+#                                              queries=queries)
+#
+#     def make_aaaa_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
+#                         tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 28, 'class': 1, 'name': name})
+#
+#         return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                         src_ip=src_ip, dst_ip=dst_ip,
+#                                         src_port=src_port, dst_port=dst_port,
+#                                         tid=tid,
+#                                         flags=flags,
+#                                         queries=queries)
+#
+#     def make_ipv6_aaaa_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
+#                              tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 28, 'class': 1, 'name': name})
+#
+#         return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                              src_ip=src_ip, dst_ip=dst_ip,
+#                                              src_port=src_port, dst_port=dst_port,
+#                                              tid=tid,
+#                                              flags=flags,
+#                                              queries=queries)
+#
+#     def make_any_query(self, src_mac, src_ip, names=[], dst_ip='224.0.0.251', dst_mac='01:00:5e:00:00:fb',
+#                        tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 255, 'class': 1, 'name': name})
+#
+#         return self.make_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                         src_ip=src_ip, dst_ip=dst_ip,
+#                                         src_port=src_port, dst_port=dst_port,
+#                                         tid=tid,
+#                                         flags=flags,
+#                                         queries=queries)
+#
+#     def make_ipv6_any_query(self, src_mac, src_ip, names=[], dst_ip='ff02::fb', dst_mac='33:33:00:00:00:fb',
+#                             tid=0, flags=0, src_port=5353, dst_port=5353):
+#         queries = []
+#
+#         for name in names:
+#             queries.append({'type': 255, 'class': 1, 'name': name})
+#
+#         return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
+#                                              src_ip=src_ip, dst_ip=dst_ip,
+#                                              src_port=src_port, dst_port=dst_port,
+#                                              tid=tid,
+#                                              flags=flags,
+#                                              queries=queries)
+#
+# # endregion
 
 
 # region Raw Sniffer
-class Sniff_raw:
+class RawSniff:
 
     # region variables
-    Base = None
-
-    eth = None
-    arp = None
-    ip = None
-    ipv6 = None
-    udp = None
-    icmpv6 = None
-    dns = None
-    mdns = None
-    dhcp = None
-    dhcpv6 = None
-
     raw_socket = None
     # endregion
 
@@ -3758,16 +4138,16 @@ class Sniff_raw:
     def __init__(self):
         self.Base = Base()
 
-        self.eth = Ethernet_raw()
-        self.arp = ARP_raw()
-        self.ip = IP_raw()
-        self.ipv6 = IPv6_raw()
-        self.udp = UDP_raw()
-        self.icmpv6 = ICMPv6_raw()
-        self.dns = DNS_raw()
-        self.mdns = MDNS_raw()
-        self.dhcp = DHCP_raw()
-        self.dhcpv6 = DHCPv6_raw()
+        self.eth = RawEthernet()
+        self.arp = RawARP()
+        self.ipv4 = RawIPv4()
+        self.ipv6 = RawIPv6()
+        self.udp = RawUDP()
+        self.icmpv6 = RawICMPv6()
+        self.dns = RawDNS()
+        # self.mdns = MDNS_raw()
+        # self.dhcp = DHCP_raw()
+        # self.dhcpv6 = DHCPv6_raw()
     # endregion
 
     # region Start sniffer
@@ -3784,18 +4164,18 @@ class Sniff_raw:
             try:
 
                 # region Sniff packets from RAW socket
-                packets = self.raw_socket.recvfrom(2048)
+                packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(2048)
 
                 for packet in packets:
 
                     # region Parse Ethernet header
-                    ethernet_header = packet[0:self.eth.header_length]
-                    ethernet_header_dict = self.eth.parse_header(ethernet_header)
+                    ethernet_header: Union[bytes, Any] = packet[0:self.eth.header_length]
+                    ethernet_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                        self.eth.parse_header(packet=ethernet_header, exit_on_failure=False, quiet=True)
                     # endregion
 
                     # region Could not parse Ethernet header - break
-                    if ethernet_header_dict is None:
-                        break
+                    assert ethernet_header_dict is not None, 'Bad Ethernet packet!'
                     # endregion
 
                     # region Ethernet filter
@@ -3816,7 +4196,6 @@ class Sniff_raw:
                         if 'not-destination' in filters['Ethernet'].keys():
                             if ethernet_header_dict['destination'] == filters['Ethernet']['not-destination']:
                                 break
-
                     # endregion
 
                     # region ARP packet
@@ -3825,13 +4204,14 @@ class Sniff_raw:
                     if 'ARP' in protocols and ethernet_header_dict['type'] == self.arp.packet_type:
 
                         # region Parse ARP packet
-                        arp_header = packet[self.eth.header_length:self.eth.header_length + self.arp.packet_length]
-                        arp_packet_dict = self.arp.parse_packet(arp_header)
+                        arp_header: Union[bytes, Any] = \
+                            packet[self.eth.header_length:self.eth.header_length + self.arp.packet_length]
+                        arp_packet_dict: Union[None, Dict[str, Union[int, str]]] = \
+                            self.arp.parse_packet(packet=arp_header, exit_on_failure=False, quiet=True)
                         # endregion
 
                         # region Could not parse ARP packet - break
-                        if arp_packet_dict is None:
-                            break
+                        assert arp_packet_dict is not None, 'Bad ARP packet!'
                         # endregion
 
                         # region ARP filter
@@ -3840,7 +4220,6 @@ class Sniff_raw:
                             if 'opcode' in filters['ARP'].keys():
                                 if arp_packet_dict['opcode'] != filters['ARP']['opcode']:
                                     break
-
                         # endregion
 
                         # region Call function with full ARP packet
@@ -3852,54 +4231,55 @@ class Sniff_raw:
 
                     # endregion
 
-                    # region IP packet
+                    # region IPv4 packet
 
-                    # 2048 - Type of IP packet (0x0800)
-                    if 'IP' in protocols and ethernet_header_dict['type'] == self.ip.header_type:
+                    # 2048 - Type of IPv4 packet (0x0800)
+                    if 'IP' in protocols and ethernet_header_dict['type'] == self.ipv4.header_type:
 
-                        # region Parse IP header
-                        ip_header = packet[self.eth.header_length:]
-                        ip_header_dict = self.ip.parse_header(ip_header)
+                        # region Parse IPv4 header
+                        ipv4_header: Union[bytes, Any] = packet[self.eth.header_length:]
+                        ipv4_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                            self.ipv4.parse_header(packet=ipv4_header, exit_on_failure=False, quiet=True)
                         # endregion
 
-                        # region Could not parse IP header - break
-                        if ip_header_dict is None:
-                            break
+                        # region Could not parse IPv4 header - break
+                        assert ipv4_header_dict is not None, 'Bad IPv4 packet!'
                         # endregion
 
-                        # region IP filter
-                        if 'IP' in filters.keys():
+                        # region IPv4 filter
+                        if 'IPv4' in filters.keys():
 
-                            if 'source-ip' in filters['IP'].keys():
-                                if ip_header_dict['source-ip'] != filters['IP']['source-ip']:
+                            if 'source-ip' in filters['IPv4'].keys():
+                                if ipv4_header_dict['source-ip'] != filters['IPv4']['source-ip']:
                                     break
 
-                            if 'destination-ip' in filters['IP'].keys():
-                                if ip_header_dict['destination-ip'] != filters['IP']['destination-ip']:
+                            if 'destination-ip' in filters['IPv4'].keys():
+                                if ipv4_header_dict['destination-ip'] != filters['IPv4']['destination-ip']:
                                     break
 
-                            if 'not-source-ip' in filters['IP'].keys():
-                                if ip_header_dict['source-ip'] == filters['IP']['not-source-ip']:
+                            if 'not-source-ip' in filters['IPv4'].keys():
+                                if ipv4_header_dict['source-ip'] == filters['IPv4']['not-source-ip']:
                                     break
 
-                            if 'not-destination-ip' in filters['IP'].keys():
-                                if ip_header_dict['destination-ip'] == filters['IP']['not-destination-ip']:
+                            if 'not-destination-ip' in filters['IPv4'].keys():
+                                if ipv4_header_dict['destination-ip'] == filters['IPv4']['not-destination-ip']:
                                     break
 
                         # endregion
 
                         # region UDP
-                        if 'UDP' in protocols and ip_header_dict['protocol'] == self.udp.header_type:
+                        if 'UDP' in protocols and ipv4_header_dict['protocol'] == self.udp.header_type:
 
                             # region Parse UDP header
-                            udp_header_offset = self.eth.header_length + (ip_header_dict['length'] * 4)
-                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp.header_length]
-                            udp_header_dict = self.udp.parse_header(udp_header)
+                            udp_header_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
+                            udp_header: Union[bytes, Any] = \
+                                packet[udp_header_offset:udp_header_offset + self.udp.header_length]
+                            udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                                self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
                             # endregion
 
                             # region Could not parse UDP header - break
-                            if udp_header is None:
-                                break
+                            assert udp_header is not None, 'Bad UDP packet!'
                             # endregion
 
                             # region UDP filter
@@ -3937,7 +4317,7 @@ class Sniff_raw:
                                 # region Call function with full DHCP packet
                                 full_dhcp_packet = {
                                     'Ethernet': ethernet_header_dict,
-                                    'IP': ip_header_dict,
+                                    'IP': ipv4_header_dict,
                                     'UDP': udp_header_dict
                                 }
                                 full_dhcp_packet.update(dhcp_packet_dict)
@@ -3951,20 +4331,19 @@ class Sniff_raw:
                             if 'DNS' in protocols:
 
                                 # region Parse DNS request packet
-                                dns_packet_offset = udp_header_offset + self.udp.header_length
-                                dns_packet = packet[dns_packet_offset:]
+                                dns_packet_offset: int = udp_header_offset + self.udp.header_length
+                                dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
                                 dns_packet_dict = self.dns.parse_packet(dns_packet)
                                 # endregion
 
                                 # region Could not parse DNS request packet - break
-                                if dns_packet_dict is None:
-                                    break
+                                assert dns_packet_dict is not None, 'Bad DNS packet!'
                                 # endregion
 
                                 # region Call function with full DNS packet
                                 prn({
                                     'Ethernet': ethernet_header_dict,
-                                    'IP': ip_header_dict,
+                                    'IP': ipv4_header_dict,
                                     'UDP': udp_header_dict,
                                     'DNS': dns_packet_dict
                                 })
@@ -4008,13 +4387,14 @@ class Sniff_raw:
                     if 'IPv6' in protocols and ethernet_header_dict['type'] == self.ipv6.header_type:
 
                         # region Parse IPv6 header
-                        ipv6_header = packet[self.eth.header_length:self.eth.header_length + self.ipv6.header_length]
-                        ipv6_header_dict = self.ipv6.parse_header(ipv6_header)
+                        ipv6_header: Union[bytes, Any] = \
+                            packet[self.eth.header_length:self.eth.header_length + self.ipv6.header_length]
+                        ipv6_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                            self.ipv6.parse_header(packet=ipv6_header, exit_on_failure=False, quiet=True)
                         # endregion
 
                         # region Could not parse IPv6 header - break
-                        if ipv6_header_dict is None:
-                            break
+                        assert ipv6_header_dict is not None, 'Bad IPv6 packet!'
                         # endregion
 
                         # region IPv6 filter
@@ -4042,14 +4422,15 @@ class Sniff_raw:
                         if 'UDP' in protocols and ipv6_header_dict['next-header'] == self.udp.header_type:
 
                             # region Parse UDP header
-                            udp_header_offset = self.eth.header_length + self.ipv6.header_length
-                            udp_header = packet[udp_header_offset:udp_header_offset + self.udp.header_length]
-                            udp_header_dict = self.udp.parse_header(udp_header)
+                            udp_header_offset: int = self.eth.header_length + self.ipv6.header_length
+                            udp_header: Union[bytes, Any] = \
+                                packet[udp_header_offset:udp_header_offset + self.udp.header_length]
+                            udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                                self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
                             # endregion
 
                             # region Could not parse UDP header - break
-                            if udp_header is None:
-                                break
+                            assert udp_header is not None, 'Bad UDP packet!'
                             # endregion
 
                             # region UDP filter
@@ -4071,14 +4452,13 @@ class Sniff_raw:
                             if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
 
                                 # region Parse DNS request packet
-                                dns_packet_offset = udp_header_offset + self.udp.header_length
-                                dns_packet = packet[dns_packet_offset:]
-                                dns_packet_dict = self.dns.parse_request_packet(dns_packet)
+                                dns_packet_offset: int = udp_header_offset + self.udp.header_length
+                                dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
+                                dns_packet_dict = self.dns.parse_packet(dns_packet)
                                 # endregion
 
                                 # region Could not parse DNS request packet - break
-                                if dns_packet_dict is None:
-                                    break
+                                assert dns_packet_dict is not None, 'Bad DNS packet!'
                                 # endregion
 
                                 # region Call function with full DNS packet
@@ -4187,6 +4567,11 @@ class Sniff_raw:
             except KeyboardInterrupt:
                 self.Base.print_info('Exit')
                 exit(0)
+            # endregion
+
+            # region AssertionError
+            except AssertionError:
+                pass
             # endregion
 
         # endregion

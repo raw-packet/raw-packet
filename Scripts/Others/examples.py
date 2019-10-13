@@ -20,7 +20,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP
+from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS
 # endregion
 
 # region Import libraries
@@ -57,6 +57,7 @@ if __name__ == "__main__":
     ipv4 = RawIPv4()
     ipv6 = RawIPv6()
     udp = RawUDP()
+    dns = RawDNS()
     # endregion
 
     try:
@@ -242,22 +243,44 @@ if __name__ == "__main__":
 
         # region RawUDP functions
         print('\n')
-        Base.print_info('Test network udp functions:')
+        Base.print_info('Test network UDP functions:')
 
-        print('\nMake udp header:')
+        print('\nMake UDP header:')
         print(udp.make_header())
 
-        print('\nMake udp header bad input:')
+        print('\nMake UDP header bad input:')
         print(udp.make_header(123123, 123123))
 
-        print('\nMake udp header with checksum for ipv6:')
+        print('\nMake UDP header with checksum for ipv6:')
         print(udp.make_header_with_ipv6_checksum())
 
-        print('\nMake udp header with checksum for ipv6 bad input:')
+        print('\nMake UDP header with checksum for ipv6 bad input:')
         print(udp.make_header_with_ipv6_checksum('fd00:::1', 'fd00:2'))
 
         print('\nParse UDP header')
         print(udp.parse_header(b'\x14\xe9\x14\xe9\x00\x08\xdc\x07'))
+        # endregion
+
+        # region RawDNS functions
+        print('\n')
+        Base.print_info('Test network DNS functions:')
+
+        print('\nMake DNS name:')
+        print(dns.make_dns_name())
+
+        print('\nMake IPv4 DNS request packet:')
+        print(dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                           src_ip='192.168.1.1', dst_ip='192.168.1.2', ip_ident=1,
+                                           src_port=5353, dst_port=53, transaction_id=1,
+                                           queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                           flags=0))
+
+        print('\nMake IPv6 DNS request packet:')
+        print(dns.make_ipv6_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                           src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64,
+                                           src_port=5353, dst_port=53, transaction_id=1,
+                                           queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                           flags=0))
         # endregion
 
     except KeyboardInterrupt:

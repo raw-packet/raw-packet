@@ -13,7 +13,7 @@ Copyright 2019, Raw-packet Project
 # region Import
 
 # region Raw-packet modules
-from raw_packet.Utils.network import Ethernet_raw, ARP_raw
+from raw_packet.Utils.network import RawEthernet, RawARP
 from raw_packet.Utils.tm import ThreadManager
 from raw_packet.Utils.base import Base
 # endregion
@@ -69,8 +69,8 @@ class ArpScan:
     # region Init
     def __init__(self):
         self.base = Base()
-        self.eth = Ethernet_raw()
-        self.arp = ARP_raw()
+        self.eth = RawEthernet()
+        self.arp = RawARP()
         self.rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
         self.results = []
         self.unique_results = []
@@ -140,11 +140,11 @@ class ArpScan:
     def send(self):
         arp_requests = []
 
-        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
-        self.your_ip_address = self.base.get_netiface_ip_address(self.network_interface)
+        self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)
+        self.your_ip_address = self.base.get_interface_ip_address(self.network_interface)
 
-        first_ip_address = self.base.get_netiface_first_ip(self.network_interface, 1)
-        last_ip_address = self.base.get_netiface_last_ip(self.network_interface, -2)
+        first_ip_address = self.base.get_first_ip_on_interface(self.network_interface)
+        last_ip_address = self.base.get_last_ip_on_interface(self.network_interface)
 
         if self.target_ip_address is not None:
             if self.base.ip_address_in_range(self.target_ip_address, first_ip_address, last_ip_address):

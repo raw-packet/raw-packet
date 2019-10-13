@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # region Get your network settings
     if args.interface is None:
         Base.print_warning("Please set a network interface for sniffing DNS queries ...")
-    current_network_interface = Base.netiface_selection(args.interface)
+    current_network_interface = Base.network_interface_selection(args.interface)
     # endregion
 
     # region Create fake domains list
