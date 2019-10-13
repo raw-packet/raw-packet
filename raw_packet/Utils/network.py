@@ -1151,7 +1151,7 @@ class RawUDP:
     # endregion
 
     @staticmethod
-    def checksum(packet: bytes) -> int:
+    def _checksum(packet: bytes) -> int:
         """
         Calculate packet checksum
         :param packet: Bytes of packet
@@ -1168,19 +1168,20 @@ class RawUDP:
     def parse_header(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 34,
+                     exit_code: int = 55,
                      quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse UDP header
         :param packet: Bytes of packet
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 34)
+        :param exit_code: Set exit code integer (default: 55)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed UDP header dictionary (example: {'source-port': 5353, 'destination-port': 5353, 'length': 8, 'checksum': 56327}) or None if error
         """
+        error_text: str = 'Failed to parse UDP header!'
         try:
             assert not len(packet) < self.header_length, \
-                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
                 ' minimal UDP header length: ' + self.base.info_text(str(self.header_length))
 
             udp_detailed = unpack('!4H', packet[:self.header_length])
@@ -1193,13 +1194,13 @@ class RawUDP:
             }
 
         except AssertionError as Error:
-            error_text = Error.args[0]
+            error_text += Error.args[0]
 
         except IndexError:
-            error_text = 'Failed to parse UDP header!'
+            pass
 
         except struct_error:
-            error_text = 'Failed to parse UDP header!'
+            pass
 
         if not quiet:
             self.base.print_error(error_text)
@@ -1213,7 +1214,7 @@ class RawUDP:
                     destination_port: int = 5353,
                     data_length: int = 0,
                     exit_on_failure: bool = False,
-                    exit_code: int = 35,
+                    exit_code: int = 56,
                     quiet: bool = False) -> Union[None, bytes]:
         """
         Make UDP header
@@ -1221,15 +1222,30 @@ class RawUDP:
         :param destination_port: Destination UDP port integer (example: 5353)
         :param data_length: Length of payload integer (example: 0)
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 34)
+        :param exit_code: Set exit code integer (default: 56)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of header
         """
+        error_text: str = 'Failed to make UDP header!'
+        header: bytes = b''
         try:
-            return pack('!4H', source_port, destination_port, data_length + 8, 0)
+            header += pack('!H', source_port)
+            header += pack('!H', destination_port)
+            header += pack('!H', data_length + 8)
+            header += pack('!H', 0)     # Check sum
+            return header
 
-        except struct_error:
-            error_text = 'Failed to make UDP header!'
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'source_port' in traceback_text:
+                error_text += ' Bad source port: ' + self.base.error_text(str(source_port)) + \
+                              ' source port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'destination_port' in traceback_text:
+                error_text += ' Bad destination port: ' + self.base.error_text(str(destination_port)) + \
+                              ' destination port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'data_length' in traceback_text:
+                error_text += ' Bad data length: ' + self.base.error_text(str(data_length)) + \
+                              ' data length must be in range: ' + self.base.info_text('1 - 65527')
 
         if not quiet:
             self.base.print_error(error_text)
@@ -1246,7 +1262,7 @@ class RawUDP:
                                        payload_len: int = 0,
                                        payload_data: bytes = b'',
                                        exit_on_failure: bool = False,
-                                       exit_code: int = 36,
+                                       exit_code: int = 57,
                                        quiet: bool = False) -> Union[None, bytes]:
         """
         Make UDP header with checksum for 6 version Internet protocol
@@ -1257,31 +1273,65 @@ class RawUDP:
         :param payload_len: Length of payload integer (example: 0)
         :param payload_data: Payload data (example: b'')
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 34)
+        :param exit_code: Set exit code integer (default: 57)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of header
         """
+        error_text = 'Failed to make UDP header!'
+        psh: bytes = b''
+        header: bytes = b''
         try:
-            udp_header: bytes = self.make_header(port_src, port_dst, payload_len)
-            placeholder: int = 0
+            # Calculate data length
             data_length: int = payload_len + self.header_length
-            psh: bytes = self.ipv6.pack_addr(ipv6_address=ipv6_src,
-                                             exit_on_failure=exit_on_failure,
-                                             exit_code=exit_code,
-                                             quiet=quiet)
-            psh += self.ipv6.pack_addr(ipv6_address=ipv6_dst,
-                                       exit_on_failure=exit_on_failure,
-                                       exit_code=exit_code,
-                                       quiet=quiet)
-            psh += pack('!' '2B' 'H', placeholder, self.header_type, data_length)
-            checksum: int = self.checksum(psh + udp_header + payload_data)
-            return pack('!4H', port_src, port_dst, data_length, checksum)
 
-        except struct_error:
-            error_text = 'Failed to make UDP header!'
+            # Make begin of header
+            header += pack('!H', port_src)
+            header += pack('!H', port_dst)
+            header += pack('!H', data_length)
 
-        except TypeError:
-            error_text = 'Failed to make UDP header!'
+            # Make placeholder
+            psh += self.ipv6.pack_addr(exit_on_failure=exit_on_failure, exit_code=exit_code,
+                                       quiet=quiet, ipv6_address=ipv6_src)
+            psh += self.ipv6.pack_addr(exit_on_failure=exit_on_failure, exit_code=exit_code,
+                                       quiet=quiet, ipv6_address=ipv6_dst)
+            psh += pack('!2B', 0, self.header_type)
+            psh += pack('!H', data_length)
+
+            # Make udp header without check sum
+            udp_header: Union[None, bytes] = self.make_header(source_port=port_src,
+                                                              destination_port=port_dst,
+                                                              data_length=payload_len,
+                                                              exit_on_failure=exit_on_failure,
+                                                              exit_code=exit_code,
+                                                              quiet=quiet)
+
+            # Calculate check sum
+            checksum: int = self._checksum(psh + udp_header + payload_data)
+
+            # Add check sum to header
+            header += pack('!H', checksum)
+            return header
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'port_src' in traceback_text:
+                error_text += ' Bad source port: ' + self.base.error_text(str(port_src)) + \
+                              ' source port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'port_dst' in traceback_text:
+                error_text += ' Bad destination port: ' + self.base.error_text(str(port_dst)) + \
+                              ' destination port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'data_length' in traceback_text:
+                error_text += ' Bad data length: ' + self.base.error_text(str(payload_len)) + \
+                              ' data length must be in range: ' + self.base.info_text('1 - 65527')
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'ipv6_src' in traceback_text:
+                error_text += ' Bad source IPv6 address: ' + self.base.error_text(str(ipv6_src)) + \
+                              ' example IPv6 address: ' + self.base.info_text('fd00::1')
+            if 'ipv6_dst' in traceback_text:
+                error_text += ' Bad destination IPv6 address: ' + self.base.error_text(str(ipv6_dst)) + \
+                              ' example IPv6 address: ' + self.base.info_text('fd00::1')
 
         if not quiet:
             self.base.print_error(error_text)
