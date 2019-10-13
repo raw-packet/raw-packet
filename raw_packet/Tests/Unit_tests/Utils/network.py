@@ -1,6 +1,6 @@
 # region Description
 """
-Network.py: Unit tests for Raw-packet network classes
+network.py: Unit tests for Raw-packet network classes
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project

@@ -1,6 +1,6 @@
 # region Description
 """
-Base.py: Unit tests for Raw-packet Base class
+base.py: Unit tests for Raw-packet Base class
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
