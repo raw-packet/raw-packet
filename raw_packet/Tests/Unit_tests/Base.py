@@ -66,6 +66,10 @@ class BaseTest(unittest.TestCase):
     ipv4_default_gateway: bytes = ipv4_default_gateway_command.stdout
     ipv4_default_gateway: str = ipv4_default_gateway[:-1].decode('utf-8')
     ipv4_gateway: str = '192.168.119.1'
+    ipv6_link_local_address_command = run('ip address list dev eth0 | grep \'fe80::\' | sed \'s/\// /\' ' +
+                                          '| awk \'{print $2}\'', shell=True, stdout=PIPE)
+    ipv6_link_local_address: bytes = ipv6_link_local_address_command.stdout
+    ipv6_link_local_address: str = ipv6_link_local_address[:-1].decode('utf-8')
     ipv6_address: str = 'fd00::123'
     ipv6_gateway: str = 'fd00::1'
 
@@ -150,6 +154,44 @@ class BaseTest(unittest.TestCase):
     def test_network_interface_selection(self):
         self.assertEqual(self.base.network_interface_selection(self.interface), self.interface)
 
+    def test_get_interface_settings(self):
+        # Normal
+        self.assertEqual(self.base.get_interface_settings(self.interface, False),
+                         {
+                             'MAC address': self.mac_address,
+                             'IPv4 address': self.ipv4_address,
+                             'IPv6 link local address': self.ipv6_link_local_address,
+                             'IPv6 global address': self.ipv6_address,
+                             'IPv6 global addresses': [self.ipv6_address],
+                             'IPv4 netmask': self.ipv4_network_mask,
+                             'IPv4 network': self.ipv4_network,
+                             'First IPv4 address': self.first_ipv4,
+                             'Second IPv4 address': self.second_ipv4,
+                             'Penultimate IPv4 address': self.penultimate_ipv4,
+                             'Last IPv4 address': self.last_ipv4,
+                             'IPv4 broadcast': self.ipv4_broadcast,
+                             'IPv4 gateway': self.ipv4_gateway,
+                             'IPv6 gateway': self.ipv6_gateway
+                         })
+        # Bad network interface name
+        self.assertEqual(self.base.get_interface_settings('self.interface', False),
+                         {
+                             'MAC address': None,
+                             'IPv4 address': None,
+                             'IPv6 link local address': None,
+                             'IPv6 global address': None,
+                             'IPv6 global addresses': [],
+                             'IPv4 netmask': None,
+                             'IPv4 network': None,
+                             'First IPv4 address': None,
+                             'Second IPv4 address': None,
+                             'Penultimate IPv4 address': None,
+                             'Last IPv4 address': None,
+                             'IPv4 broadcast': None,
+                             'IPv4 gateway': None,
+                             'IPv6 gateway': None
+                         })
+
     def test_get_interface_mac_address(self):
         # Normal
         self.assertEqual(self.base.get_interface_mac_address(self.interface, True, 7), self.mac_address)
@@ -176,9 +218,9 @@ class BaseTest(unittest.TestCase):
 
     def test_get_interface_ipv6_glob_address(self):
         # Normal
-        self.assertIsNotNone(self.base.get_interface_ipv6_glob_address(self.interface, True, 11))
+        self.assertIsNotNone(self.base.get_interface_ipv6_glob_address(self.interface))
         # Bad network interface name
-        self.assertIsNone(self.base.get_interface_ipv6_glob_address('self.interface', False, 11))
+        self.assertIsNone(self.base.get_interface_ipv6_glob_address('self.interface'))
 
     def test_get_interface_ipv6_glob_addresses(self):
         # Normal
