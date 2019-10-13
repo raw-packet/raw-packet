@@ -718,7 +718,7 @@ class RawIPv4:
         try:
             assert not len(packet) < self.header_length, \
                 ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal IPv4 header length: ' + self.base.success_text(str(self.header_length))
+                ' minimal IPv4 header length: ' + self.base.info_text(str(self.header_length))
 
             version_and_length = int(unpack('!B', packet[:1])[0])
             version = int(int(version_and_length & 0b11110000) >> 4)
@@ -889,29 +889,61 @@ class RawIPv6:
 
     # endregion
 
-    @staticmethod
-    def get_random_ip(octets: int = 1, prefix: str = '') -> str:
+    def make_random_ip(self,
+                       octets: int = 1,
+                       prefix: Union[None, str] = None,
+                       exit_on_failure: bool = True,
+                       exit_code: int = 51,
+                       quiet: bool = False) -> Union[None, str]:
         """
         Get random IPv6 address string
         :param octets: Number of octets (default: 1)
-        :param prefix: IPv6 prefix (default: '')
-        :return: Random IPv6 address string
+        :param prefix: IPv6 prefix (default: 'fd00::')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 51)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Random IPv6 address string or None if error
         """
-        ip = prefix
-        for index in range(0, octets):
-            ip += str(hex(randint(1, 65535))[2:]) + ':'
-        return ip[:-1]
+        error_text: str = 'Failed to make random IPv6 address!'
+        if prefix is None:
+            prefix: str = 'fd00::'
+        try:
+            inet_pton(AF_INET6, prefix + '1')
+        except OSError:
+            error_text += ' Bad prefix: ' + self.base.error_text(str(prefix)) + \
+                          ' example prefix: ' + self.base.info_text('fd00::')
+            prefix: None = None
+        try:
+            for index in range(0, octets):
+                prefix += str(hex(randint(1, 65535))[2:]) + ':'
+
+            prefix: str = prefix[:-1]
+            inet_pton(AF_INET6, prefix)
+            return prefix
+
+        except TypeError:
+            pass
+
+        except OSError:
+            error_text += ' Bad number of octets: ' + self.base.error_text(str(octets)) + \
+                          ' example: ' + self.base.info_text('1')
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def pack_addr(self,
                   ipv6_address: str = '::',
                   exit_on_failure: bool = True,
-                  exit_code: int = 31,
+                  exit_code: int = 52,
                   quiet: bool = False) -> Union[None, bytes]:
         """
         Pack IPv6 address string to bytes
         :param ipv6_address: IPv6 address string (default: '::')
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 31)
+        :param exit_code: Set exit code integer (default: 52)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 address bytes
         """
@@ -933,27 +965,29 @@ class RawIPv6:
     def parse_header(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 32,
+                     exit_code: int = 53,
                      quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse IPv6 header
         :param packet: Bytes of packet
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 2402)
+        :param exit_code: Set exit code integer (default: 53)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Parsed IPv6 header dictionary (example: {'version': 6, 'traffic-class': 0, 'flow-label': 0, 'payload-length': 8, 'next-header': 17, 'hop-limit': 64, 'source-ip': 'fd00::1', 'destination-ip': 'fd00::2'}) or None if error
         """
+        error_text: str = 'Failed to parse IPv6 header!'
         try:
             assert not len(packet) < self.header_length, \
-                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal IPv6 header length: ' + self.base.success_text(str(self.header_length))
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal IPv6 header length: ' + self.base.info_text(str(self.header_length))
 
             version_class_and_label = int(unpack('!L', packet[0:4])[0])
             version = int(int(version_class_and_label & 0b11110000000000000000000000000000) >> 28)
             traffic_class = int(int(version_class_and_label & 0b00001111111100000000000000000000) >> 20)
             flow_label = int(version_class_and_label & 0b00000000000011111111111111111111)
 
-            assert version == self.version, 'Bad IP version: ' + self.base.error_text(str(version))
+            assert version == self.version, ' Bad IP version: ' + self.base.error_text(str(version)) + \
+                                            ' default IP version: ' + self.base.info_text(str(self.version))
 
             ipv6_detailed = unpack('!' 'H' '2B' '16s' '16s', packet[4:self.header_length])
 
@@ -969,16 +1003,16 @@ class RawIPv6:
             }
 
         except AssertionError as Error:
-            error_text = Error.args[0]
+            error_text += Error.args[0]
 
         except IndexError:
-            error_text = 'Failed to parse IPv6 header!'
+            pass
 
         except sock_error:
-            error_text = 'Failed to parse IPv6 header!'
+            pass
 
         except struct_error:
-            error_text = 'Failed to parse IPv6 header!'
+            pass
 
         if not quiet:
             self.base.print_error(error_text)
@@ -990,50 +1024,88 @@ class RawIPv6:
     def make_header(self,
                     source_ip: str = 'fd00::1',
                     destination_ip: str = 'fd00::2',
+                    traffic_class: int = 0,
                     flow_label: int = 0,
                     payload_len: int = 8,
                     next_header: int = 17,
                     hop_limit: int = 64,
                     exit_on_failure: bool = False,
-                    exit_code: int = 33,
+                    exit_code: int = 54,
                     quiet: bool = False) -> Union[None, bytes]:
         """
         Make IPv6 packet header
         :param source_ip: Source IPv6 address string (example: 'fd00::1')
         :param destination_ip: Destination IPv6 address string (example: 'fd00::2')
-        :param flow_label: Flow label integer (example: 0)
+        :param traffic_class: Differentiated Services Code Point and Explicit Congestion Notification (default: 0)
+        :param flow_label: Flow label integer (default: 0)
         :param payload_len: Length of payload integer (example: 8)
         :param next_header: Next transport protocol header type integer (example: 17 - UDP)
         :param hop_limit: Hop limit integer (default: 64)
         :param exit_on_failure: Exit in case of error (default: False)
-        :param exit_code: Set exit code integer (default: 33)
+        :param exit_code: Set exit code integer (default: 54)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Bytes of packet or None if error
         """
+        error_text: str = 'Failed to make IPv6 header!'
+        header: bytes = b''
         try:
+            # Assertions
+            assert traffic_class.bit_length() <= 7, \
+                ' Bad traffic class: ' + self.base.error_text(str(traffic_class)) + \
+                ' default traffic class: ' + self.base.info_text('0')
+            assert flow_label.bit_length() <= 20, \
+                ' Bad flow label: ' + self.base.error_text(str(flow_label)) + \
+                ' default flow label: ' + self.base.info_text('0')
+            assert payload_len.bit_length() <= 16, \
+                ' Bad payload length: ' + self.base.error_text(str(payload_len)) + \
+                ' default payload length: ' + self.base.info_text('8')
+            assert next_header.bit_length() <= 8, \
+                ' Bad next header: ' + self.base.error_text(str(next_header)) + \
+                ' default next header: ' + self.base.info_text('17')
+            assert hop_limit.bit_length() <= 8, \
+                ' Bad hop limit: ' + self.base.error_text(str(hop_limit)) + \
+                ' default hop limit: ' + self.base.info_text('64')
+
             # Source IPv6 address
-            source_ipv6 = self.pack_addr(ipv6_address=source_ip,
-                                         exit_on_failure=exit_on_failure,
-                                         exit_code=exit_code,
-                                         quiet=quiet)
+            source_ipv6: Union[None, str] = self.pack_addr(ipv6_address=source_ip,
+                                                           exit_on_failure=exit_on_failure,
+                                                           exit_code=exit_code,
+                                                           quiet=quiet)
 
             # Destination IPv6 address
-            destination_ipv6 = self.pack_addr(ipv6_address=destination_ip,
-                                              exit_on_failure=exit_on_failure,
-                                              exit_code=exit_code,
-                                              quiet=quiet)
+            destination_ipv6: Union[None, str] = self.pack_addr(ipv6_address=destination_ip,
+                                                                exit_on_failure=exit_on_failure,
+                                                                exit_code=exit_code,
+                                                                quiet=quiet)
 
-            # Traffic class: Differentiated Services Code Point and Explicit Congestion Notification
-            traffic_class: int = 0
+            # Pack header
+            header += pack('!I', (self.version << 28) + (traffic_class << 20) + flow_label)
+            header += pack('!I', (payload_len << 16) + (next_header << 8) + hop_limit)
+            header += source_ipv6
+            header += destination_ipv6
+            return header
 
-            return pack('!' '2I', (self.version << 28) + (traffic_class << 20) + flow_label,
-                        (payload_len << 16) + (next_header << 8) + hop_limit) + source_ipv6 + destination_ipv6
+        except AssertionError as Error:
+            error_text += Error.args[0]
 
-        except struct_error:
-            error_text = 'Failed to make IPv6 header!'
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'traffic_class' in traceback_text:
+                error_text += ' Bad traffic class: ' + self.base.error_text(str(traffic_class)) + \
+                              ' or flow label: ' + self.base.error_text(str(flow_label))
+            if 'payload_len' in traceback_text:
+                error_text += ' Bad payload length: ' + self.base.error_text(str(payload_len)) + \
+                              ' or next header: ' + self.base.error_text(str(next_header)) + \
+                              ' or hop limit: ' + self.base.error_text(str(hop_limit))
 
-        except TypeError:
-            error_text = 'Failed to make IPv6 header!'
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'source_ipv6' in traceback_text:
+                error_text += ' Bad source IPv6 address: ' + self.base.error_text(str(source_ip)) + \
+                              ' example IPv6 address: ' + self.base.info_text('fd00::1')
+            if 'destination_ipv6' in traceback_text:
+                error_text += ' Bad destination IPv6 address: ' + self.base.error_text(str(destination_ip)) + \
+                              ' example IPv6 address: ' + self.base.info_text('fd00::1')
 
         if not quiet:
             self.base.print_error(error_text)
@@ -1109,7 +1181,7 @@ class RawUDP:
         try:
             assert not len(packet) < self.header_length, \
                 'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal UDP header length: ' + self.base.success_text(str(self.header_length))
+                ' minimal UDP header length: ' + self.base.info_text(str(self.header_length))
 
             udp_detailed = unpack('!4H', packet[:self.header_length])
 
@@ -1786,7 +1858,7 @@ class RawICMPv6:
         try:
             assert len(packet) < self.packet_length, \
                 'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal ICMPv6 packet length: ' + self.base.success_text(str(self.packet_length))
+                ' minimal ICMPv6 packet length: ' + self.base.info_text(str(self.packet_length))
 
             offset = self.packet_length
 
