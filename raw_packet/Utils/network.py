@@ -19,6 +19,7 @@ from re import search
 from time import time
 from typing import Dict, List, Union, Tuple, Any
 from traceback import format_tb
+from enum import Enum
 # endregion
 
 # region Authorship information
@@ -209,27 +210,20 @@ class RawEthernet:
         :return: Result bytes or string (example: b'\x01#Eg\x89\n' or '01:23:45:67:89:0a') or None if error
         """
         try:
-            assert not len(mac_address) < 6, \
-                'Too short mac address: ' + self.base.error_text(str(mac_address))
-
-            assert not len(mac_address) > 17, \
-                'Too long mac address: ' + self.base.error_text(str(mac_address))
-
-            assert not (len(mac_address) != 6 and len(mac_address) != 17), \
-                'Bad length: ' + self.base.error_text(str(len(mac_address))) + \
-                ' of mac address: ' + self.base.error_text(str(mac_address))
-
-            if len(mac_address) == 17:
+            if len(mac_address) == 17 and type(mac_address) == str:
                 mac_address: str = str(mac_address).lower()
                 assert search('([0-9a-f]{2}[:-]){5}([0-9a-f]{2})', mac_address), \
                     'Bad MAC address: ' + self.base.error_text(str(mac_address))
                 return unhexlify(mac_address.replace(':', ''))
 
-            if len(mac_address) == 6:
+            elif len(mac_address) == 6 and type(mac_address) == bytes:
                 result_mac_address: str = ''
                 for byte_of_address in mac_address:
                     result_mac_address += '{:02x}'.format(byte_of_address) + ':'
                 return result_mac_address[:-1].lower()
+
+            else:
+                raise AssertionError('Bad MAC address length: ' + self.base.error_text(str(len(mac_address))))
 
         except AssertionError as Error:
             if not quiet:
@@ -255,28 +249,21 @@ class RawEthernet:
         :return: MAC address prefix string (example: 'ABC345') or None if error
         """
         try:
-            assert not len(mac_address) < 6, \
-                'Too short mac address: ' + self.base.error_text(str(mac_address))
-
-            assert not len(mac_address) > 17, \
-                'Too long mac address: ' + self.base.error_text(str(mac_address))
-
-            assert not (len(mac_address) != 6 and len(mac_address) != 17), \
-                'Bad length: ' + self.base.error_text(str(len(mac_address))) + \
-                ' of mac address: ' + self.base.error_text(str(mac_address))
-
-            if len(mac_address) == 17:
+            if len(mac_address) == 17 and type(mac_address) == str:
                 mac_address: str = str(mac_address).lower()
                 assert search('([0-9a-f]{2}[:-]){5}([0-9a-f]{2})', mac_address), \
                     'Bad MAC address: ' + self.base.error_text(str(mac_address))
                 result_mac_address: str = mac_address.replace(':', '')
                 return result_mac_address[:(prefix_length * 2)].upper()
 
-            if len(mac_address) == 6:
+            elif len(mac_address) == 6 and type(mac_address) == bytes:
                 result_mac_address: str = ''
                 for byte_of_address in mac_address[0:prefix_length]:
                     result_mac_address += '{:02x}'.format(byte_of_address)
                 return result_mac_address.upper()
+
+            else:
+                raise AssertionError('Bad MAC address length: ' + self.base.error_text(str(len(mac_address))))
 
         except AssertionError as Error:
             if not quiet:
@@ -447,9 +434,9 @@ class RawARP:
         """
         error_text: str = 'Failed to parse ARP packet!'
         try:
-            assert not len(packet) != self.packet_length, \
+            assert not len(packet) != RawARP.packet_length, \
                 ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' normal ARP packet length: ' + self.base.success_text(str(self.packet_length))
+                ' normal ARP packet length: ' + self.base.success_text(str(RawARP.packet_length))
 
             arp_detailed = unpack('!' '2H' '2B' 'H' '6s' '4s' '6s' '4s', packet)
 
@@ -541,7 +528,7 @@ class RawARP:
 
             eth_header = self.eth.make_header(source_mac=ethernet_src_mac,
                                               destination_mac=ethernet_dst_mac,
-                                              network_type=self.packet_type,
+                                              network_type=RawARP.packet_type,
                                               exit_on_failure=exit_on_failure,
                                               exit_code=exit_code,
                                               quiet=quiet)
@@ -1356,7 +1343,6 @@ class RawUDP:
 
 # endregion
 
-
 # region Raw TCP
 class RawTCP:
     """
@@ -1675,15 +1661,17 @@ class RawDNS:
                              src_mac: str = '01:23:45:67:89:0a',
                              dst_mac: str = '01:23:45:67:89:0b',
                              src_ip: str = '192.168.1.1',
-                             dst_ip: str = '192.168.1.3',
+                             dst_ip: str = '192.168.1.2',
                              ip_ttl: int = 64,
                              ip_ident: Union[None, int] = None,
                              src_port: int = 53,
                              dst_port: int = 5353,
                              transaction_id: int = 1,
                              flags: int = 0,
-                             queries: List[Dict[str, Union[int, str]]] = [],
-                             answers_address=[],
+                             queries: List[Dict[str, Union[int, str]]] =
+                             [{'type': 1, 'class': 1, 'name': 'test.com'}],
+                             answers_address: List[Dict[str, Union[int, str]]] =
+                             [{'name': 'test.com', 'type': 1, 'class': 1, 'ttl': 65535, 'address': '192.168.1.1'}],
                              name_servers={},
                              exit_on_failure: bool = False,
                              exit_code: int = 65,
@@ -1700,28 +1688,32 @@ class RawDNS:
             dns_packet += pack('!H', len(name_servers.keys()))  # Authority RRs
             dns_packet += pack('!H', len(name_servers.keys()))  # Additionsl RRS
 
+            # Set default DNS query type
             query_type = 1
 
             for query in queries:
-                query_name = query['name']
                 query_type = query['type']
-                query_class = query['class']
+                query_name = query['name']
 
                 if query_name.endswith('.'):
                     query_name = query_name[:-1]
 
                 dns_packet += self.make_dns_name(query_name)
-                dns_packet += pack('!2H', query_type, query_class)
+                dns_packet += pack('!H', query['type'])
+                dns_packet += pack('!H', query['class'])
 
-            if query_type == 1:
-                for address in answers_address:
-                    if 'name' in address.keys():
-                        dns_packet += self.make_dns_name(address['name'])
-                    else:
-                        dns_packet += pack('!H', 0xc00c)
+            # Type DNS query: A - (IPv4)
+            for address in answers_address:
+                if 'name' in address.keys():
+                    dns_packet += self.make_dns_name(address['name'])
+                else:
+                    dns_packet += pack('!H', 0xc00c)
 
-                    dns_packet += pack('!' '2H' 'I' 'H' '4s', address['type'], address['class'], address['ttl'],
-                                       4, inet_aton(address['address']))
+                dns_packet += pack('!H', address['type'])  # Type: 1 - A, 28 - AAAA
+                dns_packet += pack('!H', address['class'])  # Class: 1 - IN
+                dns_packet += pack('!I', address['ttl'])  # Address ttl
+                dns_packet += pack('!H', 4)  # IPv4 address length
+                dns_packet += pack('!4s', inet_aton(address['address']))  # IPv4 address
 
             if query_type == 28:
                 for address in answers_address:
@@ -1816,6 +1808,25 @@ class RawDNS:
 
         except TypeError:
             return None
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'transaction_id' in traceback_text:
+                error_text += ' Bad transaction ID: ' + self.base.error_text(str(transaction_id)) + \
+                              ' transaction ID must be in range: ' + self.base.info_text('1 - 65535')
+            if 'flags' in traceback_text:
+                error_text += ' Bad flags: ' + self.base.error_text(str(flags)) + \
+                              ' flags must be in range: ' + self.base.info_text('1 - 65535')
+            if 'type' in traceback_text:
+                error_text += ' Query type be in range: ' + self.base.info_text('1 - 65535')
+            if 'class' in traceback_text:
+                error_text += ' Query class must be in range: ' + self.base.info_text('1 - 65535')
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def make_ipv4_request_packet(self,
                                  src_mac: str = '01:23:45:67:89:0a',
