@@ -511,7 +511,7 @@ class NetworkTest(unittest.TestCase):
                                                             flags=0))
 
     def test_dns_make_response_packet(self):
-        # Normal
+        # Normal IPv4 response
         self.assertEqual(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
                                                        src_ip='192.168.1.1', dst_ip='192.168.1.2', ip_ttl=64,
                                                        ip_ident=1, src_port=53, dst_port=5353, transaction_id=1,
@@ -523,6 +523,59 @@ class NetworkTest(unittest.TestCase):
                          b'\xc0\xa8\x01\x02\x005\x14\xe9\x00:\x00\x00\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00' +
                          b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00\x00\x01\x00\x01\x00\x00\xff\xff\x00' +
                          b'\x04\xc0\xa8\x01\x01')
-    # endregion
+        # Normal IPv6 response
+        self.assertEqual(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                       src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                       src_port=53, dst_port=5353, transaction_id=1, flags=0,
+                                                       queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                       answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
+                                                                         'ttl': 65535, 'address': 'fd00::1'}],
+                                                       name_servers={}, exit_on_failure=True),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00F\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x005\x14\xe9\x00F\x96V\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00' +
+                         b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00\x00\x1c\x00\x01\x00\x00\xff\xff' +
+                         b'\x00\x10\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01')
+        # Bad MAC address
+        self.assertIsNone(self.dns.make_response_packet(src_mac='01:23:45:67:890ab', dst_mac='01:23:45:67:89:0b',
+                                                        src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                        src_port=53, dst_port=5353, transaction_id=1, flags=0,
+                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
+                                                                          'ttl': 65535, 'address': 'fd00::1'}],
+                                                        name_servers={}, exit_on_failure=False))
+        # Bad IP address
+        self.assertIsNone(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                        src_ip='fd00:::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                        src_port=53, dst_port=5353, transaction_id=1, flags=0,
+                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
+                                                                          'ttl': 65535, 'address': 'fd00::1'}],
+                                                        name_servers={}, exit_on_failure=False))
+        # Bad UDP port
+        self.assertIsNone(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                        src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                        src_port=123123, dst_port=5353, transaction_id=1, flags=0,
+                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
+                                                                          'ttl': 65535, 'address': 'fd00::1'}],
+                                                        name_servers={}, exit_on_failure=False))
+        # Bad IPv4 address in answer
+        self.assertIsNone(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                        src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                        src_port=53, dst_port=5353, transaction_id=1, flags=0,
+                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                        answers_address=[{'name': 'test.com', 'type': 1, 'class': 1,
+                                                                          'ttl': 65535, 'address': '192.168.1.300'}],
+                                                        name_servers={}, exit_on_failure=False))
+        # Bad IPv6 address in answer
+        self.assertIsNone(self.dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
+                                                        src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
+                                                        src_port=53, dst_port=5353, transaction_id=1, flags=0,
+                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
+                                                                          'ttl': 65535, 'address': 'fd00:::1'}],
+                                                        name_servers={}, exit_on_failure=False))
+        # endregion
 
 # endregion
