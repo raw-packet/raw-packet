@@ -1525,16 +1525,34 @@ class RawDNS:
         return result_name + b'\x00'
 
     @staticmethod
-    def make_dns_ptr(ip_address):
-        pass
+    def make_dns_ptr(ip_address: str,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 66,
+                     quiet: bool = False) -> Union[None, bytes]:
+        """
+        Under construction
+        :param ip_address:
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 66)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return:
+        """
+        return None
 
     def parse_packet(self,
-                     packet: bytes) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
+                     packet: bytes,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 67,
+                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
         """
         Parse DNS Packet
         :param packet: Bytes of network packet
-        :return: None if error or Dictionary
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 67)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Parsed DNS packet dictionary (example: {'transaction-id': 1, 'flags': 0, 'questions': 1, 'answer-rrs': 1, 'authority-rrs': 0, 'additional-rrs': 0, 'queries': [{'name': 'test.com.', 'type': 1, 'class': 1}], 'answers': [{'name': 'test.com.', 'type': 1, 'class': 1, 'ttl': 65535, 'address': '192.168.1.1'}]}) or None if error
         """
+        error_text: str = 'Failed to parse DNS packet!'
         try:
             # Init lists for DNS queries and answers
             queries: List[Dict[str, Union[int, str]]] = list()
@@ -1603,17 +1621,17 @@ class RawDNS:
                 # region Parse DNS answers
                 while number_of_answers < dns_packet['answer-rrs']:
 
-                    answer_name = ''
+                    answer_name: str = ''
                     if packet[position:position + 2] == b'\xc0\x0c':
                         answer_name = dns_packet['queries'][0]['name']
                         position += 2
                     else:
                         answer_name_length = int(unpack('B', packet[position:position + 1])[0])
-
                         while answer_name_length != 0:
                             answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + '.'
                             position += answer_name_length + 1
                             answer_name_length = int(unpack('B', packet[position:position + 1])[0])
+                        position += 1
 
                     answer_type = int(unpack('!H', packet[position:position + 2])[0])
                     answer_class = int(unpack('!H', packet[position + 2:position + 4])[0])
@@ -1652,10 +1670,16 @@ class RawDNS:
             return dns_packet
 
         except UnicodeDecodeError:
-            return None
+            pass
 
         except struct_error:
-            return None
+            pass
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def make_response_packet(self,
                              src_mac: str = '01:23:45:67:89:0a',
@@ -1674,9 +1698,30 @@ class RawDNS:
                              [{'name': 'test.com', 'type': 1, 'class': 1, 'ttl': 65535, 'address': '192.168.1.1'}],
                              name_servers={},
                              exit_on_failure: bool = False,
-                             exit_code: int = 65,
+                             exit_code: int = 68,
                              quiet: bool = False) -> Union[None, bytes]:
-
+        """
+        Make DNS response packet
+        :type queries: object
+        :type answers_address: object
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param ip_ttl: TTL for IPv4 header or hop limit for IPv6 header (default: 64)
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param src_port: Source UDP port (default: 53)
+        :param dst_port: Source UDP port (example: 5353)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param flags: DNS flags (default: 0)
+        :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
+        :param answers_address: List with DNS answers address (example: [{'name': 'test.com', 'type': 1, 'class': 1, 'ttl': 65535, 'address': '192.168.1.1'}])
+        :param name_servers: Dictionary with name servers (Under constraction)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 68)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
+        """
         error_text: str = 'Failed to make DNS response packet!'
         packet: bytes = b''
         try:
@@ -1688,11 +1733,7 @@ class RawDNS:
             dns_packet += pack('!H', len(name_servers.keys()))  # Authority RRs
             dns_packet += pack('!H', len(name_servers.keys()))  # Additionsl RRS
 
-            # Set default DNS query type
-            query_type = 1
-
             for query in queries:
-                query_type = query['type']
                 query_name = query['name']
 
                 if query_name.endswith('.'):
@@ -1709,32 +1750,21 @@ class RawDNS:
                 else:
                     dns_packet += pack('!H', 0xc00c)
 
-                dns_packet += pack('!H', address['type'])  # Type: 1 - A, 28 - AAAA
+                dns_packet += pack('!H', address['type'])   # Type: 1 - A, 28 - AAAA
                 dns_packet += pack('!H', address['class'])  # Class: 1 - IN
-                dns_packet += pack('!I', address['ttl'])  # Address ttl
-                dns_packet += pack('!H', 4)  # IPv4 address length
-                dns_packet += pack('!4s', inet_aton(address['address']))  # IPv4 address
+                dns_packet += pack('!I', address['ttl'])    # Address ttl
 
-            if query_type == 28:
-                for address in answers_address:
-                    if 'name' in address.keys():
-                        dns_packet += self.make_dns_name(address['name'])
-                    else:
-                        dns_packet += pack('!H', 0xc00c)
+                if int(address['type']) == 1:
+                    dns_packet += pack('!H', 4)                               # IPv4 address length
+                    dns_packet += pack('!4s', inet_aton(address['address']))  # IPv4 address
 
-                    dns_packet += pack('!' '2H' 'I' 'H' '16s', address['type'], address['class'], address['ttl'],
-                                       16, inet_pton(AF_INET6, address['address']))
+                elif int(address['type']) == 28:
+                    dns_packet += pack('!H', 16)                                         # IPv6 address length
+                    dns_packet += pack('!16s', inet_pton(AF_INET6, address['address']))  # IPv6 address
 
-            if query_type == 12:
-                for address in answers_address:
-                    domain = self.make_dns_name(address['address'])
-                    if 'name' in address.keys():
-                        dns_packet += self.make_dns_name(address['name'])
-                    else:
-                        dns_packet += pack('!H', 0xc00c)
-
-                    dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
-                                       len(domain))
+                elif int(address['type']) == 12:
+                    domain = self.make_dns_name(address['address'])  # Domain name
+                    dns_packet += pack('!H', len(domain))            # Domain length
                     dns_packet += domain
 
             # region IPv4 request
@@ -1801,13 +1831,26 @@ class RawDNS:
 
             # region Unknown network - return None
             else:
-                return None
+                raise TypeError('Unknown network!')
             # endregion
 
             return packet + dns_packet
 
-        except TypeError:
-            return None
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'dst_mac' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'Unknown network' in traceback_text:
+                error_text += ' Bad source or destination IP address!'
+            if 'dst_port' in traceback_text:
+                error_text += ' Bad source or destination UDP port!'
+
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'inet_aton' in traceback_text:
+                error_text += ' Bad IPv4 address in answers!'
+            if 'inet_pton' in traceback_text:
+                error_text += ' Bad IPv6 address in answer!'
 
         except struct_error as Error:
             traceback_text: str = format_tb(Error.__traceback__)[0]
@@ -1842,25 +1885,25 @@ class RawDNS:
                                  [{'type': 1, 'class': 1, 'name': 'test.com'}],
                                  flags=0,
                                  exit_on_failure: bool = False,
-                                 exit_code: int = 65,
+                                 exit_code: int = 69,
                                  quiet: bool = False) -> Union[None, bytes]:
         """
-
-        :param src_mac:
-        :param dst_mac:
-        :param src_ip:
-        :param dst_ip:
-        :param ip_ttl:
-        :param ip_ident:
-        :param src_port:
-        :param dst_port:
-        :param transaction_id:
-        :param queries:
-        :param flags:
-        :param exit_on_failure:
-        :param exit_code:
-        :param quiet:
-        :return:
+        Make DNS request packet for IPv4 network
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv4 address string in Network header (example: '192.168.1.1')
+        :param dst_ip: Destination IPv4 address string in Network header (example: '192.168.1.2')
+        :param ip_ttl: TTL for IPv4 header (default: 64)
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param src_port: Source UDP port (example: 5353)
+        :param dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param flags: DNS flags (default: 0)
+        :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 69)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
         """
         error_text: str = 'Failed to make IPv4 DNS request packet!'
         packet: bytes = b''
@@ -1955,25 +1998,24 @@ class RawDNS:
                                  [{'type': 1, 'class': 1, 'name': 'test.com'}],
                                  flags=0,
                                  exit_on_failure: bool = False,
-                                 exit_code: int = 65,
+                                 exit_code: int = 70,
                                  quiet: bool = False) -> Union[None, bytes]:
         """
-
-        :param src_mac:
-        :param dst_mac:
-        :param src_ip:
-        :param dst_ip:
-        :param ip_ttl:
-        :param ip_ident:
-        :param src_port:
-        :param dst_port:
-        :param transaction_id:
-        :param queries:
-        :param flags:
-        :param exit_on_failure:
-        :param exit_code:
-        :param quiet:
-        :return:
+        Make DNS request packet for IPv6 network
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv6 address string in Network header (example: 'fd00::1')
+        :param dst_ip: Destination IPv6 address string in Network header (example: 'fd00::2')
+        :param ip_ttl: Hop limit for IPv6 header (default: 64)
+        :param src_port: Source UDP port (example: 5353)
+        :param dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param flags: DNS flags (default: 0)
+        :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 70)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
         """
         error_text: str = 'Failed to make IPv6 DNS request packet!'
         packet: bytes = b''
@@ -2067,19 +2109,25 @@ class RawDNS:
                      dst_port: int = 53,
                      transaction_id: int = 1,
                      name: str = 'test.com',
-                     flags: int = 0) -> Union[None, bytes]:
+                     flags: int = 0,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 71,
+                     quiet: bool = False) -> Union[None, bytes]:
         """
-
-        :param src_mac:
-        :param dst_mac:
-        :param src_ip:
-        :param dst_ip:
-        :param src_port:
-        :param dst_port:
-        :param transaction_id:
-        :param name:
-        :param flags:
-        :return:
+        Make DNS query with type: A
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param src_port: Source UDP port (example: 5353)
+        :param dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param name: Name of domain for resolving (example: test.com)
+        :param flags: DNS flags (default: 0)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 71)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 1, 'class': 1, 'name': name}]
 
@@ -2100,6 +2148,10 @@ class RawDNS:
                                                  queries=queries)
 
         else:
+            if not quiet:
+                self.base.print_error('Failed to make DNS query with type: A! Unknown network type!')
+            if exit_on_failure:
+                exit(exit_code)
             return None
 
     def make_aaaa_query(self,
@@ -2111,19 +2163,25 @@ class RawDNS:
                         dst_port: int = 53,
                         transaction_id: int = 1,
                         name: str = 'test.com',
-                        flags: int = 0) -> Union[None, bytes]:
+                        flags: int = 0,
+                        exit_on_failure: bool = False,
+                        exit_code: int = 72,
+                        quiet: bool = False) -> Union[None, bytes]:
         """
-
-        :param src_mac:
-        :param dst_mac:
-        :param src_ip:
-        :param dst_ip:
-        :param src_port:
-        :param dst_port:
-        :param transaction_id:
-        :param name:
-        :param flags:
-        :return:
+        Make DNS query with type: AAAA
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param src_port: Source UDP port (example: 5353)
+        :param dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param name: Name of domain for resolving (example: test.com)
+        :param flags: DNS flags (default: 0)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 72)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 28, 'class': 1, 'name': name}]
 
@@ -2144,6 +2202,10 @@ class RawDNS:
                                                  queries=queries)
 
         else:
+            if not quiet:
+                self.base.print_error('Failed to make DNS query with type: AAAA! Unknown network type!')
+            if exit_on_failure:
+                exit(exit_code)
             return None
 
     def make_any_query(self,
@@ -2155,19 +2217,25 @@ class RawDNS:
                        dst_port: int = 53,
                        transaction_id: int = 1,
                        name: str = 'test.com',
-                       flags: int = 0) -> Union[None, bytes]:
+                       flags: int = 0,
+                       exit_on_failure: bool = False,
+                       exit_code: int = 73,
+                       quiet: bool = False) -> Union[None, bytes]:
         """
-
-        :param src_mac:
-        :param dst_mac:
-        :param src_ip:
-        :param dst_ip:
-        :param src_port:
-        :param dst_port:
-        :param transaction_id:
-        :param name:
-        :param flags:
-        :return:
+        Make DNS query with type: ANY
+        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param src_port: Source UDP port (example: 5353)
+        :param dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param name: Name of domain for resolving (example: test.com)
+        :param flags: DNS flags (default: 0)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 69)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 255, 'class': 1, 'name': name}]
 
@@ -2188,6 +2256,10 @@ class RawDNS:
                                                  queries=queries)
 
         else:
+            if not quiet:
+                self.base.print_error('Failed to make DNS query with type: ANY! Unknown network type!')
+            if exit_on_failure:
+                exit(exit_code)
             return None
 
 # endregion
