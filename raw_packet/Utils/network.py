@@ -1343,6 +1343,7 @@ class RawUDP:
 
 # endregion
 
+
 # region Raw TCP
 class RawTCP:
     """
@@ -1559,8 +1560,9 @@ class RawDNS:
             answers: List[Dict[str, Union[int, str]]] = list()
 
             # Check length of packet
-            if len(packet) < self.packet_length:
-                return None
+            assert not len(packet) < self.packet_length, \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal DNS packet length: ' + self.base.info_text(str(self.packet_length))
 
             # region Parse DNS packet header
 
@@ -1668,6 +1670,9 @@ class RawDNS:
 
             # Return parsed packet: dictionary
             return dns_packet
+
+        except AssertionError as Error:
+            error_text += Error.args[0]
 
         except UnicodeDecodeError:
             pass
@@ -2262,6 +2267,483 @@ class RawDNS:
                 exit(exit_code)
             return None
 
+# endregion
+
+
+# region Raw DHCP
+class RawDHCP:
+    # 0                   1                   2                   3
+    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |     op (1)    |   htype (1)   |   hlen (1)    |   hops (1)    |
+    # +---------------+---------------+---------------+---------------+
+    # |                            xid (4)                            |
+    # +-------------------------------+-------------------------------+
+    # |           secs (2)            |           flags (2)           |
+    # +-------------------------------+-------------------------------+
+    # |                          ciaddr  (4)                          |
+    # +---------------------------------------------------------------+
+    # |                          yiaddr  (4)                          |
+    # +---------------------------------------------------------------+
+    # |                          siaddr  (4)                          |
+    # +---------------------------------------------------------------+
+    # |                          giaddr  (4)                          |
+    # +---------------------------------------------------------------+
+    # |                                                               |
+    # |                          chaddr  (16)                         |
+    # |                                                               |
+    # |                                                               |
+    # +---------------------------------------------------------------+
+    # |                                                               |
+    # |                          sname   (64)                         |
+    # +---------------------------------------------------------------+
+    # |                                                               |
+    # |                          file    (128)                        |
+    # +---------------------------------------------------------------+
+    # |                                                               |
+    # |                          options (variable)                   |
+    # +---------------------------------------------------------------+
+
+    # FIELD      OCTETS       DESCRIPTION
+    # -----      ------       -----------
+    #
+    # op            1  Message op code / message type.
+    #                  1 = BOOTREQUEST, 2 = BOOTREPLY
+    # htype         1  Hardware address type, see ARP section in 'Assigned
+    #                  Numbers' RFC; e.g., '1' = 10mb ethernet.
+    # hlen          1  Hardware address length (e.g.  '6' for 10mb
+    #                  ethernet).
+    # hops          1  Client sets to zero, optionally used by relay agents
+    #                  when booting via a relay agent.
+    # xid           4  Transaction ID, a random number chosen by the
+    #                  client, used by the client and server to associate
+    #                  messages and responses between a client and a
+    #                  server.
+    # secs          2  Filled in by client, seconds elapsed since client
+    #                  began address acquisition or renewal process.
+    # flags         2  Flags (see figure 2).
+    # ciaddr        4  Client IP address; only filled in if client is in
+    #                  BOUND, RENEW or REBINDING state and can respond
+    #                  to ARP requests.
+    # yiaddr        4  'your' (client) IP address.
+    # siaddr        4  IP address of next server to use in bootstrap;
+    #                  returned in DHCPOFFER, DHCPACK by server.
+    # giaddr        4  Relay agent IP address, used in booting via a
+    #                  relay agent.
+    # chaddr       16  Client hardware address.
+    # sname        64  Optional server host name, null terminated string.
+    # file        128  Boot file name, null terminated string; 'generic'
+    #                  name or null in DHCPDISCOVER, fully qualified
+    #                  directory-path name in DHCPOFFER.
+    # options     var  Optional parameters field.  See the options
+    #                  documents for a list of defined options.
+
+    # region Properties
+
+    # Set minimal BOOTP/DHCP packet length
+    bootp_packet_length: int = 236
+
+    # Set DHCP packet offset
+    dhcp_packet_offset: int = 240
+
+    # Set DHCP magic cookie
+    dhcp_magic_cookie: bytes = b'63825363'
+
+    # Init Raw Ethernet
+    eth: RawEthernet = RawEthernet()
+
+    # Init Raw IPv4
+    ipv4: RawIPv4 = RawIPv4()
+
+    # Init Raw DNS
+    udp: RawUDP = RawUDP()
+
+    # Init Raw-packet Base class
+    base: Base = Base()
+
+    # endregion
+
+    def parse_packet(self,
+                     packet: bytes,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 67,
+                     quiet: bool = False):
+        error_text: str = 'Failed to parse DNS packet!'
+        bootp_packet: Dict[str, Union[int, str]] = dict()
+        dhcp_packet: Dict[int, Union[int, str, bytes]] = dict()
+        try:
+            assert not len(packet) < self.bootp_packet_length, \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal BOOTP/DHCP packet length: ' + self.base.info_text(str(self.bootp_packet_length))
+
+            bootp_detailed = unpack('!' '4B' 'I' '2H' '4s' '4s' '4s' '4s' '6s', packet[:34])
+
+            bootp_packet['message-type'] = int(bootp_detailed[0])
+            bootp_packet['hardware-type'] = int(bootp_detailed[1])
+            bootp_packet['hardware-address-length'] = int(bootp_detailed[2])
+            bootp_packet['hops'] = int(bootp_detailed[3])
+            bootp_packet['transaction-id'] = int(bootp_detailed[4])
+            bootp_packet['seconds-elapsed'] = int(bootp_detailed[5])
+            bootp_packet['flags'] = int(bootp_detailed[6])
+            bootp_packet['client-ip-address'] = inet_ntoa(bootp_detailed[7])
+            bootp_packet['your-ip-address'] = inet_ntoa(bootp_detailed[8])
+            bootp_packet['server-ip-address'] = inet_ntoa(bootp_detailed[9])
+            bootp_packet['relay-ip-address'] = inet_ntoa(bootp_detailed[10])
+            bootp_packet['client-mac-address'] = self.eth.convert_mac(hexlify(bootp_detailed[11]))
+
+            if len(packet) > RawDHCP.dhcp_packet_offset:
+                magic_cookie = hexlify(unpack('!4s', packet[self.bootp_packet_length:self.dhcp_packet_offset])[0])
+                if magic_cookie == self.dhcp_magic_cookie:
+
+                    position = self.dhcp_packet_offset
+
+                    while position < len(packet) - 1:
+                        option_name = int(unpack('B', packet[position:position + 1])[0])
+                        position += 1
+
+                        # 255 - End
+                        if option_name == 255:
+                            break
+
+                        # 12 - Host name
+                        elif option_name == 12:
+                            option_length = int(unpack('B', packet[position:position + 1])[0])
+                            position += 1
+                            option_value = ''.join([str(x) for x in packet[position:position + option_length]])
+                            position += option_length
+
+                        # 50 - Requested IP
+                        elif option_name == 50:
+                            option_value = inet_ntoa(unpack('4s', packet[position + 1:position + 5])[0])
+                            position += 5
+
+                        # 51 - Lease time
+                        elif option_name == 51:
+                            option_value = int(unpack('I', packet[position + 1:position + 5])[0])
+                            position += 5
+
+                        # 53 - Message type
+                        elif option_name == 53:
+                            option_value = int(unpack('B', packet[position + 1:position + 2])[0])
+                            position += 2
+
+                        # 57 - Maximum DHCP message size
+                        elif option_name == 57:
+                            option_value = int(unpack('H', packet[position + 1:position + 3])[0])
+                            position += 3
+
+                        # 61 - Client identifier
+                        elif option_name == 61:
+                            option_value = self.eth.convert_mac(hexlify(unpack('6s', packet[position + 2:position + 8])[0]))
+                            position += 8
+
+                        else:
+                            option_length = int(unpack('B', packet[position:position + 1])[0])
+                            position += 1
+                            try:
+                                option_value = ''.join([hexlify(x) for x in packet[position:position + option_length]])
+                            except TypeError:
+                                option_value = ''.join(map(chr, packet[position:position + option_length]))
+                            position += option_length
+
+                        dhcp_packet[option_name] = option_value
+
+            return {
+                'BOOTP': bootp_packet,
+                'DHCP': dhcp_packet
+            }
+
+        except AssertionError as Error:
+            error_text += Error.args[0]
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ip_src, ip_dst, udp_src_port, udp_dst_port,
+                    bootp_message_type, bootp_transaction_id, bootp_flags,
+                    bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
+                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options, padding=0):
+
+        try:
+            message_type = bootp_message_type  # Boot protocol message type
+            hardware_type = 1  # Ethernet
+            hardware_address_len = 6  # Ethernet address len
+            hops = 0  # Number of hops
+            transaction_id = bootp_transaction_id  # Transaction id
+            seconds_elapsed = 0  # Seconds elapsed
+            flags = bootp_flags  # Flags
+
+            CIADDR = inet_aton(bootp_client_ip)  # Client IP address
+            YIADDR = inet_aton(bootp_your_client_ip)  # Your client IP address
+            SIADDR = inet_aton(bootp_next_server_ip)  # Next server IP address
+            GIADDR = inet_aton(bootp_relay_agent_ip)  # Relay agent IP address
+            CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
+
+            # Test case
+            # test_command = bytes('() { :; }; echo test > /tmp/test ')
+            # test_command = pack('!%ds' % (len(test_command)), test_command)
+
+            client_hw_padding = b''.join(pack('B', 0) for _ in range(10))  # Client hardware address padding
+            server_host_name = b''.join(pack('B', 0) for _ in range(64))  # Server host name
+            boot_file_name = b''.join(pack('B', 0) for _ in range(128))  # Boot file name
+            magic_cookie = pack('!4B', 99, 130, 83, 99)  # Magic cookie: DHCP
+
+            dhcp_packet = pack('!' '4B' 'L' '2H',
+                               message_type, hardware_type, hardware_address_len, hops, transaction_id,
+                               seconds_elapsed, flags)
+
+            dhcp_packet += pack('!' '4s' '4s' '4s' '4s',
+                                CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+
+            dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
+
+            if padding != 0:
+                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(int(padding)))
+            else:
+                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(24))
+
+            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
+            ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
+            udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
+
+            return eth_header + ip_header + udp_header + dhcp_packet
+        except sock_error:
+            return None
+
+    def make_discover_packet(self, ethernet_src_mac, client_mac, host_name=None, relay_ip=None,
+                             ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
+                             ip_src='0.0.0.0', ip_dst='255.255.255.255',
+                             udp_src_port=68, udp_dst_port=67, transaction_id=0):
+
+        relay_agent_ip_address = '0.0.0.0'
+        if relay_ip is not None:
+            relay_agent_ip_address = relay_ip
+
+        option_discover = pack('!3B', 53, 1, 1)
+        options = option_discover
+
+        if host_name is not None:
+            try:
+                host_name = bytes(host_name)
+            except TypeError:
+                host_name = host_name.encode('utf-8')
+            if len(host_name) < 255:
+                host_name = pack('!%ds' % (len(host_name)), host_name)
+                option_host_name = pack('!2B', 12, len(host_name)) + host_name
+                options += option_host_name
+
+        option_param_req_list = pack('!2B', 55, 254)
+        for param in range(1, 255):
+            option_param_req_list += pack('B', param)
+
+        option_end = pack('B', 255)
+
+        options += option_param_req_list + option_end
+
+        if transaction_id == 0:
+            trid = randint(1, 4294967295)
+        else:
+            trid = transaction_id
+
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                ip_src=ip_src, ip_dst=ip_dst,
+                                udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
+                                bootp_message_type=1,
+                                bootp_transaction_id=trid,
+                                bootp_flags=0,
+                                bootp_client_ip='0.0.0.0',
+                                bootp_your_client_ip='0.0.0.0',
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip=relay_agent_ip_address,
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, host_name=None,
+                            requested_ip=None, option_value=None, option_code=12,
+                            client_ip='0.0.0.0', your_client_ip='0.0.0.0', relay_agent_ip='0.0.0.0'):
+        option_message_type = pack('!3B', 53, 1, dhcp_message_type)
+        options = option_message_type
+
+        if requested_ip is not None:
+            option_requested_ip = pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
+            options += option_requested_ip
+
+        if host_name is not None:
+            try:
+                host_name = bytes(host_name)
+            except TypeError:
+                host_name = host_name.encode('utf-8')
+            if len(host_name) < 255:
+                host_name = pack('!%ds' % (len(host_name)), host_name)
+                option_host_name = pack('!2B', 12, len(host_name)) + host_name
+                options += option_host_name
+
+        if option_value is not None:
+            if len(option_value) < 255:
+                if 0 < option_code < 256:
+                    option_payload = pack('!' '2B', option_code, len(option_value)) + option_value
+                    options += option_payload
+
+        option_param_req_list = pack('!2B', 55, 7)
+        for param in [1, 2, 3, 6, 28, 15, 26]:
+            option_param_req_list += pack('B', param)
+
+        option_end = pack('B', 255)
+
+        options += option_param_req_list + option_end
+
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
+                                ip_src='0.0.0.0', ip_dst='255.255.255.255',
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip=client_ip,
+                                bootp_your_client_ip=your_client_ip,
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip=relay_agent_ip,
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_release_packet(self, client_mac, server_mac, client_ip, server_ip):
+        option_message_type = pack('!3B', 53, 1, 7)
+        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
+        option_end = pack('B', 255)
+
+        options = option_message_type + option_server_id + option_end
+
+        return self.make_packet(ethernet_src_mac=client_mac,
+                                ethernet_dst_mac=server_mac,
+                                ip_src=client_ip, ip_dst=server_ip,
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=randint(1, 4294967295),
+                                bootp_flags=0,
+                                bootp_client_ip='0.0.0.0',
+                                bootp_your_client_ip='0.0.0.0',
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip='0.0.0.0',
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_decline_packet(self, relay_mac, relay_ip, server_mac, server_ip, client_mac, requested_ip, transaction_id):
+        option_message_type = pack('!3B', 53, 1, 4)
+        option_requested_ip = pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
+        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
+        option_end = pack('B', 255)
+
+        options = option_message_type + option_requested_ip + option_server_id + option_end
+
+        return self.make_packet(ethernet_src_mac=relay_mac,
+                                ethernet_dst_mac=server_mac,
+                                ip_src=relay_ip, ip_dst=server_ip,
+                                udp_src_port=68, udp_dst_port=67,
+                                bootp_message_type=1,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip=requested_ip,
+                                bootp_your_client_ip='0.0.0.0',
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip=relay_ip,
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
+                             payload=None, proxy=None, domain=None, tftp=None, wins=None, payload_option_code=114):
+        option_operation = pack('!3B', 53, 1, dhcp_operation)
+        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
+        option_lease_time = pack('!' '2B' 'L', 51, 4, lease_time)
+        option_netmask = pack('!' '2B' '4s', 1, 4, inet_aton(netmask))
+        option_router = pack('!' '2B' '4s', 3, 4, inet_aton(router))
+        option_dns = pack('!' '2B' '4s', 6, 4, inet_aton(dns))
+        option_end = pack('B', 255)
+
+        options = option_operation + option_server_id + option_lease_time + option_netmask + \
+                  option_router + option_dns
+
+        if domain is not None:
+            if len(domain) < 255:
+                option_domain = pack('!' '2B', 15, len(domain)) + domain
+                options += option_domain
+
+        if proxy is not None:
+            if len(proxy) < 255:
+                option_proxy = pack('!' '2B', 252, len(proxy)) + proxy
+                options += option_proxy
+
+        if payload is not None:
+            if len(payload) < 255:
+                if 0 < payload_option_code < 256:
+                    option_payload = pack('!' '2B', payload_option_code, len(payload)) + payload
+                    options += option_payload
+
+        if tftp is not None:
+            if len(tftp) < 255:
+                option_tftp = pack('!' '2B' '4s', 150, 4, inet_aton(tftp))
+                options += option_tftp
+
+        if wins is not None:
+            if len(wins) < 255:
+                # NetBIOS over TCP/IP Name Server Option
+                # https://tools.ietf.org/html/rfc1533#section-8.5
+                option_wins = pack('!' '2B' '4s', 44, 4, inet_aton(wins))
+
+                # NetBIOS over TCP/IP Datagram Distribution Server Option
+                # https://tools.ietf.org/html/rfc1533#section-8.6
+                option_wins += pack('!' '2B' '4s', 45, 4, inet_aton(wins))
+
+                # NetBIOS over TCP/IP Node Type Option
+                # https://tools.ietf.org/html/rfc1533#section-8.7
+                # 0x2 - P-node (POINT-TO-POINT (P) NODES)
+                # https://tools.ietf.org/html/rfc1001#section-10.2
+                option_wins += pack('!' '3B', 46, 1, 0x2)
+
+                # Add WINS option in all options
+                options += option_wins
+
+        options += option_end
+
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip='0.0.0.0',
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip='0.0.0.0',
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
+
+    def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
+                        client_mac, dhcp_server_id):
+        option_operation = pack('!3B', 53, 1, 6)
+        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
+        option_end = pack('B', 255)
+        options = option_operation + option_server_id + option_end
+
+        return self.make_packet(ethernet_src_mac=source_mac,
+                                ethernet_dst_mac=destination_mac,
+                                ip_src=source_ip, ip_dst=destination_ip,
+                                udp_src_port=67, udp_dst_port=68,
+                                bootp_message_type=2,
+                                bootp_transaction_id=transaction_id,
+                                bootp_flags=0,
+                                bootp_client_ip='0.0.0.0',
+                                bootp_your_client_ip=your_ip,
+                                bootp_next_server_ip='0.0.0.0',
+                                bootp_relay_agent_ip='0.0.0.0',
+                                bootp_client_hw_address=client_mac,
+                                dhcp_options=options)
 # endregion
 
 
@@ -3444,463 +3926,6 @@ class ICMP_raw:
 # endregion
 
 
-# region Raw DHCP
-class DHCP_raw:
-    # 0                   1                   2                   3
-    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    # |     op (1)    |   htype (1)   |   hlen (1)    |   hops (1)    |
-    # +---------------+---------------+---------------+---------------+
-    # |                            xid (4)                            |
-    # +-------------------------------+-------------------------------+
-    # |           secs (2)            |           flags (2)           |
-    # +-------------------------------+-------------------------------+
-    # |                          ciaddr  (4)                          |
-    # +---------------------------------------------------------------+
-    # |                          yiaddr  (4)                          |
-    # +---------------------------------------------------------------+
-    # |                          siaddr  (4)                          |
-    # +---------------------------------------------------------------+
-    # |                          giaddr  (4)                          |
-    # +---------------------------------------------------------------+
-    # |                                                               |
-    # |                          chaddr  (16)                         |
-    # |                                                               |
-    # |                                                               |
-    # +---------------------------------------------------------------+
-    # |                                                               |
-    # |                          sname   (64)                         |
-    # +---------------------------------------------------------------+
-    # |                                                               |
-    # |                          file    (128)                        |
-    # +---------------------------------------------------------------+
-    # |                                                               |
-    # |                          options (variable)                   |
-    # +---------------------------------------------------------------+
-
-    # FIELD      OCTETS       DESCRIPTION
-    # -----      ------       -----------
-    #
-    # op            1  Message op code / message type.
-    #                  1 = BOOTREQUEST, 2 = BOOTREPLY
-    # htype         1  Hardware address type, see ARP section in 'Assigned
-    #                  Numbers' RFC; e.g., '1' = 10mb ethernet.
-    # hlen          1  Hardware address length (e.g.  '6' for 10mb
-    #                  ethernet).
-    # hops          1  Client sets to zero, optionally used by relay agents
-    #                  when booting via a relay agent.
-    # xid           4  Transaction ID, a random number chosen by the
-    #                  client, used by the client and server to associate
-    #                  messages and responses between a client and a
-    #                  server.
-    # secs          2  Filled in by client, seconds elapsed since client
-    #                  began address acquisition or renewal process.
-    # flags         2  Flags (see figure 2).
-    # ciaddr        4  Client IP address; only filled in if client is in
-    #                  BOUND, RENEW or REBINDING state and can respond
-    #                  to ARP requests.
-    # yiaddr        4  'your' (client) IP address.
-    # siaddr        4  IP address of next server to use in bootstrap;
-    #                  returned in DHCPOFFER, DHCPACK by server.
-    # giaddr        4  Relay agent IP address, used in booting via a
-    #                  relay agent.
-    # chaddr       16  Client hardware address.
-    # sname        64  Optional server host name, null terminated string.
-    # file        128  Boot file name, null terminated string; 'generic'
-    #                  name or null in DHCPDISCOVER, fully qualified
-    #                  directory-path name in DHCPOFFER.
-    # options     var  Optional parameters field.  See the options
-    #                  documents for a list of defined options.
-
-    eth = None
-    ip = None
-    udp = None
-
-    def __init__(self):
-        self.eth = Ethernet_raw()
-        self.ip = IP_raw()
-        self.udp = UDP_raw()
-
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                    ip_src, ip_dst, udp_src_port, udp_dst_port,
-                    bootp_message_type, bootp_transaction_id, bootp_flags,
-                    bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
-                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options, padding=0):
-
-        try:
-            message_type = bootp_message_type  # Boot protocol message type
-            hardware_type = 1  # Ethernet
-            hardware_address_len = 6  # Ethernet address len
-            hops = 0  # Number of hops
-            transaction_id = bootp_transaction_id  # Transaction id
-            seconds_elapsed = 0  # Seconds elapsed
-            flags = bootp_flags  # Flags
-
-            CIADDR = inet_aton(bootp_client_ip)  # Client IP address
-            YIADDR = inet_aton(bootp_your_client_ip)  # Your client IP address
-            SIADDR = inet_aton(bootp_next_server_ip)  # Next server IP address
-            GIADDR = inet_aton(bootp_relay_agent_ip)  # Relay agent IP address
-            CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
-
-            # Test case
-            # test_command = bytes('() { :; }; echo test > /tmp/test ')
-            # test_command = pack('!%ds' % (len(test_command)), test_command)
-
-            client_hw_padding = b''.join(pack('B', 0) for _ in range(10))  # Client hardware address padding
-            server_host_name = b''.join(pack('B', 0) for _ in range(64))  # Server host name
-            boot_file_name = b''.join(pack('B', 0) for _ in range(128))  # Boot file name
-            magic_cookie = pack('!4B', 99, 130, 83, 99)  # Magic cookie: DHCP
-
-            dhcp_packet = pack('!' '4B' 'L' '2H',
-                               message_type, hardware_type, hardware_address_len, hops, transaction_id,
-                               seconds_elapsed, flags)
-
-            dhcp_packet += pack('!' '4s' '4s' '4s' '4s',
-                                CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
-
-            dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
-
-            if padding != 0:
-                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(int(padding)))
-            else:
-                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(24))
-
-            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
-            ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
-            udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
-
-            return eth_header + ip_header + udp_header + dhcp_packet
-        except sock_error:
-            return None
-
-    def parse_packet(self, packet):
-        bootp_packet_length = 236
-        bootp_short_packet_length = 34
-
-        dhcp_packet_start = 240
-        dhcp_magic_cookie = '63825363'
-        dhcp_magic_cookie_bytes = b'63825363'
-
-        if len(packet) < bootp_packet_length:
-            return None
-
-        bootp_detailed = unpack('!' '4B' 'I' '2H' '4s' '4s' '4s' '4s' '6s',
-                                packet[:bootp_short_packet_length])
-
-        bootp_packet = {
-            'message-type':            int(bootp_detailed[0]),
-            'hardware-type':           int(bootp_detailed[1]),
-            'hardware-address-length': int(bootp_detailed[2]),
-            'hops':                    int(bootp_detailed[3]),
-
-            'transaction-id':          int(bootp_detailed[4]),
-
-            'seconds-elapsed':         int(bootp_detailed[5]),
-            'flags':                   int(bootp_detailed[6]),
-
-            'client-ip-address':       inet_ntoa(bootp_detailed[7]),
-            'your-ip-address':         inet_ntoa(bootp_detailed[8]),
-            'server-ip-address':       inet_ntoa(bootp_detailed[9]),
-            'relay-ip-address':        inet_ntoa(bootp_detailed[10]),
-
-            'client-mac-address':      self.eth.convert_mac(hexlify(bootp_detailed[11]))
-        }
-
-        dhcp_packet = {}
-
-        if len(packet) > 240:
-            magic_cookie = hexlify(unpack('!4s', packet[bootp_packet_length:dhcp_packet_start])[0])
-            if magic_cookie == dhcp_magic_cookie or magic_cookie == dhcp_magic_cookie_bytes:
-
-                position = dhcp_packet_start
-
-                while position < len(packet) - 1:
-                    option_name = int(unpack('B', packet[position:position + 1])[0])
-                    position += 1
-
-                    # 255 - End
-                    if option_name == 255:
-                        break
-
-                    # 12 - Host name
-                    elif option_name == 12:
-                        option_length = int(unpack('B', packet[position:position + 1])[0])
-                        position += 1
-                        option_value = ''.join([str(x) for x in packet[position:position + option_length]])
-                        position += option_length
-
-                    # 50 - Requested IP
-                    elif option_name == 50:
-                        option_value = inet_ntoa(unpack('4s', packet[position + 1:position + 5])[0])
-                        position += 5
-
-                    # 51 - Lease time
-                    elif option_name == 51:
-                        option_value = int(unpack('I', packet[position + 1:position + 5])[0])
-                        position += 5
-
-                    # 53 - Message type
-                    elif option_name == 53:
-                        option_value = int(unpack('B', packet[position + 1:position + 2])[0])
-                        position += 2
-
-                    # 57 - Maximum DHCP message size
-                    elif option_name == 57:
-                        option_value = int(unpack('H', packet[position + 1:position + 3])[0])
-                        position += 3
-
-                    # 61 - Client identifier
-                    elif option_name == 61:
-                        option_value = self.eth.convert_mac(hexlify(unpack('6s', packet[position + 2:position + 8])[0]))
-                        position += 8
-
-                    else:
-                        option_length = int(unpack('B', packet[position:position + 1])[0])
-                        position += 1
-                        try:
-                            option_value = ''.join([hexlify(x) for x in packet[position:position + option_length]])
-                        except TypeError:
-                            option_value = ''.join(map(chr, packet[position:position + option_length]))
-                        position += option_length
-
-                    dhcp_packet[option_name] = option_value
-
-        return {
-            'BOOTP': bootp_packet,
-            'DHCP': dhcp_packet
-        }
-
-    def make_discover_packet(self, ethernet_src_mac, client_mac, host_name=None, relay_ip=None,
-                             ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                             ip_src='0.0.0.0', ip_dst='255.255.255.255',
-                             udp_src_port=68, udp_dst_port=67, transaction_id=0):
-
-        relay_agent_ip_address = '0.0.0.0'
-        if relay_ip is not None:
-            relay_agent_ip_address = relay_ip
-
-        option_discover = pack('!3B', 53, 1, 1)
-        options = option_discover
-
-        if host_name is not None:
-            try:
-                host_name = bytes(host_name)
-            except TypeError:
-                host_name = host_name.encode('utf-8')
-            if len(host_name) < 255:
-                host_name = pack('!%ds' % (len(host_name)), host_name)
-                option_host_name = pack('!2B', 12, len(host_name)) + host_name
-                options += option_host_name
-
-        option_param_req_list = pack('!2B', 55, 254)
-        for param in range(1, 255):
-            option_param_req_list += pack('B', param)
-
-        option_end = pack('B', 255)
-
-        options += option_param_req_list + option_end
-
-        if transaction_id == 0:
-            trid = randint(1, 4294967295)
-        else:
-            trid = transaction_id
-
-        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
-                                ethernet_dst_mac=ethernet_dst_mac,
-                                ip_src=ip_src, ip_dst=ip_dst,
-                                udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
-                                bootp_message_type=1,
-                                bootp_transaction_id=trid,
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip='0.0.0.0',
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip=relay_agent_ip_address,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, host_name=None,
-                            requested_ip=None, option_value=None, option_code=12,
-                            client_ip='0.0.0.0', your_client_ip='0.0.0.0', relay_agent_ip='0.0.0.0'):
-        option_message_type = pack('!3B', 53, 1, dhcp_message_type)
-        options = option_message_type
-
-        if requested_ip is not None:
-            option_requested_ip = pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
-            options += option_requested_ip
-
-        if host_name is not None:
-            try:
-                host_name = bytes(host_name)
-            except TypeError:
-                host_name = host_name.encode('utf-8')
-            if len(host_name) < 255:
-                host_name = pack('!%ds' % (len(host_name)), host_name)
-                option_host_name = pack('!2B', 12, len(host_name)) + host_name
-                options += option_host_name
-
-        if option_value is not None:
-            if len(option_value) < 255:
-                if 0 < option_code < 256:
-                    option_payload = pack('!' '2B', option_code, len(option_value)) + option_value
-                    options += option_payload
-
-        option_param_req_list = pack('!2B', 55, 7)
-        for param in [1, 2, 3, 6, 28, 15, 26]:
-            option_param_req_list += pack('B', param)
-
-        option_end = pack('B', 255)
-
-        options += option_param_req_list + option_end
-
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                                ip_src='0.0.0.0', ip_dst='255.255.255.255',
-                                udp_src_port=68, udp_dst_port=67,
-                                bootp_message_type=1,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip=client_ip,
-                                bootp_your_client_ip=your_client_ip,
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip=relay_agent_ip,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_release_packet(self, client_mac, server_mac, client_ip, server_ip):
-        option_message_type = pack('!3B', 53, 1, 7)
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
-        option_end = pack('B', 255)
-
-        options = option_message_type + option_server_id + option_end
-
-        return self.make_packet(ethernet_src_mac=client_mac,
-                                ethernet_dst_mac=server_mac,
-                                ip_src=client_ip, ip_dst=server_ip,
-                                udp_src_port=68, udp_dst_port=67,
-                                bootp_message_type=1,
-                                bootp_transaction_id=randint(1, 4294967295),
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip='0.0.0.0',
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip='0.0.0.0',
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_decline_packet(self, relay_mac, relay_ip, server_mac, server_ip, client_mac, requested_ip, transaction_id):
-        option_message_type = pack('!3B', 53, 1, 4)
-        option_requested_ip = pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
-        option_end = pack('B', 255)
-
-        options = option_message_type + option_requested_ip + option_server_id + option_end
-
-        return self.make_packet(ethernet_src_mac=relay_mac,
-                                ethernet_dst_mac=server_mac,
-                                ip_src=relay_ip, ip_dst=server_ip,
-                                udp_src_port=68, udp_dst_port=67,
-                                bootp_message_type=1,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip=requested_ip,
-                                bootp_your_client_ip='0.0.0.0',
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip=relay_ip,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
-                             payload=None, proxy=None, domain=None, tftp=None, wins=None, payload_option_code=114):
-        option_operation = pack('!3B', 53, 1, dhcp_operation)
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
-        option_lease_time = pack('!' '2B' 'L', 51, 4, lease_time)
-        option_netmask = pack('!' '2B' '4s', 1, 4, inet_aton(netmask))
-        option_router = pack('!' '2B' '4s', 3, 4, inet_aton(router))
-        option_dns = pack('!' '2B' '4s', 6, 4, inet_aton(dns))
-        option_end = pack('B', 255)
-
-        options = option_operation + option_server_id + option_lease_time + option_netmask + \
-                  option_router + option_dns
-
-        if domain is not None:
-            if len(domain) < 255:
-                option_domain = pack('!' '2B', 15, len(domain)) + domain
-                options += option_domain
-
-        if proxy is not None:
-            if len(proxy) < 255:
-                option_proxy = pack('!' '2B', 252, len(proxy)) + proxy
-                options += option_proxy
-
-        if payload is not None:
-            if len(payload) < 255:
-                if 0 < payload_option_code < 256:
-                    option_payload = pack('!' '2B', payload_option_code, len(payload)) + payload
-                    options += option_payload
-
-        if tftp is not None:
-            if len(tftp) < 255:
-                option_tftp = pack('!' '2B' '4s', 150, 4, inet_aton(tftp))
-                options += option_tftp
-
-        if wins is not None:
-            if len(wins) < 255:
-                # NetBIOS over TCP/IP Name Server Option
-                # https://tools.ietf.org/html/rfc1533#section-8.5
-                option_wins = pack('!' '2B' '4s', 44, 4, inet_aton(wins))
-
-                # NetBIOS over TCP/IP Datagram Distribution Server Option
-                # https://tools.ietf.org/html/rfc1533#section-8.6
-                option_wins += pack('!' '2B' '4s', 45, 4, inet_aton(wins))
-
-                # NetBIOS over TCP/IP Node Type Option
-                # https://tools.ietf.org/html/rfc1533#section-8.7
-                # 0x2 - P-node (POINT-TO-POINT (P) NODES)
-                # https://tools.ietf.org/html/rfc1001#section-10.2
-                option_wins += pack('!' '3B', 46, 1, 0x2)
-
-                # Add WINS option in all options
-                options += option_wins
-
-        options += option_end
-
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac=destination_mac,
-                                ip_src=source_ip, ip_dst=destination_ip,
-                                udp_src_port=67, udp_dst_port=68,
-                                bootp_message_type=2,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip=your_ip,
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip='0.0.0.0',
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                        client_mac, dhcp_server_id):
-        option_operation = pack('!3B', 53, 1, 6)
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
-        option_end = pack('B', 255)
-        options = option_operation + option_server_id + option_end
-
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac=destination_mac,
-                                ip_src=source_ip, ip_dst=destination_ip,
-                                udp_src_port=67, udp_dst_port=68,
-                                bootp_message_type=2,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip=your_ip,
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip='0.0.0.0',
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-# endregion
 
 
 # # region Raw MDNS
