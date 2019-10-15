@@ -2270,8 +2270,8 @@ class RawDNS:
 # endregion
 
 
-# region Raw DHCP
-class RawDHCP:
+# region Raw DHCPv4
+class RawDHCPv4:
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -2366,13 +2366,21 @@ class RawDHCP:
     def parse_packet(self,
                      packet: bytes,
                      exit_on_failure: bool = False,
-                     exit_code: int = 67,
+                     exit_code: int = 74,
                      quiet: bool = False):
-        error_text: str = 'Failed to parse DNS packet!'
+        """
+        Parse DHCPv4 packet
+        :param packet: Bytes of packet
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 74)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Parsed DHCP packet dictionary (example: {}) or None if error
+        """
+        error_text: str = 'Failed to parse DHCP packet!'
         bootp_packet: Dict[str, Union[int, str]] = dict()
         dhcp_packet: Dict[int, Union[int, str, bytes]] = dict()
         try:
-            assert not len(packet) < self.bootp_packet_length, \
+            assert not len(packet) < RawDHCPv4.bootp_packet_length, \
                 ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
                 ' minimal BOOTP/DHCP packet length: ' + self.base.info_text(str(self.bootp_packet_length))
 
@@ -2391,7 +2399,7 @@ class RawDHCP:
             bootp_packet['relay-ip-address'] = inet_ntoa(bootp_detailed[10])
             bootp_packet['client-mac-address'] = self.eth.convert_mac(hexlify(bootp_detailed[11]))
 
-            if len(packet) > RawDHCP.dhcp_packet_offset:
+            if len(packet) > RawDHCPv4.dhcp_packet_offset:
                 magic_cookie = hexlify(unpack('!4s', packet[self.bootp_packet_length:self.dhcp_packet_offset])[0])
                 if magic_cookie == self.dhcp_magic_cookie:
 
@@ -2462,57 +2470,140 @@ class RawDHCP:
             exit(exit_code)
         return None
 
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                    ip_src, ip_dst, udp_src_port, udp_dst_port,
-                    bootp_message_type, bootp_transaction_id, bootp_flags,
-                    bootp_client_ip, bootp_your_client_ip, bootp_next_server_ip,
-                    bootp_relay_agent_ip, bootp_client_hw_address, dhcp_options, padding=0):
-
+    def make_packet(self,
+                    ethernet_src_mac: str = '01:23:45:67:89:0a',
+                    ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                    ip_src: str = '192.168.1.1',
+                    ip_dst: str = '192.168.1.2',
+                    ip_ident: Union[None, int] = None,
+                    udp_src_port: int = 68,
+                    udp_dst_port: int = 67,
+                    bootp_message_type: int = 1,
+                    bootp_transaction_id: int = 1,
+                    bootp_flags: int = 0,
+                    bootp_client_ip: str = '192.168.1.1',
+                    bootp_your_client_ip: str = '192.168.1.1',
+                    bootp_next_server_ip: str = '192.168.1.1',
+                    bootp_relay_agent_ip: str = '192.168.1.1',
+                    bootp_client_hw_address: str = '01:23:45:67:89:0a',
+                    dhcp_options: bytes = b'',
+                    padding: int = 24,
+                    exit_on_failure: bool = False,
+                    exit_code: int = 75,
+                    quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make DHCPv4 packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.1.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param udp_src_port: Source UDP port (example: 68)
+        :param udp_dst_port: Source UDP port (default: 67)
+        :param bootp_message_type: BOOTP Message type integer (example: 1 - DHCP Discover)
+        :param bootp_transaction_id: BOOTP Transaction ID integer (example: 1)
+        :param bootp_flags: BOOTP Flags integer (example: 0)
+        :param bootp_client_ip: BOOTP CIADDR - Client IP address (example: '192.168.1.1')
+        :param bootp_your_client_ip: BOOTP YIADDR - Your client IP address (example: '192.168.1.1')
+        :param bootp_next_server_ip: BOOTP SIADDR - Next server IP address (example: '192.168.1.1')
+        :param bootp_relay_agent_ip: BOOTP GIADDR - Relay agent IP address (example: '192.168.1.1')
+        :param bootp_client_hw_address: BOOTP CHADDR - Client hardware address (example: '01:23:45:67:89:0a')
+        :param dhcp_options: Bytes of DHCP options (example: b'')
+        :param padding: Number of padding bytes integer (default: 24)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 75)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of DHCP packet or None if error
+        """
+        error_text: str = 'Failed to make DHCP packet!'
+        dhcp_packet: bytes = b''
+        packet: bytes = b''
         try:
-            message_type = bootp_message_type  # Boot protocol message type
-            hardware_type = 1  # Ethernet
-            hardware_address_len = 6  # Ethernet address len
-            hops = 0  # Number of hops
-            transaction_id = bootp_transaction_id  # Transaction id
-            seconds_elapsed = 0  # Seconds elapsed
-            flags = bootp_flags  # Flags
+            dhcp_packet += pack('!B', bootp_message_type)  # Message type
+            dhcp_packet += pack('!B', 1)    # Hardware type: 1 - Ethernet
+            dhcp_packet += pack('!B', 6)    # Hardware address length: 6 - Ethernet header length
+            dhcp_packet += pack('!B', 0)                     # Number of hops
+            dhcp_packet += pack('!L', bootp_transaction_id)  # Transaction ID
+            dhcp_packet += pack('!H', 0)                     # Seconds elapsed
+            dhcp_packet += pack('!H', bootp_flags)           # Flags
+            dhcp_packet += pack('!4s', inet_aton(bootp_client_ip))       # CIADDR - Client IP address
+            dhcp_packet += pack('!4s', inet_aton(bootp_your_client_ip))  # YIADDR - Your client IP address
+            dhcp_packet += pack('!4s', inet_aton(bootp_next_server_ip))  # SIADDR - Next server IP address
+            dhcp_packet += pack('!4s', inet_aton(bootp_relay_agent_ip))  # GIADDR - Relay agent IP address
 
-            CIADDR = inet_aton(bootp_client_ip)  # Client IP address
-            YIADDR = inet_aton(bootp_your_client_ip)  # Your client IP address
-            SIADDR = inet_aton(bootp_next_server_ip)  # Next server IP address
-            GIADDR = inet_aton(bootp_relay_agent_ip)  # Relay agent IP address
-            CHADDR = self.eth.convert_mac(bootp_client_hw_address)  # Client hardware address
+            # CHADDR - Client hardware address
+            dhcp_packet += self.eth.convert_mac(mac_address=bootp_client_hw_address,
+                                                exit_on_failure=exit_on_failure,
+                                                exit_code=exit_code,
+                                                quiet=quiet)
 
-            # Test case
-            # test_command = bytes('() { :; }; echo test > /tmp/test ')
-            # test_command = pack('!%ds' % (len(test_command)), test_command)
+            dhcp_packet += b''.join(pack('B', 0) for _ in range(10))   # Client hardware address padding
+            dhcp_packet += b''.join(pack('B', 0) for _ in range(64))   # Server host name
+            dhcp_packet += b''.join(pack('B', 0) for _ in range(128))  # Boot file name
+            dhcp_packet += RawDHCPv4.dhcp_magic_cookie                   # DHCP magic cookie
 
-            client_hw_padding = b''.join(pack('B', 0) for _ in range(10))  # Client hardware address padding
-            server_host_name = b''.join(pack('B', 0) for _ in range(64))  # Server host name
-            boot_file_name = b''.join(pack('B', 0) for _ in range(128))  # Boot file name
-            magic_cookie = pack('!4B', 99, 130, 83, 99)  # Magic cookie: DHCP
+            # Add padding bytes in end of DHCP packet
+            dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(int(padding)))
 
-            dhcp_packet = pack('!' '4B' 'L' '2H',
-                               message_type, hardware_type, hardware_address_len, hops, transaction_id,
-                               seconds_elapsed, flags)
+            # Make Ethernet header
+            packet += self.eth.make_header(network_type=self.ipv4.header_type,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code,
+                                           quiet=quiet,
+                                           source_mac=ethernet_src_mac,
+                                           destination_mac=ethernet_dst_mac)
 
-            dhcp_packet += pack('!' '4s' '4s' '4s' '4s',
-                                CIADDR, YIADDR, SIADDR, GIADDR) + CHADDR
+            # Make IPv4 header
+            packet += self.ipv4.make_header(data_len=len(dhcp_packet),
+                                            transport_protocol_len=self.udp.header_length,
+                                            transport_protocol_type=self.udp.header_type,
+                                            ttl=64,
+                                            identification=ip_ident,
+                                            exit_on_failure=exit_on_failure,
+                                            exit_code=exit_code,
+                                            quiet=quiet,
+                                            source_ip=ip_src,
+                                            destination_ip=ip_dst)
 
-            dhcp_packet += client_hw_padding + server_host_name + boot_file_name + magic_cookie
+            # Make UDP header
+            packet += self.udp.make_header(data_length=len(dhcp_packet),
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code,
+                                           quiet=quiet,
+                                           source_port=udp_src_port,
+                                           destination_port=udp_dst_port)
 
-            if padding != 0:
-                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(int(padding)))
-            else:
-                dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(24))
+            return packet + dhcp_packet
 
-            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
-            ip_header = self.ip.make_header(ip_src, ip_dst, len(dhcp_packet), 8, 17)
-            udp_header = self.udp.make_header(udp_src_port, udp_dst_port, len(dhcp_packet))
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'destination_mac' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'destination_ip' in traceback_text:
+                error_text += ' Bad source or destination IP address!'
+            if 'destination_port' in traceback_text:
+                error_text += ' Bad source or destination UDP port!'
 
-            return eth_header + ip_header + udp_header + dhcp_packet
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'bootp_message_type' in traceback_text:
+                error_text += ' Bad BOOTP message type: ' + self.base.error_text(str(bootp_message_type)) + \
+                              ' BOOTP message type must be in range: ' + self.base.info_text('1 - 255')
+            if 'bootp_transaction_id' in traceback_text:
+                error_text += ' Bad BOOTP transaction ID: ' + self.base.error_text(str(bootp_transaction_id)) + \
+                              ' BOOTP transaction ID must be in range: ' + self.base.info_text('1 - 4294967295')
+            if 'bootp_message_type' in traceback_text:
+                error_text += ' Bad BOOTP flags: ' + self.base.error_text(str(bootp_message_type)) + \
+                              ' BOOTP flags must be in range: ' + self.base.info_text('1 - 65535')
+
         except sock_error:
-            return None
+            pass
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def make_discover_packet(self, ethernet_src_mac, client_mac, host_name=None, relay_ip=None,
                              ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
