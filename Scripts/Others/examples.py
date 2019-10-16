@@ -20,12 +20,11 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS
+from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS, RawDHCPv4
 # endregion
 
 # region Import libraries
-from os.path import dirname, abspath
-project_root_path = dirname(dirname(dirname(abspath(__file__))))
+from socket import socket, AF_PACKET, SOCK_RAW
 # endregion
 
 # endregion
@@ -44,100 +43,107 @@ __status__ = 'Development'
 # region Main function
 if __name__ == "__main__":
 
-    # region Check user, platform and print banner
-    Base = Base()
-    Base.check_user()
-    Base.check_platform()
-    Base.print_banner()
-    # endregion
-
     # region Init Raw-packet classes
+    base = Base()
     eth = RawEthernet()
     arp = RawARP()
     ipv4 = RawIPv4()
     ipv6 = RawIPv6()
     udp = RawUDP()
     dns = RawDNS()
+    dhcpv4 = RawDHCPv4()
+    # endregion
+
+    # region Check user, platform and print banner
+    base.check_user()
+    base.check_platform()
+    base.print_banner()
     # endregion
 
     try:
+
+        # region Create raw socket
+        raw_socket = socket(AF_PACKET, SOCK_RAW)
+        raw_socket.bind(('eth0', 0))
+        # endregion
+
         # region Base functions
         print('\n')
-        Base.print_info('Network functions:')
+        base.print_info('Network functions:')
 
         print('\nNetwork interface settings:')
-        print(Base.get_interface_settings('eth0'))
+        print(base.get_interface_settings('eth0'))
 
         print('\nMac address:')
-        print(Base.get_interface_mac_address('eth0', False))
+        print(base.get_interface_mac_address('eth0', False))
 
         print('\nipv4 address:')
-        print(Base.get_interface_ip_address('eth0', False))
+        print(base.get_interface_ip_address('eth0', False))
 
         print('\nipv6 link local address:')
-        print(Base.get_interface_ipv6_link_address('eth0', False))
+        print(base.get_interface_ipv6_link_address('eth0', False))
 
         print('\nipv6 link local address by mac address:')
-        print(Base.make_ipv6_link_address('12:34:56:78:90:ab'))
+        print(base.make_ipv6_link_address('12:34:56:78:90:ab'))
 
         print('\nipv6 link global address:')
-        print(Base.get_interface_ipv6_glob_address('eth0'))
+        print(base.get_interface_ipv6_glob_address('eth0'))
 
         print('\nipv6 global addresses:')
-        print(Base.get_interface_ipv6_glob_addresses('eth0'))
+        print(base.get_interface_ipv6_glob_addresses('eth0'))
 
         print('\nNetwork mask:')
-        print(Base.get_interface_netmask('eth0', False))
+        print(base.get_interface_netmask('eth0', False))
 
         print('\nFirst ipv4:')
-        print(Base.get_first_ip_on_interface('eth0', False))
+        print(base.get_first_ip_on_interface('eth0', False))
 
         print('\nSecond ipv4:')
-        print(Base.get_second_ip_on_interface('eth0', False))
+        print(base.get_second_ip_on_interface('eth0', False))
 
         print('\nPenultimate ipv4:')
-        print(Base.get_penultimate_ip_on_interface('eth0', False))
+        print(base.get_penultimate_ip_on_interface('eth0', False))
 
         print('\nLast ipv4:')
-        print(Base.get_last_ip_on_interface('eth0', False))
+        print(base.get_last_ip_on_interface('eth0', False))
 
         print('\nRandom ipv4:')
-        print(Base.get_random_ip_on_interface('eth0', False))
+        print(base.get_random_ip_on_interface('eth0', False))
 
         print('\nipv4 network:')
-        print(Base.get_interface_network('eth0', False))
+        print(base.get_interface_network('eth0', False))
 
         print('\nipv4 broadcast:')
-        print(Base.get_interface_broadcast('eth0', False))
+        print(base.get_interface_broadcast('eth0', False))
 
         print('\nipv4 gateway:')
-        print(Base.get_interface_ipv4_gateway('eth0', False))
+        print(base.get_interface_ipv4_gateway('eth0', False))
 
         print('\nipv6 gateway:')
-        print(Base.get_interface_ipv6_gateway('eth0', False))
+        print(base.get_interface_ipv6_gateway('eth0', False))
 
         print('\n')
-        Base.print_info('Software functions:')
+        base.print_info('Software functions:')
 
         print('\nApt list installed software:')
-        print(Base.apt_list_installed_packages())
+        print(base.apt_list_installed_packages())
 
         print('\nCheck installed software: apache2')
-        print(Base.check_installed_software('apache2', False))
+        print(base.check_installed_software('apache2', False))
 
         print('\n')
-        Base.print_info('Process functions:')
+        base.print_info('Process functions:')
 
         print('\nProcess apache2 pid:')
-        print(Base.get_process_pid('apache2'))
+        print(base.get_process_pid('apache2'))
 
         print('\nProcess pid by listen port 80:')
-        print(Base.get_process_pid_by_listen_port(80))
+        print(base.get_process_pid_by_listen_port(80))
         # endregion
 
         # region RawEthernet functions
         print('\n')
-        Base.print_info('Test network Ethernet functions:')
+        base.print_info('Test network Ethernet functions:')
 
         print('\nConvert MAC address string to bytes:')
         print(eth.convert_mac('30:31:32:33:34:35', True))
@@ -169,7 +175,7 @@ if __name__ == "__main__":
 
         # region RawARP functions
         print('\n')
-        Base.print_info('Test network ARP functions:')
+        base.print_info('Test network ARP functions:')
 
         print('\nMake ARP packet')
         print(arp.make_packet())
@@ -199,7 +205,7 @@ if __name__ == "__main__":
 
         # region RawIPv4 functions
         print('\n')
-        Base.print_info('Test network IPv4 functions:')
+        base.print_info('Test network IPv4 functions:')
 
         print('\nGet random IPv4 address:')
         print(ipv4.make_random_ip())
@@ -219,7 +225,7 @@ if __name__ == "__main__":
 
         # region RawIPv6 functions
         print('\n')
-        Base.print_info('Test network ipv6 functions:')
+        base.print_info('Test network ipv6 functions:')
 
         print('\nGet random ipv6 address:')
         print(ipv6.make_random_ip())
@@ -243,7 +249,7 @@ if __name__ == "__main__":
 
         # region RawUDP functions
         print('\n')
-        Base.print_info('Test network UDP functions:')
+        base.print_info('Test network UDP functions:')
 
         print('\nMake UDP header:')
         print(udp.make_header())
@@ -263,7 +269,7 @@ if __name__ == "__main__":
 
         # region RawDNS functions
         print('\n')
-        Base.print_info('Test network DNS functions:')
+        base.print_info('Test network DNS functions:')
 
         print('\nMake DNS name:')
         print(dns.make_dns_name())
@@ -300,14 +306,51 @@ if __name__ == "__main__":
                                                          'address': 'fd00::1'}], name_servers={},
                                        exit_on_failure=True))
 
-        print('\nParse IPv4 DNS packet:')
+        print('\nParse DNS packet:')
         print(dns.parse_packet(
             b'\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00' +
             b'\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0\xa8\x01\x01'))
         # endregion
 
+        # region RawDHCPv4 functions
+        print('\n')
+        base.print_info('Test network DHCPv4 functions:')
+
+        print('\nMake and send DHCPv4 discover packet:')
+        dhcpv4_discover = dhcpv4.make_discover_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                      client_mac='01:23:45:67:89:0a',
+                                                      ip_ident=1, transaction_id=1, host_name='dhcp.discover.test')
+        print(dhcpv4_discover)
+        raw_socket.send(dhcpv4_discover)
+
+        print('\nMake and send DHCPv4 request packet:')
+        dhcpv4_request = dhcpv4.make_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                    client_mac='01:23:45:67:89:0a',
+                                                    ip_ident=1, transaction_id=1, requested_ip='192.168.1.1',
+                                                    host_name='dhcp.request.test')
+        print(dhcpv4_request)
+        raw_socket.send(dhcpv4_request)
+
+        print('\nMake and send DHCPv4 offer packet:')
+        dhcpv4_offer = dhcpv4.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                   ethernet_dst_mac='01:23:45:67:89:0b',
+                                                   ip_src='192.168.1.1', ip_ident=1, transaction_id=1,
+                                                   dhcp_message_type=2, your_client_ip='192.168.1.2')
+        print(dhcpv4_offer)
+        raw_socket.send(dhcpv4_offer)
+
+        print('\nMake and send DHCPv4 ack packet:')
+        dhcpv4_ack = dhcpv4.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                 ethernet_dst_mac='01:23:45:67:89:0b',
+                                                 ip_src='192.168.1.1', ip_ident=1, transaction_id=1,
+                                                 dhcp_message_type=5, your_client_ip='192.168.1.2')
+        print(dhcpv4_ack)
+        raw_socket.send(dhcpv4_ack)
+
+        # endregion
+
     except KeyboardInterrupt:
-        Base.print_info("Exit")
+        base.print_info("Exit")
         exit(0)
 
 # endregion
