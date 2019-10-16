@@ -2347,7 +2347,7 @@ class RawDHCPv4:
     dhcp_packet_offset: int = 240
 
     # Set DHCP magic cookie
-    dhcp_magic_cookie: bytes = b'63825363'
+    dhcp_magic_cookie: bytes = b'\x63\x82\x53\x63'
 
     # Init Raw Ethernet
     eth: RawEthernet = RawEthernet()
@@ -2382,7 +2382,7 @@ class RawDHCPv4:
         try:
             assert not len(packet) < RawDHCPv4.bootp_packet_length, \
                 ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal BOOTP/DHCP packet length: ' + self.base.info_text(str(self.bootp_packet_length))
+                ' minimal BOOTP/DHCP packet length: ' + self.base.info_text(str(RawDHCPv4.bootp_packet_length))
 
             bootp_detailed = unpack('!' '4B' 'I' '2H' '4s' '4s' '4s' '4s' '6s', packet[:34])
 
@@ -2400,10 +2400,9 @@ class RawDHCPv4:
             bootp_packet['client-mac-address'] = self.eth.convert_mac(hexlify(bootp_detailed[11]))
 
             if len(packet) > RawDHCPv4.dhcp_packet_offset:
-                magic_cookie = hexlify(unpack('!4s', packet[self.bootp_packet_length:self.dhcp_packet_offset])[0])
-                if magic_cookie == self.dhcp_magic_cookie:
+                if packet[RawDHCPv4.bootp_packet_length:RawDHCPv4.dhcp_packet_offset] == RawDHCPv4.dhcp_magic_cookie:
 
-                    position = self.dhcp_packet_offset
+                    position = RawDHCPv4.dhcp_packet_offset
 
                     while position < len(packet) - 1:
                         option_name = int(unpack('B', packet[position:position + 1])[0])
@@ -2513,9 +2512,9 @@ class RawDHCPv4:
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 75)
         :param quiet: Quiet mode, if True no console output (default: False)
-        :return: Bytes of DHCP packet or None if error
+        :return: Bytes of DHCPv4 packet or None if error
         """
-        error_text: str = 'Failed to make DHCP packet!'
+        error_text: str = 'Failed to make DHCPv4 packet!'
         dhcp_packet: bytes = b''
         packet: bytes = b''
         try:
@@ -2605,114 +2604,355 @@ class RawDHCPv4:
             exit(exit_code)
         return None
 
-    def make_discover_packet(self, ethernet_src_mac, client_mac, host_name=None, relay_ip=None,
-                             ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                             ip_src='0.0.0.0', ip_dst='255.255.255.255',
-                             udp_src_port=68, udp_dst_port=67, transaction_id=0):
+    def make_discover_packet(self,
+                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                             ethernet_dst_mac: Union[None, str] = None,
+                             ip_src: Union[None, str] = None,
+                             ip_dst: Union[None, str] = None,
+                             ip_ident: Union[None, int] = None,
+                             client_mac: str = '01:23:45:67:89:0a',
+                             host_name: Union[None, str] = None,
+                             relay_agent_ip: Union[None, str] = None,
+                             transaction_id: Union[None, int] = None,
+                             exit_on_failure: bool = False,
+                             exit_code: int = 76,
+                             quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make DHCPv4 Discover packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (default: 'ff:ff:ff:ff:ff:ff')
+        :param ip_src: Source IPv4 address string in Network header (default: '0.0.0.0')
+        :param ip_dst: Destination IPv4 address string in Network header (default: '255.255.255.255')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param udp_src_port: Source UDP port (default: 68)
+        :param udp_dst_port: Source UDP port (default: 67)
+        :param client_mac: BOOTP CHADDR - Client hardware address (example: '01:23:45:67:89:0a')
+        :param host_name: Client hostname (example: 'test')
+        :param relay_agent_ip: BOOTP GIADDR - Relay agent IP address (default: '0.0.0.0')
+        :param transaction_id: BOOTP Transaction ID integer (example: 1)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 75)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of DHCPv4 Discover packet or None if error
+        """
+        error_text: str = 'Failed to make DHCPv4 Discover packet!'
+        try:
+            if ethernet_dst_mac is None:
+                ethernet_dst_mac = 'ff:ff:ff:ff:ff:ff'
 
-        relay_agent_ip_address = '0.0.0.0'
-        if relay_ip is not None:
-            relay_agent_ip_address = relay_ip
+            if ip_src is None:
+                ip_src = '0.0.0.0'
 
-        option_discover = pack('!3B', 53, 1, 1)
-        options = option_discover
+            if ip_dst is None:
+                ip_dst = '255.255.255.255'
 
-        if host_name is not None:
-            try:
-                host_name = bytes(host_name)
-            except TypeError:
-                host_name = host_name.encode('utf-8')
-            if len(host_name) < 255:
-                host_name = pack('!%ds' % (len(host_name)), host_name)
-                option_host_name = pack('!2B', 12, len(host_name)) + host_name
-                options += option_host_name
+            if relay_agent_ip is None:
+                relay_agent_ip = '0.0.0.0'
 
-        option_param_req_list = pack('!2B', 55, 254)
-        for param in range(1, 255):
-            option_param_req_list += pack('B', param)
+            if transaction_id is None:
+                transaction_id = randint(1, 4294967295)
 
-        option_end = pack('B', 255)
+            # 53 - DHCPv4 message type option; 1 - length of option value; 1 - DHCPv4 Discover request
+            dhcp_options: bytes = pack('!3B', 53, 1, 1)
 
-        options += option_param_req_list + option_end
+            # 12 - DHCPv4 hostname option
+            if host_name is not None:
+                host_name: bytes = host_name.encode('utf-8')
+                dhcp_options += pack('!2B', 12, len(host_name)) + host_name
 
-        if transaction_id == 0:
-            trid = randint(1, 4294967295)
-        else:
-            trid = transaction_id
+            # 55 - DHCPv4 parameter requets list
+            dhcp_options += pack('!2B', 55, 254)
+            for param in range(1, 255):
+                dhcp_options += pack('B', param)
 
-        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
-                                ethernet_dst_mac=ethernet_dst_mac,
-                                ip_src=ip_src, ip_dst=ip_dst,
-                                udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
-                                bootp_message_type=1,
-                                bootp_transaction_id=trid,
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip='0.0.0.0',
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip=relay_agent_ip_address,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
+            # 255 - End of DHCPv4 options
+            dhcp_options += pack('B', 255)  # End of options
 
-    def make_request_packet(self, source_mac, client_mac, transaction_id, dhcp_message_type=1, host_name=None,
-                            requested_ip=None, option_value=None, option_code=12,
-                            client_ip='0.0.0.0', your_client_ip='0.0.0.0', relay_agent_ip='0.0.0.0'):
-        option_message_type = pack('!3B', 53, 1, dhcp_message_type)
-        options = option_message_type
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src,
+                                    ip_dst=ip_dst,
+                                    ip_ident=ip_ident,
+                                    udp_src_port=68,
+                                    udp_dst_port=67,
+                                    bootp_message_type=1,
+                                    bootp_transaction_id=transaction_id,
+                                    bootp_flags=0,
+                                    bootp_client_ip='0.0.0.0',
+                                    bootp_your_client_ip='0.0.0.0',
+                                    bootp_next_server_ip='0.0.0.0',
+                                    bootp_relay_agent_ip=relay_agent_ip,
+                                    bootp_client_hw_address=client_mac,
+                                    dhcp_options=dhcp_options,
+                                    exit_on_failure=exit_on_failure,
+                                    exit_code=exit_code,
+                                    quiet=quiet)
 
-        if requested_ip is not None:
-            option_requested_ip = pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
-            options += option_requested_ip
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'host_name' in traceback_text:
+                error_text += ' Bad host name! Maximum host name length: ' + self.base.info_text('255')
 
-        if host_name is not None:
-            try:
-                host_name = bytes(host_name)
-            except TypeError:
-                host_name = host_name.encode('utf-8')
-            if len(host_name) < 255:
-                host_name = pack('!%ds' % (len(host_name)), host_name)
-                option_host_name = pack('!2B', 12, len(host_name)) + host_name
-                options += option_host_name
+        except UnicodeEncodeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'host_name' in traceback_text:
+                error_text += ' Bad host name: ' + self.base.error_text(str(host_name))
 
-        if option_value is not None:
-            if len(option_value) < 255:
-                if 0 < option_code < 256:
-                    option_payload = pack('!' '2B', option_code, len(option_value)) + option_value
-                    options += option_payload
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
-        option_param_req_list = pack('!2B', 55, 7)
-        for param in [1, 2, 3, 6, 28, 15, 26]:
-            option_param_req_list += pack('B', param)
+    def make_request_packet(self,
+                            ethernet_src_mac: str = '01:23:45:67:89:0a',
+                            ethernet_dst_mac: Union[None, str] = None,
+                            ip_src: Union[None, str] = None,
+                            ip_dst: Union[None, str] = None,
+                            ip_ident: Union[None, int] = None,
+                            dhcp_message_type: int = 3,
+                            client_mac: str = '01:23:45:67:89:0a',
+                            client_ip: Union[None, str] = None,
+                            your_client_ip: Union[None, str] = None,
+                            relay_agent_ip: Union[None, str] = None,
+                            host_name: Union[None, str] = None,
+                            transaction_id: Union[None, int] = None,
+                            requested_ip: Union[None, str] = None,
+                            option_code: Union[None, int] = None,
+                            option_value: Union[None, bytes] = None,
+                            exit_on_failure: bool = False,
+                            exit_code: int = 77,
+                            quiet: bool = False) -> Union[None, bytes]:
+        error_text: str = 'Failed to make request DHCPv4 packet!'
+        try:
+            if ethernet_dst_mac is None:
+                ethernet_dst_mac = 'ff:ff:ff:ff:ff:ff'
 
-        option_end = pack('B', 255)
+            if ip_src is None:
+                ip_src = '0.0.0.0'
 
-        options += option_param_req_list + option_end
+            if ip_dst is None:
+                ip_dst = '255.255.255.255'
 
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                                ip_src='0.0.0.0', ip_dst='255.255.255.255',
-                                udp_src_port=68, udp_dst_port=67,
-                                bootp_message_type=1,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip=client_ip,
-                                bootp_your_client_ip=your_client_ip,
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip=relay_agent_ip,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
+            if client_ip is None:
+                client_ip = '0.0.0.0'
 
-    def make_release_packet(self, client_mac, server_mac, client_ip, server_ip):
-        option_message_type = pack('!3B', 53, 1, 7)
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
-        option_end = pack('B', 255)
+            if your_client_ip is None:
+                your_client_ip = '0.0.0.0'
 
-        options = option_message_type + option_server_id + option_end
+            if relay_agent_ip is None:
+                relay_agent_ip = '0.0.0.0'
+
+            if transaction_id is None:
+                transaction_id = randint(1, 4294967295)
+
+            # 53 - DHCPv4 message type option; 1 - length of option value;
+            # 1 - DHCPv4 Discover, 3 - DHCPv4 Request
+            dhcp_options: bytes = pack('!3B', 53, 1, dhcp_message_type)  # Set DHCPv4 message type
+
+            # 50 - DHCPv4 requested IP address
+            if requested_ip is not None:
+                dhcp_options += pack('!' '2B' '4s', 50, 4, inet_aton(requested_ip))
+
+            # 12 - DHCPv4 hostname option
+            if host_name is not None:
+                    host_name: bytes = host_name.encode('utf-8')
+                    dhcp_options += pack('!2B', 12, len(host_name)) + host_name
+
+            # Set custom DHCPv4 option
+            if option_value is not None and option_code is not None:
+                dhcp_options += pack('!' '2B', option_code, len(option_value)) + option_value
+
+            # 55 - DHCPv4 parameter requets list
+            dhcp_options += pack('!2B', 55, 7)
+            for param in [1, 2, 3, 6, 28, 15, 26]:
+                dhcp_options += pack('B', param)
+
+            # 255 - End of DHCPv4 options
+            dhcp_options += pack('B', 255)
+
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src,
+                                    ip_dst=ip_dst,
+                                    ip_ident=ip_ident,
+                                    udp_src_port=68,
+                                    udp_dst_port=67,
+                                    bootp_message_type=1,
+                                    bootp_transaction_id=transaction_id,
+                                    bootp_flags=0,
+                                    bootp_client_ip=client_ip,
+                                    bootp_your_client_ip=your_client_ip,
+                                    bootp_next_server_ip='0.0.0.0',
+                                    bootp_relay_agent_ip=relay_agent_ip,
+                                    bootp_client_hw_address=client_mac,
+                                    dhcp_options=dhcp_options,
+                                    exit_on_failure=exit_on_failure,
+                                    exit_code=exit_code,
+                                    quiet=quiet)
+
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'requested_ip' in traceback_text:
+                error_text += ' Bad requested IPv4 address: ' + self.base.error_text(str(requested_ip)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'host_name' in traceback_text:
+                error_text += ' Bad host name! Maximum host name length: ' + self.base.info_text('255')
+            if 'dhcp_message_type' in traceback_text:
+                error_text += ' Bad DHCP message type: ' + self.base.error_text(str(dhcp_message_type)) + \
+                              ' DHCP message type must be in range: ' + self.base.info_text('1 - 255')
+            if 'option_code' in traceback_text:
+                error_text += ' Bad option code or value! Option code must be in range: ' + \
+                              self.base.info_text('1 - 255') + ' maximum option value length: ' + \
+                              self.base.info_text('255')
+
+        except UnicodeEncodeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'host_name' in traceback_text:
+                error_text += ' Bad host name: ' + self.base.error_text(str(host_name))
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
+
+    def make_response_packet(self,
+                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                             ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                             ip_src: str = '192.168.1.1',
+                             ip_dst: Union[None, str] = None,
+                             ip_ident: Union[None, int] = None,
+                             transaction_id: int = 1,
+                             dhcp_message_type: int = 2,
+                             your_client_ip: str = '192.168.1.2',
+                             client_mac: Union[None, str] = None,
+                             dhcp_server_id: Union[None, str] = None,
+                             lease_time: int = 65535,
+                             netmask: str = '255.255.255.0',
+                             router: str = '192.168.1.1',
+                             dns: str = '192.168.1.1',
+                             payload_option_code=114,
+                             payload: Union[None, bytes] = None,
+                             proxy: Union[None, bytes] = None,
+                             domain: Union[None, bytes] = None,
+                             tftp: Union[None, str] = None,
+                             wins: Union[None, str] = None,
+                             exit_on_failure: bool = False,
+                             exit_code: int = 78,
+                             quiet: bool = False) -> Union[None, bytes]:
+        error_text: str = 'Failed to make request DHCPv4 packet!'
+        try:
+            if ip_dst is None:
+                ip_dst = '255.255.255.255'
+
+            if client_mac is None:
+                client_mac = ethernet_dst_mac
+
+            if dhcp_server_id is None:
+                dhcp_server_id = ip_src
+
+            # 53 - DHCPv4 message type option; 1 - length of option value;
+            # 2 - DHCPv4 Offer, 4 - DHCPv4 Decline, 5 - DHCPv4 ACK
+            dhcp_options: bytes = pack('!3B', 53, 1, dhcp_message_type)
+
+            # 54 - DHCPv4 Server identifier option (Server IPv4 address)
+            dhcp_options += pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
+
+            # 51 - DHCPv4 IP address lease time option
+            dhcp_options += pack('!' '2B' 'L', 51, 4, lease_time)
+
+            # 1 - DHCPv4 Subnet mask option
+            dhcp_options += pack('!' '2B' '4s', 1, 4, inet_aton(netmask))
+
+            # 3 - DHCPv4 Router option (Router IPv4 address)
+            dhcp_options += pack('!' '2B' '4s', 3, 4, inet_aton(router))
+
+            # 6 - DHCPv4 DNS option (Domain name server IPv4 address)
+            dhcp_options += pack('!' '2B' '4s', 6, 4, inet_aton(dns))
+
+            # 15 - DHCPv4 Domain name option
+            if domain is not None:
+                dhcp_options += pack('!' '2B', 15, len(domain)) + domain
+
+            # 252 - DHCPv4 Proxy option
+            if proxy is not None:
+                dhcp_options += pack('!' '2B', 252, len(proxy)) + proxy
+
+            # Custom DHCPv4 option
+            if payload is not None:
+                dhcp_options += pack('!' '2B', payload_option_code, len(payload)) + payload
+
+            # 252 - DHCPv4 TFTP server option (TFTP server IPv4 address)
+            if tftp is not None:
+                dhcp_options += pack('!' '2B' '4s', 150, 4, inet_aton(tftp))
+
+            # WINS server IP address
+            if wins is not None:
+                # NetBIOS over TCP/IP Name Server Option
+                # https://tools.ietf.org/html/rfc1533#section-8.5
+                dhcp_options += pack('!' '2B' '4s', 44, 4, inet_aton(wins))
+
+                # NetBIOS over TCP/IP Datagram Distribution Server Option
+                # https://tools.ietf.org/html/rfc1533#section-8.6
+                dhcp_options += pack('!' '2B' '4s', 45, 4, inet_aton(wins))
+
+                # NetBIOS over TCP/IP Node Type Option
+                # https://tools.ietf.org/html/rfc1533#section-8.7
+                # 0x2 - P-node (POINT-TO-POINT (P) NODES)
+                # https://tools.ietf.org/html/rfc1001#section-10.2
+                dhcp_options += pack('!' '3B', 46, 1, 0x2)
+
+            # 255 - End of DHCPv4 options
+            dhcp_options += pack('B', 255)
+
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src,
+                                    ip_dst=ip_dst,
+                                    ip_ident=ip_ident,
+                                    udp_src_port=67,
+                                    udp_dst_port=68,
+                                    bootp_message_type=2,
+                                    bootp_transaction_id=transaction_id,
+                                    bootp_flags=0,
+                                    bootp_client_ip='0.0.0.0',
+                                    bootp_your_client_ip=your_client_ip,
+                                    bootp_next_server_ip='0.0.0.0',
+                                    bootp_relay_agent_ip='0.0.0.0',
+                                    bootp_client_hw_address=client_mac,
+                                    dhcp_options=dhcp_options)
+
+        except OSError as Error:
+            pass
+
+        except struct_error as Error:
+            pass
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
+
+    def make_release_packet(self,
+                            client_mac: str = '01:23:45:67:89:0a',
+                            server_mac: str = '01:23:45:67:89:0b',
+                            client_ip: str = '192.168.1.1',
+                            server_ip: str = '192.168.1.2'):
+        options: bytes = pack('!3B', 53, 1, 7)
+        options += pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
+        options += pack('B', 255)
 
         return self.make_packet(ethernet_src_mac=client_mac,
                                 ethernet_dst_mac=server_mac,
-                                ip_src=client_ip, ip_dst=server_ip,
-                                udp_src_port=68, udp_dst_port=67,
+                                ip_src=client_ip,
+                                ip_dst=server_ip,
+                                udp_src_port=68,
+                                udp_dst_port=67,
                                 bootp_message_type=1,
                                 bootp_transaction_id=randint(1, 4294967295),
                                 bootp_flags=0,
@@ -2742,76 +2982,6 @@ class RawDHCPv4:
                                 bootp_your_client_ip='0.0.0.0',
                                 bootp_next_server_ip='0.0.0.0',
                                 bootp_relay_agent_ip=relay_ip,
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
-
-    def make_response_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                             client_mac, dhcp_server_id, lease_time, netmask, router, dns, dhcp_operation=2,
-                             payload=None, proxy=None, domain=None, tftp=None, wins=None, payload_option_code=114):
-        option_operation = pack('!3B', 53, 1, dhcp_operation)
-        option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
-        option_lease_time = pack('!' '2B' 'L', 51, 4, lease_time)
-        option_netmask = pack('!' '2B' '4s', 1, 4, inet_aton(netmask))
-        option_router = pack('!' '2B' '4s', 3, 4, inet_aton(router))
-        option_dns = pack('!' '2B' '4s', 6, 4, inet_aton(dns))
-        option_end = pack('B', 255)
-
-        options = option_operation + option_server_id + option_lease_time + option_netmask + \
-                  option_router + option_dns
-
-        if domain is not None:
-            if len(domain) < 255:
-                option_domain = pack('!' '2B', 15, len(domain)) + domain
-                options += option_domain
-
-        if proxy is not None:
-            if len(proxy) < 255:
-                option_proxy = pack('!' '2B', 252, len(proxy)) + proxy
-                options += option_proxy
-
-        if payload is not None:
-            if len(payload) < 255:
-                if 0 < payload_option_code < 256:
-                    option_payload = pack('!' '2B', payload_option_code, len(payload)) + payload
-                    options += option_payload
-
-        if tftp is not None:
-            if len(tftp) < 255:
-                option_tftp = pack('!' '2B' '4s', 150, 4, inet_aton(tftp))
-                options += option_tftp
-
-        if wins is not None:
-            if len(wins) < 255:
-                # NetBIOS over TCP/IP Name Server Option
-                # https://tools.ietf.org/html/rfc1533#section-8.5
-                option_wins = pack('!' '2B' '4s', 44, 4, inet_aton(wins))
-
-                # NetBIOS over TCP/IP Datagram Distribution Server Option
-                # https://tools.ietf.org/html/rfc1533#section-8.6
-                option_wins += pack('!' '2B' '4s', 45, 4, inet_aton(wins))
-
-                # NetBIOS over TCP/IP Node Type Option
-                # https://tools.ietf.org/html/rfc1533#section-8.7
-                # 0x2 - P-node (POINT-TO-POINT (P) NODES)
-                # https://tools.ietf.org/html/rfc1001#section-10.2
-                option_wins += pack('!' '3B', 46, 1, 0x2)
-
-                # Add WINS option in all options
-                options += option_wins
-
-        options += option_end
-
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac=destination_mac,
-                                ip_src=source_ip, ip_dst=destination_ip,
-                                udp_src_port=67, udp_dst_port=68,
-                                bootp_message_type=2,
-                                bootp_transaction_id=transaction_id,
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip=your_ip,
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip='0.0.0.0',
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
