@@ -4672,7 +4672,7 @@ class RawSniff:
                             if 'UDP' in filters.keys():
 
                                 if 'source-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
+                                    assert udp_header_dict['source-port'] == filters['UDP']['source-port'], \
                                         'Bad UDP source port!'
 
                                 if 'destination-port' in filters['UDP'].keys():
@@ -4709,14 +4709,14 @@ class RawSniff:
                             # region DNS packet
                             if 'DNS' in protocols:
 
-                                # region Parse DNS request packet
+                                # region Parse DNS packet
                                 dns_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
                                 dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
                                     self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
                                 # endregion
 
-                                # region Could not parse DNS request packet - break
+                                # region Could not parse DNS packet - break
                                 assert dns_packet_dict is not None, 'Bad DNS packet!'
                                 # endregion
 
