@@ -970,7 +970,16 @@ class Base:
 
         if gateway_address is None:
             if not quiet:
-                self.print_error('Network interface: ', interface_name, ' does not have IPv4 gateway!')
+                if network_type == AF_INET:
+                    if exit_on_failure:
+                        self.print_error('Network interface: ', interface_name, ' does not have IPv4 gateway!')
+                    else:
+                        self.print_warning('Network interface: ', interface_name, ' does not have IPv4 gateway!')
+                if network_type == AF_INET6:
+                    if exit_on_failure:
+                        self.print_error('Network interface: ', interface_name, ' does not have IPv6 gateway!')
+                    else:
+                        self.print_warning('Network interface: ', interface_name, ' does not have IPv6 gateway!')
             if exit_on_failure:
                 exit(exit_code)
         return gateway_address
