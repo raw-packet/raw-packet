@@ -275,32 +275,32 @@ if __name__ == "__main__":
         print(dns.make_dns_name())
 
         print('\nMake IPv4 DNS request packet:')
-        print(dns.make_ipv4_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
-                                           src_ip='192.168.1.1', dst_ip='192.168.1.2', ip_ident=1,
-                                           src_port=5353, dst_port=53, transaction_id=1,
+        print(dns.make_ipv4_request_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
+                                           ip_src='192.168.1.1', ip_dst='192.168.1.2', ip_ident=1,
+                                           udp_src_port=5353, udp_dst_port=53, transaction_id=1,
                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                            flags=0))
 
         print('\nMake IPv6 DNS request packet:')
-        print(dns.make_ipv6_request_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
-                                           src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64,
-                                           src_port=5353, dst_port=53, transaction_id=1,
+        print(dns.make_ipv6_request_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
+                                           ip_src='fd00::1', ip_dst='fd00::2', ip_ttl=64,
+                                           udp_src_port=5353, udp_dst_port=53, transaction_id=1,
                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                            flags=0))
 
         print('\nMake IPv4 DNS response packet:')
-        print(dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
-                                       src_ip='192.168.1.1', dst_ip='192.168.1.2', ip_ttl=64, ip_ident=1,
-                                       src_port=53, dst_port=5353, transaction_id=1, flags=0,
+        print(dns.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
+                                       ip_src='192.168.1.1', ip_dst='192.168.1.2', ip_ttl=64, ip_ident=1,
+                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0,
                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                        answers_address=[{'name': 'test.com', 'type': 1, 'class': 1, 'ttl': 65535,
                                                          'address': '192.168.1.1'}], name_servers={},
                                        exit_on_failure=True))
 
         print('\nMake IPv6 DNS response packet:')
-        print(dns.make_response_packet(src_mac='01:23:45:67:89:0a', dst_mac='01:23:45:67:89:0b',
-                                       src_ip='fd00::1', dst_ip='fd00::2', ip_ttl=64, ip_ident=1,
-                                       src_port=53, dst_port=5353, transaction_id=1, flags=0,
+        print(dns.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
+                                       ip_src='fd00::1', ip_dst='fd00::2', ip_ttl=64, ip_ident=1,
+                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0,
                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1, 'ttl': 65535,
                                                          'address': 'fd00::1'}], name_servers={},
