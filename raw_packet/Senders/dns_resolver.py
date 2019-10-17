@@ -18,8 +18,8 @@ path.append(dirname(abspath(__file__)))
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.network import RawDNS, RawSniff
-from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Utils.tm import ThreadManager
+from raw_packet.Scanners.arp_scanner import ArpScan
 # endregion
 
 # region Import libraries
@@ -41,13 +41,11 @@ __version__ = '0.1.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
-
-
 # endregion
 
 
 # region class DNS resolver
-class DnsResolver:
+class RawDnsResolver:
     """
     DNS resolver class
     """
@@ -65,7 +63,7 @@ class DnsResolver:
     #  |          Queries ...
     #  +---------------- ...
 
-    # region Set variables
+    # region Set properties
 
     # region Init Raw-packet classes
     base: Base = Base()
@@ -85,11 +83,7 @@ class DnsResolver:
     # endregion
 
     # region Init
-    def __init__(self,
-                 network_interface,     # type: str
-                 quiet=False            # type: bool
-                 ):
-        # type: (...) -> None
+    def __init__(self, network_interface: str = 'eth0', quiet: bool = False) -> None:
         """
         Init class DnsResolver
         :param network_interface: Network interface (example: eth0)
@@ -97,73 +91,56 @@ class DnsResolver:
         """
 
         # Set network interface for sending DNS queries
-        self.network_interface = network_interface  # type: str
+        self.network_interface: str = network_interface
 
         # Set quiet mode
-        self.quiet = quiet                          # type: bool
+        self.quiet: bool = quiet
 
         # Get MAC, IPv4 and IPv6 addresses for network interface
-        self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)                  # type: str
-        self.your_ipv4_address = self.base.get_interface_ip_address(self.network_interface)                  # type: str
-        self.your_ipv6_address = self.base.get_interface_ipv6_link_address(self.network_interface, False)    # type: str
-
-    # __init__.__annotations__ = {
-    #     'network_interface': str,
-    #     'quiet': bool,
-    #     'return': None
-    # }
+        self.your_mac_address: str = self.base.get_interface_mac_address(self.network_interface)
+        self.your_ipv4_address: str = self.base.get_interface_ip_address(self.network_interface)
+        self.your_ipv6_address: str = self.base.get_interface_ipv6_link_address(self.network_interface, False)
     # endregion
 
     # region Parse DNS packet function
-    def _parse_packet(self,
-                      response  # type: Dict[str, Dict[str, Union[str, Dict[str, str]]]]
-                      ):
-        # type: (...) -> None
+    def _parse_packet(self, response: Dict[str, Union[int, str, Dict[str, Union[int, str]]]]) -> None:
         """
         Parse DNS answers
         :param response: DNS answer dictionary
         :return: None
         """
-
-        if 'DNS' in response.keys():
-
-            if len(response['DNS']['answers']) > 0:
-
+        try:
+            if 'DNS' in response.keys():
+                assert len(response['DNS']['answers']) != 0, 'Length of DNS answers is null!'
                 for answer in response['DNS']['answers']:
+                    assert self.domain in answer['name'], 'Not found target domain in DNS answer!'
 
-                    if self.domain in answer['name']:
+                    if answer['type'] == 1:
+                        self.results.append({
+                            'Domain': answer['name'][:-1],
+                            'IPv4 address': answer['address'],
+                            'IPv6 address': '-'
+                        })
+                        self.base.print_success('Domain: ', answer['name'][:-1], ' IPv4: ', answer['address'])
 
-                        if answer['type'] == 1:
-                            self.results.append({
-                                'Domain': answer['name'][:-1],
-                                'IPv4 address': answer['address'],
-                                'IPv6 address': '-'
-                            })
-                            self.base.print_success('Domain: ', answer['name'][:-1], ' IPv4: ', answer['address'])
+                    if answer['type'] == 28:
+                        self.results.append({
+                            'Domain': answer['name'][:-1],
+                            'IPv4 address': '-',
+                            'IPv6 address': answer['address']
+                        })
+                        self.base.print_success('Domain: ', answer['name'][:-1], ' IPv6: ', answer['address'])
 
-                        if answer['type'] == 28:
-                            self.results.append({
-                                'Domain': answer['name'][:-1],
-                                'IPv4 address': '-',
-                                'IPv6 address': answer['address']
-                            })
-
-                            self.base.print_success('Domain: ', answer['name'][:-1], ' IPv6: ', answer['address'])
-
-    # _parse_packet.__annotations__ = {
-    #     'request': Dict[str, Dict[str, Union[str, Dict[str, str]]]],
-    #     'return': None
-    # }
+        except AssertionError:
+            pass
     # endregion
 
     # region Sniff DNS packets function
     def _sniff_packets(self,
-                       destination_mac_address,     # type: str
-                       destination_ipv4_address,    # type: str
-                       destination_ipv6_address,    # type: str
-                       source_port=53               # type: int
-                       ):
-        # type: (...) -> None
+                       destination_mac_address: str,
+                       destination_ipv4_address: str,
+                       destination_ipv6_address: str,
+                       source_port: int = 53) -> None:
         """
         Sniff DNS answers
         :param destination_mac_address: Destination MAC address in DNS answer (most likely this is MAC address on your network interface)
@@ -172,40 +149,26 @@ class DnsResolver:
         :param source_port: Source UDP port in DNS answer (default: 53 - default port for DNS servers)
         :return: None
         """
-
-        network_filters = {
+        network_filters: Dict[str, Dict[str, Union[int, str]]] = {
             'Ethernet': {'destination': destination_mac_address},
             'IPv4': {'destination-ip': destination_ipv4_address},
             'IPv6': {'destination-ip': destination_ipv6_address},
             'UDP': {'source-port': source_port}
         }
-
-        sniff = RawSniff()
-
+        sniff: RawSniff = RawSniff()
         sniff.start(protocols=['Ethernet', 'IPv4', 'IPv6', 'UDP', 'DNS'],
-                    prn=self._parse_packet,
-                    filters=network_filters)
-
-    # _sniff_packets.__annotations__ = {
-    #     'destination_mac_address': str,
-    #     'destination_ipv4_address': str,
-    #     'destination_ipv6_address': str,
-    #     'source_port': int,
-    #     'return': None
-    # }
+                    prn=self._parse_packet, filters=network_filters)
     # endregion
 
     # region Send DNS queries to IPv4 NS server
     def _send_ipv4_queries(self,
-                           source_mac_address,      # type: str
-                           source_ipv4_address,     # type: str
-                           ns_server_mac_address,   # type: str
-                           ns_server_ipv4_address,  # type: str
-                           ns_server_port,          # type: int
-                           queries,                 # type: List[Dict[str, Union[int, str]]]
-                           send_socket              # type: socket
-                           ):
-        # type: (...) -> None
+                           source_mac_address: str,
+                           source_ipv4_address: str,
+                           ns_server_mac_address: str,
+                           ns_server_ipv4_address: str,
+                           ns_server_port: int,
+                           queries: List[Dict[str, Union[int, str]]],
+                           send_socket: socket) -> None:
         """
         Send DNS queries to IPv4 DNS servers
         :param source_mac_address: Source MAC address for DNS query (most likely this is MAC address on your network interface)
@@ -221,41 +184,28 @@ class DnsResolver:
         for query in queries:
 
             # Set source UDP port and DNS transaction ID for sending DNS query
-            udp_source_port = randint(2049, 65535)  # type: int
-            dns_transaction_id = randint(1, 65535)  # type: int
+            udp_source_port: int = randint(2049, 65535)
+            dns_transaction_id: int = randint(1, 65535)
 
-            send_socket.send(self.dns.make_ipv4_request_packet(src_mac=source_mac_address,
-                                                               dst_mac=ns_server_mac_address,
-                                                               src_ip=source_ipv4_address,
-                                                               dst_ip=ns_server_ipv4_address,
-                                                               src_port=udp_source_port,
-                                                               dst_port=ns_server_port,
+            send_socket.send(self.dns.make_ipv4_request_packet(ethernet_src_mac=source_mac_address,
+                                                               ethernet_dst_mac=ns_server_mac_address,
+                                                               ip_src=source_ipv4_address,
+                                                               ip_dst=ns_server_ipv4_address,
+                                                               udp_src_port=udp_source_port,
+                                                               udp_dst_port=ns_server_port,
                                                                transaction_id=dns_transaction_id,
                                                                queries=[query]))
-
-    # _send_ipv4_queries.__annotations__ = {
-    #     'source_mac_address': str,
-    #     'source_ipv4_address': str,
-    #     'ns_server_mac_address': str,
-    #     'ns_server_ipv4_address': str,
-    #     'ns_server_port': int,
-    #     'queries': List[Dict[str, Union[int, str]]],
-    #     'send_socket': socket,
-    #     'return': None
-    # }
     # endregion
 
     # region Send IPv6 DNS queries to IPv6 NS server
     def _send_ipv6_queries(self,
-                           source_mac_address,      # type: str
-                           source_ipv6_address,     # type: str
-                           ns_server_mac_address,   # type: str
-                           ns_server_ipv6_address,  # type: str
-                           ns_server_port,          # type: int
-                           queries,                 # type: List[Dict[str, Union[int, str]]]
-                           send_socket              # type: socket
-                           ):
-        # type: (...) -> None
+                           source_mac_address: str,
+                           source_ipv6_address: str,
+                           ns_server_mac_address: str,
+                           ns_server_ipv6_address: str,
+                           ns_server_port: int,
+                           queries: List[Dict[str, Union[int, str]]],
+                           send_socket: socket) -> None:
         """
         Send DNS queries to IPv6 DNS servers
         :param source_mac_address: Source MAC address for DNS query (most likely this is MAC address on your network interface)
@@ -271,45 +221,32 @@ class DnsResolver:
         for query in queries:
 
             # Set source UDP port and DNS transaction ID for sending DNS query
-            udp_source_port = randint(2049, 65535)  # type: int
-            dns_transaction_id = randint(1, 65535)  # type: int
+            udp_source_port: int = randint(2049, 65535)
+            dns_transaction_id: int = randint(1, 65535)
 
-            send_socket.send(self.dns.make_ipv4_request_packet(src_mac=source_mac_address,
-                                                               dst_mac=ns_server_mac_address,
-                                                               src_ip=source_ipv6_address,
-                                                               dst_ip=ns_server_ipv6_address,
-                                                               src_port=udp_source_port,
-                                                               dst_port=ns_server_port,
+            send_socket.send(self.dns.make_ipv6_request_packet(ethernet_src_mac=source_mac_address,
+                                                               ethernet_dst_mac=ns_server_mac_address,
+                                                               ip_src=source_ipv6_address,
+                                                               ip_dst=ns_server_ipv6_address,
+                                                               udp_src_port=udp_source_port,
+                                                               udp_dst_port=ns_server_port,
                                                                transaction_id=dns_transaction_id,
                                                                queries=[query]))
-
-    # _send_ipv6_queries.__annotations__ = {
-    #     'source_mac_address': str,
-    #     'source_ipv6_address': str,
-    #     'ns_server_mac_address': str,
-    #     'ns_server_ipv6_address': str,
-    #     'ns_server_port': int,
-    #     'queries': List[Dict[str, Union[int, str]]],
-    #     'send_socket': socket,
-    #     'return': None
-    # }
     # endregion
 
     # region Send DNS queries function
     def _send_queries(self,
-                      send_socket,              # type: socket
-                      source_mac_address,       # type: str
-                      source_ipv4_address,      # type: str
-                      source_ipv6_address,      # type: str
-                      domain,                   # type: str
-                      ns_servers,               # type: List[Dict[str, str]]
-                      destination_port=53,      # type: int
-                      max_threats_count=9,      # type: int
-                      subdomains=['www'],       # type: List[str]
-                      queries_type=[1, 28],     # type: List[int]
-                      queries_class=[1]         # type: List[int]
-                      ):
-        # type: (...) -> None
+                      send_socket: socket,
+                      source_mac_address: str,
+                      source_ipv4_address: str,
+                      source_ipv6_address: str,
+                      domain: str,
+                      ns_servers: List[Dict[str, str]],
+                      destination_port: int = 53,
+                      max_threats_count: int = 9,
+                      subdomains: List[str] = ['www'],
+                      queries_type: List[int] = [1, 28],
+                      queries_class: List[int] = [1]) -> None:
         """
         Send DNS queries to IPv4/IPv6 DNS servers
         :param send_socket: Raw socket for sending DNS queries
@@ -331,11 +268,11 @@ class DnsResolver:
         # DNS query class: 1 (IN)
 
         # region Init threat manager
-        send_threats = ThreadManager(max_threats_count)
+        send_threats: ThreadManager = ThreadManager(max_threats_count)
         # endregion
 
         # region Make DNS queries list
-        queries = list()
+        queries: List[Dict[str, Union[int, str]]] = list()
         for subdomain in subdomains:
             for query_type in queries_type:
                 for query_class in queries_class:
@@ -343,9 +280,9 @@ class DnsResolver:
         # endregion
 
         # region Calculate number of DNS queries for one threat
-        queries_len = len(queries)
-        ipv4_ns_servers_len = 0
-        ipv6_ns_servers_len = 0
+        queries_len: int = len(queries)
+        ipv4_ns_servers_len: int = 0
+        ipv6_ns_servers_len: int = 0
 
         for ns_server in ns_servers:
             if 'ipv4 address' in ns_server.keys():
@@ -398,33 +335,18 @@ class DnsResolver:
         send_threats.wait_for_completion()
         # endregion
 
-    # _send_queries.__annotations__ = {
-    #     'send_socket': socket,
-    #     'source_mac_address': str,
-    #     'source_ipv4_address': str,
-    #     'domain': str,
-    #     'ns_servers': List[Dict[str, str]],
-    #     'destination_port': int,
-    #     'max_threats_count': int,
-    #     'subdomains': List[str],
-    #     'queries_type': List[int],
-    #     'queries_class': List[int],
-    #     'return': None
-    # }
     # endregion
 
     # region Main function: resolve
     def resolve(self,
-                ns_servers,                 # type: List[Dict[str, str]]
-                domain,                     # type: str
-                subdomains_list=[],         # type: List[str]
-                subdomains_file=None,       # type: str
-                subdomains_brute=False,     # type: bool
-                max_threats_count=10,       # type: int
-                udp_destination_port=53,    # type: int
-                timeout=30                  # type: int
-                ):
-        # type: (...) -> List[Dict[str, str]]
+                ns_servers: List[Dict[str, str]] = [{'ipv4 address': '8.8.8.8', 'mac address': '01:23:45:67:89:0a'}],
+                domain: str = 'google.com',
+                subdomains_list: List[str] = ['www', 'mail', 'ns', 'test'],
+                subdomains_file: Union[None, str] = None,
+                subdomains_brute: bool = False,
+                max_threats_count: int = 10,
+                udp_destination_port: int = 53,
+                timeout: int = 30) -> List[Dict[str, str]]:
         """
         DNS resolve all subdomains in target domain
         :param ns_servers: List of DNS servers (example: [{'ipv4 address': '8.8.8.8', 'mac address': '01:23:45:67:89:0a'}])
@@ -441,7 +363,7 @@ class DnsResolver:
         try:
 
             # region Set target domain
-            assert not (domain is None or domain == ''), \
+            assert not (domain == ''), \
                 'Target domain is empty, please set target domain in this parameter: ' + self.base.info_text('domain')
             self.domain = domain
             # endregion
@@ -483,7 +405,7 @@ class DnsResolver:
             # endregion
 
             # region Create raw socket
-            raw_socket = socket(AF_PACKET, SOCK_RAW)
+            raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
             raw_socket.bind((self.network_interface, 0))
             # endregion
 
@@ -491,7 +413,7 @@ class DnsResolver:
             if not self.quiet:
                 self.base.print_info('Start DNS answers sniffer ...')
 
-            threats = ThreadManager(max_threats_count)
+            threats: ThreadManager = ThreadManager(max_threats_count)
 
             threats.add_task(self._sniff_packets,
                              self.your_mac_address,
@@ -530,17 +452,6 @@ class DnsResolver:
             self.base.print_error(Error.args[0])
             exit(1)
 
-    # resolve.__annotations__ = {
-    #     'ns_servers': List[Dict[str, str]],
-    #     'domain': str,
-    #     'max_threats_count': int,
-    #     'udp_destination_port': int,
-    #     'timeout': int,
-    #     'subdomains_list': List[str],
-    #     'subdomains_file': str,
-    #     'subdomains_brute': bool,
-    #     'return': List[Dict[str, str]]
-    # }
     # endregion
 
 # endregion
