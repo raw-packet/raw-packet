@@ -1,6 +1,6 @@
 # region Description
 """
-dns_server.py: DNS server
+dns_server.py: DNS server in Raw sockets
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -32,8 +32,8 @@ __status__ = 'Development'
 # endregion
 
 
-# region Class DNS server
-class DnsServer:
+# region Class Raw DNS server
+class RawDnsServer:
 
     # region Set variables
     base = None
@@ -252,14 +252,14 @@ class DnsServer:
                             # endregion
 
                             # region Make dns answer packet
-                            if 'IP' in request.keys():
+                            if 'IPv4' in request.keys():
                                 dns_answer_packet = self.dns.make_response_packet(
-                                    src_mac=request['Ethernet']['destination'],
-                                    dst_mac=request['Ethernet']['source'],
-                                    src_ip=request['IP']['destination-ip'],
-                                    dst_ip=request['IP']['source-ip'],
-                                    src_port=53,
-                                    dst_port=request['UDP']['source-port'],
+                                    ethernet_src_mac=request['Ethernet']['destination'],
+                                    ethernet_dst_mac=request['Ethernet']['source'],
+                                    ip_src=request['IPv4']['destination-ip'],
+                                    ip_dst=request['IPv4']['source-ip'],
+                                    udp_src_port=request['UDP']['destination-port'],
+                                    udp_dst_port=request['UDP']['source-port'],
                                     transaction_id=request['DNS']['transaction-id'],
                                     flags=dns_answer_flags,
                                     queries=query,
@@ -267,12 +267,12 @@ class DnsServer:
 
                             elif 'IPv6' in request.keys():
                                 dns_answer_packet = self.dns.make_response_packet(
-                                    src_mac=request['Ethernet']['destination'],
-                                    dst_mac=request['Ethernet']['source'],
-                                    src_ip=request['IPv6']['destination-ip'],
-                                    dst_ip=request['IPv6']['source-ip'],
-                                    src_port=53,
-                                    dst_port=request['UDP']['source-port'],
+                                    ethernet_src_mac=request['Ethernet']['destination'],
+                                    ethernet_dst_mac=request['Ethernet']['source'],
+                                    ip_src=request['IPv6']['destination-ip'],
+                                    ip_dst=request['IPv6']['source-ip'],
+                                    udp_src_port=request['UDP']['destination-port'],
+                                    udp_dst_port=request['UDP']['source-port'],
                                     transaction_id=request['DNS']['transaction-id'],
                                     flags=dns_answer_flags,
                                     queries=query,
@@ -288,28 +288,28 @@ class DnsServer:
                             # endregion
 
                             # region Print info message
-                            if 'IP' in request.keys():
+                            if 'IPv4' in request.keys():
                                 if query_type == 1:
                                     if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
-                                                                " to ", request['IP']['destination-ip'], " type: ",
+                                        self.base.print_success("DNS query from: ", request['IPv4']['source-ip'],
+                                                                " to ", request['IPv4']['destination-ip'], " type: ",
                                                                 "A", " domain: ", query_name, " answer: ",
                                                                 (", ".join(addresses)))
                                     else:
-                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                             " to ", request['IP']['destination-ip'], " type: ", "A",
+                                        self.base.print_info("DNS query from: ", request['IPv4']['source-ip'],
+                                                             " to ", request['IPv4']['destination-ip'], " type: ", "A",
                                                              " domain: ", query_name, " answer: ",
                                                              (", ".join(addresses)))
                                 if query_type == 28:
                                     if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
-                                                                " to ", request['IP']['destination-ip'], " type: ",
+                                        self.base.print_success("DNS query from: ", request['IPv4']['source-ip'],
+                                                                " to ", request['IPv4']['destination-ip'], " type: ",
                                                                 "AAAA", " domain: ", query_name, " answer: ",
                                                                 (", ".join(addresses)))
                                     else:
-                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                             " to ", request['IP']['destination-ip'], " type: ", "AAAA",
-                                                             " domain: ", query_name, " answer: ",
+                                        self.base.print_info("DNS query from: ", request['IPv4']['source-ip'],
+                                                             " to ", request['IPv4']['destination-ip'], " type: ",
+                                                             "AAAA", " domain: ", query_name, " answer: ",
                                                              (", ".join(addresses)))
 
                             if 'IPv6' in request.keys():
@@ -478,9 +478,9 @@ class DnsServer:
             if disable_ipv4:
                 self.sniff.start(protocols=['IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
             else:
-                self.sniff.start(protocols=['IP', 'IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                self.sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
         else:
-            self.sniff.start(protocols=['IP', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+            self.sniff.start(protocols=['IPv4', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
         # endregion
 
         # endregion
