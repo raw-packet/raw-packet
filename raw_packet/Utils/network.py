@@ -1687,14 +1687,14 @@ class RawDNS:
         return None
 
     def make_response_packet(self,
-                             src_mac: str = '01:23:45:67:89:0a',
-                             dst_mac: str = '01:23:45:67:89:0b',
-                             src_ip: str = '192.168.1.1',
-                             dst_ip: str = '192.168.1.2',
-                             ip_ttl: int = 64,
+                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                             ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                             ip_src: str = '192.168.1.1',
+                             ip_dst: str = '192.168.1.2',
                              ip_ident: Union[None, int] = None,
-                             src_port: int = 53,
-                             dst_port: int = 5353,
+                             ip_ttl: int = 64,
+                             udp_src_port: int = 53,
+                             udp_dst_port: int = 5353,
                              transaction_id: int = 1,
                              flags: int = 0,
                              queries: List[Dict[str, Union[int, str]]] =
@@ -1709,14 +1709,14 @@ class RawDNS:
         Make DNS response packet
         :type queries: object
         :type answers_address: object
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
-        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
         :param ip_ttl: TTL for IPv4 header or hop limit for IPv6 header (default: 64)
         :param ip_ident: Identification integer value for IPv4 header (optional value)
-        :param src_port: Source UDP port (default: 53)
-        :param dst_port: Source UDP port (example: 5353)
+        :param udp_src_port: Source UDP port (default: 53)
+        :param udp_dst_port: Source UDP port (example: 5353)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param flags: DNS flags (default: 0)
         :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
@@ -1773,14 +1773,14 @@ class RawDNS:
                     dns_packet += domain
 
             # region IPv4 request
-            if self.base.ip_address_validation(ip_address=src_ip, exit_on_failure=False, quiet=True):
+            if self.base.ip_address_validation(ip_address=ip_src, exit_on_failure=False, quiet=True):
 
                 packet += self.eth.make_header(network_type=self.ipv4.header_type,
                                                exit_on_failure=exit_on_failure,
                                                exit_code=exit_code,
                                                quiet=quiet,
-                                               source_mac=src_mac,
-                                               destination_mac=dst_mac)
+                                               source_mac=ethernet_src_mac,
+                                               destination_mac=ethernet_dst_mac)
 
                 packet += self.ipv4.make_header(data_len=len(dns_packet),
                                                 transport_protocol_len=self.udp.header_length,
@@ -1790,26 +1790,26 @@ class RawDNS:
                                                 exit_on_failure=exit_on_failure,
                                                 exit_code=exit_code,
                                                 quiet=quiet,
-                                                source_ip=src_ip,
-                                                destination_ip=dst_ip)
+                                                source_ip=ip_src,
+                                                destination_ip=ip_dst)
 
                 packet += self.udp.make_header(data_length=len(dns_packet),
                                                exit_on_failure=exit_on_failure,
                                                exit_code=exit_code,
                                                quiet=quiet,
-                                               source_port=src_port,
-                                               destination_port=dst_port)
+                                               source_port=udp_src_port,
+                                               destination_port=udp_dst_port)
             # endregion
 
             # region IPv6 request
-            elif self.base.ipv6_address_validation(ipv6_address=src_ip, exit_on_failure=False, quiet=True):
+            elif self.base.ipv6_address_validation(ipv6_address=ip_src, exit_on_failure=False, quiet=True):
 
                 packet += self.eth.make_header(network_type=self.ipv6.header_type,
                                                exit_on_failure=exit_on_failure,
                                                exit_code=exit_code,
                                                quiet=quiet,
-                                               source_mac=src_mac,
-                                               destination_mac=dst_mac)
+                                               source_mac=ethernet_src_mac,
+                                               destination_mac=ethernet_dst_mac)
 
                 packet += self.ipv6.make_header(traffic_class=0,
                                                 flow_label=0,
@@ -1819,18 +1819,18 @@ class RawDNS:
                                                 exit_on_failure=exit_on_failure,
                                                 exit_code=exit_code,
                                                 quiet=quiet,
-                                                source_ip=src_ip,
-                                                destination_ip=dst_ip)
+                                                source_ip=ip_src,
+                                                destination_ip=ip_dst)
 
-                packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=src_ip,
-                                                                  ipv6_dst=dst_ip,
+                packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=ip_src,
+                                                                  ipv6_dst=ip_dst,
                                                                   payload_len=len(dns_packet),
                                                                   payload_data=dns_packet,
                                                                   exit_on_failure=exit_on_failure,
                                                                   exit_code=exit_code,
                                                                   quiet=quiet,
-                                                                  port_src=src_port,
-                                                                  port_dst=dst_port)
+                                                                  port_src=udp_src_port,
+                                                                  port_dst=udp_dst_port)
 
             # endregion
 
@@ -1843,11 +1843,11 @@ class RawDNS:
 
         except TypeError as Error:
             traceback_text: str = format_tb(Error.__traceback__)[0]
-            if 'dst_mac' in traceback_text:
+            if 'ethernet_dst_mac' in traceback_text:
                 error_text += ' Bad source or destination MAC address!'
             if 'Unknown network' in traceback_text:
                 error_text += ' Bad source or destination IP address!'
-            if 'dst_port' in traceback_text:
+            if 'udp_dst_port' in traceback_text:
                 error_text += ' Bad source or destination UDP port!'
 
         except OSError as Error:
@@ -1877,14 +1877,14 @@ class RawDNS:
         return None
 
     def make_ipv4_request_packet(self,
-                                 src_mac: str = '01:23:45:67:89:0a',
-                                 dst_mac: str = '01:23:45:67:89:0b',
-                                 src_ip: str = '192.168.1.1',
-                                 dst_ip: str = '192.168.1.2',
+                                 ethernet_src_mac: str = '01:23:45:67:89:0a',
+                                 ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                                 ip_src: str = '192.168.1.1',
+                                 ip_dst: str = '192.168.1.2',
                                  ip_ttl: int = 64,
                                  ip_ident: Union[None, int] = None,
-                                 src_port: int = 5353,
-                                 dst_port: int = 53,
+                                 udp_src_port: int = 5353,
+                                 udp_dst_port: int = 53,
                                  transaction_id: int = 1,
                                  queries: List[Dict[str, Union[int, str]]] =
                                  [{'type': 1, 'class': 1, 'name': 'test.com'}],
@@ -1894,14 +1894,14 @@ class RawDNS:
                                  quiet: bool = False) -> Union[None, bytes]:
         """
         Make DNS request packet for IPv4 network
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv4 address string in Network header (example: '192.168.1.1')
-        :param dst_ip: Destination IPv4 address string in Network header (example: '192.168.1.2')
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.1.2')
         :param ip_ttl: TTL for IPv4 header (default: 64)
         :param ip_ident: Identification integer value for IPv4 header (optional value)
-        :param src_port: Source UDP port (example: 5353)
-        :param dst_port: Source UDP port (default: 53)
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param flags: DNS flags (default: 0)
         :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
@@ -1930,8 +1930,8 @@ class RawDNS:
                                            exit_on_failure=exit_on_failure,
                                            exit_code=exit_code,
                                            quiet=quiet,
-                                           source_mac=src_mac,
-                                           destination_mac=dst_mac)
+                                           source_mac=ethernet_src_mac,
+                                           destination_mac=ethernet_dst_mac)
 
             packet += self.ipv4.make_header(data_len=len(dns_packet),
                                             transport_protocol_len=self.udp.header_length,
@@ -1941,15 +1941,15 @@ class RawDNS:
                                             exit_on_failure=exit_on_failure,
                                             exit_code=exit_code,
                                             quiet=quiet,
-                                            source_ip=src_ip,
-                                            destination_ip=dst_ip)
+                                            source_ip=ip_src,
+                                            destination_ip=ip_dst)
 
             packet += self.udp.make_header(data_length=len(dns_packet),
                                            exit_on_failure=exit_on_failure,
                                            exit_code=exit_code,
                                            quiet=quiet,
-                                           source_port=src_port,
-                                           destination_port=dst_port)
+                                           source_port=udp_src_port,
+                                           destination_port=udp_dst_port)
 
             return packet + dns_packet
 
@@ -1991,13 +1991,13 @@ class RawDNS:
         return None
 
     def make_ipv6_request_packet(self,
-                                 src_mac: str = '01:23:45:67:89:0a',
-                                 dst_mac: str = '01:23:45:67:89:0b',
-                                 src_ip: str = 'fd00::1',
-                                 dst_ip: str = 'fd00::2',
+                                 ethernet_src_mac: str = '01:23:45:67:89:0a',
+                                 ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                                 ip_src: str = 'fd00::1',
+                                 ip_dst: str = 'fd00::2',
                                  ip_ttl: int = 64,
-                                 src_port: int = 5353,
-                                 dst_port: int = 53,
+                                 udp_src_port: int = 5353,
+                                 udp_dst_port: int = 53,
                                  transaction_id: int = 1,
                                  queries: List[Dict[str, Union[int, str]]] =
                                  [{'type': 1, 'class': 1, 'name': 'test.com'}],
@@ -2007,13 +2007,13 @@ class RawDNS:
                                  quiet: bool = False) -> Union[None, bytes]:
         """
         Make DNS request packet for IPv6 network
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv6 address string in Network header (example: 'fd00::1')
-        :param dst_ip: Destination IPv6 address string in Network header (example: 'fd00::2')
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv6 address string in Network header (example: 'fd00::1')
+        :param ip_dst: Destination IPv6 address string in Network header (example: 'fd00::2')
         :param ip_ttl: Hop limit for IPv6 header (default: 64)
-        :param src_port: Source UDP port (example: 5353)
-        :param dst_port: Source UDP port (default: 53)
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param flags: DNS flags (default: 0)
         :param queries: List with DNS queries (example: [{'type': 1, 'class': 1, 'name': 'test.com'}])
@@ -2042,8 +2042,8 @@ class RawDNS:
                                            exit_on_failure=exit_on_failure,
                                            exit_code=exit_code,
                                            quiet=quiet,
-                                           source_mac=src_mac,
-                                           destination_mac=dst_mac)
+                                           source_mac=ethernet_src_mac,
+                                           destination_mac=ethernet_dst_mac)
 
             packet += self.ipv6.make_header(traffic_class=0,
                                             flow_label=0,
@@ -2053,18 +2053,18 @@ class RawDNS:
                                             exit_on_failure=exit_on_failure,
                                             exit_code=exit_code,
                                             quiet=quiet,
-                                            source_ip=src_ip,
-                                            destination_ip=dst_ip)
+                                            source_ip=ip_src,
+                                            destination_ip=ip_dst)
 
-            packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=src_ip,
-                                                              ipv6_dst=dst_ip,
+            packet += self.udp.make_header_with_ipv6_checksum(ipv6_src=ip_src,
+                                                              ipv6_dst=ip_dst,
                                                               payload_len=len(dns_packet),
                                                               payload_data=dns_packet,
                                                               exit_on_failure=exit_on_failure,
                                                               exit_code=exit_code,
                                                               quiet=quiet,
-                                                              port_src=src_port,
-                                                              port_dst=dst_port)
+                                                              port_src=udp_src_port,
+                                                              port_dst=udp_dst_port)
 
             return packet + dns_packet
 
@@ -2106,12 +2106,12 @@ class RawDNS:
         return None
 
     def make_a_query(self,
-                     src_mac: str = '01:23:45:67:89:0a',
-                     dst_mac: str = '01:23:45:67:89:0b',
-                     src_ip: str = '192.168.1.1',
-                     dst_ip: str = '192.168.1.1',
-                     src_port: int = 5353,
-                     dst_port: int = 53,
+                     ethernet_src_mac: str = '01:23:45:67:89:0a',
+                     ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                     ip_src: str = '192.168.1.1',
+                     ip_dst: str = '192.168.1.2',
+                     udp_src_port: int = 5353,
+                     udp_dst_port: int = 53,
                      transaction_id: int = 1,
                      name: str = 'test.com',
                      flags: int = 0,
@@ -2120,12 +2120,12 @@ class RawDNS:
                      quiet: bool = False) -> Union[None, bytes]:
         """
         Make DNS query with type: A
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
-        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
-        :param src_port: Source UDP port (example: 5353)
-        :param dst_port: Source UDP port (default: 53)
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param name: Name of domain for resolving (example: test.com)
         :param flags: DNS flags (default: 0)
@@ -2136,18 +2136,18 @@ class RawDNS:
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 1, 'class': 1, 'name': name}]
 
-        if self.base.ip_address_validation(src_ip):
-            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        if self.base.ip_address_validation(ip_src):
+            return self.make_ipv4_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
 
-        elif self.base.ipv6_address_validation(src_ip):
-            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        elif self.base.ipv6_address_validation(ip_src):
+            return self.make_ipv6_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
@@ -2160,12 +2160,12 @@ class RawDNS:
             return None
 
     def make_aaaa_query(self,
-                        src_mac: str = '01:23:45:67:89:0a',
-                        dst_mac: str = '01:23:45:67:89:0b',
-                        src_ip: str = '192.168.1.1',
-                        dst_ip: str = '192.168.1.1',
-                        src_port: int = 5353,
-                        dst_port: int = 53,
+                        ethernet_src_mac: str = '01:23:45:67:89:0a',
+                        ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                        ip_src: str = '192.168.1.1',
+                        ip_dst: str = '192.168.1.2',
+                        udp_src_port: int = 5353,
+                        udp_dst_port: int = 53,
                         transaction_id: int = 1,
                         name: str = 'test.com',
                         flags: int = 0,
@@ -2174,12 +2174,12 @@ class RawDNS:
                         quiet: bool = False) -> Union[None, bytes]:
         """
         Make DNS query with type: AAAA
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
-        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
-        :param src_port: Source UDP port (example: 5353)
-        :param dst_port: Source UDP port (default: 53)
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param name: Name of domain for resolving (example: test.com)
         :param flags: DNS flags (default: 0)
@@ -2190,18 +2190,18 @@ class RawDNS:
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 28, 'class': 1, 'name': name}]
 
-        if self.base.ip_address_validation(src_ip):
-            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        if self.base.ip_address_validation(ip_src):
+            return self.make_ipv4_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
 
-        elif self.base.ipv6_address_validation(src_ip):
-            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        elif self.base.ipv6_address_validation(ip_src):
+            return self.make_ipv6_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
@@ -2214,12 +2214,12 @@ class RawDNS:
             return None
 
     def make_any_query(self,
-                       src_mac: str = '01:23:45:67:89:0a',
-                       dst_mac: str = '01:23:45:67:89:0b',
-                       src_ip: str = '192.168.1.1',
-                       dst_ip: str = '192.168.1.1',
-                       src_port: int = 5353,
-                       dst_port: int = 53,
+                       ethernet_src_mac: str = '01:23:45:67:89:0a',
+                       ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                       ip_src: str = '192.168.1.1',
+                       ip_dst: str = '192.168.1.2',
+                       udp_src_port: int = 5353,
+                       udp_dst_port: int = 53,
                        transaction_id: int = 1,
                        name: str = 'test.com',
                        flags: int = 0,
@@ -2228,12 +2228,12 @@ class RawDNS:
                        quiet: bool = False) -> Union[None, bytes]:
         """
         Make DNS query with type: ANY
-        :param src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
-        :param src_ip: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
-        :param dst_ip: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
-        :param src_port: Source UDP port (example: 5353)
-        :param dst_port: Source UDP port (default: 53)
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
         :param transaction_id: DNS transaction id integer (example: 1)
         :param name: Name of domain for resolving (example: test.com)
         :param flags: DNS flags (default: 0)
@@ -2244,18 +2244,18 @@ class RawDNS:
         """
         queries: List[Dict[str, Union[int, str]]] = [{'type': 255, 'class': 1, 'name': name}]
 
-        if self.base.ip_address_validation(src_ip):
-            return self.make_ipv4_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        if self.base.ip_address_validation(ip_src):
+            return self.make_ipv4_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
 
-        elif self.base.ipv6_address_validation(src_ip):
-            return self.make_ipv6_request_packet(src_mac=src_mac, dst_mac=dst_mac,
-                                                 src_ip=src_ip, dst_ip=dst_ip,
-                                                 src_port=src_port, dst_port=dst_port,
+        elif self.base.ipv6_address_validation(ip_src):
+            return self.make_ipv6_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
                                                  transaction_id=transaction_id,
                                                  flags=flags,
                                                  queries=queries)
@@ -2822,7 +2822,7 @@ class RawDHCPv4:
 
     def make_response_packet(self,
                              ethernet_src_mac: str = '01:23:45:67:89:0a',
-                             ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                             ethernet_dst_mac: Union[None, str] = None,
                              ip_src: str = '192.168.1.1',
                              ip_dst: Union[None, str] = None,
                              ip_ident: Union[None, int] = None,
@@ -2846,6 +2846,9 @@ class RawDHCPv4:
                              quiet: bool = False) -> Union[None, bytes]:
         error_text: str = 'Failed to make request DHCPv4 packet!'
         try:
+            if ethernet_dst_mac is None:
+                ethernet_dst_mac = 'ff:ff:ff:ff:ff:ff'
+
             if ip_dst is None:
                 ip_dst = '255.255.255.255'
 
@@ -2939,29 +2942,48 @@ class RawDHCPv4:
         return None
 
     def make_release_packet(self,
-                            client_mac: str = '01:23:45:67:89:0a',
-                            server_mac: str = '01:23:45:67:89:0b',
-                            client_ip: str = '192.168.1.1',
-                            server_ip: str = '192.168.1.2'):
-        options: bytes = pack('!3B', 53, 1, 7)
-        options += pack('!' '2B' '4s', 54, 4, inet_aton(server_ip))
-        options += pack('B', 255)
+                            ethernet_src_mac: str = '01:23:45:67:89:0b',
+                            ethernet_dst_mac: str = '01:23:45:67:89:0a',
+                            ip_src: str = '192.168.1.2',
+                            ip_dst: str = '192.168.1.1',
+                            exit_on_failure: bool = False,
+                            exit_code: int = 78,
+                            quiet: bool = False):
+        error_text: str = 'Failed to make DHCPv4 Release packet!'
+        try:
+            options: bytes = pack('!3B', 53, 1, 7)
+            options += pack('!' '2B' '4s', 54, 4, inet_aton(ip_dst))
+            options += pack('B', 255)
 
-        return self.make_packet(ethernet_src_mac=client_mac,
-                                ethernet_dst_mac=server_mac,
-                                ip_src=client_ip,
-                                ip_dst=server_ip,
-                                udp_src_port=68,
-                                udp_dst_port=67,
-                                bootp_message_type=1,
-                                bootp_transaction_id=randint(1, 4294967295),
-                                bootp_flags=0,
-                                bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip='0.0.0.0',
-                                bootp_next_server_ip='0.0.0.0',
-                                bootp_relay_agent_ip='0.0.0.0',
-                                bootp_client_hw_address=client_mac,
-                                dhcp_options=options)
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src,
+                                    ip_dst=ip_dst,
+                                    udp_src_port=68,
+                                    udp_dst_port=67,
+                                    bootp_message_type=1,
+                                    bootp_transaction_id=randint(1, 4294967295),
+                                    bootp_flags=0,
+                                    bootp_client_ip='0.0.0.0',
+                                    bootp_your_client_ip='0.0.0.0',
+                                    bootp_next_server_ip='0.0.0.0',
+                                    bootp_relay_agent_ip='0.0.0.0',
+                                    bootp_client_hw_address=ethernet_src_mac,
+                                    dhcp_options=options,
+                                    exit_on_failure=exit_on_failure,
+                                    exit_code=exit_code,
+                                    quiet=quiet)
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'requested_ip' in traceback_text:
+                error_text += ' Bad destination IPv4 address: ' + self.base.error_text(str(ip_dst)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        return None
 
     def make_decline_packet(self, relay_mac, relay_ip, server_mac, server_ip, client_mac, requested_ip, transaction_id):
         option_message_type = pack('!3B', 53, 1, 4)
