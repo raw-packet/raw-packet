@@ -20,7 +20,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Servers.dns_server import DnsServer
+from raw_packet.Servers.dns_server import RawDnsServer
 # endregion
 
 # region Import libraries
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     # endregion
 
     # region Start DNS server
-    dns_server = DnsServer()
+    dns_server: RawDnsServer = RawDnsServer()
     dns_server.listen(listen_network_interface=current_network_interface,
                       listen_port=args.port,
                       target_mac_address=args.target_mac,
