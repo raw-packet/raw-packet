@@ -20,7 +20,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Senders.dns_resolver import DnsResolver
+from raw_packet.Senders.dns_resolver import RawDnsResolver
 from raw_packet.Scanners.arp_scanner import ArpScan
 # endregion
 
@@ -95,26 +95,34 @@ if __name__ == '__main__':
 
         # region Get your network settings
         current_network_interface = base.network_interface_selection(interface_name=args.interface)
-        network_interface_settings = base.get_interface_settings(interface_name=current_network_interface,
-                                                                 exit_on_failure=False,
-                                                                 quiet=True)
 
-        your_mac_address = network_interface_settings['MAC address']
-        your_ipv4_address = network_interface_settings['IPv4 address']
-        your_ipv4_network = network_interface_settings['IPv4 network']
-        your_ipv6_address = network_interface_settings['IPv6 link local address']
-        gateway_ipv4_address = network_interface_settings['IPv4 gateway']
-        gateway_ipv6_address = network_interface_settings['IPv6 gateway']
-        assert gateway_ipv4_address is not None, 'Not found IPv4 gateway for this interface!'
+        your_mac_address = base.get_interface_mac_address(interface_name=current_network_interface,
+                                                          exit_on_failure=True)
+
+        your_ipv4_address = base.get_interface_ip_address(interface_name=current_network_interface,
+                                                          exit_on_failure=True)
+
+        your_ipv4_network = base.get_interface_network(interface_name=current_network_interface,
+                                                       exit_on_failure=True)
+
+        your_ipv6_address = base.get_interface_ipv6_link_address(interface_name=current_network_interface,
+                                                                 exit_on_failure=False)
+
+        gateway_ipv4_address = base.get_interface_ipv4_gateway(interface_name=current_network_interface,
+                                                               exit_on_failure=True)
+
+        gateway_ipv6_address = base.get_interface_ipv6_gateway(interface_name=current_network_interface,
+                                                               exit_on_failure=False)
 
         if not args.quiet:
-            base.print_info('Find IPv4 and IPv6 gateway on network interface: ', current_network_interface, ' .... ')
+            base.print_info('Find MAC addresses of IPv4 and IPv6 gateway on network interface: ',
+                            current_network_interface, ' .... ')
         gateway_ipv4_mac_address = arp_scan.get_mac_address(current_network_interface, gateway_ipv4_address)
         gateway_ipv6_mac_address = 'ff:ff:ff:ff:ff:ff'
         # endregion
 
         # region Init DnsResolver class
-        dns_resolver = DnsResolver(
+        dns_resolver = RawDnsResolver(
             network_interface=current_network_interface,
             quiet=args.quiet
         )
