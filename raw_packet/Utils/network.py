@@ -2340,13 +2340,13 @@ class RawDHCPv4:
 
     # region Properties
 
-    # Set minimal BOOTP/DHCP packet length
+    # Set minimal BOOTP/DHCPv4 packet length
     bootp_packet_length: int = 236
 
-    # Set DHCP packet offset
+    # Set DHCPv4 packet offset
     dhcp_packet_offset: int = 240
 
-    # Set DHCP magic cookie
+    # Set DHCPv4 magic cookie
     dhcp_magic_cookie: bytes = b'\x63\x82\x53\x63'
 
     # Init Raw Ethernet
@@ -2374,15 +2374,15 @@ class RawDHCPv4:
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 74)
         :param quiet: Quiet mode, if True no console output (default: False)
-        :return: Parsed DHCP packet dictionary (example: {}) or None if error
+        :return: Parsed DHCPv4 packet dictionary (example: {}) or None if error
         """
-        error_text: str = 'Failed to parse DHCP packet!'
+        error_text: str = 'Failed to parse DHCPv4 packet!'
         bootp_packet: Dict[str, Union[int, str]] = dict()
         dhcp_packet: Dict[int, Union[int, str, bytes]] = dict()
         try:
             assert not len(packet) < RawDHCPv4.bootp_packet_length, \
                 ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
-                ' minimal BOOTP/DHCP packet length: ' + self.base.info_text(str(RawDHCPv4.bootp_packet_length))
+                ' minimal BOOTP/DHCPv4 packet length: ' + self.base.info_text(str(RawDHCPv4.bootp_packet_length))
 
             bootp_detailed = unpack('!' '4B' 'I' '2H' '4s' '4s' '4s' '4s' '6s', packet[:34])
 
@@ -2434,7 +2434,7 @@ class RawDHCPv4:
                             option_value = int(unpack('B', packet[position + 1:position + 2])[0])
                             position += 2
 
-                        # 57 - Maximum DHCP message size
+                        # 57 - Maximum DHCPv4 message size
                         elif option_name == 57:
                             option_value = int(unpack('H', packet[position + 1:position + 3])[0])
                             position += 3
@@ -2457,7 +2457,7 @@ class RawDHCPv4:
 
             return {
                 'BOOTP': bootp_packet,
-                'DHCP': dhcp_packet
+                'DHCPv4': dhcp_packet
             }
 
         except AssertionError as Error:
@@ -2499,7 +2499,7 @@ class RawDHCPv4:
         :param ip_ident: Identification integer value for IPv4 header (optional value)
         :param udp_src_port: Source UDP port (example: 68)
         :param udp_dst_port: Source UDP port (default: 67)
-        :param bootp_message_type: BOOTP Message type integer (example: 1 - DHCP Discover)
+        :param bootp_message_type: BOOTP Message type integer (example: 1 - DHCPv4 Discover)
         :param bootp_transaction_id: BOOTP Transaction ID integer (example: 1)
         :param bootp_flags: BOOTP Flags integer (example: 0)
         :param bootp_client_ip: BOOTP CIADDR - Client IP address (example: '192.168.1.1')
@@ -2507,7 +2507,7 @@ class RawDHCPv4:
         :param bootp_next_server_ip: BOOTP SIADDR - Next server IP address (example: '192.168.1.1')
         :param bootp_relay_agent_ip: BOOTP GIADDR - Relay agent IP address (example: '192.168.1.1')
         :param bootp_client_hw_address: BOOTP CHADDR - Client hardware address (example: '01:23:45:67:89:0a')
-        :param dhcp_options: Bytes of DHCP options (example: b'')
+        :param dhcp_options: Bytes of DHCPv4 options (example: b'')
         :param padding: Number of padding bytes integer (default: 24)
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 75)
@@ -2539,9 +2539,9 @@ class RawDHCPv4:
             dhcp_packet += b''.join(pack('B', 0) for _ in range(10))   # Client hardware address padding
             dhcp_packet += b''.join(pack('B', 0) for _ in range(64))   # Server host name
             dhcp_packet += b''.join(pack('B', 0) for _ in range(128))  # Boot file name
-            dhcp_packet += RawDHCPv4.dhcp_magic_cookie                   # DHCP magic cookie
+            dhcp_packet += RawDHCPv4.dhcp_magic_cookie                 # DHCPv4 magic cookie
 
-            # Add padding bytes in end of DHCP packet
+            # Add padding bytes in end of DHCPv4 packet
             dhcp_packet += dhcp_options + b''.join(pack('B', 0) for _ in range(int(padding)))
 
             # Make Ethernet header
@@ -2802,8 +2802,8 @@ class RawDHCPv4:
             if 'host_name' in traceback_text:
                 error_text += ' Bad host name! Maximum host name length: ' + self.base.info_text('255')
             if 'dhcp_message_type' in traceback_text:
-                error_text += ' Bad DHCP message type: ' + self.base.error_text(str(dhcp_message_type)) + \
-                              ' DHCP message type must be in range: ' + self.base.info_text('1 - 255')
+                error_text += ' Bad DHCPv4 message type: ' + self.base.error_text(str(dhcp_message_type)) + \
+                              ' DHCPv4 message type must be in range: ' + self.base.info_text('1 - 255')
             if 'option_code' in traceback_text:
                 error_text += ' Bad option code or value! Option code must be in range: ' + \
                               self.base.info_text('1 - 255') + ' maximum option value length: ' + \
@@ -3027,6 +3027,402 @@ class RawDHCPv4:
                                 bootp_relay_agent_ip='0.0.0.0',
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
+# endregion
+
+
+# region Raw ICMPv4
+class RawICMPv4:
+    eth = None
+    ip = None
+    udp = None
+
+    def __init__(self):
+        self.eth = RawEthernet()
+        self.ip = RawIPv4()
+        self.udp = RawUDP()
+
+    @staticmethod
+    def checksum(msg):
+        s = 0
+        if len(msg) % 2 == 1:
+            msg += '\0'
+        for i in range(0, len(msg), 2):
+            w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
+            s = s + w
+        s = (s >> 16) + (s & 0xffff)
+        s = ~s & 0xffff
+        return s
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, icmp_type, icmp_code, data=None):
+        try:
+            check_sum = 0x0000
+            unused = 0x00000000
+
+            if icmp_type != 0x05:
+                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
+            else:
+                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
+
+            if data is not None:
+                icmp_packet += data
+
+            check_sum = self.checksum(icmp_packet)
+
+            if icmp_type != 0x05:
+                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
+            else:
+                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
+
+            if data is not None:
+                icmp_packet += data
+
+            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
+            ip_header = self.ip.make_header(ip_src, ip_dst, len(icmp_packet) - 8, 8, 1)
+
+            return eth_header + ip_header + icmp_packet
+        except sock_error:
+            return None
+
+    def make_host_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, data=None):
+        try:
+            if data is not None:
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(data), 8, 17)
+                icmp_data = ip_data + data
+            else:
+                ip_data = self.ip.make_header(ip_dst, ip_src, 0, 8, 1)
+                icmp_data = ip_data
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x01, icmp_data)
+        except sock_error:
+            return None
+
+    def make_udp_port_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst,
+                                         udp_src_port, udp_dst_port, data=None):
+        try:
+            if data is not None:
+                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, len(data))
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data) + len(data), 8, 17)
+                icmp_data = ip_data + udp_data + data
+            else:
+                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, 0)
+                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data), 8, 17)
+                icmp_data = ip_data + udp_data
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
+        except sock_error:
+            return None
+
+    def make_ping_request_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst):
+        try:
+            icmp_data = pack('!Q', int(time()))
+            for index in range(0, 32, 1):
+                icmp_data += pack('B', index)
+
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x08, 0x00, icmp_data)
+        except sock_error:
+            return None
+
+    def make_redirect_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, gateway_address,
+                             payload_ip_src, payload_ip_dst, payload_port_src=53, payload_port_dst=53):
+        icmp_data = inet_aton(gateway_address)
+        icmp_data += self.ip.make_header(payload_ip_src, payload_ip_dst, 0, 8, 17)
+        icmp_data += self.udp.make_header(payload_port_src, payload_port_dst, 0)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x05, 0x01, icmp_data)
+
+# endregion
+
+
+# region Raw DHCPv6
+class RawDHCPv6:
+    # 0                   1                   2                   3
+    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    # |   Message   |                   Data :::                      |
+    # +-------------+-------------------------------------------------+
+
+    # DHCPv6 Message Types
+    # 0	    Reserved
+    # 1	    SOLICIT	            [RFC3315]
+    # 2	    ADVERTISE	        [RFC3315]
+    # 3	    REQUEST	            [RFC3315]
+    # 4	    CONFIRM	            [RFC3315]
+    # 5	    RENEW	            [RFC3315]
+    # 6	    REBIND	            [RFC3315]
+    # 7	    REPLY	            [RFC3315]
+    # 8	    RELEASE	            [RFC3315]
+    # 9	    DECLINE	            [RFC3315]
+    # 10	RECONFIGURE	        [RFC3315]
+    # 11	INFORMATION-REQUEST	[RFC3315]
+    # 12	RELAY-FORW	        [RFC3315]
+    # 13	RELAY-REPL	        [RFC3315]
+    # 14	LEASEQUERY	        [RFC5007]
+    # 15	LEASEQUERY-REPLY	[RFC5007]
+    # 16	LEASEQUERY-DONE	    [RFC5460]
+    # 17	LEASEQUERY-DATA	    [RFC5460]
+    # 18	RECONFIGURE-REQUEST [RFC6977]
+    # 19	RECONFIGURE-REPLY	[RFC6977]
+    # 20	DHCPV4-QUERY	    [RFC7341]
+    # 21	DHCPV4-RESPONSE	    [RFC7341]
+    # 22	ACTIVELEASEQUERY	[RFC7653]
+    # 23	STARTTLS	        [RFC7653]
+    # 24	BNDUPD	            [RFC8156]
+    # 25	BNDREPLY	        [RFC8156]
+    # 26	POOLREQ	            [RFC8156]
+    # 27	POOLRESP	        [RFC8156]
+    # 28	UPDREQ	            [RFC8156]
+    # 29	UPDREQALL	        [RFC8156]
+    # 30	UPDDONE	            [RFC8156]
+    # 31	CONNECT	            [RFC8156]
+    # 32	CONNECTREPLY	    [RFC8156]
+    # 33	DISCONNECT	        [RFC8156]
+    # 34	STATE	            [RFC8156]
+    # 35	CONTACT	            [RFC8156]
+    # 36-255	Unassigned
+
+    eth = None
+    ipv6 = None
+    udp = None
+    dns = None
+
+    def __init__(self):
+        self.eth = RawEthernet()
+        self.ipv6 = RawIPv6()
+        self.udp = RawUDP()
+        self.dns = RawDNS()
+
+    def get_duid(self, mac_address, timeval=None):
+        Hardware_type = 1   # Ethernet
+        if timeval is None:
+            DUID_type = 3   # Link-Layer address
+            return pack('!' '2H', DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
+        else:
+            DUID_type = 1   # Link-Layer address plus time
+            return pack('!' '2H' 'I', DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
+
+    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
+                    dhcp_message_type, packet_body, options, options_raw=''):
+        dhcp_packet = pack('!B', dhcp_message_type)
+        dhcp_packet += packet_body
+
+        if options_raw == '':
+            for option_code in options.keys():
+                dhcp_packet += pack('!' '2H', int(option_code), len(options[option_code]))
+                try:
+                    dhcp_packet += options[option_code]
+                except TypeError:
+                    dhcp_packet += options[option_code].encode('utf-8')
+        else:
+            dhcp_packet += options_raw
+
+        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
+        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
+        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
+                                                             len(dhcp_packet), dhcp_packet)
+
+        return eth_header + ipv6_header + udp_header + dhcp_packet
+
+    def parse_packet(self, packet):
+        if len(packet) < 4:
+            return None
+
+        offset = 4
+
+        type_and_id = int(unpack('!L', packet[:offset])[0])
+        message_type = int(int(type_and_id & 0b11111111000000000000000000000000) >> 24)
+        transaction_id = int(type_and_id & 0b00000000111111111111111111111111)
+
+        dhcpv6_packet = {
+            'message-type':   message_type,
+            'transaction-id': transaction_id
+        }
+
+        options = []
+
+        while offset < len(packet):
+            option_type = int(unpack('!H', packet[offset:offset + 2])[0])
+            option_length = int(unpack('!H', packet[offset + 2:offset + 4])[0])
+            offset += 4
+
+            if option_type == 1:
+                option_detailed = unpack('!' '2H' 'L' '6s', packet[offset:offset + 14])
+                option_value = {
+                    'duid-type': int(option_detailed[0]),
+                    'hardware-type': int(option_detailed[1]),
+                    'duid-time': int(option_detailed[2]),
+                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[3])),
+                    'raw': hexlify(packet[offset:offset+option_length])
+                }
+
+            elif option_type == 2:
+                option_detailed = unpack('!' '2H' '6s', packet[offset:offset + 10])
+                option_value = {
+                    'duid-type': int(option_detailed[0]),
+                    'duid-time': int(option_detailed[1]),
+                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[2])),
+                    'raw': hexlify(packet[offset:offset+option_length])
+                }
+
+            elif option_type == 3:
+                iaid = unpack('!' 'L', packet[offset:offset + 4])[0]
+                if option_length >= 40:
+                    ipv6_addr = unpack('!' '16s', packet[offset + 16:offset + 32])[0]
+                    ipv6_addr = inet_ntop(AF_INET6, ipv6_addr)
+                else:
+                    ipv6_addr = None
+                option_value = {
+                    'iaid': int(iaid),
+                    'ipv6-address': ipv6_addr
+                }
+
+            elif option_type == 8:
+                option_detailed = unpack('!H', packet[offset:offset + 2])
+                option_value = {
+                    'elapsed-time': int(option_detailed[0]),
+                }
+
+            else:
+                option_value = hexlify(packet[offset:offset + option_length])
+
+            offset += option_length
+
+            options.append({
+                'type': option_type,
+                'value': option_value
+            })
+
+        dhcpv6_packet['options'] = options
+
+        return dhcpv6_packet
+
+    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack('!L', transaction_id)[1:]
+        options = {}
+
+        options[3] = pack('!' '3Q', 0, 0, 0)  # Identity Association for Non-temporary Address
+        options[14] = ''                      # Rapid commit
+        options[8] = pack('!H', 0)            # Elapsed time
+        options[1] = client_identifier        # Client identifier
+
+        option_request_string = ''
+        for option_request in option_request_list:
+            option_request_string += pack('!H', option_request)
+
+        options[6] = option_request_string  # Options request
+
+        return self.make_packet(ethernet_src_mac, '33:33:00:01:00:02',
+                                ipv6_src, 'ff02::1:2', 0, 546, 547,
+                                1, packet_body, options)
+
+    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                               ipv6_src, ipv6_dst, ipv6_flow,
+                               hop_count, link_addr, peer_addr, options, options_raw=''):
+        packet_body = pack('!B', hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
+                                12, packet_body, options, options_raw)
+
+    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None, cid=None, iaid=1,
+                              preference=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack('!L', transaction_id)[1:]
+        options = {}
+
+        if cid is not None:
+                options[1] = unhexlify(cid)
+        else:
+            if client_duid_timeval is None:
+                    options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+            else:
+                options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        if server_duid_mac is None:
+            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+        else:
+            options[2] = self.get_duid(server_duid_mac)        # Server Identifier
+
+        if preference is not None:
+            options[7] = pack('!B', preference)
+
+        options[20] = ''                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack('!' '3I' '2H', iaid, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 2,
+                                packet_body, options)
+
+    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
+                              ipv6_src, ipv6_dst, transaction_id, dns_address,
+                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack('!L', transaction_id)[1:]
+        options = {}
+
+        if client_duid_timeval is None:
+            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+        else:
+            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+
+        if server_duid_mac is None:
+            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+        else:
+            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
+
+        options[20] = ''                                     # Reconfigure Accept
+        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
+
+        options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+                     pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst,
+                                0xa1b82, 547, 546, 7,
+                                packet_body, options)
+
+    # def make_reconfigure_packet(self, ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst, transaction_id, dns_address,
+    #                             domain_search, ipv6_address):
+    #     if 16777215 < transaction_id < 0:
+    #         return None
+    #
+    #     packet_body = pack('!L', transaction_id)[1:]
+    #     options = {}
+    #
+    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+    #
+    #     options[20] = ''                                     # Reconfigure Accept
+    #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
+    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+    #     options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
+    #
+    #     options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+    #                  pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
+    #
+    #     return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+    #                             ipv6_src, ipv6_dst,
+    #                             0xa1b82, 547, 546, 10,
+    #                             packet_body, options)
 # endregion
 
 
@@ -3813,404 +4209,6 @@ class RawICMPv6:
 # endregion
 
 
-# region Raw DHCPv6
-class DHCPv6_raw:
-    # 0                   1                   2                   3
-    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    # |   Message   |                   Data :::                      |
-    # +-------------+-------------------------------------------------+
-
-    # DHCPv6 Message Types
-    # 0	    Reserved
-    # 1	    SOLICIT	            [RFC3315]
-    # 2	    ADVERTISE	        [RFC3315]
-    # 3	    REQUEST	            [RFC3315]
-    # 4	    CONFIRM	            [RFC3315]
-    # 5	    RENEW	            [RFC3315]
-    # 6	    REBIND	            [RFC3315]
-    # 7	    REPLY	            [RFC3315]
-    # 8	    RELEASE	            [RFC3315]
-    # 9	    DECLINE	            [RFC3315]
-    # 10	RECONFIGURE	        [RFC3315]
-    # 11	INFORMATION-REQUEST	[RFC3315]
-    # 12	RELAY-FORW	        [RFC3315]
-    # 13	RELAY-REPL	        [RFC3315]
-    # 14	LEASEQUERY	        [RFC5007]
-    # 15	LEASEQUERY-REPLY	[RFC5007]
-    # 16	LEASEQUERY-DONE	    [RFC5460]
-    # 17	LEASEQUERY-DATA	    [RFC5460]
-    # 18	RECONFIGURE-REQUEST [RFC6977]
-    # 19	RECONFIGURE-REPLY	[RFC6977]
-    # 20	DHCPV4-QUERY	    [RFC7341]
-    # 21	DHCPV4-RESPONSE	    [RFC7341]
-    # 22	ACTIVELEASEQUERY	[RFC7653]
-    # 23	STARTTLS	        [RFC7653]
-    # 24	BNDUPD	            [RFC8156]
-    # 25	BNDREPLY	        [RFC8156]
-    # 26	POOLREQ	            [RFC8156]
-    # 27	POOLRESP	        [RFC8156]
-    # 28	UPDREQ	            [RFC8156]
-    # 29	UPDREQALL	        [RFC8156]
-    # 30	UPDDONE	            [RFC8156]
-    # 31	CONNECT	            [RFC8156]
-    # 32	CONNECTREPLY	    [RFC8156]
-    # 33	DISCONNECT	        [RFC8156]
-    # 34	STATE	            [RFC8156]
-    # 35	CONTACT	            [RFC8156]
-    # 36-255	Unassigned
-
-    eth = None
-    ipv6 = None
-    udp = None
-    dns = None
-
-    def __init__(self):
-        self.eth = Ethernet_raw()
-        self.ipv6 = IPv6_raw()
-        self.udp = UDP_raw()
-        self.dns = DNS_raw()
-
-    def get_duid(self, mac_address, timeval=None):
-        Hardware_type = 1   # Ethernet
-        if timeval is None:
-            DUID_type = 3   # Link-Layer address
-            return pack('!' '2H', DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
-        else:
-            DUID_type = 1   # Link-Layer address plus time
-            return pack('!' '2H' 'I', DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
-
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
-                    dhcp_message_type, packet_body, options, options_raw=''):
-        dhcp_packet = pack('!B', dhcp_message_type)
-        dhcp_packet += packet_body
-
-        if options_raw == '':
-            for option_code in options.keys():
-                dhcp_packet += pack('!' '2H', int(option_code), len(options[option_code]))
-                try:
-                    dhcp_packet += options[option_code]
-                except TypeError:
-                    dhcp_packet += options[option_code].encode('utf-8')
-        else:
-            dhcp_packet += options_raw
-
-        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
-        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
-        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
-                                                             len(dhcp_packet), dhcp_packet)
-
-        return eth_header + ipv6_header + udp_header + dhcp_packet
-
-    def parse_packet(self, packet):
-        if len(packet) < 4:
-            return None
-
-        offset = 4
-
-        type_and_id = int(unpack('!L', packet[:offset])[0])
-        message_type = int(int(type_and_id & 0b11111111000000000000000000000000) >> 24)
-        transaction_id = int(type_and_id & 0b00000000111111111111111111111111)
-
-        dhcpv6_packet = {
-            'message-type':   message_type,
-            'transaction-id': transaction_id
-        }
-
-        options = []
-
-        while offset < len(packet):
-            option_type = int(unpack('!H', packet[offset:offset + 2])[0])
-            option_length = int(unpack('!H', packet[offset + 2:offset + 4])[0])
-            offset += 4
-
-            if option_type == 1:
-                option_detailed = unpack('!' '2H' 'L' '6s', packet[offset:offset + 14])
-                option_value = {
-                    'duid-type': int(option_detailed[0]),
-                    'hardware-type': int(option_detailed[1]),
-                    'duid-time': int(option_detailed[2]),
-                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[3])),
-                    'raw': hexlify(packet[offset:offset+option_length])
-                }
-
-            elif option_type == 2:
-                option_detailed = unpack('!' '2H' '6s', packet[offset:offset + 10])
-                option_value = {
-                    'duid-type': int(option_detailed[0]),
-                    'duid-time': int(option_detailed[1]),
-                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[2])),
-                    'raw': hexlify(packet[offset:offset+option_length])
-                }
-
-            elif option_type == 3:
-                iaid = unpack('!' 'L', packet[offset:offset + 4])[0]
-                if option_length >= 40:
-                    ipv6_addr = unpack('!' '16s', packet[offset + 16:offset + 32])[0]
-                    ipv6_addr = inet_ntop(AF_INET6, ipv6_addr)
-                else:
-                    ipv6_addr = None
-                option_value = {
-                    'iaid': int(iaid),
-                    'ipv6-address': ipv6_addr
-                }
-
-            elif option_type == 8:
-                option_detailed = unpack('!H', packet[offset:offset + 2])
-                option_value = {
-                    'elapsed-time': int(option_detailed[0]),
-                }
-
-            else:
-                option_value = hexlify(packet[offset:offset + option_length])
-
-            offset += option_length
-
-            options.append({
-                'type': option_type,
-                'value': option_value
-            })
-
-        dhcpv6_packet['options'] = options
-
-        return dhcpv6_packet
-
-    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack('!L', transaction_id)[1:]
-        options = {}
-
-        options[3] = pack('!' '3Q', 0, 0, 0)  # Identity Association for Non-temporary Address
-        options[14] = ''                      # Rapid commit
-        options[8] = pack('!H', 0)            # Elapsed time
-        options[1] = client_identifier        # Client identifier
-
-        option_request_string = ''
-        for option_request in option_request_list:
-            option_request_string += pack('!H', option_request)
-
-        options[6] = option_request_string  # Options request
-
-        return self.make_packet(ethernet_src_mac, '33:33:00:01:00:02',
-                                ipv6_src, 'ff02::1:2', 0, 546, 547,
-                                1, packet_body, options)
-
-    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                               ipv6_src, ipv6_dst, ipv6_flow,
-                               hop_count, link_addr, peer_addr, options, options_raw=''):
-        packet_body = pack('!B', hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
-                                12, packet_body, options, options_raw)
-
-    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None, cid=None, iaid=1,
-                              preference=None):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack('!L', transaction_id)[1:]
-        options = {}
-
-        if cid is not None:
-                options[1] = unhexlify(cid)
-        else:
-            if client_duid_timeval is None:
-                    options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-            else:
-                options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
-
-        if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-        else:
-            options[2] = self.get_duid(server_duid_mac)        # Server Identifier
-
-        if preference is not None:
-            options[7] = pack('!B', preference)
-
-        options[20] = ''                                     # Reconfigure Accept
-        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-        options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
-
-        options[3] = pack('!' '3I' '2H', iaid, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-                     pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst,
-                                0xa1b82, 547, 546, 2,
-                                packet_body, options)
-
-    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
-
-        if 16777215 < transaction_id < 0:
-            return None
-
-        packet_body = pack('!L', transaction_id)[1:]
-        options = {}
-
-        if client_duid_timeval is None:
-            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-        else:
-            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
-
-        if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-        else:
-            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
-
-        options[20] = ''                                     # Reconfigure Accept
-        options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-        options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
-
-        options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-                     pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst,
-                                0xa1b82, 547, 546, 7,
-                                packet_body, options)
-
-    # def make_reconfigure_packet(self, ethernet_src_mac, ethernet_dst_mac,
-    #                             ipv6_src, ipv6_dst, transaction_id, dns_address,
-    #                             domain_search, ipv6_address):
-    #     if 16777215 < transaction_id < 0:
-    #         return None
-    #
-    #     packet_body = pack('!L', transaction_id)[1:]
-    #     options = {}
-    #
-    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
-    #
-    #     options[20] = ''                                     # Reconfigure Accept
-    #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
-    #     options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
-    #
-    #     options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
-    #                  pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
-    #
-    #     return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-    #                             ipv6_src, ipv6_dst,
-    #                             0xa1b82, 547, 546, 10,
-    #                             packet_body, options)
-# endregion
-
-
-# region Raw ICMP
-class ICMP_raw:
-    eth = None
-    ip = None
-    udp = None
-
-    def __init__(self):
-        self.eth = Ethernet_raw()
-        self.ip = IP_raw()
-        self.udp = UDP_raw()
-
-    @staticmethod
-    def checksum(msg):
-        s = 0
-        if len(msg) % 2 == 1:
-            msg += '\0'
-        for i in range(0, len(msg), 2):
-            w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
-            s = s + w
-        s = (s >> 16) + (s & 0xffff)
-        s = ~s & 0xffff
-        return s
-
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, icmp_type, icmp_code, data=None):
-        try:
-            check_sum = 0x0000
-            unused = 0x00000000
-
-            if icmp_type != 0x05:
-                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
-            else:
-                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
-
-            if data is not None:
-                icmp_packet += data
-
-            check_sum = self.checksum(icmp_packet)
-
-            if icmp_type != 0x05:
-                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
-            else:
-                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
-
-            if data is not None:
-                icmp_packet += data
-
-            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
-            ip_header = self.ip.make_header(ip_src, ip_dst, len(icmp_packet) - 8, 8, 1)
-
-            return eth_header + ip_header + icmp_packet
-        except sock_error:
-            return None
-
-    def make_host_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, data=None):
-        try:
-            if data is not None:
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(data), 8, 17)
-                icmp_data = ip_data + data
-            else:
-                ip_data = self.ip.make_header(ip_dst, ip_src, 0, 8, 1)
-                icmp_data = ip_data
-
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x01, icmp_data)
-        except sock_error:
-            return None
-
-    def make_udp_port_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst,
-                                         udp_src_port, udp_dst_port, data=None):
-        try:
-            if data is not None:
-                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, len(data))
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data) + len(data), 8, 17)
-                icmp_data = ip_data + udp_data + data
-            else:
-                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, 0)
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data), 8, 17)
-                icmp_data = ip_data + udp_data
-
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
-        except sock_error:
-            return None
-
-    def make_ping_request_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst):
-        try:
-            icmp_data = pack('!Q', int(time()))
-            for index in range(0, 32, 1):
-                icmp_data += pack('B', index)
-
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x08, 0x00, icmp_data)
-        except sock_error:
-            return None
-
-    def make_redirect_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, gateway_address,
-                             payload_ip_src, payload_ip_dst, payload_port_src=53, payload_port_dst=53):
-        icmp_data = inet_aton(gateway_address)
-        icmp_data += self.ip.make_header(payload_ip_src, payload_ip_dst, 0, 8, 17)
-        icmp_data += self.udp.make_header(payload_port_src, payload_port_dst, 0)
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x05, 0x01, icmp_data)
-
-# endregion
-
-
-
-
 # # region Raw MDNS
 # class MDNS_raw:
 #
@@ -4527,18 +4525,17 @@ class RawSniff:
 
     # region Init
     def __init__(self):
-        self.Base = Base()
-
-        self.eth = RawEthernet()
-        self.arp = RawARP()
-        self.ipv4 = RawIPv4()
-        self.ipv6 = RawIPv6()
-        self.udp = RawUDP()
-        self.icmpv6 = RawICMPv6()
-        self.dns = RawDNS()
-        # self.mdns = MDNS_raw()
-        # self.dhcp = DHCP_raw()
-        # self.dhcpv6 = DHCPv6_raw()
+        self.Base: Base = Base()
+        self.eth: RawEthernet = RawEthernet()
+        self.arp: RawARP = RawARP()
+        self.ipv4: RawIPv4 = RawIPv4()
+        self.ipv6: RawIPv6 = RawIPv6()
+        self.udp: RawUDP = RawUDP()
+        self.dns: RawDNS = RawDNS()
+        self.dhcpv4: RawDHCPv4 = RawDHCPv4()
+        self.icmpv4: RawICMPv4 = RawICMPv4()
+        self.dhcpv6: RawDHCPv6 = RawDHCPv6()
+        self.icmpv6: RawICMPv6 = RawICMPv6()
     # endregion
 
     # region Start sniffer
@@ -4573,20 +4570,20 @@ class RawSniff:
                     if 'Ethernet' in filters.keys():
 
                         if 'source' in filters['Ethernet'].keys():
-                            if ethernet_header_dict['source'] != filters['Ethernet']['source']:
-                                break
+                            assert ethernet_header_dict['source'] == filters['Ethernet']['source'], \
+                                'Bad Ethernet source MAC address!'
 
                         if 'destination' in filters['Ethernet'].keys():
-                            if ethernet_header_dict['destination'] != filters['Ethernet']['destination']:
-                                break
+                            assert ethernet_header_dict['destination'] == filters['Ethernet']['destination'], \
+                                'Bad Ethernet destination MAC address!'
 
                         if 'not-source' in filters['Ethernet'].keys():
-                            if ethernet_header_dict['source'] == filters['Ethernet']['not-source']:
-                                break
+                            assert ethernet_header_dict['source'] != filters['Ethernet']['not-source'], \
+                                'Bad Ethernet source MAC address!'
 
                         if 'not-destination' in filters['Ethernet'].keys():
-                            if ethernet_header_dict['destination'] == filters['Ethernet']['not-destination']:
-                                break
+                            assert ethernet_header_dict['destination'] != filters['Ethernet']['not-destination'], \
+                                'Bad Ethernet destination MAC address!'
                     # endregion
 
                     # region ARP packet
@@ -4607,10 +4604,9 @@ class RawSniff:
 
                         # region ARP filter
                         if 'ARP' in filters.keys():
-
                             if 'opcode' in filters['ARP'].keys():
-                                if arp_packet_dict['opcode'] != filters['ARP']['opcode']:
-                                    break
+                                assert arp_packet_dict['opcode'] == filters['ARP']['opcode'], \
+                                    'Bad ARP opcode!'
                         # endregion
 
                         # region Call function with full ARP packet
@@ -4625,7 +4621,7 @@ class RawSniff:
                     # region IPv4 packet
 
                     # 2048 - Type of IPv4 packet (0x0800)
-                    if 'IP' in protocols and ethernet_header_dict['type'] == self.ipv4.header_type:
+                    if 'IPv4' in protocols and ethernet_header_dict['type'] == self.ipv4.header_type:
 
                         # region Parse IPv4 header
                         ipv4_header: Union[bytes, Any] = packet[self.eth.header_length:]
@@ -4641,21 +4637,20 @@ class RawSniff:
                         if 'IPv4' in filters.keys():
 
                             if 'source-ip' in filters['IPv4'].keys():
-                                if ipv4_header_dict['source-ip'] != filters['IPv4']['source-ip']:
-                                    break
+                                assert ipv4_header_dict['source-ip'] == filters['IPv4']['source-ip'], \
+                                    'Bad source IPv4 address'
 
                             if 'destination-ip' in filters['IPv4'].keys():
-                                if ipv4_header_dict['destination-ip'] != filters['IPv4']['destination-ip']:
-                                    break
+                                assert ipv4_header_dict['destination-ip'] == filters['IPv4']['destination-ip'], \
+                                    'Bad destination IPv4 address'
 
                             if 'not-source-ip' in filters['IPv4'].keys():
-                                if ipv4_header_dict['source-ip'] == filters['IPv4']['not-source-ip']:
-                                    break
+                                assert ipv4_header_dict['source-ip'] != filters['IPv4']['not-source-ip'], \
+                                    'Bad source IPv4 address'
 
                             if 'not-destination-ip' in filters['IPv4'].keys():
-                                if ipv4_header_dict['destination-ip'] == filters['IPv4']['not-destination-ip']:
-                                    break
-
+                                assert ipv4_header_dict['destination-ip'] != filters['IPv4']['not-destination-ip'], \
+                                    'Bad destination IPv4 address'
                         # endregion
 
                         # region UDP
@@ -4670,50 +4665,43 @@ class RawSniff:
                             # endregion
 
                             # region Could not parse UDP header - break
-                            assert udp_header is not None, 'Bad UDP packet!'
+                            assert udp_header_dict is not None, 'Bad UDP packet!'
                             # endregion
 
                             # region UDP filter
-                            udp_filter_destination_port = 0
-                            udp_filter_source_port = 0
                             if 'UDP' in filters.keys():
-                                if 'destination-port' in filters['UDP'].keys():
-                                    udp_filter_destination_port = filters['UDP']['destination-port']
+
                                 if 'source-port' in filters['UDP'].keys():
-                                    udp_filter_source_port = filters['UDP']['source-port']
+                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
+                                        'Bad UDP source port!'
+
+                                if 'destination-port' in filters['UDP'].keys():
+                                    assert udp_header_dict['destination-port'] == filters['UDP']['destination-port'], \
+                                        'Bad UDP destination port!'
                             # endregion
 
-                            # region DHCP packet
+                            # region DHCPv4 packet
+                            if 'DHCPv4' in protocols:
 
-                            # region Set UDP destination port
-                            if udp_filter_destination_port == 0:
-                                destination_port = 67
-                            else:
-                                destination_port = udp_filter_destination_port
-                            # endregion
-
-                            if 'DHCP' in protocols and udp_header_dict['destination-port'] == destination_port:
-
-                                # region Parse DHCP packet
-                                dhcp_packet_offset = udp_header_offset + self.udp.header_length
-                                dhcp_packet = packet[dhcp_packet_offset:]
-                                dhcp_packet_dict = self.dhcp.parse_packet(dhcp_packet)
+                                # region Parse DHCPv4 packet
+                                dhcpv4_packet_offset: int = udp_header_offset + self.udp.header_length
+                                dhcpv4_packet: Union[bytes, Any] = packet[dhcpv4_packet_offset:]
+                                dhcpv4_packet_dict = self.dhcpv4.parse_packet(dhcpv4_packet)
                                 # endregion
 
-                                # region Could not parse DHCP packet - break
-                                if dhcp_packet_dict is None:
-                                    break
+                                # region Could not parse DHCPv4 packet - break
+                                assert dhcpv4_packet_dict is not None, 'Bad DHCPv4 packet!'
                                 # endregion
 
-                                # region Call function with full DHCP packet
-                                full_dhcp_packet = {
+                                # region Call function with full DHCPv4 packet
+                                full_dhcpv4_packet = {
                                     'Ethernet': ethernet_header_dict,
-                                    'IP': ipv4_header_dict,
+                                    'IPv4': ipv4_header_dict,
                                     'UDP': udp_header_dict
                                 }
-                                full_dhcp_packet.update(dhcp_packet_dict)
+                                full_dhcpv4_packet.update(dhcpv4_packet_dict)
 
-                                prn(full_dhcp_packet)
+                                prn(full_dhcpv4_packet)
                                 # endregion
 
                             # endregion
@@ -4724,7 +4712,8 @@ class RawSniff:
                                 # region Parse DNS request packet
                                 dns_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
-                                dns_packet_dict = self.dns.parse_packet(dns_packet)
+                                dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
+                                    self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
                                 # endregion
 
                                 # region Could not parse DNS request packet - break
@@ -4734,7 +4723,7 @@ class RawSniff:
                                 # region Call function with full DNS packet
                                 prn({
                                     'Ethernet': ethernet_header_dict,
-                                    'IP': ipv4_header_dict,
+                                    'IPv4': ipv4_header_dict,
                                     'UDP': udp_header_dict,
                                     'DNS': dns_packet_dict
                                 })
@@ -4792,20 +4781,20 @@ class RawSniff:
                         if 'IPv6' in filters.keys():
 
                             if 'source-ip' in filters['IPv6'].keys():
-                                if ipv6_header_dict['source-ip'] != filters['IPv6']['source-ip']:
-                                    break
+                                assert ipv6_header_dict['source-ip'] == filters['IPv6']['source-ip'], \
+                                    'Bad source IPv6 address!'
 
                             if 'destination-ip' in filters['IPv6'].keys():
-                                if ipv6_header_dict['destination-ip'] != filters['IPv6']['destination-ip']:
-                                    break
+                                assert ipv6_header_dict['destination-ip'] == filters['IPv6']['destination-ip'], \
+                                    'Bad destination IPv6 address!'
 
                             if 'not-source-ip' in filters['IPv6'].keys():
-                                if ipv6_header_dict['source-ip'] == filters['IPv6']['not-source-ip']:
-                                    break
+                                assert ipv6_header_dict['source-ip'] != filters['IPv6']['not-source-ip'], \
+                                    'Bad source IPv6 address!'
 
                             if 'not-destination-ip' in filters['IPv6'].keys():
-                                if ipv6_header_dict['destination-ip'] == filters['IPv6']['not-destination-ip']:
-                                    break
+                                assert ipv6_header_dict['destination-ip'] != filters['IPv6']['not-destination-ip'], \
+                                    'Bad destination IPv6 address!'
 
                         # endregion
 
@@ -4825,27 +4814,25 @@ class RawSniff:
                             # endregion
 
                             # region UDP filter
-                            udp_filter_destination_port = 0
                             if 'UDP' in filters.keys():
+
+                                if 'source-port' in filters['UDP'].keys():
+                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
+                                        'Bad UDP source port!'
+
                                 if 'destination-port' in filters['UDP'].keys():
-                                    udp_filter_destination_port = filters['UDP']['destination-port']
+                                    assert udp_header_dict['destination-port'] == filters['UDP']['destination-port'], \
+                                        'Bad UDP destination port!'
                             # endregion
 
                             # region DNS packet
-
-                            # region Set UDP destination port
-                            if udp_filter_destination_port == 0:
-                                destination_port = 53
-                            else:
-                                destination_port = udp_filter_destination_port
-                            # endregion
-
-                            if 'DNS' in protocols and udp_header_dict['destination-port'] == destination_port:
+                            if 'DNS' in protocols:
 
                                 # region Parse DNS request packet
                                 dns_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
-                                dns_packet_dict = self.dns.parse_packet(dns_packet)
+                                dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
+                                    self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
                                 # endregion
 
                                 # region Could not parse DNS request packet - break
@@ -4863,42 +4850,34 @@ class RawSniff:
 
                             # endregion
 
-                            # region MDNS packet
-
-                            if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
-
-                                # region Parse DNS request packet
-                                mdns_packet_offset = udp_header_offset + self.udp.header_length
-                                mdns_packet = packet[mdns_packet_offset:]
-                                mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
-                                # endregion
-
-                                # region Could not parse DNS request packet - break
-                                if mdns_packet_dict is None:
-                                    break
-                                # endregion
-
-                                # region Call function with full DNS packet
-                                prn({
-                                    'Ethernet': ethernet_header_dict,
-                                    'IPv6': ipv6_header_dict,
-                                    'UDP': udp_header_dict,
-                                    'MDNS': mdns_packet_dict
-                                })
-                                # endregion
-
-                            # endregion
+                            # # region MDNS packet
+                            #
+                            # if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
+                            #
+                            #     # region Parse DNS request packet
+                            #     mdns_packet_offset = udp_header_offset + self.udp.header_length
+                            #     mdns_packet = packet[mdns_packet_offset:]
+                            #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
+                            #     # endregion
+                            #
+                            #     # region Could not parse DNS request packet - break
+                            #     if mdns_packet_dict is None:
+                            #         break
+                            #     # endregion
+                            #
+                            #     # region Call function with full DNS packet
+                            #     prn({
+                            #         'Ethernet': ethernet_header_dict,
+                            #         'IPv6': ipv6_header_dict,
+                            #         'UDP': udp_header_dict,
+                            #         'MDNS': mdns_packet_dict
+                            #     })
+                            #     # endregion
+                            #
+                            # # endregion
 
                             # region DHCPv6 packet
-
-                            # region Set UDP destination port
-                            if udp_filter_destination_port == 0:
-                                destination_port = 547
-                            else:
-                                destination_port = udp_filter_destination_port
-                            # endregion
-
-                            if 'DHCPv6' in protocols and udp_header_dict['destination-port'] == destination_port:
+                            if 'DHCPv6' in protocols:
 
                                 # region Parse DHCPv6 request packet
                                 dhcpv6_packet_offset = udp_header_offset + self.udp.header_length
@@ -4960,7 +4939,7 @@ class RawSniff:
                 exit(0)
             # endregion
 
-            # region AssertionError
+            # region Exception - AssertionError
             except AssertionError:
                 pass
             # endregion
