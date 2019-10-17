@@ -19,7 +19,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 # region Import
 from json import dumps
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import Sniff_raw
+from raw_packet.Utils.network import RawSniff
 
 Base = Base()
 # endregion
@@ -85,13 +85,13 @@ def print_packet(request):
 if __name__ == "__main__":
 
     # region Print info message
-    Base.print_info("Available protocols: ", "Ethernet ARP IP IPv6 ICMPv6 UDP DNS MDNS DHCP DHCPv6")
+    Base.print_info("Available protocols: ", "Ethernet ARP IPv4 IPv6 UDP DNS")
     Base.print_info("Start test sniffing ...")
     # endregion
 
     # region Start sniffer
-    sniff = Sniff_raw()
-    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'DHCP', 'DHCPv6'], prn=print_packet)
+    sniff = RawSniff()
+    sniff.start(protocols=['ARP', 'IPv4', 'IPv6', 'UDP', 'DNS'], prn=print_packet)
     # endregion
 
 # endregion
