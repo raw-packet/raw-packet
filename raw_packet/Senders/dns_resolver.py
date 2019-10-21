@@ -129,6 +129,12 @@ class RawDnsResolver:
                     temporary_file.write('Domain: ' + result['Domain'] +
                                          ' IPv4 address: ' + result['IPv4 address'] +
                                          ' IPv6 address: ' + result['IPv6 address'] + '\n')
+                if result['IPv6 address'] == '-':
+                    print(self.base.cSUCCESS + '[' + str(len(self.uniq_hosts)) + '] ' + self.base.cEND +
+                          result['Domain'] + ' - ' + result['IPv4 address'])
+                else:
+                    print(self.base.cSUCCESS + '[' + str(len(self.uniq_hosts)) + '] ' + self.base.cEND +
+                          result['Domain'] + ' - ' + result['IPv6 address'])
         except AttributeError:
             pass
 
@@ -212,19 +218,26 @@ class RawDnsResolver:
                               ' and udp src port ' + str(source_port) + \
                               '" -B 65535 -w ' + RawDnsResolver.tshark_pcap_filename + \
                               ' 1>/dev/null 2>&1'
-        #                       ' 1>/tmp/tshark.out 2>&1 &'
-        # self.base.print_info('Start tshark with command: ', tshark_command)
-        # system(tshark_command)
-        # tshark_command = ['tshark', 'i', self.network_interface,
-        #                   'f', '"ether dst ' + destination_mac_address +
-        #                   ' and ip dst ' + destination_ipv4_address +
-        #                   ' and udp src port ' + str(source_port) + '"',
-        #                   'B', '65535',
-        #                   'w', RawDnsResolver.tshark_pcap_filename]
         self.tshark_process = Popen(tshark_command, shell=True)
-        sleep(0.1)
+        sleep(0.5)
         while self.base.get_process_pid('tshark') == -1:
-            input(self.base.c_warning + 'Start tshark and press Enter to continue ...')
+            input(self.base.c_warning + 'Start tshark: ' + self.base.info_text(tshark_command) +
+                  ' and press Enter to continue ...')
+            sleep(1)
+    # endregion
+
+    # region Check tshark
+    def _sniff_check(self):
+        while True:
+            try:
+                assert isfile(RawDnsResolver.tshark_pcap_filename), 'Tshark pcap file not found!'
+                packets = rdpcap(RawDnsResolver.tshark_pcap_filename)
+                for packet in packets:
+                    self._parse_packet(packet)
+            except ValueError:
+                pass
+            except AssertionError:
+                pass
             sleep(1)
     # endregion
 
@@ -232,7 +245,6 @@ class RawDnsResolver:
     def _sniff_stop(self):
         while self.base.get_process_pid('tshark') != -1:
             kill(self.base.get_process_pid('tshark'), SIGTERM)
-            # input(self.base.c_warning + 'Stop tshark and press Enter to continue ...')
             sleep(1)
         try:
             packets = rdpcap(RawDnsResolver.tshark_pcap_filename)
@@ -277,15 +289,15 @@ class RawDnsResolver:
                                                                udp_dst_port=ns_server_port,
                                                                transaction_id=dns_transaction_id,
                                                                queries=[query]))
-            self.index_of_dns_query += 1
-            current_percent_of_complete = int((self.index_of_dns_query / self.number_of_dns_queries) * 100)
-            if current_percent_of_complete > self.percent_of_complete:
-                self.percent_of_complete = current_percent_of_complete
-                stdout.write('\r')
-                stdout.write(self.base.c_info + 'Domain: ' + self.domain +
-                             ' resolve percentage: ' + self.base.info_text(str(self.percent_of_complete) + '%'))
-                stdout.flush()
-                sleep(0.01)
+            # self.index_of_dns_query += 1
+            # current_percent_of_complete = int((self.index_of_dns_query / self.number_of_dns_queries) * 100)
+            # if current_percent_of_complete > self.percent_of_complete:
+            #     self.percent_of_complete = current_percent_of_complete
+            #     stdout.write('\r')
+            #     stdout.write(self.base.c_info + 'Domain: ' + self.domain +
+            #                  ' resolve percentage: ' + self.base.info_text(str(self.percent_of_complete) + '%'))
+            #     stdout.flush()
+            #     sleep(0.01)
     # endregion
 
     # region Send DNS queries to IPv6 NS server
@@ -323,16 +335,16 @@ class RawDnsResolver:
                                                                udp_dst_port=ns_server_port,
                                                                transaction_id=dns_transaction_id,
                                                                queries=[query]))
-            self.index_of_dns_query += 1
-            current_percent_of_complete = int((self.index_of_dns_query / self.number_of_dns_queries) * 100)
-            if current_percent_of_complete > self.percent_of_complete:
-                self.percent_of_complete = current_percent_of_complete
-                stdout.write('\r')
-                stdout.write(self.base.c_info + 'DNS resolve percentage: ' +
-                             self.base.info_text(str(self.percent_of_complete) + '%') +
-                             ' length of results: ' + self.base.info_text(str(len(self.results))))
-                stdout.flush()
-                sleep(0.01)
+            # self.index_of_dns_query += 1
+            # current_percent_of_complete = int((self.index_of_dns_query / self.number_of_dns_queries) * 100)
+            # if current_percent_of_complete > self.percent_of_complete:
+            #     self.percent_of_complete = current_percent_of_complete
+            #     stdout.write('\r')
+            #     stdout.write(self.base.c_info + 'DNS resolve percentage: ' +
+            #                  self.base.info_text(str(self.percent_of_complete) + '%') +
+            #                  ' length of results: ' + self.base.info_text(str(len(self.results))))
+            #     stdout.flush()
+            #     sleep(0.01)
     # endregion
 
     # region Send DNS queries function
@@ -467,6 +479,7 @@ class RawDnsResolver:
             # region Clear results list
             self.index_of_dns_query = 0
             self.results.clear()
+            self.uniq_hosts.clear()
             # endregion
 
             # region Set target domain
@@ -525,10 +538,11 @@ class RawDnsResolver:
             # region Sniff DNS answers
             if not self.quiet:
                 self.base.print_info('Start DNS answers sniffer for domain: ', self.domain)
-            #
-            # threats: ThreadManager = ThreadManager(max_threats_count)
+
+            threats: ThreadManager = ThreadManager(max_threats_count)
             self._sniff_start(self.your_mac_address, self.your_ipv4_address,
                               self.your_ipv6_address, udp_destination_port)
+            threats.add_task(self._sniff_check)
             # endregion
 
             # region Send DNS queries
@@ -547,11 +561,9 @@ class RawDnsResolver:
             # endregion
 
             # region Timeout
-            stdout.write('\n')
-            sleep(1)
             if not self.quiet:
                 self.base.print_info('Wait timeout: ', str(timeout) + ' sec')
-            sleep(timeout - 1)
+            sleep(timeout)
             # endregion
 
             # region Return results
@@ -592,7 +604,6 @@ class RawDnsResolver:
         # region Start sniffer
         if not self.quiet:
             self.base.print_info('Get NS records of domain: ' + domain + ' ...')
-        # threats: ThreadManager = ThreadManager(2)
         self._sniff_start(self.your_mac_address, self.your_ipv4_address, self.your_ipv6_address, 53)
         # endregion
 

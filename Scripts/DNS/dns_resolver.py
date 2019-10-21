@@ -292,7 +292,7 @@ if __name__ == '__main__':
                                                                      subdomains_file=args.subdomains_file,
                                                                      subdomains_brute=args.subdomains_brute)
                     resolve_results_copy.extend(recursive_resolve_results)
-        resolve_results = resolve_results_copy.copy()
+            resolve_results = resolve_results_copy.copy()
         # endregion
 
         # region Save dns resolve results to file:
