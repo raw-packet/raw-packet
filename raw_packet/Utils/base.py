@@ -1260,7 +1260,7 @@ class Base:
                                 ipv6_address: str = 'fd00::1',
                                 exit_on_failure: bool = False,
                                 exit_code: int = 28,
-                                quiet: bool = False) -> bool:
+                                quiet: bool = True) -> bool:
         """
         Validate IPv6 address string
         :param ipv6_address: IPv6 address string (example: 'fd00::1')
@@ -1283,7 +1283,7 @@ class Base:
                               ip_address: str = '192.168.1.1',
                               exit_on_failure: bool = False,
                               exit_code: int = 29,
-                              quiet: bool = False) -> bool:
+                              quiet: bool = True) -> bool:
         """
         Validate IPv4 address string
         :param ip_address: IPv4 address string (example: '192.168.1.1')
@@ -1364,7 +1364,7 @@ class Base:
                               network: str = '192.168.1.0/24',
                               exit_on_failure: bool = False,
                               exit_code: int = 32,
-                              quiet: bool = False) -> bool:
+                              quiet: bool = True) -> bool:
         """
         Check IPv4 address in network
         :param ip_address: IPv4 address string (example: '192.168.1.1')
@@ -1521,6 +1521,22 @@ class Base:
         :return: Random string (example: d1dfJ3a032)
         """
         return ''.join(choice(self.lowercase_letters + self.uppercase_letters + self.digits) for _ in range(length))
+
+    @staticmethod
+    def get_system_name_servers() -> List[str]:
+        name_servers_ip_addresses: List[str] = list()
+        resolve_conf_filename: str = '/etc/resolv.conf'
+        try:
+            assert isfile(resolve_conf_filename), \
+                'Not found ' + resolve_conf_filename + ' file!'
+            with open(resolve_conf_filename, 'r') as resolve_conf:
+                for settings_line in resolve_conf.read().splitlines():
+                    settings_columns = settings_line.split()
+                    if settings_columns[0] == 'nameserver':
+                        name_servers_ip_addresses.append(settings_columns[1])
+        except AssertionError:
+            pass
+        return name_servers_ip_addresses
 
     @staticmethod
     def get_mac_prefixes(prefixes_filename: str = 'mac-prefixes.txt') -> List[Dict[str, str]]:

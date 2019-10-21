@@ -63,6 +63,7 @@ if __name__ == "__main__":
     try:
 
         # region Create raw socket
+
         raw_socket = socket(AF_PACKET, SOCK_RAW)
         raw_socket.bind(('eth0', 0))
         # endregion

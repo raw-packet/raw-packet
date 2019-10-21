@@ -1492,18 +1492,27 @@ class RawDNS:
 
     # endregion
 
-    def make_dns_name(self,
+    @staticmethod
+    def get_top_level_domain(name: str = 'www.test.com') -> str:
+        try:
+            position: int = name.find('.')
+            assert not position == -1, 'Could not find "." in domain name!'
+            return name[position + 1:]
+        except AssertionError:
+            return name
+
+    def pack_dns_name(self,
                       name: str = 'test.com',
                       exit_on_failure: bool = False,
                       exit_code: int = 65,
                       quiet: bool = False) -> Union[None, bytes]:
         """
         Convert DNS name to bytes
-        :param name: DNS name (example: 'test.com')
+        :param name: Domain name string (example: 'test.com')
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 65)
         :param quiet: Quiet mode, if True no console output (default: False)
-        :return: Bytes of DNS name (example: b'\x04test\x03com\x00') or None if error
+        :return: Bytes of domain name (example: b'\x04test\x03com\x00') or None if error
         """
 
         # region Variables
@@ -1517,7 +1526,7 @@ class RawDNS:
                                     part_of_name.encode('utf-8'))
         except struct_error:
             if not quiet:
-                self.base.print_error('Failed to pack DNS name: ', str(name))
+                self.base.print_error('Failed to pack domain name string: ', str(name))
             if exit_on_failure:
                 exit(exit_code)
             else:
@@ -1525,20 +1534,56 @@ class RawDNS:
 
         return result_name + b'\x00'
 
-    @staticmethod
-    def make_dns_ptr(ip_address: str,
-                     exit_on_failure: bool = False,
-                     exit_code: int = 66,
-                     quiet: bool = False) -> Union[None, bytes]:
+    def unpack_dns_name(self,
+                        packed_name: bytes = b'\x04mail\xc0\x11',
+                        name: str = 'test.com',
+                        exit_on_failure: bool = False,
+                        exit_code: int = 66,
+                        quiet: bool = False) -> Union[None, str]:
         """
         Under construction
-        :param ip_address:
+        :param packed_name: Bytes of packed name (example: b'\x04mail\xc0\x11')
+        :param name: Domain name string (example: 'test.com')
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 66)
         :param quiet: Quiet mode, if True no console output (default: False)
-        :return:
+        :return: Domain name string (example: 'mail.test.com') or None if error
         """
-        return None
+        
+        # region Variables
+        result_name: str = ''
+        position: int = 0
+        # endregion
+
+        try:
+            name_length = int(unpack('B', packed_name[0:1])[0])
+
+            while name_length != 0:
+                if packed_name[position:position + 2] == b'\xc0\x11':
+                    return result_name + self.get_top_level_domain(name)
+                elif packed_name[position:position + 2] == b'\xc0\x10':
+                    return name
+                elif packed_name[position:position + 2] == b'\xc0\x0c':
+                    return result_name + name
+                else:
+                    result_name += packed_name[position + 1:position + name_length + 1].decode('utf-8') + '.'
+                    position += name_length + 1
+                    name_length = int(unpack('!B', packed_name[position:position + 1])[0])
+
+            return result_name
+
+        except struct_error:
+            pass
+
+        except UnicodeDecodeError:
+            pass
+
+        if not quiet:
+            self.base.print_error('Failed to unpack domain name bytes: ', str(name))
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
 
     def parse_packet(self,
                      packet: bytes,
@@ -1621,49 +1666,72 @@ class RawDNS:
                 # endregion
 
                 # region Parse DNS answers
-                while number_of_answers < dns_packet['answer-rrs']:
+                if dns_packet['flags'] == 0x8180 or dns_packet['flags'] == 0x8080:
+                    cname: str = ''
+                    while number_of_answers < dns_packet['answer-rrs']:
 
-                    answer_name: str = ''
-                    if packet[position:position + 2] == b'\xc0\x0c':
-                        answer_name = dns_packet['queries'][0]['name']
-                        position += 2
-                    else:
-                        answer_name_length = int(unpack('B', packet[position:position + 1])[0])
-                        while answer_name_length != 0:
-                            answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + '.'
-                            position += answer_name_length + 1
+                        answer_name: str = ''
+                        if packet[position:position + 2] == b'\xc0\x0c':
+                            answer_name = dns_packet['queries'][0]['name']
+                            position += 2
+
+                        elif packet[position:position + 2] == b'\xc0\x2d':
+                            answer_name = cname
+                            position += 2
+
+                        else:
                             answer_name_length = int(unpack('B', packet[position:position + 1])[0])
-                        position += 1
+                            while answer_name_length != 0:
+                                answer_name += packet[position + 1:position + answer_name_length + 1].decode('utf-8') + '.'
+                                position += answer_name_length + 1
+                                answer_name_length = int(unpack('B', packet[position:position + 1])[0])
+                            position += 1
 
-                    answer_type = int(unpack('!H', packet[position:position + 2])[0])
-                    answer_class = int(unpack('!H', packet[position + 2:position + 4])[0])
-                    answer_ttl = int(unpack('!I', packet[position + 4:position + 8])[0])
-                    answer_data_len = int(unpack('!H', packet[position + 8:position + 10])[0])
-                    position += 10
+                        answer_type = int(unpack('!H', packet[position:position + 2])[0])
+                        answer_class = int(unpack('!H', packet[position + 2:position + 4])[0])
+                        answer_ttl = int(unpack('!I', packet[position + 4:position + 8])[0])
+                        answer_data_len = int(unpack('!H', packet[position + 8:position + 10])[0])
+                        position += 10
 
-                    answer_address = ''
+                        answer_address: str = ''
 
-                    # Answer type: 1 - Type A (IPv4 address)
-                    if answer_type == 1:
-                        answer_address = inet_ntoa(packet[position:position + answer_data_len])
+                        # Answer type: 1 - Type A (IPv4 address)
+                        if answer_type == 1:
+                            answer_address = inet_ntoa(packet[position:position + answer_data_len])
 
-                    # Answer type: 28 - Type AAAA (IPv6 address)
-                    if answer_type == 28:
-                        answer_address = inet_ntop(AF_INET6, packet[position:position + answer_data_len])
+                        # Answer type: 28 - Type AAAA (IPv6 address)
+                        if answer_type == 28:
+                            answer_address = inet_ntop(AF_INET6, packet[position:position + answer_data_len])
 
-                    position += answer_data_len
+                        # Answer type: 5 - Type CNAME (Canonicial NAME for an alias)
+                        if answer_type == 5:
+                            answer_address = self.unpack_dns_name(packed_name=packet[position:position+answer_data_len],
+                                                                  name=answer_name,
+                                                                  exit_on_failure=exit_on_failure,
+                                                                  exit_code=exit_code,
+                                                                  quiet=quiet)
+                            cname = answer_address
 
-                    answers.append({
-                        'name': answer_name,
-                        'type': answer_type,
-                        'class': answer_class,
-                        'ttl': answer_ttl,
-                        'address': answer_address
-                    })
+                        if answer_type == 2:
+                            answer_address = self.unpack_dns_name(packed_name=packet[position:position+answer_data_len],
+                                                                  name=answer_name,
+                                                                  exit_on_failure=exit_on_failure,
+                                                                  exit_code=exit_code,
+                                                                  quiet=quiet)
 
-                    number_of_answers += 1
+                        position += answer_data_len
 
-                dns_packet['answers'] = answers
+                        answers.append({
+                            'name': answer_name,
+                            'type': answer_type,
+                            'class': answer_class,
+                            'ttl': answer_ttl,
+                            'address': answer_address
+                        })
+
+                        number_of_answers += 1
+
+                    dns_packet['answers'] = answers
                 # endregion
 
             # endregion
@@ -1744,14 +1812,14 @@ class RawDNS:
                 if query_name.endswith('.'):
                     query_name = query_name[:-1]
 
-                dns_packet += self.make_dns_name(query_name)
+                dns_packet += self.pack_dns_name(query_name)
                 dns_packet += pack('!H', query['type'])
                 dns_packet += pack('!H', query['class'])
 
             # Type DNS query: A - (IPv4)
             for address in answers_address:
                 if 'name' in address.keys():
-                    dns_packet += self.make_dns_name(address['name'])
+                    dns_packet += self.pack_dns_name(address['name'])
                 else:
                     dns_packet += pack('!H', 0xc00c)
 
@@ -1768,7 +1836,7 @@ class RawDNS:
                     dns_packet += pack('!16s', inet_pton(AF_INET6, address['address']))  # IPv6 address
 
                 elif int(address['type']) == 12:
-                    domain = self.make_dns_name(address['address'])  # Domain name
+                    domain = self.pack_dns_name(address['address'])  # Domain name
                     dns_packet += pack('!H', len(domain))            # Domain length
                     dns_packet += domain
 
@@ -1922,7 +1990,7 @@ class RawDNS:
             dns_packet += pack('!H', 0)               # Additionsl RRS
 
             for query in queries:
-                dns_packet += self.make_dns_name(query['name'])
+                dns_packet += self.pack_dns_name(query['name'])
                 dns_packet += pack('!H', query['type'])
                 dns_packet += pack('!H', query['class'])
 
@@ -2034,7 +2102,7 @@ class RawDNS:
             dns_packet += pack('!H', 0)               # Additionsl RRS
 
             for query in queries:
-                dns_packet += self.make_dns_name(query['name'])
+                dns_packet += self.pack_dns_name(query['name'])
                 dns_packet += pack('!H', query['type'])
                 dns_packet += pack('!H', query['class'])
 
@@ -2267,6 +2335,59 @@ class RawDNS:
                 exit(exit_code)
             return None
 
+    def make_ns_query(self,
+                      ethernet_src_mac: str = '01:23:45:67:89:0a',
+                      ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                      ip_src: str = '192.168.1.1',
+                      ip_dst: str = '192.168.1.2',
+                      udp_src_port: int = 5353,
+                      udp_dst_port: int = 53,
+                      transaction_id: int = 1,
+                      name: str = 'test.com',
+                      flags: int = 0,
+                      exit_on_failure: bool = False,
+                      exit_code: int = 74,
+                      quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make DNS query with type: NS
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ip_src: Source IPv4 or IPv6 address string in Network header (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 or IPv6 address string in Network header (example: '192.168.1.2')
+        :param udp_src_port: Source UDP port (example: 5353)
+        :param udp_dst_port: Source UDP port (default: 53)
+        :param transaction_id: DNS transaction id integer (example: 1)
+        :param name: Name of domain for resolving (example: test.com)
+        :param flags: DNS flags (default: 0)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 69)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of packet or None if error
+        """
+        queries: List[Dict[str, Union[int, str]]] = [{'type': 2, 'class': 1, 'name': name}]
+
+        if self.base.ip_address_validation(ip_src):
+            return self.make_ipv4_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        elif self.base.ipv6_address_validation(ip_src):
+            return self.make_ipv6_request_packet(ethernet_src_mac=ethernet_src_mac, ethernet_dst_mac=ethernet_dst_mac,
+                                                 ip_src=ip_src, ip_dst=ip_dst,
+                                                 udp_src_port=udp_src_port, udp_dst_port=udp_dst_port,
+                                                 transaction_id=transaction_id,
+                                                 flags=flags,
+                                                 queries=queries)
+
+        else:
+            if not quiet:
+                self.base.print_error('Failed to make DNS query with type: NS! Unknown network type!')
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 # endregion
 
 
@@ -3355,7 +3476,7 @@ class RawDHCPv6:
 
         options[20] = ''                                     # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
 
         options[3] = pack('!' '3I' '2H', iaid, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
@@ -3388,7 +3509,7 @@ class RawDHCPv6:
 
         options[20] = ''                                     # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-        options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+        options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
 
         options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
@@ -3413,7 +3534,7 @@ class RawDHCPv6:
     #
     #     options[20] = ''                                     # Reconfigure Accept
     #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
-    #     options[24] = self.dns.make_dns_name(domain_search)  # Domain search list
+    #     options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
     #     options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
     #
     #     options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
@@ -3873,7 +3994,7 @@ class RawICMPv6:
     
             assert not len(domain_search) > 22, 'Too big domain search value: ' + self.base.error_text(domain_search)
 
-            domain_search = self.dns.make_dns_name(name=domain_search)
+            domain_search = self.dns.pack_dns_name(name=domain_search)
             padding = 24 - len(domain_search)
             domain_search += b''.join(pack('B', 0) for _ in range(padding))
             
@@ -4246,12 +4367,12 @@ class RawICMPv6:
 #             if query_name.endswith('.'):
 #                 query_name = query_name[:-1]
 #
-#             dns_packet += self.dns.make_dns_name(query_name)
+#             dns_packet += self.dns.pack_dns_name(query_name)
 #             dns_packet += pack('!2H', query_type, query_class)
 #
 #         for address in answers_address:
 #             if 'name' in address.keys():
-#                 dns_packet += self.dns.make_dns_name(address['name'])
+#                 dns_packet += self.dns.pack_dns_name(address['name'])
 #             else:
 #                 dns_packet += pack('!H', 0xc00c)
 #
@@ -4264,7 +4385,7 @@ class RawICMPv6:
 #                                    16, inet_pton(AF_INET6, address['address']))
 #
 #             elif address['type'] == 12:
-#                 domain = self.dns.make_dns_name(address['address'])
+#                 domain = self.dns.pack_dns_name(address['address'])
 #                 dns_packet += pack('!' '2H' 'I' 'H', address['type'], address['class'], address['ttl'],
 #                                    len(domain))
 #                 dns_packet += domain
@@ -4301,7 +4422,7 @@ class RawICMPv6:
 #
 #         dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
 #         for query in queries:
-#             dns_packet += self.dns.make_dns_name(query['name'])
+#             dns_packet += self.dns.pack_dns_name(query['name'])
 #             dns_packet += pack('!2H', query['type'], query['class'])
 #
 #         eth_header = self.eth.make_header(src_mac, dst_mac, self.ip.header_type)
@@ -4321,7 +4442,7 @@ class RawICMPv6:
 #
 #         dns_packet = pack('!6H', transaction_id, dns_flags, questions, answer_rrs, authority_rrs, additional_rrs)
 #         for query in queries:
-#             dns_packet += self.dns.make_dns_name(query['name'])
+#             dns_packet += self.dns.pack_dns_name(query['name'])
 #             dns_packet += pack('!2H', query['type'], query['class'])
 #
 #         eth_header = self.eth.make_header(src_mac, dst_mac, self.ipv6.header_type)
@@ -4552,7 +4673,7 @@ class RawSniff:
             try:
 
                 # region Sniff packets from RAW socket
-                packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(2048)
+                packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(65535)
 
                 for packet in packets:
 

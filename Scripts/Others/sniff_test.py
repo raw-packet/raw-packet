@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # region Start sniffer
     sniff = RawSniff()
-    sniff.start(protocols=['ARP', 'IPv4', 'IPv6', 'UDP', 'DNS'], prn=print_packet)
+    sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'], prn=print_packet, filters={'UDP': {'source-port': 53}})
     # endregion
 
 # endregion
