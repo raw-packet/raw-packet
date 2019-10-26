@@ -34,7 +34,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -61,8 +61,12 @@ if __name__ == "__main__":
     parser.add_argument('--T4', help='Set target IPv4 address', default=None)
     parser.add_argument('--T6', help='Set target IPv6 address', default=None)
 
+    parser.add_argument('-c', '--config_file',
+                        help='Set json config file name, example: --config_file "dns_server_config.json"',
+                        default=None)
+
     parser.add_argument('--fake_domains',
-                        help='Set fake domain regexp or domains, example: --fake_domains ".*apple.com,google.com"',
+                        help='Set fake domain regexp or domains, example: --fake_domains ".*apple.com,.*google.com"',
                         default=None)
     parser.add_argument('--no_such_domains', help='Set no such domain or domains, ' +
                                                   'example: --no_such_domains "apple.com,google.com"', default=None)
@@ -115,7 +119,6 @@ if __name__ == "__main__":
         # Create list
         for no_such_name in no_such_domains_string.split(","):
             no_such_domains.append(no_such_name)
-            no_such_domains.append("www." + no_such_name)
     # endregion
 
     # region Create fake ipv4 addresses list
@@ -156,10 +159,12 @@ if __name__ == "__main__":
         # region Argument fake_answer is set
         if args.fake_answer:
             if not args.disable_ipv4:
-                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ipv4_addresses)), " for all DNS queries")
+                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ipv4_addresses)),
+                                " for all DNS queries")
 
             if len(fake_ipv6_addresses) > 0:
-                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_ipv6_addresses)), " for all DNS queries")
+                Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_ipv6_addresses)),
+                                " for all DNS queries")
 
         # endregion
 
@@ -214,7 +219,8 @@ if __name__ == "__main__":
                       fake_domains_regexp=fake_domains,
                       no_such_domains=no_such_domains,
                       listen_ipv6=args.ipv6,
-                      disable_ipv4=args.disable_ipv4)
+                      disable_ipv4=args.disable_ipv4,
+                      config_file=args.config_file)
     # endregion
 
 # endregion

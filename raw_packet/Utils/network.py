@@ -1881,6 +1881,7 @@ class RawDNS:
         """
         error_text: str = 'Failed to make DNS response packet!'
         packet: bytes = b''
+        mail_server_preference: int = 10
         try:
             dns_packet: bytes = b''
             dns_packet += pack('!H', transaction_id)            # DNS transaction ID
@@ -1922,10 +1923,28 @@ class RawDNS:
                     dns_packet += pack('!H', 16)                                         # IPv6 address length
                     dns_packet += pack('!16s', inet_pton(AF_INET6, address['address']))  # IPv6 address
 
-                elif int(address['type']) == 12:
-                    domain = self.pack_dns_name(address['address'])  # Domain name
-                    dns_packet += pack('!H', len(domain))            # Domain length
+                elif int(address['type']) == 2 or int(address['type']) == 12:
+                    domain: bytes = self.pack_dns_name(address['address'])  # Domain name
+                    dns_packet += pack('!H', len(domain))  # Domain length
                     dns_packet += domain
+
+                elif int(address['type']) == 15:
+                    domain: bytes = self.pack_dns_name(address['address'])  # Domain name
+                    dns_packet += pack('!H', len(domain) + 2)  # Domain length
+                    dns_packet += pack('!H', mail_server_preference)  # Mail server preference
+                    dns_packet += domain
+                    mail_server_preference += 10
+
+                # elif int(address['type']) == 15:
+                #     domain: str = address['address'].replace(query_name, '')
+                #     if domain.endswith('.'):
+                #         domain: str = domain[:-1]
+                #     domain: bytes = self.pack_dns_name(domain)
+                #     domain: bytes = domain[:-1] + b'\xc0\x0c'
+                #     dns_packet += pack('!H', len(domain) + 2)
+                #     dns_packet += pack('!H', mail_server_preference)
+                #     dns_packet += domain
+                #     mail_server_preference += 10
 
             # region IPv4 request
             if self.base.ip_address_validation(ip_address=ip_src, exit_on_failure=False, quiet=True):

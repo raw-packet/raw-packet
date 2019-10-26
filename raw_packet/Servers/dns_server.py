@@ -19,6 +19,9 @@ from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, 
 from subprocess import run
 from typing import List, Union, Dict
 from re import match
+from os.path import isfile
+from json import load
+from json.decoder import JSONDecodeError
 # endregion
 
 # endregion
@@ -44,27 +47,14 @@ class RawDnsServer:
     dns: RawDNS = RawDNS()
 
     rawSocket: socket = socket(AF_PACKET, SOCK_RAW)
+    your_ipv4_address: Union[None, str] = None
+    your_ipv6_address: Union[None, str] = None
+    config: Dict[str, Dict[str, Union[bool, str, List[str]]]] = dict()
 
-    port: int = 53
-
-    network_interface: Union[None, str] = None
-    your_mac_address: Union[None, str] = None
-    your_ip_address: Union[None, str] = None
-    your_ipv6_addresses: Union[None, str] = None
-
-    target_mac_address: Union[None, str] = None
-    target_ipv4_address: Union[None, str] = None
-    target_ipv6_address: Union[None, str] = None
-
-    fake_answers: bool = False
-    fake_domains_regexp: List[str] = list()
-    fake_addresses: Union[None, Dict[int, List[Union[None, str]]]] = dict()
-    no_such_domains: List[str] = list()
-    success_domains: List[str] = list()
-
-    DNS_QUERY_TYPES: List[int] = list()
     A_DNS_QUERY: int = 1
     AAAA_DNS_QUERY: int = 28
+    NS_DNS_QUERY: int = 2
+    MX_DNS_QUERY: int = 15
     # endregion
 
     # region Init
@@ -81,14 +71,33 @@ class RawDnsServer:
             return 'A'
         elif query_type == RawDnsServer.AAAA_DNS_QUERY:
             return 'AAAA'
+        elif query_type == RawDnsServer.NS_DNS_QUERY:
+            return 'NS'
+        elif query_type == RawDnsServer.MX_DNS_QUERY:
+            return 'MX'
         else:
-            return 'Unknown DNS type'
+            return 'A'
+    # endregion
+
+    # region DNS string query type to integer
+    @staticmethod
+    def _str_type_to_int_type(query_type: str = 'A') -> int:
+        if query_type == 'A':
+            return RawDnsServer.A_DNS_QUERY
+        elif query_type == 'AAAA':
+            return RawDnsServer.AAAA_DNS_QUERY
+        elif query_type == 'NS':
+            return RawDnsServer.NS_DNS_QUERY
+        elif query_type == 'MX':
+            return RawDnsServer.MX_DNS_QUERY
+        else:
+            return 1
     # endregion
 
     # region Get first IPv4 or IPv6 address of domain
     @staticmethod
     def _get_domain_address(query_name: str, query_type: int = 1) -> Union[List[str], None]:
-        
+
         # region Check DNS query type and set proto
         if query_type == RawDnsServer.AAAA_DNS_QUERY:
             proto: int = AF_INET6
@@ -97,7 +106,7 @@ class RawDnsServer:
         else:
             return None
         # endregion
-        
+
         # region Resolve query name
         try:
             # Get list of addresses
@@ -132,10 +141,7 @@ class RawDnsServer:
                     ip_dst: Union[None, str] = request['IPv6']['source-ip']
                 answers: List[Dict[str, Union[int, str]]] = list()
                 addresses: Union[None, str, List[str]] = None
-                # endregion
-
-                # region Check query type
-                assert query['type'] in self.DNS_QUERY_TYPES, 'Bad DNS query type!'
+                success: bool = False
                 # endregion
 
                 # region Check query name
@@ -143,42 +149,49 @@ class RawDnsServer:
                     query['name']: str = query['name'][:-1]
                 # endregion
 
-                # region Script arguments condition check
+                # region Check config
+                for fake_domain_regexp in self.config.keys():
 
-                # region Variable fake_answers is True
-                if self.fake_answers:
-                    addresses = self.fake_addresses[query['type']]
+                    if match(fake_domain_regexp, query['name']):
+
+                        # region No such domain
+                        if 'no such domain' in self.config[fake_domain_regexp].keys():
+                            if self.config[fake_domain_regexp]['no such domain']:
+                                addresses = ['no such domain']
+                                break
+                        # endregion
+
+                        # region Success domain
+                        if 'success' in self.config[fake_domain_regexp].keys():
+                            if self.config[fake_domain_regexp]['success']:
+                                success = True
+                        # endregion
+
+                        # region Fake addresses is set
+                        query_type_string: str = self._int_type_to_str_type(query['type'])
+                        if query_type_string in self.config[fake_domain_regexp].keys():
+                            if type(self.config[fake_domain_regexp][query_type_string]) is str:
+                                if self.config[fake_domain_regexp][query_type_string] == 'my ipv4 address':
+                                    addresses = [self.your_ipv4_address]
+                                elif self.config[fake_domain_regexp][query_type_string] == 'my ipv6 address':
+                                    addresses = [self.your_ipv6_address]
+                                else:
+                                    addresses = [self.config[fake_domain_regexp][query_type_string]]
+                            if type(self.config[fake_domain_regexp][query_type_string]) is list:
+                                addresses = self.config[fake_domain_regexp][query_type_string]
+                            break
+                        # endregion
+
+                        # region Fake address is NOT set
+                        else:
+                            addresses = self._get_domain_address(query['name'], query['type'])
+                        # endregion
+
                 # endregion
 
-                # region Variable fake_answers is False
-                else:
-
-                    # region Query name in no_such_domains list
-                    if query['name'] in self.no_such_domains:
-                        addresses = ['no such name']
-                    # endregion
-
-                    # region DNS query name in fake domains regexp list
-                    for fake_domain_regexp in self.fake_domains_regexp:
-
-                        if match(fake_domain_regexp, query['name']):
-
-                            # Fake address is set
-                            if query['type'] in self.fake_addresses.keys():
-                                if len(self.fake_addresses[query['type']]) > 0:
-                                    addresses = self.fake_addresses[query['type']]
-                                    break
-
-                            # Fake address is NOT set
-                            else:
-                                addresses = self._get_domain_address(query['name'], query['type'])
-                    # endregion
-
-                    # region DNS query name NOT in fake domains regexp list
-                    if addresses is None:
-                        addresses = self._get_domain_address(query['name'], query['type'])
-                    # endregion
-
+                # region DNS query name NOT in fake domains regexp list
+                if addresses is None:
+                    addresses = self._get_domain_address(query['name'], query['type'])
                 # endregion
 
                 # endregion
@@ -191,7 +204,7 @@ class RawDnsServer:
                 dns_answer_flags = 0x8080
 
                 for address in addresses:
-                    if address == 'no such name':
+                    if address == 'no such domain':
                         dns_answer_flags = 0x8183
                         answers = list()
                         break
@@ -224,7 +237,7 @@ class RawDnsServer:
                 # endregion
 
                 # region Print info message
-                if query['name'] in self.success_domains:
+                if success:
                     self.base.print_success('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
                                             self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
                                             ' answer: ', (', '.join(addresses)))
@@ -256,72 +269,85 @@ class RawDnsServer:
                no_such_domains: List[str] = [],
                listen_ipv6: bool = False,
                disable_ipv4: bool = False,
-               success_domains: List[str] = []) -> None:
+               success_domains: List[str] = [],
+               config_file: Union[None, str] = None) -> None:
         try:
-            # region Set success domains
-            self.success_domains = success_domains
-            # endregion
-
-            # region Set fake answers
-            self.fake_answers = fake_answers
-            # endregion
-
-            # region Set DNS_QUERY_TYPES
-            if listen_ipv6:
-                if disable_ipv4:
-                    self.DNS_QUERY_TYPES = [RawDnsServer.AAAA_DNS_QUERY]
-                else:
-                    self.DNS_QUERY_TYPES = [RawDnsServer.A_DNS_QUERY, RawDnsServer.AAAA_DNS_QUERY]
-            else:
-                self.DNS_QUERY_TYPES = [RawDnsServer.A_DNS_QUERY]
-            # endregion
-
-            # region Set listen network interface
-            self.network_interface = listen_network_interface
-            # endregion
-
             # region Set listen UDP port
             if listen_port != 53:
-                assert 0 < listen_port < 65536, 'Bad value in "listen_port": ' + \
-                                                self.base.error_text(str(listen_port)) + \
-                                                ' listen UDP port must be in range: ' + \
-                                                self.base.info_text('1 - 65535')
-                self.port = listen_port
+                assert 0 < listen_port < 65536, \
+                    'Bad value in "listen_port": ' + self.base.error_text(str(listen_port)) + \
+                    ' listen UDP port must be in range: ' + self.base.info_text('1 - 65535')
             # endregion
 
             # region Get your MAC, IP and IPv6 addresses
-            self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)
-            self.your_ip_address = self.base.get_interface_ip_address(self.network_interface)
+            your_mac_address = self.base.get_interface_mac_address(listen_network_interface)
+            self.your_ipv4_address = self.base.get_interface_ip_address(listen_network_interface)
+            self.your_ipv6_address = self.base.make_ipv6_link_address(your_mac_address)
             if listen_ipv6:
-                self.your_ipv6_addresses = self.base.get_interface_ipv6_link_address(self.network_interface)
+                self.your_ipv6_address = self.base.get_interface_ipv6_link_address(listen_network_interface)
             # endregion
 
             # region Bind raw socket
-            self.rawSocket.bind((self.network_interface, 0))
+            self.rawSocket.bind((listen_network_interface, 0))
             # endregion
 
-            # region Set fake addresses
-            if len(fake_ipv4_addresses) > 0:
-                self.fake_addresses[RawDnsServer.A_DNS_QUERY] = fake_ipv4_addresses
-            else:
-                if not disable_ipv4:
-                    self.fake_addresses[RawDnsServer.A_DNS_QUERY] = [self.your_ip_address]
-
-            if len(fake_ipv6_addresses) > 0:
-                self.fake_addresses[RawDnsServer.AAAA_DNS_QUERY] = fake_ipv6_addresses
-                if disable_ipv4:
-                    self.DNS_QUERY_TYPES = [RawDnsServer.AAAA_DNS_QUERY]
-                else:
-                    self.DNS_QUERY_TYPES = [RawDnsServer.A_DNS_QUERY, RawDnsServer.AAAA_DNS_QUERY]
-            else:
-                if self.fake_answers:
-                    if listen_ipv6:
-                        self.fake_addresses[RawDnsServer.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
+            # region Check config file
+            if config_file is not None:
+                assert isfile(config_file), 'Not found config file: ' + self.base.error_text(str(config_file))
+                with open(config_file, 'r') as config_file_descriptor:
+                    self.config = load(config_file_descriptor)
             # endregion
 
-            # region Set fake domains and 'no such domains' lists
-            self.fake_domains_regexp = fake_domains_regexp
-            self.no_such_domains = no_such_domains
+            # region Set fake ipv4 addresses
+            if len(fake_ipv4_addresses) == 0:
+                fake_ipv4_addresses = [self.your_ipv4_address]
+            else:
+                for fake_ipv4_address in fake_ipv4_addresses:
+                    assert self.base.ip_address_validation(fake_ipv4_address), \
+                        'Bad fake IPv4 address: ' + self.base.error_text(fake_ipv4_address) + \
+                        ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
+            # endregion
+
+            # region Set fake ipv6 addresses
+            if len(fake_ipv6_addresses) == 0:
+                fake_ipv6_addresses = [self.your_ipv6_address]
+            else:
+                for fake_ipv6_address in fake_ipv6_addresses:
+                    assert self.base.ipv6_address_validation(fake_ipv6_address), \
+                        'Bad fake IPv6 address: ' + self.base.error_text(fake_ipv6_address) + \
+                        ' example IPv6 address: ' + self.base.info_text('fd00::1')
+            # endregion
+
+            # region Set success domains
+            for success_domain in success_domains:
+                try:
+                    self.config[success_domain].update({'success': True})
+                except KeyError:
+                    self.config[success_domain] = {'success': True}
+            # endregion
+
+            # region Set no such domains
+            for no_such_domain in no_such_domains:
+                try:
+                    self.config[no_such_domain].update({'no such domain': True})
+                except KeyError:
+                    self.config[no_such_domain] = {'no such domain': True}
+            # endregion
+
+            # region Set fake domains regexp
+            for fake_domain_regexp in fake_domains_regexp:
+                try:
+                    self.config[fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self.config[fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+            # endregion
+
+            # region Set fake answers
+            if fake_answers:
+                try:
+                    self.config['.*'].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self.config['.*'] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
             # endregion
 
             # region Check target MAC address
@@ -337,7 +363,6 @@ class RawDnsServer:
                 assert self.base.ip_address_validation(target_ipv4_address), \
                     'Bad target IPv4 address: ' + self.base.error_text(target_ipv4_address) + \
                     ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
-                self.target_ipv4_address = target_ipv4_address
             # endregion
 
             # region Check target IPv6 address
@@ -345,7 +370,6 @@ class RawDnsServer:
                 assert self.base.ipv6_address_validation(target_ipv6_address), \
                     'Bad target IPv6 address: ' + self.base.error_text(target_ipv6_address) + \
                     ' example IPv6 address: ' + self.base.info_text('fd00::1')
-                self.target_ipv6_address = target_ipv6_address
             # endregion
 
             # region Sniffing DNS requests
@@ -353,31 +377,23 @@ class RawDnsServer:
             # region Set network filter
             network_filters = {}
 
-            if self.network_interface != 'lo':
+            if listen_network_interface != 'lo':
                 if target_mac_address is not None:
                     network_filters['Ethernet'] = {'source': target_mac_address}
                 else:
-                    network_filters['Ethernet'] = {'not-source': self.your_mac_address}
-                if self.target_ipv4_address is not None:
-                    network_filters['IPv4'] = {'source-ip': self.target_ipv4_address}
-                if self.target_ipv6_address is not None:
-                    network_filters['IPv6'] = {'source-ip': self.target_ipv6_address}
+                    network_filters['Ethernet'] = {'not-source': your_mac_address}
+                if target_ipv4_address is not None:
+                    network_filters['IPv4'] = {'source-ip': target_ipv4_address}
+                if target_ipv6_address is not None:
+                    network_filters['IPv6'] = {'source-ip': target_ipv6_address}
                 network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
                 network_filters['IPv6'] = {'not-source-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': self.port}
+                network_filters['UDP'] = {'destination-port': listen_port}
             else:
                 network_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
                 network_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
                 network_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': self.port}
-            # endregion
-
-            # region Clear fake_answers list
-            if not self.fake_answers:
-                if len(fake_ipv6_addresses) == 0:
-                    del self.fake_addresses[RawDnsServer.AAAA_DNS_QUERY]
-                if len(fake_ipv4_addresses) == 0:
-                    del self.fake_addresses[RawDnsServer.A_DNS_QUERY]
+                network_filters['UDP'] = {'destination-port': listen_port}
             # endregion
 
             # region Start sniffer
@@ -394,6 +410,10 @@ class RawDnsServer:
 
         except AssertionError as Error:
             self.base.print_error(Error.args[0])
+            exit(1)
+
+        except JSONDecodeError:
+            self.base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
             exit(1)
     # endregion
 

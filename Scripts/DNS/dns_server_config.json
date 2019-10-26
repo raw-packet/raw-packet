@@ -1,0 +1,22 @@
+{
+  ".*google.com": {
+    "A": ["192.168.0.1", "192.168.0.2"],
+    "AAAA": "fd00::1",
+    "NS": ["ns1.google.com", "ns2.google.com"],
+    "MX": "mail.google.com"
+  },
+  ".*apple.com": {
+    "A": "192.168.0.1",
+    "AAAA": ["fd00::1", "fd00::2"],
+    "NS": "ns.apple.com",
+    "MX": ["mail1.apple.com", "mail2.apple.com"]
+  },
+  "gooogle.com": {
+    "no such domain": true
+  },
+  "evil.com": {
+    "success": true,
+    "A": "my ipv4 address",
+    "AAAA": "my ipv6 address"
+  }
+}
