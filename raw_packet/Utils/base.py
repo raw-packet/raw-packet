@@ -1,6 +1,6 @@
 # region Description
 """
-base.py: Base class for Raw-packet project
+test_base.py: Base class for Raw-packet project
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -440,6 +440,7 @@ class Base:
         :return: Network interface settings (example: {})
         """
         return {
+            'Interface name': interface_name,
             'MAC address': self.get_interface_mac_address(interface_name=interface_name,
                                                           exit_on_failure=exit_on_failure,
                                                           quiet=quiet),
@@ -585,6 +586,8 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 link local address string (example: 'fe80::1') or None in case of error
         """
+        if interface_name == 'lo':
+            return '::1'
         for address_index in range(0, 10, 1):
             ipv6_address = self.get_interface_ipv6_address(interface_name=interface_name,
                                                            address_index=address_index,

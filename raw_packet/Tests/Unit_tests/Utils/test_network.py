@@ -1,6 +1,6 @@
 # region Description
 """
-network.py: Unit tests for Raw-packet network classes
+test_network.py: Unit tests for Raw-packet network classes
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -367,12 +367,19 @@ class NetworkTest(unittest.TestCase):
     # endregion
 
     # region Test RawDNS methods
-    def test_dns_make_dns_name(self):
+    def test_dns_get_top_level_domain(self):
         # Normal
-        self.assertEqual(self.dns.make_dns_name(name='test.com', exit_on_failure=True, exit_code=65),
+        self.assertEqual(self.dns.get_top_level_domain(name='www.test.com'), 'test.com')
+
+        # Bad name
+        self.assertEqual(self.dns.get_top_level_domain(name='test'), 'test')
+
+    def test_dns_pack_dns_name(self):
+        # Normal
+        self.assertEqual(self.dns.pack_dns_name(name='test.com', exit_on_failure=True, exit_code=65),
                          b'\x04test\x03com\x00')
         # Bad name
-        self.assertIsNone(self.dns.make_dns_name(name='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+        self.assertIsNone(self.dns.pack_dns_name(name='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
                                                       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
                                                       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
                                                       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
@@ -383,6 +390,30 @@ class NetworkTest(unittest.TestCase):
                                                       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
                                                       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
                                                       '.com', exit_on_failure=False, exit_code=65))
+
+    def test_dns_parse_packet(self):
+        self.assertEqual(self.dns.parse_packet(packet=b'\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00' +
+                                                      b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00' +
+                                                      b'\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0\xa8\x01\x01',
+                                               exit_on_failure=True, exit_code=67),
+                         {'additional-rrs': 0, 'answer-rrs': 1, 'authority-rrs': 0, 'questions': 1, 'flags': 33152,
+                          'transaction-id': 1,
+                          'answers': [
+                              {'address': '192.168.1.1',
+                               'class': 1,
+                               'name': 'test.com.',
+                               'ttl': 65535,
+                               'type': 1}],
+                          'queries': [{'class': 1,
+                                       'name': 'test.com.',
+                                       'type': 1}]})
+
+    def test_dns_unpack_dns_name(self):
+        self.assertEqual(self.dns.unpack_dns_name(packed_name=b'\x03www\x04test\x03com\x00'), 'www.test.com.')
+        self.assertEqual(self.dns.unpack_dns_name(packed_name=b'\x04mail\xc0\x11', name='pop3.test.com'),
+                         'mail.test.com')
+        self.assertEqual(self.dns.unpack_dns_name(packed_name=b'\xc0\x10', name='test.com'), 'test.com')
+        self.assertEqual(self.dns.unpack_dns_name(packed_name=b'\x03www\xc0\x0c', name='test.com'), 'www.test.com')
 
     def test_dns_make_ipv4_request_packet(self):
         # Normal
@@ -531,28 +562,30 @@ class NetworkTest(unittest.TestCase):
                                                        ethernet_dst_mac='01:23:45:67:89:0b',
                                                        ip_src='192.168.1.1', ip_dst='192.168.1.2', ip_ttl=64,
                                                        ip_ident=1, udp_src_port=53, udp_dst_port=5353, transaction_id=1,
-                                                       flags=0, queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
+                                                       flags=0x8180,
+                                                       queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                                        answers_address=[{'name': 'test.com', 'type': 1, 'class': 1,
                                                                          'ttl': 65535, 'address': '192.168.1.1'}],
                                                        name_servers={}, exit_on_failure=True),
-                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x00N\x01\x00\x00\x00@\x11\xf6K\xc0\xa8\x01\x01' +
-                         b'\xc0\xa8\x01\x02\x005\x14\xe9\x00:\x00\x00\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00' +
-                         b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00\x00\x01\x00\x01\x00\x00\xff\xff\x00' +
-                         b'\x04\xc0\xa8\x01\x01')
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x00F\x01\x00\x00\x00@\x11\xf6S\xc0\xa8\x01\x01' +
+                         b'\xc0\xa8\x01\x02\x005\x14\xe9\x002\xb5{\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00' +
+                         b'\x04test\x03com\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0' +
+                         b'\xa8\x01\x01')
         # Normal IPv6 response
         self.assertEqual(self.dns.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a',
                                                        ethernet_dst_mac='01:23:45:67:89:0b',
                                                        ip_src='fd00::1', ip_dst='fd00::2', ip_ttl=64, ip_ident=1,
-                                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0,
+                                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1,
+                                                       flags=0x8180,
                                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1,
                                                                          'ttl': 65535, 'address': 'fd00::1'}],
                                                        name_servers={}, exit_on_failure=True),
-                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00F\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00>\x11@\xfd\x00\x00\x00\x00\x00\x00' +
                          b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
-                         b'\x00\x00\x02\x005\x14\xe9\x00F\x96V\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00' +
-                         b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00\x00\x1c\x00\x01\x00\x00\xff\xff' +
-                         b'\x00\x10\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01')
+                         b'\x00\x00\x02\x005\x14\xe9\x00>\x034\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00\x04' +
+                         b'test\x03com\x00\x00\x01\x00\x01\xc0\x0c\x00\x1c\x00\x01\x00\x00\xff\xff\x00\x10\xfd\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01')
         # Bad MAC address
         self.assertIsNone(self.dns.make_response_packet(ethernet_src_mac='01:23:45:67:890ab',
                                                         ethernet_dst_mac='01:23:45:67:89:0b',

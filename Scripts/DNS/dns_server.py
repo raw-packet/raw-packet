@@ -3,7 +3,7 @@
 
 # region Description
 """
-dns_server.py: DNS server
+test_dns_server.py: DNS server
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -62,10 +62,10 @@ if __name__ == "__main__":
     parser.add_argument('--T6', help='Set target IPv6 address', default=None)
 
     parser.add_argument('--fake_domains',
-                        help='Set fake domain or domains, example: --fake_domains "apple.com,google.com"',
+                        help='Set fake domain regexp or domains, example: --fake_domains ".*apple.com,google.com"',
                         default=None)
-    parser.add_argument('--no_such_names', help='Set no such domain or domains, ' +
-                                                'example: --no_such_names "apple.com,google.com"', default=None)
+    parser.add_argument('--no_such_domains', help='Set no such domain or domains, ' +
+                                                  'example: --no_such_domains "apple.com,google.com"', default=None)
     parser.add_argument('--fake_ip',
                         help='Set fake IP address or addresses, example: --fake_ip "192.168.0.1,192.168.0.2"',
                         default=None)
@@ -105,21 +105,21 @@ if __name__ == "__main__":
     # endregion
 
     # region Create no such name list
-    no_such_names = []
+    no_such_domains = []
 
-    if args.no_such_names is not None:
+    if args.no_such_domains is not None:
 
         # Delete spaces
-        no_such_names_string = args.no_such_names.replace(" ", "")
+        no_such_domains_string = args.no_such_domains.replace(" ", "")
 
         # Create list
-        for no_such_name in no_such_names_string.split(","):
-            no_such_names.append(no_such_name)
-            no_such_names.append("www." + no_such_name)
+        for no_such_name in no_such_domains_string.split(","):
+            no_such_domains.append(no_such_name)
+            no_such_domains.append("www." + no_such_name)
     # endregion
 
     # region Create fake ipv4 addresses list
-    fake_ip_addresses = []
+    fake_ipv4_addresses = []
     if args.fake_ip is not None:
 
         # Delete spaces
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         # Create list
         for ip_address in fake_ip_string.split(","):
             if Base.ip_address_validation(ip_address):
-                fake_ip_addresses.append(ip_address)
+                fake_ipv4_addresses.append(ip_address)
             else:
                 Base.print_error("Illegal IPv4 address: ", ip_address)
                 exit(1)
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         # region Argument fake_answer is set
         if args.fake_answer:
             if not args.disable_ipv4:
-                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ip_addresses)), " for all DNS queries")
+                Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ipv4_addresses)), " for all DNS queries")
 
             if len(fake_ipv6_addresses) > 0:
                 Base.print_info("DNS answer fake IPv6 address: ", (", ".join(fake_ipv6_addresses)), " for all DNS queries")
@@ -170,7 +170,7 @@ if __name__ == "__main__":
             if len(fake_domains) > 0:
 
                 if args.fake_ip is not None:
-                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ip_addresses)),
+                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ipv4_addresses)),
                                     " for domain: ", (", ".join(fake_domains)))
 
                 if args.fake_ipv6 is not None:
@@ -183,7 +183,7 @@ if __name__ == "__main__":
             else:
 
                 if args.fake_ip is not None:
-                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ip_addresses)),
+                    Base.print_info("DNS answer fake IPv4 address: ", (", ".join(fake_ipv4_addresses)),
                                     " for all DNS queries")
 
                 if args.fake_ipv6 is not None:
@@ -206,13 +206,13 @@ if __name__ == "__main__":
     dns_server.listen(listen_network_interface=current_network_interface,
                       listen_port=args.port,
                       target_mac_address=args.target_mac,
-                      target_ip_address=args.T4,
+                      target_ipv4_address=args.T4,
                       target_ipv6_address=args.T6,
                       fake_answers=args.fake_answer,
-                      fake_ip_addresses=fake_ip_addresses,
+                      fake_ipv4_addresses=fake_ipv4_addresses,
                       fake_ipv6_addresses=fake_ipv6_addresses,
-                      fake_domains=fake_domains,
-                      no_such_names=no_such_names,
+                      fake_domains_regexp=fake_domains,
+                      no_such_domains=no_such_domains,
                       listen_ipv6=args.ipv6,
                       disable_ipv4=args.disable_ipv4)
     # endregion

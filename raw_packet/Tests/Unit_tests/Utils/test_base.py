@@ -1,6 +1,6 @@
 # region Description
 """
-base.py: Unit tests for Raw-packet Base class
+test_base.py: Unit tests for Raw-packet Base class
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -50,6 +50,10 @@ class BaseTest(unittest.TestCase):
     # region Properties
     base: Base = Base()
     interface: str = interfaces()[1]
+    run('ifconfig ' + interface + ' down', shell=True)
+    run('ifconfig ' + interface + ' up', shell=True)
+    run('sysctl -w net.ipv6.conf.' + interface + '.disable_ipv6=0', shell=True)
+    sleep(1)
     mac_address: str = str(ifaddresses(interface)[AF_LINK][0]['addr'])
 
     ipv4_address: str = '192.168.119.136'
@@ -73,13 +77,10 @@ class BaseTest(unittest.TestCase):
     ipv6_address: str = 'fd00::123'
     ipv6_gateway: str = 'fd00::1'
 
-    # run('ip link set ' + interface + ' down', shell=True)
-    run('ip link set ' + interface + ' up', shell=True)
-    run('ip a add ' + ipv4_address + '/' + ipv4_network_mask + ' dev ' + interface, shell=True)
-    run('ip route del 0/0', shell=True)
-    run('ip route add default via ' + ipv4_gateway, shell=True)
-    run('ip -6 addr add ' + ipv6_address + '/64 dev ' + interface, shell=True)
-    run('ip -6 route add default via ' + ipv6_gateway, shell=True)
+    run('ifconfig ' + interface + ' ' + ipv4_address + ' netmask ' + ipv4_network_mask, shell=True)
+    run('ifconfig ' + interface + ' inet6 add ' + ipv6_address + '/64', shell=True)
+    run('ip route replace default via ' + ipv4_gateway, shell=True)
+    run('ip -6 route replace default via ' + ipv6_gateway, shell=True)
     # endregion
 
     # region Static methods
@@ -158,6 +159,7 @@ class BaseTest(unittest.TestCase):
         # Normal
         self.assertEqual(self.base.get_interface_settings(self.interface, False),
                          {
+                             'Interface name': self.interface,
                              'MAC address': self.mac_address,
                              'IPv4 address': self.ipv4_address,
                              'IPv6 link local address': self.ipv6_link_local_address,
@@ -176,6 +178,7 @@ class BaseTest(unittest.TestCase):
         # Bad network interface name
         self.assertEqual(self.base.get_interface_settings('self.interface', False),
                          {
+                             'Interface name': 'self.interface',
                              'MAC address': None,
                              'IPv4 address': None,
                              'IPv6 link local address': None,

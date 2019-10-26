@@ -1,6 +1,6 @@
 # region Description
 """
-network.py: Class for creating and parsing network packets for Raw-packet project
+test_network.py: Class for creating and parsing network packets for Raw-packet project
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -1341,6 +1341,90 @@ class RawUDP:
         else:
             return None
 
+    def make_header_with_ipv4_checksum(self,
+                                       ipv4_src: str = '192.168.0.2',
+                                       ipv4_dst: str = '192.168.0.1',
+                                       port_src: int = 5353,
+                                       port_dst: int = 5353,
+                                       payload_len: int = 0,
+                                       payload_data: bytes = b'',
+                                       exit_on_failure: bool = False,
+                                       exit_code: int = 57,
+                                       quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make UDP header with checksum for 4 version Internet protocol
+        :param ipv4_src: Source IPv4 address string (example: '192.168.0.2')
+        :param ipv4_dst: Destination IPv4 address string (example: '192.168.0.1')
+        :param port_src: Source UDP port integer (example: 5353)
+        :param port_dst: Destination UDP port integer (example: 5353)
+        :param payload_len: Length of payload integer (example: 0)
+        :param payload_data: Payload data (example: b'')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 57)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of header
+        """
+        error_text = 'Failed to make UDP header!'
+        psh: bytes = b''
+        header: bytes = b''
+        try:
+            # Calculate data length
+            data_length: int = payload_len + self.header_length
+
+            # Make begin of header
+            header += pack('!H', port_src)
+            header += pack('!H', port_dst)
+            header += pack('!H', data_length)
+
+            # Make placeholder
+            psh += inet_aton(ipv4_src)
+            psh += inet_aton(ipv4_dst)
+            psh += pack('!2B', 0, self.header_type)
+            psh += pack('!H', data_length)
+
+            # Make udp header without check sum
+            udp_header: Union[None, bytes] = self.make_header(source_port=port_src,
+                                                              destination_port=port_dst,
+                                                              data_length=payload_len,
+                                                              exit_on_failure=exit_on_failure,
+                                                              exit_code=exit_code,
+                                                              quiet=quiet)
+
+            # Calculate check sum
+            checksum: int = self._checksum(psh + udp_header + payload_data)
+
+            # Add check sum to header
+            header += pack('!H', checksum)
+            return header
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'port_src' in traceback_text:
+                error_text += ' Bad source port: ' + self.base.error_text(str(port_src)) + \
+                              ' source port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'port_dst' in traceback_text:
+                error_text += ' Bad destination port: ' + self.base.error_text(str(port_dst)) + \
+                              ' destination port must be in range: ' + self.base.info_text('1 - 65535')
+            if 'data_length' in traceback_text:
+                error_text += ' Bad data length: ' + self.base.error_text(str(payload_len)) + \
+                              ' data length must be in range: ' + self.base.info_text('1 - 65527')
+
+        except OSError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'ipv4_src' in traceback_text:
+                error_text += ' Bad source IPv4 address: ' + self.base.error_text(str(ipv4_src)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.0.2')
+            if 'ipv4_dst' in traceback_text:
+                error_text += ' Bad destination IPv4 address: ' + self.base.error_text(str(ipv4_dst)) + \
+                              ' example IPv4 address: ' + self.base.info_text('192.168.0.1')
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
 # endregion
 
 
@@ -1764,7 +1848,7 @@ class RawDNS:
                              udp_src_port: int = 53,
                              udp_dst_port: int = 5353,
                              transaction_id: int = 1,
-                             flags: int = 0,
+                             flags: int = 0x8180,   # Standart DNS response, No error
                              queries: List[Dict[str, Union[int, str]]] =
                              [{'type': 1, 'class': 1, 'name': 'test.com'}],
                              answers_address: List[Dict[str, Union[int, str]]] =
@@ -1806,6 +1890,7 @@ class RawDNS:
             dns_packet += pack('!H', len(name_servers.keys()))  # Authority RRs
             dns_packet += pack('!H', len(name_servers.keys()))  # Additionsl RRS
 
+            query_name: str = ''
             for query in queries:
                 query_name = query['name']
 
@@ -1816,10 +1901,12 @@ class RawDNS:
                 dns_packet += pack('!H', query['type'])
                 dns_packet += pack('!H', query['class'])
 
-            # Type DNS query: A - (IPv4)
             for address in answers_address:
                 if 'name' in address.keys():
-                    dns_packet += self.pack_dns_name(address['name'])
+                    if len(queries) == 1 and query_name == address['name']:
+                        dns_packet += pack('!H', 0xc00c)
+                    else:
+                        dns_packet += self.pack_dns_name(address['name'])
                 else:
                     dns_packet += pack('!H', 0xc00c)
 
@@ -1861,12 +1948,15 @@ class RawDNS:
                                                 source_ip=ip_src,
                                                 destination_ip=ip_dst)
 
-                packet += self.udp.make_header(data_length=len(dns_packet),
-                                               exit_on_failure=exit_on_failure,
-                                               exit_code=exit_code,
-                                               quiet=quiet,
-                                               source_port=udp_src_port,
-                                               destination_port=udp_dst_port)
+                packet += self.udp.make_header_with_ipv4_checksum(ipv4_src=ip_src,
+                                                                  ipv4_dst=ip_dst,
+                                                                  payload_len=len(dns_packet),
+                                                                  payload_data=dns_packet,
+                                                                  exit_on_failure=exit_on_failure,
+                                                                  exit_code=exit_code,
+                                                                  quiet=quiet,
+                                                                  port_src=udp_src_port,
+                                                                  port_dst=udp_dst_port)
             # endregion
 
             # region IPv6 request

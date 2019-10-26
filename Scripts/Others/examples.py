@@ -24,6 +24,7 @@ from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawU
 # endregion
 
 # region Import libraries
+from json import dumps
 from socket import socket, AF_PACKET, SOCK_RAW
 # endregion
 
@@ -73,7 +74,7 @@ if __name__ == "__main__":
         base.print_info('Network functions:')
 
         print('\nNetwork interface settings:')
-        print(base.get_interface_settings('eth0'))
+        print(dumps(base.get_interface_settings('eth0'), indent=4))
 
         print('\nMac address:')
         print(base.get_interface_mac_address('eth0', False))
@@ -171,7 +172,7 @@ if __name__ == "__main__":
         print(eth.make_header('01:23:45:67:89:0', '01:23:45:67:89:0a', 2048))
 
         print('\nParse Ethernet header:')
-        print(eth.parse_header(b'6789@A012345\x08\x00'))
+        print(dumps(eth.parse_header(b'6789@A012345\x08\x00'), indent=4))
         # endregion
 
         # region RawARP functions
@@ -186,22 +187,22 @@ if __name__ == "__main__":
                               '01:23:45:67:89:0aa', '1111', '01:23:45:67:89:b', '2222'))
 
         print('\nParse ARP packet')
-        print(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x01\x01#Eg\x89\n' +
-                               b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'))
+        print(dumps(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x01\x01#Eg\x89\n' +
+                                     b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'), indent=4))
 
         print('\nMake ARP request')
         print(arp.make_request())
 
         print('\nParse ARP request')
-        print(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x01\x01#Eg\x89\n' +
-                               b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'))
+        print(dumps(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x01\x01#Eg\x89\n' +
+                                     b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'), indent=4))
 
         print('\nMake ARP response')
         print(arp.make_response())
 
         print('\nParse ARP response')
-        print(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x02\x01#Eg\x89\n' +
-                               b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'))
+        print(dumps(arp.parse_packet(b'\x00\x01\x08\x00\x06\x04\x00\x02\x01#Eg\x89\n' +
+                                     b'\xc0\xa8\x01\x01\x01#Eg\x89\x0b\xc0\xa8\x01\x02'), indent=4))
         # endregion
 
         # region RawIPv4 functions
@@ -218,10 +219,12 @@ if __name__ == "__main__":
         print(ipv4.make_header('1234', '1234', 65537))
 
         print('\nParse IPv4 header:')
-        print(ipv4.parse_header(b'E\x00\x00\x1c\x8d/\x00\x00@\x11jN\xc0\xa8\x01\x01\xc0\xa8\x01\x02'))
+        print(dumps(ipv4.parse_header(b'E\x00\x00\x1c\x8d/\x00\x00@\x11jN\xc0\xa8\x01\x01\xc0\xa8\x01\x02'),
+                    indent=4))
 
         print('\nParse IPv4 header bad input:')
-        print(ipv4.parse_header(b'\x61\x00\x00\x1c\x8d/\x00\x00@\x11jN\xc0\xa8\x01\x01\xc0\xa8\x01\x02'))
+        print(dumps(ipv4.parse_header(b'\x61\x00\x00\x1c\x8d/\x00\x00@\x11jN\xc0\xa8\x01\x01\xc0\xa8\x01\x02'),
+                    indent=4))
         # endregion
 
         # region RawIPv6 functions
@@ -244,8 +247,9 @@ if __name__ == "__main__":
         print(ipv6.make_header('fd00:::1', 'fd00:2', 1, 1, 1, 1))
 
         print('\nParse ipv6 header:')
-        print(ipv6.parse_header(b'`\x00\x00\x00\x00\x08\x11@\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
-                                b'\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02'))
+        print(dumps(ipv6.parse_header(b'`\x00\x00\x00\x00\x08\x11@\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                                      b'\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                                      b'\x00\x02'), indent=4))
         # endregion
 
         # region RawUDP functions
@@ -265,24 +269,27 @@ if __name__ == "__main__":
         print(udp.make_header_with_ipv6_checksum('fd00:::1', 'fd00:2'))
 
         print('\nParse UDP header')
-        print(udp.parse_header(b'\x14\xe9\x14\xe9\x00\x08\xdc\x07'))
+        print(dumps(udp.parse_header(b'\x14\xe9\x14\xe9\x00\x08\xdc\x07'), indent=4))
         # endregion
 
         # region RawDNS functions
         print('\n')
         base.print_info('Test network DNS functions:')
 
-        print('\nMake DNS name:')
-        print(dns.make_dns_name())
+        print('\nPack DNS name:')
+        print(dns.pack_dns_name('www.test.com'))
 
-        print('\nMake IPv4 DNS request packet:')
+        print('\nUnpack DNS name:')
+        print(dns.unpack_dns_name(b'\x03www\x04test\x03com\x00'))
+
+        print('\nMake IPv4 DNS query packet:')
         print(dns.make_ipv4_request_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
                                            ip_src='192.168.1.1', ip_dst='192.168.1.2', ip_ident=1,
                                            udp_src_port=5353, udp_dst_port=53, transaction_id=1,
                                            queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                            flags=0))
 
-        print('\nMake IPv6 DNS request packet:')
+        print('\nMake IPv6 DNS query packet:')
         print(dns.make_ipv6_request_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
                                            ip_src='fd00::1', ip_dst='fd00::2', ip_ttl=64,
                                            udp_src_port=5353, udp_dst_port=53, transaction_id=1,
@@ -292,7 +299,7 @@ if __name__ == "__main__":
         print('\nMake IPv4 DNS response packet:')
         print(dns.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
                                        ip_src='192.168.1.1', ip_dst='192.168.1.2', ip_ttl=64, ip_ident=1,
-                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0,
+                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0x8180,
                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                        answers_address=[{'name': 'test.com', 'type': 1, 'class': 1, 'ttl': 65535,
                                                          'address': '192.168.1.1'}], name_servers={},
@@ -301,16 +308,16 @@ if __name__ == "__main__":
         print('\nMake IPv6 DNS response packet:')
         print(dns.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a', ethernet_dst_mac='01:23:45:67:89:0b',
                                        ip_src='fd00::1', ip_dst='fd00::2', ip_ttl=64, ip_ident=1,
-                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0,
+                                       udp_src_port=53, udp_dst_port=5353, transaction_id=1, flags=0x8180,
                                        queries=[{'type': 1, 'class': 1, 'name': 'test.com'}],
                                        answers_address=[{'name': 'test.com', 'type': 28, 'class': 1, 'ttl': 65535,
                                                          'address': 'fd00::1'}], name_servers={},
                                        exit_on_failure=True))
 
         print('\nParse DNS packet:')
-        print(dns.parse_packet(
-            b'\x00\x01\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00' +
-            b'\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0\xa8\x01\x01'))
+        print(dumps(dns.parse_packet(b'\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00' +
+                                     b'\x04test\x03com\x00\x00\x01\x00\x01\x04test\x03com\x00' +
+                                     b'\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0\xa8\x01\x01'), indent=4))
         # endregion
 
         # region RawDHCPv4 functions
@@ -347,7 +354,6 @@ if __name__ == "__main__":
                                                  dhcp_message_type=5, your_client_ip='192.168.1.2')
         print(dhcpv4_ack)
         raw_socket.send(dhcpv4_ack)
-
         # endregion
 
     except KeyboardInterrupt:
