@@ -45,6 +45,7 @@ __status__ = 'Development'
 class Base:
 
     # region Set variables
+    vendor_list: List[Dict[str, str]] = list()
     os_installed_packages_list = None
     # endregion
 
@@ -1541,29 +1542,51 @@ class Base:
             pass
         return name_servers_ip_addresses
 
-    @staticmethod
-    def get_mac_prefixes(prefixes_filename: str = 'mac-prefixes.txt') -> List[Dict[str, str]]:
+    def get_mac_prefixes(self, prefixes_filename: str = 'mac-prefixes.txt') -> List[Dict[str, str]]:
         """
         Get MAC address prefixes from file
-        :param prefixes_filename: Name of file with MAC address prefixes (content example: 0050BA D-Link\n00179A D-Link)
-        :return: MAC prefixes list (example: [{'prefix': '0050BA', 'vendor': 'D-Link'}])
+        :param prefixes_filename: Name of file with MAC address prefixes (content example: 00:00:01\tXerox\tXerox Corporation)
+        :return: MAC prefixes list (example: [{'prefix': '00:00:01', 'vendor': 'Xerox Corporation'}])
         """
-        vendor_list: List[Dict[str, str]] = list()
+        assert len(self.vendor_list) == 0, 'Vendor list already exist!'
         try:
             if not isfile(prefixes_filename):
                 prefixes_filename = join(dirname(abspath(__file__)), prefixes_filename)
                 assert isfile(prefixes_filename), \
-                    'File with MAC addresses list: ' + Base.error_text(prefixes_filename) + ' not found!'
+                    'File with MAC addresses list: ' + self.error_text(prefixes_filename) + ' not found!'
             with open(prefixes_filename, 'r') as mac_prefixes_descriptor:
                 for mac_and_vendor_string in mac_prefixes_descriptor.read().splitlines():
-                    mac_and_vendor_list = mac_and_vendor_string.split(' ', 1)
-                    vendor_list.append({
-                        'prefix': mac_and_vendor_list[0],
-                        'vendor': mac_and_vendor_list[1]
-                    })
+                    mac_and_vendor_list = mac_and_vendor_string.split('\t')
+                    try:
+                        self.vendor_list.append({
+                            'prefix': mac_and_vendor_list[0],
+                            'vendor': mac_and_vendor_list[2]
+                        })
+                    except IndexError:
+                        self.vendor_list.append({
+                            'prefix': mac_and_vendor_list[0],
+                            'vendor': mac_and_vendor_list[1]
+                        })
         except AssertionError:
             pass
-        return vendor_list
+        return self.vendor_list
+
+    def get_vendor_by_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:
+        """
+        Get vendor of host by MAC address
+        :param mac_address: MAC address of host (example: '01:23:45:67:89:0a')
+        :return: Vendor string
+        """
+        if len(self.vendor_list) == 0:
+            self.get_mac_prefixes()
+        if not self.mac_address_validation(mac_address):
+            return 'Unknown vendor'
+        mac_address: str = mac_address.upper()
+        for vendor_dictionary in self.vendor_list:
+            if len(vendor_dictionary['prefix']) == 8:
+                if vendor_dictionary['prefix'] in mac_address:
+                    return vendor_dictionary['vendor']
+        return 'Unknown vendor'
     # endregion
 
 # endregion

@@ -480,7 +480,11 @@ class BaseTest(unittest.TestCase):
         self.assertEqual(len(self.base.make_random_string(8)), 8)
 
     def test_get_mac_prefixes(self):
-        self.assertIn({'prefix': '0050BA', 'vendor': 'D-Link'}, self.base.get_mac_prefixes('mac-prefixes.txt'))
+        self.assertIn({'prefix': '00:00:01', 'vendor': 'Xerox Corporation'},
+                      self.base.get_mac_prefixes('mac-prefixes.txt'))
+
+    def test_get_vendor_by_mac_address(self):
+        self.assertEqual(self.base.get_vendor_by_mac_address('00:00:01:23:45:67'), 'Xerox Corporation')
     # endregion
 
     # region End of tests

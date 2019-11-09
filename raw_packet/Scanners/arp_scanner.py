@@ -23,6 +23,7 @@ from socket import socket, AF_PACKET, SOCK_RAW, htons, error
 from ipaddress import IPv4Address
 from sys import stdout
 from time import sleep
+from typing import Union, List, Dict
 # endregion
 
 # endregion
@@ -32,7 +33,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2019, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -43,102 +44,95 @@ __status__ = 'Development'
 class ArpScan:
 
     # region Set variables
-    base = None
-    eth = None
-    arp = None
+    base: Base = Base()
+    eth: RawEthernet = RawEthernet()
+    arp: RawARP = RawARP()
 
-    rawSocket = None
+    rawSocket: socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
 
-    network_interface = None
-    your_mac_address = None
-    your_ip_address = None
-    target_ip_address = None
+    network_interface: Union[None, str] = None
+    your_mac_address: Union[None, str] = None
+    your_ip_address: Union[None, str] = None
+    target_ip_address: Union[None, str] = None
 
-    results = None
-    unique_results = None
+    results: List[Dict[str, str]] = list()
+    mac_addresses: List[str] = list()
+    unique_results: List[Dict[str, str]] = list()
 
-    mac_addresses = None
+    retry_number: int = 3
+    timeout: int = 5
 
-    mac_prefixes_file = None
-    vendor_list = None
-
-    retry_number = 0
-    timeout = 0
-    # endregion
-
-    # region Init
-    def __init__(self):
-        self.base = Base()
-        self.eth = RawEthernet()
-        self.arp = RawARP()
-        self.rawSocket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
-        self.results = []
-        self.unique_results = []
-        self.mac_addresses = []
-
-        self.mac_prefixes_file = "mac-prefixes.txt"
-        self.vendor_list = []
-
-        self.retry_number = 3
-        self.timeout = 0
+    quit: bool = False
     # endregion
 
     # region Sniffer
-    def sniff(self):
+    def _sniff(self) -> None:
+        """
+        Sniff ARP replies
+        :return: None
+        """
         while True:
-            packets = self.rawSocket.recvfrom(2048)
+            try:
+                packets = self.rawSocket.recvfrom(2048)
 
-            for packet in packets:
+                for packet in packets:
 
-                # Parse Ethernet header
-                ethernet_header = packet[0:14]
-                ethernet_header_dict = self.eth.parse_header(ethernet_header)
+                    # Parse Ethernet header
+                    ethernet_header = packet[0:14]
+                    ethernet_header_dict = self.eth.parse_header(ethernet_header)
 
-                # Success parse Ethernet header
-                if ethernet_header_dict is not None:
+                    # Success parse Ethernet header
+                    assert ethernet_header_dict is not None, 'Not Ethernet packet!'
 
                     # 2054 - Type of ARP packet (0x0806)
-                    if ethernet_header_dict['type'] == 2054:
+                    assert ethernet_header_dict['type'] == 2054, 'Not ARP packet!'
 
-                        # Destination MAC address is your MAC address
-                        if ethernet_header_dict['destination'] == self.your_mac_address:
+                    # Destination MAC address is your MAC address
+                    assert ethernet_header_dict['destination'] == self.your_mac_address, 'Not your ARP reply packet!'
 
-                            # Parse ARP packet
-                            arp_header = packet[14:42]
-                            arp_header_dict = self.arp.parse_packet(arp_header)
+                    # Parse ARP packet
+                    arp_header = packet[14:42]
+                    arp_header_dict = self.arp.parse_packet(arp_header)
 
-                            # Success parse ARP packet
-                            if arp_header_dict is not None:
+                    # Success parse ARP packet
+                    assert arp_header_dict is not None, 'Could not parse ARP packet!'
 
-                                # ARP opcode == 2 (2 - ARP reply)
-                                if arp_header_dict['opcode'] == 2:
+                    # ARP opcode == 2 (2 - ARP reply)
+                    assert arp_header_dict['opcode'] == 2, 'Not ARP reply packet!'
 
-                                    # ARP target MAC address is your MAC address
-                                    if arp_header_dict['target-mac'] == self.your_mac_address:
+                    # ARP target MAC address is your MAC address
+                    assert arp_header_dict['target-mac'] == self.your_mac_address, 'Not your ARP reply packet!'
 
-                                        # ARP target IP address is your IP address
-                                        if arp_header_dict['target-ip'] == self.your_ip_address:
+                    # ARP target IP address is your IP address
+                    assert arp_header_dict['target-ip'] == self.your_ip_address, 'Not your ARP reply packet!'
 
-                                            # Parameter Target IP address is None
-                                            if self.target_ip_address is None:
-                                                self.results.append({
-                                                    "mac-address": arp_header_dict['sender-mac'],
-                                                    "ip-address": arp_header_dict['sender-ip']
-                                                })
+                    # Parameter Target IP address is None
+                    if self.target_ip_address is None:
+                        self.results.append({
+                            'mac-address': arp_header_dict['sender-mac'],
+                            'ip-address': arp_header_dict['sender-ip']
+                        })
 
-                                            # Parameter Target IP address is Set
-                                            else:
-                                                if arp_header_dict['sender-ip'] == self.target_ip_address:
-                                                    self.results.append({
-                                                        "mac-address": arp_header_dict['sender-mac'],
-                                                        "ip-address": arp_header_dict['sender-ip']
-                                                    })
+                    # Parameter Target IP address is Set
+                    else:
+                        if arp_header_dict['sender-ip'] == self.target_ip_address:
+                            self.results.append({
+                                'mac-address': arp_header_dict['sender-mac'],
+                                'ip-address': arp_header_dict['sender-ip']
+                            })
 
+            # Exception
+            except AssertionError:
+                pass
     # endregion
 
     # region Sender
-    def send(self):
-        arp_requests = []
+    def _send(self) -> None:
+        """
+        Send ARP requests
+        :return: None
+        """
+        arp_requests: List[bytes] = list()
 
         self.your_mac_address = self.base.get_interface_mac_address(self.network_interface)
         self.your_ip_address = self.base.get_interface_ip_address(self.network_interface)
@@ -151,61 +145,51 @@ class ArpScan:
                 first_ip_address = self.target_ip_address
                 last_ip_address = self.target_ip_address
             else:
-                self.base.print_error("Bad target IP address: ", self.target_ip_address,
-                                      "; Target IP address must be in range: ",
-                                      first_ip_address + " - " + last_ip_address)
+                self.base.print_error('Bad target IP address: ', self.target_ip_address,
+                                      '; Target IP address must be in range: ',
+                                      first_ip_address + ' - ' + last_ip_address)
                 exit(1)
 
-        index = 0
+        index: int = 0
         while True:
-            try:
-                current_ip_address = str(IPv4Address(unicode(first_ip_address)) + index)
-            except NameError:
-                current_ip_address = str(IPv4Address(first_ip_address) + index)
+            current_ip_address: str = str(IPv4Address(first_ip_address) + index)
             index += 1
+            if IPv4Address(current_ip_address) > IPv4Address(last_ip_address):
+                break
 
-            try:
-                if IPv4Address(unicode(current_ip_address)) > IPv4Address(unicode(last_ip_address)):
-                    break
-            except NameError:
-                if IPv4Address(current_ip_address) > IPv4Address(last_ip_address):
-                    break
-
-            arp_request = self.arp.make_request(ethernet_src_mac=self.your_mac_address,
-                                                ethernet_dst_mac="ff:ff:ff:ff:ff:ff",
-                                                sender_mac=self.your_mac_address,
-                                                sender_ip=self.your_ip_address,
-                                                target_mac="00:00:00:00:00:00",
-                                                target_ip=current_ip_address)
+            arp_request: bytes = self.arp.make_request(ethernet_src_mac=self.your_mac_address,
+                                                       ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
+                                                       sender_mac=self.your_mac_address,
+                                                       sender_ip=self.your_ip_address,
+                                                       target_mac='00:00:00:00:00:00',
+                                                       target_ip=current_ip_address)
             arp_requests.append(arp_request)
 
         try:
-            send_socket = socket(AF_PACKET, SOCK_RAW)
+            send_socket: socket = socket(AF_PACKET, SOCK_RAW)
             send_socket.bind((self.network_interface, 0))
 
-            number_of_requests = len(arp_requests) * int(self.retry_number)
-            index_of_request = 0
-            percent_complete = 0
+            number_of_requests: int = len(arp_requests) * int(self.retry_number)
+            index_of_request: int = 0
+            percent_complete: int = 0
 
             for _ in range(int(self.retry_number)):
                 for arp_request in arp_requests:
                     send_socket.send(arp_request)
-                    index_of_request += 1
-                    new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
-                    if new_percent_complete > percent_complete:
-                        stdout.write('\r')
-                        stdout.write(self.base.c_info + 'Scan percentage: ' +
-                                     self.base.cINFO + str(new_percent_complete) + '%' + self.base.cEND)
-                        stdout.flush()
-                        sleep(0.01)
-                        percent_complete = new_percent_complete
-
-            stdout.write('\n')
+                    if not self.quit:
+                        index_of_request += 1
+                        new_percent_complete = int(float(index_of_request)/float(number_of_requests) * 100)
+                        if new_percent_complete > percent_complete:
+                            stdout.write('\r')
+                            stdout.write(self.base.c_info + 'Interface: ' +
+                                         self.base.info_text(self.network_interface) + ' ARP scan percentage: ' +
+                                         self.base.info_text(str(new_percent_complete) + '%'))
+                            stdout.flush()
+                            sleep(0.01)
+                            percent_complete = new_percent_complete
+            if not self.quit:
+                stdout.write('\n')
             send_socket.close()
-
-        except OSError as e:
-            self.base.print_error('Exception: ', str(e))
-            exit(1)
 
         except error as e:
             self.base.print_error('Exception: ', str(e))
@@ -214,98 +198,127 @@ class ArpScan:
     # endregion
 
     # region Scanner
-    def scan(self, network_interface, timeout=3, retry=3, target_ip_address=None, check_vendor=True,
-             exclude_ip_address=None):
-
-        # region Set variables
-        self.target_ip_address = target_ip_address
-        self.network_interface = network_interface
-        self.timeout = int(timeout)
-        self.retry_number = int(retry)
-        # endregion
-
-        # region Run sniffer
-        tm = ThreadManager(2)
-        tm.add_task(self.sniff)
-        # endregion
-
-        # region Run sender
-        self.send()
-        # endregion
-
-        # region Create vendor list
-        if check_vendor:
-            self.vendor_list = self.base.get_mac_prefixes()
-        # endregion
-
-        # region Wait
-        sleep(self.timeout)
-        # endregion
-
-        # region Unique results
-        for index in range(len(self.results)):
-            if self.results[index]['mac-address'] not in self.mac_addresses:
-                self.unique_results.append(self.results[index])
-                self.mac_addresses.append(self.results[index]['mac-address'])
-        # endregion
-
-        # region Reset results and mac addresses list
-        self.results = []
-        self.mac_addresses = []
-        # endregion
-
-        # region Exclude IP address
-        if exclude_ip_address is not None:
-            self.results = self.unique_results
-            self.unique_results = []
+    def scan(self, network_interface: str = 'eth0', timeout: int = 3, retry: int = 3,
+             target_ip_address: Union[None, str] = None, check_vendor: bool = True,
+             exclude_ip_addresses: Union[None, List[str]] = None, exit_on_failure: bool = True,
+             show_scan_percentage: bool = True) -> List[Dict[str, str]]:
+        """
+        ARP scan on network interface
+        :param network_interface: Network interface name (example: 'eth0')
+        :param timeout: Timeout in seconds (default: 3)
+        :param retry: Retry number (default: 3)
+        :param target_ip_address: Target IPv4 address (example: 192.168.0.1)
+        :param check_vendor: Check vendor of hosts
+        :param exclude_ip_addresses: Exclude IPv4 address list (example: ['192.168.0.1','192.168.0.2'])
+        :param exit_on_failure: Exit if alive hosts in network not found
+        :param show_scan_percentage: Show ARP scan progress percentage
+        :return: Result list of alive hosts (example: [{'mac-address': '01:23:45:67:89:0a', 'ip-address': '192.168.0.1'}])
+        """
+        try:
+            # region Clear lists with scan results
+            self.results.clear()
+            self.unique_results.clear()
+            self.mac_addresses.clear()
+            # endregion
+    
+            # region Set variables
+            self.quit = not show_scan_percentage
+            self.target_ip_address = target_ip_address
+            self.network_interface = network_interface
+            self.timeout = int(timeout)
+            self.retry_number = int(retry)
+            # endregion
+    
+            # region Run _sniffer
+            tm = ThreadManager(2)
+            tm.add_task(self._sniff)
+            # endregion
+    
+            # region Run sender
+            self._send()
+            # endregion
+    
+            # region Wait
+            sleep(self.timeout)
+            # endregion
+    
+            # region Unique results
             for index in range(len(self.results)):
-                if self.results[index]['ip-address'] != exclude_ip_address:
+                if self.results[index]['mac-address'] not in self.mac_addresses:
                     self.unique_results.append(self.results[index])
-            self.results = []
-        # endregion
+                    self.mac_addresses.append(self.results[index]['mac-address'])
+            # endregion
 
-        # region Get vendors
-        for result_index in range(len(self.unique_results)):
-
-            # Get current MAC address prefix
-            current_mac_prefix = self.eth.get_mac_prefix(self.unique_results[result_index]['mac-address'])
-
-            # Search this prefix in vendor list
-            for vendor_index in range(len(self.vendor_list)):
-                if current_mac_prefix == self.vendor_list[vendor_index]['prefix']:
-                    self.unique_results[result_index]['vendor'] = self.vendor_list[vendor_index]['vendor']
-                    break
-
-            # Could not find this prefix in vendor list
-            if 'vendor' not in self.unique_results[result_index].keys():
-                self.unique_results[result_index]['vendor'] = "Unknown vendor"
-
-        # endregion
-
-        # region Return results
+            # region Exclude IP addresses
+            if exclude_ip_addresses is not None:
+                self.results = self.unique_results
+                self.unique_results = list()
+                for index in range(len(self.results)):
+                    if self.results[index]['ip-address'] not in exclude_ip_addresses:
+                        self.unique_results.append(self.results[index])
+                self.results = list()
+            # endregion
+    
+            # region Get vendors
+            if check_vendor:
+                for result_index in range(len(self.unique_results)):
+                    self.unique_results[result_index]['vendor'] = \
+                        self.base.get_vendor_by_mac_address(self.unique_results[result_index]['mac-address'])
+    
+            # endregion
+            
+        except KeyboardInterrupt:
+            self.base.print_info('Exit')
+            exit(0)
+        
+        if len(self.unique_results) == 0:
+            if exit_on_failure:
+                self.base.print_error('Could not find allive hosts on interface: ', self.network_interface)
+                exit(1)
+    
         return self.unique_results
-        # endregion
-
     # endregion
 
     # region Get MAC address
-    def get_mac_address(self, network_interface, target_ip_address, timeout=5, retry=5, exit_on_failure=True):
-        try:
+    def get_mac_address(self, network_interface: str = 'eth0', target_ip_address: str = '192.168.0.1',
+                        timeout: int = 5, retry: int = 5, exit_on_failure: bool = True,
+                        show_scan_percentage: bool = True) -> str:
+        """
+        Get MAC address of IP address on network interface
+        :param network_interface: Network interface name (example: 'eth0')
+        :param timeout: Timeout in seconds (default: 3)
+        :param retry: Retry number (default: 3)
+        :param target_ip_address: Target IPv4 address (example: 192.168.0.1)
+        :param exit_on_failure: Exit if MAC address of target IP address not found
+        :param show_scan_percentage: Show ARP scan progress percentage
+        :return: MAC address of target IP address (example: '01:23:45:67:89:0a')
+        """
+        
+        # region Set result MAC address value
+        result_mac_address = 'ff:ff:ff:ff:ff:ff'
+        # endregion
+        try: 
+            # region Clear lists with scan results
+            self.results.clear()
+            self.unique_results.clear()
+            self.mac_addresses.clear()
+            # endregion
 
             # region Set variables
+            self.quit = not show_scan_percentage
             self.target_ip_address = target_ip_address
             self.network_interface = network_interface
             self.timeout = int(timeout)
             self.retry_number = int(retry)
             # endregion
 
-            # region Run sniffer
+            # region Run _sniffer
             tm = ThreadManager(2)
-            tm.add_task(self.sniff)
+            tm.add_task(self._sniff)
             # endregion
 
             # region Run sender
-            self.send()
+            self._send()
             # endregion
 
             # region Wait
@@ -314,22 +327,22 @@ class ArpScan:
 
             # region Return
             if 'mac-address' in self.results[0].keys():
-                return self.results[0]['mac-address']
-            else:
-                return "ff:ff:ff:ff:ff:ff"
+                result_mac_address = self.results[0]['mac-address']
             # endregion
 
         except IndexError:
-            if exit_on_failure:
-                self.base.print_error("Could not find MAC address of IP address: ", target_ip_address)
-                exit(1)
-            else:
-                return "ff:ff:ff:ff:ff:ff"
+            pass
 
         except KeyboardInterrupt:
-            self.base.print_info("Exit")
+            self.base.print_info('Exit')
             exit(0)
-
+        
+        if result_mac_address == 'ff:ff:ff:ff:ff:ff':
+            if exit_on_failure:
+                self.base.print_error('Could not find MAC address of IP address: ', target_ip_address)
+                exit(1)
+        
+        return result_mac_address
     # endregion
 
 # endregion
