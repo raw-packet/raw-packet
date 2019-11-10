@@ -11,23 +11,10 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-
-# region Add project root path
 from sys import path
 from os.path import dirname, abspath
-path.append(dirname(dirname(dirname(abspath(__file__)))))
-# endregion
-
-# region Raw-packet modules
-from raw_packet.Scanners.arp_scanner import ArpScan
-from raw_packet.Utils.base import Base
-# endregion
-
-# region Import libraries
 from argparse import ArgumentParser
 from prettytable import PrettyTable
-# endregion
-
 # endregion
 
 # region Authorship information
@@ -45,8 +32,17 @@ __status__ = 'Development'
 # region Main function
 if __name__ == '__main__':
 
+    # region Import Raw-packet classes
+    path.append(dirname(dirname(dirname(abspath(__file__)))))
+
+    from raw_packet.Utils.base import Base
+    from raw_packet.Scanners.arp_scanner import ArpScan
+
+    base: Base = Base()
+    arp_scan: ArpScan = ArpScan()
+    # endregion
+
     # region Check user, platform and print banner
-    base = Base()
     base.check_user()
     base.check_platform()
     base.print_banner()

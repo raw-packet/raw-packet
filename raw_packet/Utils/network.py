@@ -3695,7 +3695,7 @@ class RawICMPv6:
 
     # endregion
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.types['Echo (ping) request'] = 128
         self.types['Echo (ping) reply'] = 129
         self.types['Router Solicitation'] = 133
@@ -3762,8 +3762,7 @@ class RawICMPv6:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 45,
-                     quiet: bool = False) \
-            -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
         """
         Parse IMCPv6 packet
         :param packet: Bytes of packet
@@ -3773,7 +3772,7 @@ class RawICMPv6:
         :return: Parsed ICMPv6 header dictionary (example: {}) or None if error
         """
         try:
-            assert len(packet) < self.packet_length, \
+            assert len(packet) > self.packet_length, \
                 'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
                 ' minimal ICMPv6 packet length: ' + self.base.info_text(str(self.packet_length))
 
@@ -3829,7 +3828,7 @@ class RawICMPv6:
                     option_length = int(unpack('B', packet[offset + 1:offset + 2])[0])
 
                     if option_type == 1:
-                        option_value = self.eth.convert_mac(hexlify(packet[offset + 2:offset + 8]))
+                        option_value = self.eth.convert_mac(packet[offset + 2:offset + 8])
 
                     elif option_type == 3:
                         option_detailed = unpack('!' '2B' '3I' '16s', packet[offset + 2:offset + 32])

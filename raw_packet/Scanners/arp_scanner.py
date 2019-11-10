@@ -72,11 +72,9 @@ class ArpScan:
         :return: None
         """
         while True:
-            try:
-                packets = self.rawSocket.recvfrom(2048)
-
-                for packet in packets:
-
+            packets = self.rawSocket.recvfrom(2048)
+            for packet in packets:
+                try:
                     # Parse Ethernet header
                     ethernet_header = packet[0:14]
                     ethernet_header_dict = self.eth.parse_header(ethernet_header)
@@ -121,9 +119,9 @@ class ArpScan:
                                 'ip-address': arp_header_dict['sender-ip']
                             })
 
-            # Exception
-            except AssertionError:
-                pass
+                # Exception
+                except AssertionError:
+                    pass
     # endregion
 
     # region Sender
@@ -208,10 +206,10 @@ class ArpScan:
         :param timeout: Timeout in seconds (default: 3)
         :param retry: Retry number (default: 3)
         :param target_ip_address: Target IPv4 address (example: 192.168.0.1)
-        :param check_vendor: Check vendor of hosts
+        :param check_vendor: Check vendor of hosts (default: True)
         :param exclude_ip_addresses: Exclude IPv4 address list (example: ['192.168.0.1','192.168.0.2'])
-        :param exit_on_failure: Exit if alive hosts in network not found
-        :param show_scan_percentage: Show ARP scan progress percentage
+        :param exit_on_failure: Exit if alive hosts in network not found (default: True)
+        :param show_scan_percentage: Show ARP scan progress percentage (default: True)
         :return: Result list of alive hosts (example: [{'mac-address': '01:23:45:67:89:0a', 'ip-address': '192.168.0.1'}])
         """
         try:
@@ -289,8 +287,8 @@ class ArpScan:
         :param timeout: Timeout in seconds (default: 3)
         :param retry: Retry number (default: 3)
         :param target_ip_address: Target IPv4 address (example: 192.168.0.1)
-        :param exit_on_failure: Exit if MAC address of target IP address not found
-        :param show_scan_percentage: Show ARP scan progress percentage
+        :param exit_on_failure: Exit if MAC address of target IP address not found (default: True)
+        :param show_scan_percentage: Show ARP scan progress percentage (default: True)
         :return: MAC address of target IP address (example: '01:23:45:67:89:0a')
         """
         

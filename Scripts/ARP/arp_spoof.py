@@ -34,7 +34,7 @@ __status__ = 'Production'
 # region Main function
 if __name__ == '__main__':
     
-    # region Raw-packet classes
+    # region Import Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
 
     from raw_packet.Utils.base import Base
