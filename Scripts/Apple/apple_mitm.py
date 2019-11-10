@@ -112,12 +112,12 @@ def make_na_spoof(network_interface, target_mac_address, target_ipv6_address,
 
     # Start Neighbor Advertise spoofing script
     if dns_ipv6_address is not None:
-        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/na_spoof.py --interface ' + network_interface +
+        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_na_spoof.py --interface ' + network_interface +
                    ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
                    ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip ' + dns_ipv6_address + ' --quiet &'],
                   shell=True)
     else:
-        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/na_spoof.py --interface ' + network_interface +
+        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_na_spoof.py --interface ' + network_interface +
                    ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
                    ' --gateway_ip ' + gateway_ipv6_address + '--quiet &'],
                   shell=True)
@@ -133,7 +133,7 @@ def make_ra_spoof(network_interface, target_mac_address, target_ipv6_address,
                   gateway_ipv6_address, prefix, your_local_ipv6_address):
 
     # Start Router Advertise spoofing script
-    sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/ra_spoof.py --interface ' + network_interface +
+    sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_ra_spoof.py --interface ' + network_interface +
                ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
                ' --gateway_ip ' + gateway_ipv6_address + ' --ipv6_prefix ' + prefix +
                ' --dns_ip ' + your_local_ipv6_address + ' --quiet &'],

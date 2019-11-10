@@ -704,7 +704,7 @@ class RawIPv4:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 49,
-                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse IPv4 header
         :param packet: Bytes of packet
@@ -967,7 +967,7 @@ class RawIPv6:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 53,
-                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse IPv6 header
         :param packet: Bytes of packet
@@ -1170,7 +1170,7 @@ class RawUDP:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 55,
-                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str]]]:
         """
         Parse UDP header
         :param packet: Bytes of packet
@@ -1673,7 +1673,7 @@ class RawDNS:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 67,
-                     quiet: bool = False) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]]:
         """
         Parse DNS Packet
         :param packet: Bytes of network packet
@@ -2597,7 +2597,7 @@ class RawDHCPv4:
                      packet: bytes,
                      exit_on_failure: bool = False,
                      exit_code: int = 74,
-                     quiet: bool = False):
+                     quiet: bool = True):
         """
         Parse DHCPv4 packet
         :param packet: Bytes of packet
