@@ -11,23 +11,10 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-
-# region Add project root path
 from sys import path
 from os.path import dirname, abspath
-path.append(dirname(dirname(dirname(abspath(__file__)))))
-# endregion
-
-# region Raw-packet modules
-from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS, RawDHCPv4
-# endregion
-
-# region Import libraries
 from json import dumps
 from socket import socket, AF_PACKET, SOCK_RAW
-# endregion
-
 # endregion
 
 # region Authorship information
@@ -45,14 +32,22 @@ __status__ = 'Development'
 if __name__ == "__main__":
 
     # region Init Raw-packet classes
-    base = Base()
-    eth = RawEthernet()
-    arp = RawARP()
-    ipv4 = RawIPv4()
-    ipv6 = RawIPv6()
-    udp = RawUDP()
-    dns = RawDNS()
-    dhcpv4 = RawDHCPv4()
+    path.append(dirname(dirname(dirname(abspath(__file__)))))
+    from raw_packet.Utils.base import Base
+    from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDNS, RawDHCPv4, RawICMPv4
+    from raw_packet.Utils.network import RawIPv6, RawICMPv6, RawDHCPv6
+
+    base: Base = Base()
+    eth: RawEthernet = RawEthernet()
+    arp: RawARP = RawARP()
+    ipv4: RawIPv4 = RawIPv4()
+    ipv6: RawIPv6 = RawIPv6()
+    udp: RawUDP = RawUDP()
+    dns: RawDNS = RawDNS()
+    dhcpv4: RawDHCPv4 = RawDHCPv4()
+    icmpv4: RawICMPv4 = RawICMPv4()
+    icmpv6: RawICMPv6 = RawICMPv6()
+    dhcpv6: RawDHCPv6 = RawDHCPv6()
     # endregion
 
     # region Check user, platform and print banner
@@ -66,7 +61,7 @@ if __name__ == "__main__":
         # region Create raw socket
 
         raw_socket = socket(AF_PACKET, SOCK_RAW)
-        raw_socket.bind(('eth0', 0))
+        raw_socket.bind(('wlan0', 0))
         # endregion
 
         # region Base functions
@@ -320,6 +315,46 @@ if __name__ == "__main__":
                                      b'\x00\x01\x00\x01\x00\x00\xff\xff\x00\x04\xc0\xa8\x01\x01'), indent=4))
         # endregion
 
+        # region RawICMPv4 functions
+        print('\n')
+        base.print_info('Test network ICMPv4 functions:')
+
+        print('\nMake ICMPv4 Host Unreachable packet:')
+        icmpv4_hu = icmpv4.make_host_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                        ethernet_dst_mac='01:23:45:67:89:0b',
+                                                        ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                        ip_ident=1)
+        print(icmpv4_hu)
+        # raw_socket.send(icmpv4_hu)
+
+        print('\nMake ICMPv4 Port Unreachable packet:')
+        icmpv4_pu = icmpv4.make_udp_port_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                            ethernet_dst_mac='01:23:45:67:89:0b',
+                                                            ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                            udp_src_port=5353, udp_dst_port=5353, ip_ident=1)
+        print(icmpv4_pu)
+        # raw_socket.send(icmpv4_pu)
+
+        print('\nMake ICMPv4 Ping Request packet:')
+        icmpv4_pr = icmpv4.make_ping_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                    ethernet_dst_mac='01:23:45:67:89:0b',
+                                                    ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                    ip_ident=1, data=b'0123456789')
+        print(icmpv4_pr)
+        # raw_socket.send(icmpv4_pr)
+
+        print('\nMake ICMPv4 Redirect packet:')
+        icmpv4_r = icmpv4.make_redirect_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                               ethernet_dst_mac='01:23:45:67:89:0b',
+                                               ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                               ip_ttl=64, ip_ident=1,
+                                               gateway_address='192.168.0.1',
+                                               payload_ip_src='192.168.0.1',
+                                               payload_ip_dst='192.168.0.2')
+        print(icmpv4_r)
+        # raw_socket.send(icmpv4_r)
+        # endregion
+
         # region RawDHCPv4 functions
         print('\n')
         base.print_info('Test network DHCPv4 functions:')
@@ -329,7 +364,7 @@ if __name__ == "__main__":
                                                       client_mac='01:23:45:67:89:0a',
                                                       ip_ident=1, transaction_id=1, host_name='dhcp.discover.test')
         print(dhcpv4_discover)
-        raw_socket.send(dhcpv4_discover)
+        # raw_socket.send(dhcpv4_discover)
 
         print('\nMake and send DHCPv4 request packet:')
         dhcpv4_request = dhcpv4.make_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
@@ -337,7 +372,7 @@ if __name__ == "__main__":
                                                     ip_ident=1, transaction_id=1, requested_ip='192.168.1.1',
                                                     host_name='dhcp.request.test')
         print(dhcpv4_request)
-        raw_socket.send(dhcpv4_request)
+        # raw_socket.send(dhcpv4_request)
 
         print('\nMake and send DHCPv4 offer packet:')
         dhcpv4_offer = dhcpv4.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a',
@@ -345,7 +380,7 @@ if __name__ == "__main__":
                                                    ip_src='192.168.1.1', ip_ident=1, transaction_id=1,
                                                    dhcp_message_type=2, your_client_ip='192.168.1.2')
         print(dhcpv4_offer)
-        raw_socket.send(dhcpv4_offer)
+        # raw_socket.send(dhcpv4_offer)
 
         print('\nMake and send DHCPv4 ack packet:')
         dhcpv4_ack = dhcpv4.make_response_packet(ethernet_src_mac='01:23:45:67:89:0a',
@@ -353,7 +388,105 @@ if __name__ == "__main__":
                                                  ip_src='192.168.1.1', ip_ident=1, transaction_id=1,
                                                  dhcp_message_type=5, your_client_ip='192.168.1.2')
         print(dhcpv4_ack)
-        raw_socket.send(dhcpv4_ack)
+        # raw_socket.send(dhcpv4_ack)
+        # endregion
+
+        # region RawICMPv6 functions
+        print('\n')
+        base.print_info('Test network ICMPv6 functions:')
+
+        print('\nMake ICMPv6 option:')
+        icmpv6_option = icmpv6.make_option(option_type=1, option_value=b'test_option_value')
+        print(icmpv6_option)
+
+        print('\nMake ICMPv6 Router Solicit packet:')
+        icmpv6_rs = icmpv6.make_router_solicit_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                      ethernet_dst_mac='33:33:00:00:00:02',
+                                                      ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                      ipv6_flow=0x835d1,
+                                                      need_source_link_layer_address=True,
+                                                      source_link_layer_address=None)
+        print(icmpv6_rs)
+
+        print('\nMake ICMPv6 Router Advertisement packet:')
+        icmpv6_ra = icmpv6.make_router_advertisement_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                            ethernet_dst_mac='01:23:45:67:89:0b',
+                                                            ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                            dns_address='fd00::1', domain_search='test.local',
+                                                            prefix='fd00::/64')
+        print(icmpv6_ra)
+
+        print('\nMake ICMPv6 Neighbor Solicitation packet:')
+        icmpv6_ns = icmpv6.make_neighbor_solicitation_packet(ethernet_src_mac='01:23:45:67:89:0a', ipv6_src='fd00::1')
+        print(icmpv6_ns)
+
+        print('\nMake ICMPv6 Neighbor Advertisement packet:')
+        icmpv6_na = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac='01:23:45:67:89:0a', ipv6_src='fd00::1',
+                                                              target_ipv6_address='fd00::2')
+        print(icmpv6_na)
+
+        print('\nMake ICMPv6 Echo Request packet:')
+        icmpv6_ping_req = icmpv6.make_echo_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                          ethernet_dst_mac='01:23:45:67:89:0b',
+                                                          ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                          id=1, sequence=1)
+        print(icmpv6_ping_req)
+
+        print('\nMake ICMPv6 Echo Reply packet:')
+        icmpv6_ping_rep = icmpv6.make_echo_reply_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                        ethernet_dst_mac='01:23:45:67:89:0b',
+                                                        ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                        id=1, sequence=1)
+        print(icmpv6_ping_rep)
+        # endregion
+
+        # region RawDHCPv6 functions
+        print('\n')
+        base.print_info('Test network DHCPv6 functions:')
+
+        print('\nMake DHCPv6 DUID:')
+        dhcpv6_duid = dhcpv6._make_duid(mac_address='01:23:45:67:89:0a')
+        print(dhcpv6_duid)
+
+        print('\nMake DHCPv6 Solicit packet:')
+        dhcpv6_s = dhcpv6.make_solicit_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                              ipv6_src='fd00::1',
+                                              transaction_id=1,
+                                              client_mac_address='01:23:45:67:89:0a',
+                                              option_request_list=[23, 24])
+        print(dhcpv6_s)
+        # raw_socket.send(dhcpv6_s)
+
+        print('\nMake DHCPv6 Relay-forw packet:')
+        dhcpv6_rf = dhcpv6.make_relay_forw_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                  ethernet_dst_mac='01:23:45:67:89:0b',
+                                                  ipv6_src='fd00::1', ipv6_dst='fd00::2', ipv6_flow=1,
+                                                  hop_count=10, link_addr='fd00::2',
+                                                  peer_addr='fd00::3')
+        print(dhcpv6_rf)
+        # raw_socket.send(dhcpv6_rf)
+
+        print('\nMake DHCPv6 Advertise packet:')
+        dhcpv6_a = dhcpv6.make_advertise_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                ethernet_dst_mac='01:23:45:67:89:0b',
+                                                ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                transaction_id=1,
+                                                dns_address='fd00::1',
+                                                domain_search='test.local',
+                                                ipv6_address='fd00::2')
+        print(dhcpv6_a)
+        # raw_socket.send(dhcpv6_a)
+
+        print('\nMake DHCPv6 Reply packet:')
+        dhcpv6_r = dhcpv6.make_reply_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                            ethernet_dst_mac='01:23:45:67:89:0b',
+                                            ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                            transaction_id=1,
+                                            dns_address='fd00::1',
+                                            domain_search='test.local',
+                                            ipv6_address='fd00::2')
+        print(dhcpv6_r)
+        # raw_socket.send(dhcpv6_r)
         # endregion
 
     except KeyboardInterrupt:

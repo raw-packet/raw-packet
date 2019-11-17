@@ -3262,102 +3262,309 @@ class RawDHCPv4:
 
 # region Raw ICMPv4
 class RawICMPv4:
-    eth = None
-    ip = None
-    udp = None
 
-    def __init__(self):
-        self.eth = RawEthernet()
-        self.ip = RawIPv4()
-        self.udp = RawUDP()
+    # region Properties
+    base: Base = Base()
+    eth: RawEthernet = RawEthernet()
+    ip: RawIPv4 = RawIPv4()
+    udp: RawUDP = RawUDP()
+    # endregion
 
     @staticmethod
-    def checksum(msg):
-        s = 0
-        if len(msg) % 2 == 1:
-            msg += '\0'
-        for i in range(0, len(msg), 2):
-            w = (ord(msg[i]) << 8) + (ord(msg[i + 1]))
-            s = s + w
+    def checksum(packet: bytes) -> int:
+        """
+        Calculate packet checksum
+        :param packet: Bytes of packet
+        :return: Result checksum
+        """
+        if len(packet) % 2 == 1:
+            packet += '\0'
+        s = sum(array('H', packet))
         s = (s >> 16) + (s & 0xffff)
-        s = ~s & 0xffff
-        return s
+        s += s >> 16
+        s = ~s
+        return (((s >> 8) & 0xff) | s << 8) & 0xffff
 
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, icmp_type, icmp_code, data=None):
+    def make_packet(self,
+                    ethernet_src_mac: str = '01:23:45:67:89:0a',
+                    ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                    ip_src: str = '192.168.0.1',
+                    ip_dst: str = '192.168.0.2',
+                    ip_ident: Union[None, int] = None,
+                    icmp_type: int = 1,
+                    icmp_code: int = 1,
+                    data: Union[None, bytes] = None) -> Union[None, bytes]:
+        """
+        Make ICMPv4 packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.0.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.0.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param icmp_type: ICMPv4 type integer (example: 1)
+        :param icmp_code: ICMPv4 code integer (example: 1)
+        :param data: Bytes of ICMPv4 data or None (optional value)
+        :return: Bytes of ICMPv4 packet or None if error
+        """
+        error_text: str = 'Failed to make ICMPv4 packet!'
+        packet: bytes = b''
+        icmp_packet: bytes = b''
         try:
-            check_sum = 0x0000
-            unused = 0x00000000
+            check_sum: int = 0x0000
+            unused: int = 0x00000000
 
             if icmp_type != 0x05:
-                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
+                icmp_packet += pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
             else:
-                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
+                icmp_packet += pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
 
             if data is not None:
                 icmp_packet += data
 
-            check_sum = self.checksum(icmp_packet)
+            check_sum: int = self.checksum(icmp_packet)
+            icmp_packet: bytes = b''
 
             if icmp_type != 0x05:
-                icmp_packet = pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
+                icmp_packet += pack('!' '2B' 'H' 'I', icmp_type, icmp_code, check_sum, unused)
             else:
-                icmp_packet = pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
+                icmp_packet += pack('!' '2B' 'H', icmp_type, icmp_code, check_sum)
 
             if data is not None:
                 icmp_packet += data
 
-            eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 2048)
-            ip_header = self.ip.make_header(ip_src, ip_dst, len(icmp_packet) - 8, 8, 1)
+            eth_header = self.eth.make_header(source_mac=ethernet_src_mac,
+                                              destination_mac=ethernet_dst_mac,
+                                              network_type=self.ip.header_type)
 
-            return eth_header + ip_header + icmp_packet
-        except sock_error:
-            return None
+            ip_header = self.ip.make_header(source_ip=ip_src,
+                                            destination_ip=ip_dst,
+                                            data_len=len(icmp_packet) - 8,
+                                            transport_protocol_len=8,
+                                            transport_protocol_type=1,
+                                            ttl=64,
+                                            identification=ip_ident)
 
-    def make_host_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, data=None):
+            packet += eth_header
+            packet += ip_header
+            packet += icmp_packet
+            return packet
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'eth_header' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'ip_header' in traceback_text:
+                error_text += ' Bad value in IPv4 header!'
+
+        except struct_error:
+            error_text += ' Bad ICMPv4 type or ICMPv4 code!'
+
+        self.base.print_error(error_text)
+        return None
+
+    def make_host_unreachable_packet(self,
+                                     ethernet_src_mac: str = '01:23:45:67:89:0a',
+                                     ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                                     ip_src: str = '192.168.0.1',
+                                     ip_dst: str = '192.168.0.2',
+                                     ip_ident: Union[None, int] = None,
+                                     data: Union[None, bytes] = None) -> Union[None, bytes]:
+        """
+        Make ICMPv4 Host Unreachable packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.0.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.0.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param data: Bytes of ICMPv4 data or None (optional value)
+        :return: Bytes of ICMPv4 Host Unreachable packet or None if error
+        """
+        error_text: str = 'Failed to make ICMPv4 Host Unreachable packet!'
+        icmp_data: bytes = b''
         try:
             if data is not None:
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(data), 8, 17)
-                icmp_data = ip_data + data
+                ip_data = self.ip.make_header(source_ip=ip_dst,
+                                              destination_ip=ip_src,
+                                              data_len=len(data),
+                                              transport_protocol_len=8,
+                                              transport_protocol_type=17,
+                                              ttl=64,
+                                              identification=ip_ident)
+                icmp_data += ip_data + data
             else:
-                ip_data = self.ip.make_header(ip_dst, ip_src, 0, 8, 1)
-                icmp_data = ip_data
+                ip_data = self.ip.make_header(source_ip=ip_dst,
+                                              destination_ip=ip_src,
+                                              data_len=0,
+                                              transport_protocol_len=8,
+                                              transport_protocol_type=1,
+                                              ttl=64,
+                                              identification=ip_ident)
+                icmp_data += ip_data
 
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x01, icmp_data)
-        except sock_error:
-            return None
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src, ip_dst=ip_dst,
+                                    ip_ident=ip_ident, icmp_type=0x03,
+                                    icmp_code=0x01, data=icmp_data)
+        except TypeError:
+            error_text += ' Bad value in IPv4 header!'
 
-    def make_udp_port_unreachable_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst,
-                                         udp_src_port, udp_dst_port, data=None):
+        self.base.print_error(error_text)
+        return None
+
+    def make_udp_port_unreachable_packet(self,
+                                         ethernet_src_mac: str = '01:23:45:67:89:0a',
+                                         ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                                         ip_src: str = '192.168.0.1',
+                                         ip_dst: str = '192.168.0.2',
+                                         ip_ident: Union[None, int] = None,
+                                         udp_src_port: int = 53,
+                                         udp_dst_port: int = 53,
+                                         data: Union[None, bytes] = None) -> Union[None, bytes]:
+        """
+        Make ICMPv4 UDP Port Unreachable packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.0.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.0.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param udp_src_port: UDP source port (example: 53)
+        :param udp_dst_port: UDP destination port (example: 53)
+        :param data: Bytes of ICMPv4 data or None (optional value)
+        :return: Bytes of ICMPv4 UDP Port Unreachable packet or None if error
+        """
+        error_text: str = 'Failed to make ICMPv4 UDP Port Unreachable packet!'
+        icmp_data: bytes = b''
         try:
             if data is not None:
-                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, len(data))
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data) + len(data), 8, 17)
-                icmp_data = ip_data + udp_data + data
+                udp_data = self.udp.make_header(source_port=udp_src_port,
+                                                destination_port=udp_dst_port,
+                                                data_length=len(data))
+                ip_data = self.ip.make_header(source_ip=ip_dst,
+                                              destination_ip=ip_src,
+                                              data_len=self.udp.header_length + len(data),
+                                              transport_protocol_len=self.udp.header_length,
+                                              transport_protocol_type=self.udp.header_type,
+                                              ttl=64,
+                                              identification=ip_ident)
+                icmp_data += ip_data
+                icmp_data += udp_data
+                icmp_data += data
             else:
-                udp_data = self.udp.make_header(udp_src_port, udp_dst_port, 0)
-                ip_data = self.ip.make_header(ip_dst, ip_src, len(udp_data), 8, 17)
-                icmp_data = ip_data + udp_data
+                udp_data = self.udp.make_header(source_port=udp_src_port,
+                                                destination_port=udp_dst_port,
+                                                data_length=0)
+                ip_data = self.ip.make_header(source_ip=ip_dst,
+                                              destination_ip=ip_src,
+                                              data_len=self.udp.header_length,
+                                              transport_protocol_len=self.udp.header_length,
+                                              transport_protocol_type=self.udp.header_type,
+                                              ttl=64,
+                                              identification=ip_ident)
+                icmp_data += ip_data
+                icmp_data += udp_data
 
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x03, 0x03, icmp_data)
-        except sock_error:
-            return None
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src, ip_dst=ip_dst,
+                                    ip_ident=ip_ident, icmp_type=0x03,
+                                    icmp_code=0x03, data=icmp_data)
+        except TypeError:
+            pass
 
-    def make_ping_request_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst):
-        try:
+        self.base.print_error(error_text)
+        return None
+
+    def make_ping_request_packet(self,
+                                 ethernet_src_mac: str = '01:23:45:67:89:0a',
+                                 ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                                 ip_src: str = '192.168.0.1',
+                                 ip_dst: str = '192.168.0.2',
+                                 ip_ident: Union[None, int] = None,
+                                 data: Union[None, bytes] = None) -> Union[None, bytes]:
+        """
+        Make ICMPv4 Ping Request packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.0.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.0.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param data: Bytes of ICMPv4 data or None (optional value)
+        :return: Bytes of ICMPv4 Ping Request packet or None if error
+        """
+        if data is None:
             icmp_data = pack('!Q', int(time()))
             for index in range(0, 32, 1):
                 icmp_data += pack('B', index)
+        else:
+            icmp_data = data
 
-            return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x08, 0x00, icmp_data)
-        except sock_error:
-            return None
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                ip_src=ip_src, ip_dst=ip_dst,
+                                ip_ident=ip_ident, icmp_type=0x08,
+                                icmp_code=0x00, data=icmp_data)
 
-    def make_redirect_packet(self, ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, gateway_address,
-                             payload_ip_src, payload_ip_dst, payload_port_src=53, payload_port_dst=53):
-        icmp_data = inet_aton(gateway_address)
-        icmp_data += self.ip.make_header(payload_ip_src, payload_ip_dst, 0, 8, 17)
-        icmp_data += self.udp.make_header(payload_port_src, payload_port_dst, 0)
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac, ip_src, ip_dst, 0x05, 0x01, icmp_data)
+    def make_redirect_packet(self,
+                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                             ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                             ip_src: str = '192.168.0.1',
+                             ip_dst: str = '192.168.0.2',
+                             ip_ttl: int = 64,
+                             ip_ident: Union[None, int] = None,
+                             gateway_address: str = '192.168.0.1',
+                             payload_ip_src: str = '192.168.0.2',
+                             payload_ip_dst: str = '192.168.0.3',
+                             payload_port_src=53,
+                             payload_port_dst=53) -> Union[None, bytes]:
+        """
+        Make ICMPv4 Redirect packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param ip_src: Source IPv4 address string in Network header (example: '192.168.0.1')
+        :param ip_dst: Destination IPv4 address string in Network header (example: '192.168.0.2')
+        :param ip_ident: Identification integer value for IPv4 header (optional value)
+        :param ip_ttl: TTL for IPv4 header (default: 64)
+        :param gateway_address: IPv4 address of Gateway (example: '192.168.0.1')
+        :param payload_ip_src: Source IPv4 address in ICMPv4 payload - client IPv4 address (example: '192.168.0.2')
+        :param payload_ip_dst: Destination IPv4 address in ICMPv4 payload - server IPv4 address (example: '192.168.0.3')
+        :param payload_port_src: Source port in ICMPv4 payload - client port (example: '53')
+        :param payload_port_dst: Destination port in ICMPv4 payload - server port (example: '53')
+        :return: Bytes of ICMPv4 Redirect packet or None if error
+        """
+        error_text: str = 'Failed to make ICMPv4 Redirect packet!'
+        icmp_data: bytes = b''
+        try:
+            ip_data: Union[None, bytes] = self.ip.make_header(source_ip=payload_ip_src,
+                                                              destination_ip=payload_ip_dst,
+                                                              data_len=0,
+                                                              transport_protocol_len=self.udp.header_length,
+                                                              transport_protocol_type=self.udp.header_type,
+                                                              ttl=ip_ttl,
+                                                              identification=ip_ident)
+            udp_data: Union[None, bytes] = self.udp.make_header(source_port=payload_port_src,
+                                                                destination_port=payload_port_dst,
+                                                                data_length=0)
+            icmp_data += inet_aton(gateway_address)
+            icmp_data += ip_data
+            icmp_data += udp_data
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ip_src=ip_src, ip_dst=ip_dst,
+                                    ip_ident=ip_ident, icmp_type=0x05,
+                                    icmp_code=0x01, data=icmp_data)
+        except OSError:
+            error_text += ' Bad gateway IPv4 address: ' + self.base.error_text(str(gateway_address))
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'udp_data' in traceback_text:
+                error_text += ' Bad source or destination UDP port!'
+            if 'ip_data' in traceback_text:
+                error_text += ' Bad value in IPv4 header!'
+
+        self.base.print_error(error_text)
+        return None
 
 # endregion
 
@@ -3409,50 +3616,104 @@ class RawDHCPv6:
     # 35	CONTACT	            [RFC8156]
     # 36-255	Unassigned
 
-    eth = None
-    ipv6 = None
-    udp = None
-    dns = None
+    # region Properties
+    base: Base = Base()
+    eth: RawEthernet = RawEthernet()
+    ipv6: RawIPv6 = RawIPv6()
+    udp: RawUDP = RawUDP()
+    dns: RawDNS = RawDNS()
+    # endregion
 
-    def __init__(self):
-        self.eth = RawEthernet()
-        self.ipv6 = RawIPv6()
-        self.udp = RawUDP()
-        self.dns = RawDNS()
+    def _make_duid(self,
+                   mac_address: str = '01:23:45:67:89:0a',
+                   timeval: Union[None, int] = None) -> Union[None, bytes]:
+        error_text: str = 'Failed to make DHCPv6 DUID!'
+        hardware_type: int = 1  # Ethernet
+        try:
+            if timeval is None:
+                duid_type: int = 3   # Link-Layer address
+                return pack('!' '2H', duid_type, hardware_type) + self.eth.convert_mac(mac_address)
+            else:
+                duid_type: int = 1   # Link-Layer address plus time
+                return pack('!' '2H' 'I', duid_type, hardware_type, timeval) + self.eth.convert_mac(mac_address)
 
-    def get_duid(self, mac_address, timeval=None):
-        Hardware_type = 1   # Ethernet
-        if timeval is None:
-            DUID_type = 3   # Link-Layer address
-            return pack('!' '2H', DUID_type, Hardware_type) + self.eth.convert_mac(mac_address)
-        else:
-            DUID_type = 1   # Link-Layer address plus time
-            return pack('!' '2H' 'I', DUID_type, Hardware_type, timeval) + self.eth.convert_mac(mac_address)
+        except TypeError:
+            error_text += ' Bad MAC address: ' + self.base.error_text(str(mac_address))
 
-    def make_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                    ipv6_src, ipv6_dst, ipv6_flow, udp_src_port, udp_dst_port,
-                    dhcp_message_type, packet_body, options, options_raw=''):
-        dhcp_packet = pack('!B', dhcp_message_type)
-        dhcp_packet += packet_body
+        except struct_error:
+            error_text += ' Bad timeval: ' + self.base.error_text(str(timeval))
 
-        if options_raw == '':
-            for option_code in options.keys():
-                dhcp_packet += pack('!' '2H', int(option_code), len(options[option_code]))
-                try:
+        self.base.print_error(error_text)
+        return None
+
+    def make_packet(self, ethernet_src_mac: str = '01:23:45:67:89:0a',
+                    ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                    ipv6_src: str = 'fd00::1',
+                    ipv6_dst: str = 'fd00::2',
+                    ipv6_flow: int = 1,
+                    udp_src_port: int = 546,
+                    udp_dst_port: int = 547,
+                    dhcp_message_type: int = 1,
+                    packet_body: bytes = b'',
+                    options: Union[None, Dict[int, bytes]] = {14: b''},
+                    options_raw: Union[None, bytes] = None) -> Union[None, bytes]:
+        error_text: str = 'Failed to make DHCPv6 packet!'
+        packet: bytes = b''
+        dhcp_packet: bytes = b''
+        try:
+            dhcp_packet += pack('!B', dhcp_message_type)
+            dhcp_packet += packet_body
+
+            if options is not None:
+                for option_code in options.keys():
+                    dhcp_packet += pack('!' '2H', int(option_code), len(options[option_code]))
                     dhcp_packet += options[option_code]
-                except TypeError:
-                    dhcp_packet += options[option_code].encode('utf-8')
-        else:
-            dhcp_packet += options_raw
 
-        eth_header = self.eth.make_header(ethernet_src_mac, ethernet_dst_mac, 34525)  # 34525 = 0x86dd (IPv6)
-        ipv6_header = self.ipv6.make_header(ipv6_src, ipv6_dst, ipv6_flow, len(dhcp_packet) + 8, 17)  # 17 = 0x11 (UDP)
-        udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src, ipv6_dst, udp_src_port, udp_dst_port,
-                                                             len(dhcp_packet), dhcp_packet)
+            if options_raw is not None:
+                dhcp_packet += options_raw
 
-        return eth_header + ipv6_header + udp_header + dhcp_packet
+            eth_header = self.eth.make_header(source_mac=ethernet_src_mac,
+                                              destination_mac=ethernet_dst_mac,
+                                              network_type=self.ipv6.header_type)  # 34525 = 0x86dd (IPv6)
 
-    def parse_packet(self, packet):
+            ipv6_header = self.ipv6.make_header(source_ip=ipv6_src,
+                                                destination_ip=ipv6_dst,
+                                                flow_label=ipv6_flow,
+                                                payload_len=len(dhcp_packet) + self.udp.header_length,
+                                                next_header=self.udp.header_type)  # 17 = 0x11 (UDP)
+
+            udp_header = self.udp.make_header_with_ipv6_checksum(ipv6_src=ipv6_src,
+                                                                 ipv6_dst=ipv6_dst,
+                                                                 port_src=udp_src_port,
+                                                                 port_dst=udp_dst_port,
+                                                                 payload_len=len(dhcp_packet),
+                                                                 payload_data=dhcp_packet)
+            packet += eth_header
+            packet += ipv6_header
+            packet += udp_header
+            packet += dhcp_packet
+            return packet
+
+        except TypeError as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'eth_header' in traceback_text:
+                error_text += ' Bad source or destination MAC address!'
+            if 'ipv6_header' in traceback_text:
+                error_text += ' Bad value in IPv6 header!'
+            if 'udp_header' in traceback_text:
+                error_text += ' Bad value in UDP header!'
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'dhcp_message_type' in traceback_text:
+                error_text += ' Bad DHCPv6 message type: ' + self.base.error_text(str(dhcp_message_type))
+            if 'option_code' in traceback_text:
+                error_text += ' Bad DHCPv6 option code or option value!'
+
+        self.base.print_error(error_text)
+        return None
+
+    def parse_packet(self, packet: bytes):
         if len(packet) < 4:
             return None
 
@@ -3525,20 +3786,24 @@ class RawDHCPv6:
 
         return dhcpv6_packet
 
-    def make_solicit_packet(self, ethernet_src_mac, ipv6_src, transaction_id, client_identifier, option_request_list):
+    def make_solicit_packet(self,
+                            ethernet_src_mac: str = '01:23:45:67:89:0a',
+                            ipv6_src: str = 'fd00::1',
+                            transaction_id: int = 1,
+                            client_mac_address: str = '01:23:45:67:89:0a',
+                            option_request_list: List[int] = [23, 24]):
 
         if 16777215 < transaction_id < 0:
             return None
 
         packet_body = pack('!L', transaction_id)[1:]
-        options = {}
+        options: Dict[int, bytes] = dict()
+        options[3] = pack('!' '3Q', 0, 0, 0)              # Identity Association for Non-temporary Address
+        options[14] = b''                                 # Rapid commit
+        options[8] = pack('!H', 0)                        # Elapsed time
+        options[1] = self._make_duid(client_mac_address)  # Client identifier
 
-        options[3] = pack('!' '3Q', 0, 0, 0)  # Identity Association for Non-temporary Address
-        options[14] = ''                      # Rapid commit
-        options[8] = pack('!H', 0)            # Elapsed time
-        options[1] = client_identifier        # Client identifier
-
-        option_request_string = ''
+        option_request_string = b''
         for option_request in option_request_list:
             option_request_string += pack('!H', option_request)
 
@@ -3548,42 +3813,68 @@ class RawDHCPv6:
                                 ipv6_src, 'ff02::1:2', 0, 546, 547,
                                 1, packet_body, options)
 
-    def make_relay_forw_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                               ipv6_src, ipv6_dst, ipv6_flow,
-                               hop_count, link_addr, peer_addr, options, options_raw=''):
-        packet_body = pack('!B', hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
-        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
-                                ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
-                                12, packet_body, options, options_raw)
+    def make_relay_forw_packet(self,
+                               ethernet_src_mac: str = '01:23:45:67:89:0a',
+                               ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                               ipv6_src: str = 'fd00::1',
+                               ipv6_dst: str = 'fd00::2',
+                               ipv6_flow: int = 1,
+                               hop_count: int = 10,
+                               link_addr: str = 'fd00::1',
+                               peer_addr: str = 'fd00::2',
+                               options: Union[None, Dict[int, bytes]] = None,
+                               options_raw: Union[None, bytes] = None):
+        error_text: str = 'Failed to make DHCPv6 Relay-forw packet!'
+        try:
+            assert hop_count <= 32, ' Maximum hop count limit = 32'
+            packet_body = pack('!B', hop_count) + self.ipv6.pack_addr(link_addr) + self.ipv6.pack_addr(peer_addr)
+            return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                    ipv6_src, ipv6_dst, ipv6_flow, 546, 547,
+                                    12, packet_body, options, options_raw)
+        except AssertionError as Error:
+            error_text += Error.args[0]
 
-    def make_advertise_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None, cid=None, iaid=1,
-                              preference=None):
+        self.base.print_error(error_text)
+        return None
+
+    def make_advertise_packet(self,
+                              ethernet_src_mac: str = '01:23:45:67:89:0a',
+                              ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                              ipv6_src: str = 'fd00::1',
+                              ipv6_dst: str = 'fd00::2',
+                              transaction_id: int = 1,
+                              dns_address: str = 'fd00::1',
+                              domain_search: str = 'domain.local',
+                              ipv6_address: str = 'fd00::2',
+                              client_duid_timeval: Union[None, int] = None,
+                              server_duid_mac: Union[None, str] = None,
+                              cid: Union[None, bytes] = None,
+                              iaid: int = 1,
+                              preference: Union[None, int] = None):
 
         if 16777215 < transaction_id < 0:
             return None
 
         packet_body = pack('!L', transaction_id)[1:]
-        options = {}
+        options: Dict[int, bytes] = dict()
 
         if cid is not None:
-                options[1] = unhexlify(cid)
+                options[1] = cid
         else:
             if client_duid_timeval is None:
-                    options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+                    options[1] = self._make_duid(ethernet_dst_mac)                   # Client Identifier
             else:
-                options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+                options[1] = self._make_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
 
         if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+            options[2] = self._make_duid(ethernet_src_mac)  # Server Identifier
         else:
-            options[2] = self.get_duid(server_duid_mac)        # Server Identifier
+            options[2] = self._make_duid(server_duid_mac)   # Server Identifier
 
         if preference is not None:
             options[7] = pack('!B', preference)
 
-        options[20] = ''                                     # Reconfigure Accept
+        options[20] = b''                                    # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
         options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
@@ -3596,9 +3887,17 @@ class RawDHCPv6:
                                 0xa1b82, 547, 546, 2,
                                 packet_body, options)
 
-    def make_reply_packet(self, ethernet_src_mac, ethernet_dst_mac,
-                              ipv6_src, ipv6_dst, transaction_id, dns_address,
-                              domain_search, ipv6_address, client_duid_timeval=None, server_duid_mac=None):
+    def make_reply_packet(self,
+                          ethernet_src_mac: str = '01:23:45:67:89:0a',
+                          ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                          ipv6_src: str = 'fd00::1',
+                          ipv6_dst: str = 'fd00::2',
+                          transaction_id: int = 1,
+                          dns_address: str = 'fd00::1',
+                          domain_search: str = 'domain.local',
+                          ipv6_address: str = 'fd00::2',
+                          client_duid_timeval: Union[None, int] = None,
+                          server_duid_mac: Union[None, str] = None):
 
         if 16777215 < transaction_id < 0:
             return None
@@ -3607,16 +3906,16 @@ class RawDHCPv6:
         options = {}
 
         if client_duid_timeval is None:
-            options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
+            options[1] = self._make_duid(ethernet_dst_mac)                       # Client Identifier
         else:
-            options[1] = self.get_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+            options[1] = self._make_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
 
         if server_duid_mac is None:
-            options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+            options[2] = self._make_duid(ethernet_src_mac)  # Server Identifier
         else:
-            options[2] = self.get_duid(server_duid_mac)   # Server Identifier
+            options[2] = self._make_duid(server_duid_mac)   # Server Identifier
 
-        options[20] = ''                                     # Reconfigure Accept
+        options[20] = b''                                    # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
         options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
@@ -3638,8 +3937,8 @@ class RawDHCPv6:
     #     packet_body = pack('!L', transaction_id)[1:]
     #     options = {}
     #
-    #     options[1] = self.get_duid(ethernet_dst_mac)                       # Client Identifier
-    #     options[2] = self.get_duid(ethernet_src_mac)  # Server Identifier
+    #     options[1] = self._make_duid(ethernet_dst_mac)                       # Client Identifier
+    #     options[2] = self._make_duid(ethernet_src_mac)  # Server Identifier
     #
     #     options[20] = ''                                     # Reconfigure Accept
     #     options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
@@ -4028,7 +4327,7 @@ class RawICMPv6:
                                          mtu: int = 1500,
                                          advertisement_interval: int = 60000, 
                                          src_link_layer_address: Union[None, str] = None,
-                                         router_lifetime: int =0, 
+                                         router_lifetime: int = 0,
                                          reachable_time: int = 0, 
                                          retrans_timer: int = 0,
                                          exit_on_failure: bool = True,
@@ -4165,7 +4464,7 @@ class RawICMPv6:
         try:
             body = pack('!I', 0x00000000)  # Reserved
     
-            if icmpv6_target_ipv6_address is not None:
+            if icmpv6_target_ipv6_address is None:
                 icmpv6_target_ipv6_address = 'ff02::1'
             body += self.ipv6.pack_addr(ipv6_address=icmpv6_target_ipv6_address, 
                                         exit_on_failure=exit_on_failure,
@@ -4173,7 +4472,7 @@ class RawICMPv6:
                                         quiet=quiet)
     
             # Source link-layer address
-            if icmpv6_source_mac_address is not None:
+            if icmpv6_source_mac_address is None:
                 icmpv6_source_mac_address = ethernet_src_mac
             body += self.make_option(option_type=2, 
                                      option_value=self.eth.convert_mac(icmpv6_source_mac_address),

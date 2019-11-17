@@ -8,22 +8,10 @@ Copyright 2019, Raw-packet Project
 # endregion
 
 # region Import
-
-# region Add project root path
 from sys import path
 from os.path import dirname, abspath
-path.append(dirname(dirname(abspath(__file__))))
-# endregion
-
-# region Raw-packet modules
-from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawIPv6, RawUDP, RawDNS, RawDHCPv4
-# endregion
-
-# region Import libraries
 import unittest
-# endregion
-
+path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Authorship information
@@ -42,6 +30,10 @@ __status__ = 'Development'
 class NetworkTest(unittest.TestCase):
 
     # region Properties
+    from raw_packet.Utils.base import Base
+    from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4,  RawUDP, RawDNS, RawICMPv4, RawDHCPv4
+    from raw_packet.Utils.network import RawIPv6, RawICMPv6, RawDHCPv6
+
     base: Base = Base()
     ethernet: RawEthernet = RawEthernet()
     arp: RawARP = RawARP()
@@ -49,7 +41,10 @@ class NetworkTest(unittest.TestCase):
     ipv6: RawIPv6 = RawIPv6()
     udp: RawUDP = RawUDP()
     dns: RawDNS = RawDNS()
+    icmpv4: RawICMPv4 = RawICMPv4()
     dhcpv4: RawDHCPv4 = RawDHCPv4()
+    icmpv6: RawICMPv6 = RawICMPv6()
+    dhcpv6: RawDHCPv6 = RawDHCPv6()
     # endregion
 
     # region Test RawEthernet methods
@@ -634,6 +629,77 @@ class NetworkTest(unittest.TestCase):
         # endregion
     # endregion
 
+    # region Test RawICMPv4 methods
+    def test_icmpv4_make_host_unreachable_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv4.make_host_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                  ethernet_dst_mac='01:23:45:67:89:0b',
+                                                                  ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                                  ip_ident=1),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x000\x01\x00\x00\x00@\x01\xf8y\xc0\xa8\x00' +
+                         b'\x01\xc0\xa8\x00\x02\x03\x01\xfc\xfe\x00\x00\x00\x00E\x00\x00\x1c\x01\x00\x00\x00@\x01' +
+                         b'\xf8\x8d\xc0\xa8\x00\x02\xc0\xa8\x00\x01')
+        # Bad MAC address
+        self.assertIsNone(self.icmpv4.make_host_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0ab',
+                                                                   ethernet_dst_mac='01:23:45:67:89:0b',
+                                                                   ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                                   ip_ident=1))
+        # Bad IP address
+        self.assertIsNone(self.icmpv4.make_host_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                   ethernet_dst_mac='01:23:45:67:89:0b',
+                                                                   ip_src='192.168.0.1111', ip_dst='192.168.0.2',
+                                                                   ip_ident=1))
+
+    def test_icmpv4_make_udp_port_unreachable_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv4.make_udp_port_unreachable_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                      ethernet_dst_mac='01:23:45:67:89:0b',
+                                                                      ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                                      udp_src_port=5353, udp_dst_port=5353,
+                                                                      ip_ident=1),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x008\x01\x00\x00\x00@\x01\xf8q\xc0\xa8\x00\x01' +
+                         b'\xc0\xa8\x00\x02\x03\x03\xd3"\x00\x00\x00\x00E\x00\x00$\x01\x00\x00\x00@\x11\xf8u\xc0\xa8' +
+                         b'\x00\x02\xc0\xa8\x00\x01\x14\xe9\x14\xe9\x00\x08\x00\x00')
+
+    def test_icmpv4_make_ping_request_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv4.make_ping_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                              ethernet_dst_mac='01:23:45:67:89:0b',
+                                                              ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                              ip_ident=1, data=b'0123456789'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x00&\x01\x00\x00\x00@\x01\xf8\x83\xc0\xa8\x00' +
+                         b'\x01\xc0\xa8\x00\x02\x08\x00\xf2\xf5\x00\x00\x00\x000123456789')
+
+    def test_icmpv4_make_redirect_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv4.make_redirect_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                          ethernet_dst_mac='01:23:45:67:89:0b',
+                                                          ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                          ip_ttl=64, ip_ident=1,
+                                                          gateway_address='192.168.0.1',
+                                                          payload_ip_src='192.168.0.1',
+                                                          payload_ip_dst='192.168.0.2'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x08\x00E\x00\x008\x01\x00\x00\x00@\x01\xf8q\xc0\xa8\x00\x01' +
+                         b'\xc0\xa8\x00\x02\x05\x019\xe3\xc0\xa8\x00\x01E\x00\x00\x1c\x01\x00\x00\x00@\x11\xf8}\xc0' +
+                         b'\xa8\x00\x01\xc0\xa8\x00\x02\x005\x005\x00\x08\x00\x00')
+        # Bad gateway address
+        self.assertIsNone(self.icmpv4.make_redirect_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                           ethernet_dst_mac='01:23:45:67:89:0b',
+                                                           ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                           ip_ttl=64, ip_ident=1,
+                                                           gateway_address='192.168.0.1111',
+                                                           payload_ip_src='192.168.0.1',
+                                                           payload_ip_dst='192.168.0.2'))
+        # Bad payload IP address
+        self.assertIsNone(self.icmpv4.make_redirect_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                           ethernet_dst_mac='01:23:45:67:89:0b',
+                                                           ip_src='192.168.0.1', ip_dst='192.168.0.2',
+                                                           ip_ttl=64, ip_ident=1,
+                                                           gateway_address='192.168.0.1',
+                                                           payload_ip_src='192.168.0.1111',
+                                                           payload_ip_dst='192.168.0.2'))
+    # endregion
+
     # region Test RawDHCPv4 methods
     def test_dhcpv4_discover_packet(self):
         # Normal
@@ -737,6 +803,153 @@ class NetworkTest(unittest.TestCase):
                          b'\x00\x00\x00c\x82Sc5\x01\x056\x04\xc0\xa8\x01\x013\x04\x00\x00\xff\xff\x01\x04\xff\xff\xff' +
                          b'\x00\x03\x04\xc0\xa8\x01\x01\x06\x04\xc0\xa8\x01\x01\xff\x00\x00\x00\x00\x00\x00\x00\x00' +
                          b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+    # endregion
+
+    # region Test RawICMPv6 methods
+    def test_icmpv6_make_option(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_option(option_type=1, option_value=b'test_option_value'),
+                         b'\x01\x03\x00\x00\x00\x00\x00test_option_value')
+
+    def test_icmpv6_make_router_solicit_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_router_solicit_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                ethernet_dst_mac='33:33:00:00:00:02',
+                                                                ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                                ipv6_flow=0x835d1,
+                                                                need_source_link_layer_address=True,
+                                                                source_link_layer_address=None),
+                         b'33\x00\x00\x00\x02\x01#Eg\x89\n\x86\xdd`\x085\xd1\x00\x10:\xff\xfd\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x02\x85\x00\xb0\x1a\x00\x00\x00\x00\x01\x01\x01#Eg\x89\n')
+
+    def test_icmpv6_make_router_advertisement_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_router_advertisement_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                      ethernet_dst_mac='01:23:45:67:89:0b',
+                                                                      ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                                      dns_address='fd00::1', domain_search='test.local',
+                                                                      prefix='fd00::/64'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x0bGU\x00\x80:\xff\xfd\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x02\x86\x00\xb3>@\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x04@\xc0\xff\xff' +
+                         b'\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x01\x01\x01#Eg\x89\n\x05\x01\x00\x00\x00\x00\x05\xdc\x19\x03\x00\x00\x00' +
+                         b'\x00\x17p\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x1f\x04\x00\x00' +
+                         b'\x00\x00\x17p\x04test\x05local\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x01' +
+                         b'\x00\x00\x00\x00\xea`')
+
+    def test_icmpv6_make_neighbor_solicitation_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_neighbor_solicitation_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                       ipv6_src='fd00::1'),
+                         b'33\x00\x00\x00\x01\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00 :\xff\xfd\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x01\x87\x00\xac\x05\x00\x00\x00\x00\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x01\x02\x01\x01#Eg\x89\n')
+
+    def test_icmpv6_make_neighbor_advertisement_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                                        ipv6_src='fd00::1',
+                                                                        target_ipv6_address='fd00::2'),
+                         b'33\x00\x00\x00\x01\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00 :\xff\xfd\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x01\x88\x00\x8d\x06 \x00\x00\x00\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x02\x02\x01\x01#Eg\x89\n')
+
+    def test_icmpv6_make_echo_request_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_echo_request_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                              ethernet_dst_mac='01:23:45:67:89:0b',
+                                                              ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                              id=1, sequence=1),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00@:\xff\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x80\x00\x8ek\x00\x01\x00\x01\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c' +
+                         b'\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f ' +
+                         b'!"#$%&\'()*+,-./01234567')
+
+    def test_icmpv6_make_echo_reply_packet(self):
+        # Normal
+        self.assertEqual(self.icmpv6.make_echo_reply_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                            ethernet_dst_mac='01:23:45:67:89:0b',
+                                                            ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                            id=1, sequence=1),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00@:\xff\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x81\x00\x8dk\x00\x01\x00\x01\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c' +
+                         b'\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f ' +
+                         b'!"#$%&\'()*+,-./01234567')
+    # endregion
+
+    # region Test RawDHCPv6 methods
+    def test_dhcpv6_make_option(self):
+        # Normal
+        self.assertEqual(self.dhcpv6._make_duid(mac_address='01:23:45:67:89:0a'),
+                         b'\x00\x03\x00\x01\x01#Eg\x89\n')
+
+    def test_dhcpv6_make_solicit_packet(self):
+        # Normal
+        self.assertEqual(self.dhcpv6.make_solicit_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                         ipv6_src='fd00::1',
+                                                         transaction_id=1,
+                                                         client_mac_address='01:23:45:67:89:0a',
+                                                         option_request_list=[23, 24]),
+                         b'33\x00\x01\x00\x02\x01#Eg\x89\n\x86\xdd`\x00\x00\x00\x00H\x11@\xfd\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x01\x00\x02\x02"\x02#\x00H.\x01\x01\x00\x00\x01\x00\x03\x00\x18\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00' +
+                         b'\x00\x00\x08\x00\x02\x00\x00\x00\x01\x00\n\x00\x03\x00\x01\x01#Eg\x89\n\x00\x06\x00\x04' +
+                         b'\x00\x17\x00\x18')
+
+    def test_dhcpv6_make_relay_forw_packet(self):
+        # Normal
+        self.assertEqual(self.dhcpv6.make_relay_forw_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                            ethernet_dst_mac='01:23:45:67:89:0b',
+                                                            ipv6_src='fd00::1', ipv6_dst='fd00::2', ipv6_flow=1,
+                                                            hop_count=10, link_addr='fd00::2',
+                                                            peer_addr='fd00::3'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\x00\x00\x01\x00*\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x02"\x02#\x00*\xfb?\x0c\n\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x02\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03')
+
+    def test_dhcpv6_make_advertise_packet(self):
+        # Normal
+        self.assertEqual(self.dhcpv6.make_advertise_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                           ethernet_dst_mac='01:23:45:67:89:0b',
+                                                           ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                           transaction_id=1,
+                                                           dns_address='fd00::1',
+                                                           domain_search='test.local',
+                                                           ipv6_address='fd00::2'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\n\x1b\x82\x00\x84\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x02#\x02"\x00\x84n\xf4\x02\x00\x00\x01\x00\x01\x00\n\x00\x03\x00\x01\x01#Eg' +
+                         b'\x89\x0b\x00\x02\x00\n\x00\x03\x00\x01\x01#Eg\x89\n\x00\x14\x00\x00\x00\x17\x00\x10\xfd' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x18\x00\x0c\x04test\x05' +
+                         b'local\x00\x00R\x00\x04\x00\x00\x00<\x00\x03\x00(\x00\x00\x00\x01\x00\x00T`\x00\x00\x87' +
+                         b'\x00\x00\x05\x00\x18\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\xff' +
+                         b'\xff\xff\xff\xff\xff\xff\xff')
+
+    def test_dhcpv6_make_reply_packet(self):
+        # Normal
+        self.assertEqual(self.dhcpv6.make_reply_packet(ethernet_src_mac='01:23:45:67:89:0a',
+                                                       ethernet_dst_mac='01:23:45:67:89:0b',
+                                                       ipv6_src='fd00::1', ipv6_dst='fd00::2',
+                                                       transaction_id=1,
+                                                       dns_address='fd00::1',
+                                                       domain_search='test.local',
+                                                       ipv6_address='fd00::2'),
+                         b'\x01#Eg\x89\x0b\x01#Eg\x89\n\x86\xdd`\n\x1b\x82\x00\x84\x11@\xfd\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' +
+                         b'\x00\x00\x02\x02#\x02"\x00\x84i\xf4\x07\x00\x00\x01\x00\x01\x00\n\x00\x03\x00\x01\x01#Eg' +
+                         b'\x89\x0b\x00\x02\x00\n\x00\x03\x00\x01\x01#Eg\x89\n\x00\x14\x00\x00\x00\x17\x00\x10\xfd' +
+                         b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x18\x00\x0c\x04test\x05' +
+                         b'local\x00\x00R\x00\x04\x00\x00\x00<\x00\x03\x00(\x00\x00\x00\x01\x00\x00T`\x00\x00\x87' +
+                         b'\x00\x00\x05\x00\x18\xfd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\xff' +
+                         b'\xff\xff\xff\xff\xff\xff\xff')
     # endregion
 
 # endregion
