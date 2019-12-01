@@ -2627,7 +2627,8 @@ class RawDHCPv4:
             bootp_packet['your-ip-address'] = inet_ntoa(bootp_detailed[8])
             bootp_packet['server-ip-address'] = inet_ntoa(bootp_detailed[9])
             bootp_packet['relay-ip-address'] = inet_ntoa(bootp_detailed[10])
-            bootp_packet['client-mac-address'] = self.eth.convert_mac(hexlify(bootp_detailed[11]))
+            bootp_packet['client-mac-address'] = self.eth.convert_mac(mac_address=bootp_detailed[11],
+                                                                      exit_on_failure=False)
 
             if len(packet) > RawDHCPv4.dhcp_packet_offset:
                 if packet[RawDHCPv4.bootp_packet_length:RawDHCPv4.dhcp_packet_offset] == RawDHCPv4.dhcp_magic_cookie:
@@ -2664,6 +2665,11 @@ class RawDHCPv4:
                             option_value = int(unpack('B', packet[position + 1:position + 2])[0])
                             position += 2
 
+                        # 54 - DHCP Server Identifier
+                        elif option_name == 54:
+                            option_value = inet_ntoa(unpack('4s', packet[position + 1:position + 5])[0])
+                            position += 5
+
                         # 57 - Maximum DHCPv4 message size
                         elif option_name == 57:
                             option_value = int(unpack('H', packet[position + 1:position + 3])[0])
@@ -2671,7 +2677,9 @@ class RawDHCPv4:
 
                         # 61 - Client identifier
                         elif option_name == 61:
-                            option_value = self.eth.convert_mac(hexlify(unpack('6s', packet[position + 2:position + 8])[0]))
+                            option_value = self.eth.convert_mac(
+                                mac_address=unpack('6s', packet[position + 2:position + 8])[0],
+                                exit_on_failure=False)
                             position += 8
 
                         else:
@@ -3237,22 +3245,35 @@ class RawDHCPv4:
                                 bootp_client_hw_address=client_mac,
                                 dhcp_options=options)
 
-    def make_nak_packet(self, source_mac, destination_mac, source_ip, destination_ip, transaction_id, your_ip,
-                        client_mac, dhcp_server_id):
+    def make_nak_packet(self,
+                        ethernet_src_mac: str = '01:23:45:67:89:0b',
+                        ethernet_dst_mac: str = '01:23:45:67:89:0a',
+                        ip_src: str = '192.168.1.1',
+                        ip_dst: str = '192.168.1.2',
+                        ip_ident: Union[None, int] = None,
+                        transaction_id: int = 1,
+                        your_client_ip: str = '192.168.1.2',
+                        client_mac: str = '01:23:45:67:89:0a',
+                        dhcp_server_id: Union[None, str] = None) -> Union[None, bytes]:
+
+        if dhcp_server_id is None:
+            dhcp_server_id: str = ip_src
+
         option_operation = pack('!3B', 53, 1, 6)
         option_server_id = pack('!' '2B' '4s', 54, 4, inet_aton(dhcp_server_id))
         option_end = pack('B', 255)
         options = option_operation + option_server_id + option_end
 
-        return self.make_packet(ethernet_src_mac=source_mac,
-                                ethernet_dst_mac=destination_mac,
-                                ip_src=source_ip, ip_dst=destination_ip,
+        return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                ethernet_dst_mac=ethernet_dst_mac,
+                                ip_src=ip_src, ip_dst=ip_dst,
+                                ip_ident=ip_ident,
                                 udp_src_port=67, udp_dst_port=68,
                                 bootp_message_type=2,
                                 bootp_transaction_id=transaction_id,
                                 bootp_flags=0,
                                 bootp_client_ip='0.0.0.0',
-                                bootp_your_client_ip=your_ip,
+                                bootp_your_client_ip=your_client_ip,
                                 bootp_next_server_ip='0.0.0.0',
                                 bootp_relay_agent_ip='0.0.0.0',
                                 bootp_client_hw_address=client_mac,
@@ -5203,8 +5224,16 @@ class RawSniff:
                                     assert udp_header_dict['source-port'] == filters['UDP']['source-port'], \
                                         'Bad UDP source port!'
 
+                                if 'not-source-port' in filters['UDP'].keys():
+                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
+                                        'Bad UDP source port!'
+
                                 if 'destination-port' in filters['UDP'].keys():
                                     assert udp_header_dict['destination-port'] == filters['UDP']['destination-port'], \
+                                        'Bad UDP destination port!'
+
+                                if 'not-destination-port' in filters['UDP'].keys():
+                                    assert udp_header_dict['destination-port'] != filters['UDP']['destination-port'], \
                                         'Bad UDP destination port!'
                             # endregion
 

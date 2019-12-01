@@ -3,7 +3,7 @@
 
 # region Description
 """
-arp_spoof.py: ARP spoofing
+arp_spoof.py: ARP spoofing script
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2019, Raw-packet Project
@@ -58,12 +58,12 @@ if __name__ == '__main__':
 
         # region Parse script arguments
         parser: ArgumentParser = ArgumentParser(description='ARP spoofing script')
-        parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
-        parser.add_argument('-t', '--target_ip', help='Set client IP address', default=None)
-        parser.add_argument('-m', '--target_mac', help='Set client MAC address', default=None)
+        parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
+        parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
+        parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
         parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', default=None)
-        parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
-        parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+        parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests', default=False)
+        parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output', default=False)
         args = parser.parse_args()
         # endregion
         
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         
         # region Get listen network interface, your IP and MAC address, first and last IP in local network
         if args.interface is None:
-            base.print_warning('Please set a network interface for send ARP packets ...')
+            base.print_warning('Please set a network interface for send ARP spoofing packets ...')
         current_network_interface: str = base.network_interface_selection(args.interface)
         your_mac_address: str = base.get_interface_mac_address(current_network_interface)
         your_ip_address: str = base.get_interface_ip_address(current_network_interface)
@@ -84,9 +84,11 @@ if __name__ == '__main__':
         
         # region Set gateway IP address
         if args.gateway_ip is None:
-            gateway_ip_address: str = base.get_interface_gateway(current_network_interface, exit_on_failure=True)
+            gateway_ip_address: str = base.get_interface_gateway(current_network_interface)
         else:
-            base.ip_address_in_range(args.gateway_ip, first_ip_address, last_ip_address, True)
+            assert base.ip_address_in_range(args.gateway_ip, first_ip_address, last_ip_address), \
+                'Bad value `-g, --gateway_ip`: ' + base.error_text(args.gateway_ip) + \
+                '; Gateway IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
             gateway_ip_address: str = args.gateway_ip
         base.print_info('Gateway IP address: ', gateway_ip_address)
         # endregion
@@ -150,15 +152,20 @@ if __name__ == '__main__':
                 device: Dict[str, str] = results[current_device_index]
                 target_ip_address: str = device['ip-address']
                 target_mac_address: str = device['mac-address']
-                target_vendor: str = device['vendor']
+                if device['vendor'] is not None and device['vendor'] != '':
+                    target_vendor: str = device['vendor']
         # endregion
         
         # region Target IP address is set
         else:
-            base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address, True)
+            assert base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address), \
+                'Bad value `-t, --target_ip`: ' + base.error_text(args.target_ip) + \
+                '; Target IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
             target_ip_address: str = args.target_ip
             if args.target_mac is not None:
-                base.mac_address_validation(args.target_mac, True)
+                assert base.mac_address_validation(args.target_mac), \
+                    'Bad MAC address `-m, --target_mac`: ' + base.error_text(args.target_mac) + \
+                    '; example MAC address: ' + base.info_text('12:34:56:78:90:ab')
                 target_mac_address: str = args.target_mac
             else:
                 base.print_info('Get MAC address of IP: ', target_ip_address)
@@ -215,4 +222,10 @@ if __name__ == '__main__':
         raw_socket.close()
         base.print_info('Exit')
         exit(0)
+
+    except AssertionError as Error:
+        raw_socket.close()
+        base.print_error(Error.args[0])
+        exit(1)
+
 # endregion

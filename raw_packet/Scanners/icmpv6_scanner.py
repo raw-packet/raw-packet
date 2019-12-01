@@ -222,7 +222,7 @@ class ICMPv6Scan:
         tm.add_task(self._sniff)
         # endregion
 
-        # region Run sender
+        # region Run _sender
         self._send()
         # endregion
 
@@ -284,7 +284,7 @@ class ICMPv6Scan:
         tm.add_task(self._sniff)
         # endregion
 
-        # region Run sender
+        # region Run _sender
         self._send()
         # endregion
 

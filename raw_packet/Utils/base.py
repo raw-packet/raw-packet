@@ -1352,7 +1352,7 @@ class Base:
             return True
 
         except AddressValueError:
-            error_text = 'Bad IPv4 address in input parameters!'
+            error_text = 'Bad IPv4 address: ' + self.error_text(str(ip_address))
 
         except AssertionError as Error:
             error_text = Error.args[0]
