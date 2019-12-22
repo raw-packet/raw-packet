@@ -19,8 +19,7 @@ from socket import socket, AF_PACKET, SOCK_RAW
 from struct import pack
 from socket import inet_aton
 from time import sleep
-from prettytable import PrettyTable
-from typing import Union, List, Dict
+from typing import Union, List
 # endregion
 
 # region Authorship information
@@ -171,16 +170,8 @@ if __name__ == '__main__':
         request_opcode: int = 0x0001
         # endregion
 
-        # region Check gateway MAC address
-        # thread_manager.add_task(check_ipv4_gateway_mac,
-        #                         args.target_ip,
-        #                         args.target_user,
-        #                         args.gateway_ip,
-        #                         real_ipv4_gateway_mac_address)
-        # endregion
-
-        # region Check ARP opcode
-        for test_hardware_size in range(7, 255, 1):
+        # region Check ARP
+        for test_opcode in range(0, 255, 1):
 
             arp_packet: bytes = b''
             sender_ip: bytes = inet_aton(args.gateway_ip)
@@ -189,25 +180,21 @@ if __name__ == '__main__':
             target_mac: bytes = eth.convert_mac(mac_address=eth.make_random_mac())
             arp_packet += pack('!H', hardware_type)
             arp_packet += pack('!H', protocol_type)
-            arp_packet += pack('!B', test_hardware_size)
+            arp_packet += pack('!B', hardware_size)
             arp_packet += pack('!B', protocol_size)
-            arp_packet += pack('!H', 0)
+            arp_packet += pack('!H', test_opcode)
 
-            arp_packet += sender_mac
-            for _ in range(test_hardware_size - 6):
-                arp_packet += b'\00'
-            arp_packet += pack('!' '4s', sender_ip)
-
-            arp_packet += target_mac
-            for _ in range(test_hardware_size - 6):
-                arp_packet += b'\00'
-            arp_packet += pack('!' '4s', target_ip)
+            arp_packet += sender_mac + pack('!' '4s', sender_ip)
+            arp_packet += target_mac + pack('!' '4s', target_ip)
 
             eth_header: bytes = eth.make_header(source_mac=your_mac_address,
                                                 destination_mac='ff:ff:ff:ff:ff:ff',
                                                 network_type=network_type,
                                                 exit_on_failure=True)
+
             packet: bytes = eth_header + arp_packet
+            # for _ in range(test_opcode + 1):
+            #     packet += bytes(randint(1, 255))
 
             for _ in range(3):
                 raw_socket.send(packet)
@@ -216,44 +203,9 @@ if __name__ == '__main__':
                                    args.target_user,
                                    args.gateway_ip,
                                    args.gateway_mac,
-                                   'ARP test_hardware_size',
-                                   test_hardware_size)
+                                   'ARP test_opcode',
+                                   test_opcode)
             sleep(0.5)
-        # endregion
-
-        # region Fuzz ARP responses
-
-        # region Check Ethernet network_type
-        # for test_network_type in range(65535):
-        #
-        #     if test_network_type == network_type:
-        #         base.print_warning('Skip Ethernet network type: ', str(network_type))
-        #
-        #     else:
-        #         arp_packet: bytes = b''
-        #         sender_ip: bytes = inet_aton(args.gateway_ip)
-        #         target_ip: bytes = inet_aton(args.target_ip)
-        #         sender_mac: bytes = eth.convert_mac(mac_address=your_mac_address)
-        #         target_mac: bytes = eth.convert_mac(mac_address=args.target_mac)
-        #         arp_packet += pack('!H', hardware_type)
-        #         arp_packet += pack('!H', protocol_type)
-        #         arp_packet += pack('!B', hardware_size)
-        #         arp_packet += pack('!B', protocol_size)
-        #         arp_packet += pack('!H', response_opcode)
-        #         arp_packet += sender_mac + pack('!' '4s', sender_ip)
-        #         arp_packet += target_mac + pack('!' '4s', target_ip)
-        #
-        #         eth_header: bytes = eth.make_header(source_mac=your_mac_address,
-        #                                             destination_mac=args.target_mac,
-        #                                             network_type=test_network_type,
-        #                                             exit_on_failure=True)
-        #         packet: bytes = eth_header + arp_packet
-        #
-        #         for _ in range(2):
-        #             raw_socket.send(packet)
-        #             sleep(0.0001)
-        # endregion
-
         # endregion
 
     except KeyboardInterrupt:
