@@ -758,6 +758,8 @@ if __name__ == '__main__':
         # region Get first and last IP address in your network
         first_ip_address: str = base.get_first_ip_on_interface(current_network_interface)
         last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
+        first_offer_ip_address: str = base.get_second_ip_on_interface(current_network_interface)
+        last_offer_ip_address: str = base.get_penultimate_ip_on_interface(current_network_interface)
         # endregion
 
         # region Set target MAC and IP address, if target IP is not set - get first and last offer IP
@@ -781,9 +783,6 @@ if __name__ == '__main__':
 
         # region Target IP is not set - get first and last offer IP
         else:
-            first_offer_ip_address: str = base.get_second_ip_on_interface(current_network_interface)
-            last_offer_ip_address: str = base.get_penultimate_ip_on_interface(current_network_interface)
-
             # Check first offer IP address
             if args.first_offer_ip is not None:
                 assert base.ip_address_in_range(args.first_offer_ip, first_ip_address, last_ip_address), \

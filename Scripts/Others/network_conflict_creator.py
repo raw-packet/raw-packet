@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # region Description
@@ -44,7 +44,8 @@ def reply(request):
                         settings['make-conflict'] = False
                         raw_socket.send(conflict_packet['response'])
                 else:
-                    if request['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and request['ARP']['opcode'] == 1 and \
+                    if request['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
+                            request['ARP']['opcode'] == 1 and \
                             request['ARP']['sender-ip'] == request['ARP']['target-ip']:
                         base.print_info('Sniff Gratuitous ARP request for ',
                                         request['ARP']['sender-ip'] + ' (' + request['Ethernet']['source'] + ')')
@@ -114,12 +115,13 @@ if __name__ == '__main__':
 
     # region Variables
     target: Dict[str, Union[None, str]] = {'ip-address': None, 'mac-address': None}
-    conflict_packet: Dict[str, bytes] = dict()
+    conflict_packet: Dict[str, Union[None, bytes]] = {'request': None, 'response': None}
     settings: Dict[str, Union[bool, int, str]] = {'make-conflict': True}
     raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
     # endregion
 
     try:
+
         # region Check User and Platform
         base.check_user()
         base.check_platform()
@@ -174,10 +176,15 @@ if __name__ == '__main__':
                 target['mac-address'] = args.target_mac
         # endregion
 
+        # region Target IP address is not set - start ARP and DHCP sniffer
         if target['ip-address'] is None:
             arp_sniffer()
+        # endregion
+
+        # region Target IP address is set - make and send ARP conflict packets
         else:
-            # region Make ARP request and response
+
+            # region Make ARP conflict packets
             conflict_packet['response'] = arp.make_response(ethernet_src_mac=settings['mac-address'],
                                                             ethernet_dst_mac=target['mac-address'],
                                                             sender_mac=settings['mac-address'],
@@ -197,11 +204,11 @@ if __name__ == '__main__':
                                                               settings['network-interface']))
             # endregion
 
-            # region Start ARP sniffer
+            # region Start ARP sniffer in thread
             thread_manager.add_task(arp_sniffer)
             # endregion
 
-            # region Send only ARP reply packets
+            # region Send ARP reply packets
             if args.replies:
                 base.print_info('Send only ARP reply packets to: ',
                                 str(target['ip-address']) + ' (' + str(target['mac-address']) + ')')
@@ -212,7 +219,7 @@ if __name__ == '__main__':
                 raw_socket.close()
             # endregion
 
-            # region Send only ARP request packets
+            # region Send ARP request packets
             elif args.requests:
                 base.print_info('Send only Multicast ARP request packets to: ',
                                 str(target['ip-address']) + ' (' + str(target['mac-address']) + ')')
@@ -237,8 +244,9 @@ if __name__ == '__main__':
                         sleep(3)
                         current_number_of_packets += 1
                 # endregion
-
             # endregion
+
+        # endregion
 
     except KeyboardInterrupt:
         raw_socket.close()

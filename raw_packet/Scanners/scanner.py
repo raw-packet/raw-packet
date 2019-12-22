@@ -68,7 +68,8 @@ class Scanner:
             for apple_device in apple_devices:
                 assert len(apple_device) == 3, \
                     'Bad list of Apple device, example: [["192.168.0.1", "12:34:56:78:90:ab", "Apple, Inc."]]'
-                assert self.base.ip_address_validation(ip_address=apple_device[0]), \
+                assert (self.base.ip_address_validation(ip_address=apple_device[0]) or
+                        self.base.ipv6_address_validation(ipv6_address=apple_device[0])), \
                     'Bad list of Apple device, example: [["192.168.0.1", "12:34:56:78:90:ab", "Apple, Inc."]]'
                 assert self.base.mac_address_validation(mac_address=apple_device[1]), \
                     'Bad list of Apple device, example: [["192.168.0.1", "12:34:56:78:90:ab", "Apple, Inc."]]'

