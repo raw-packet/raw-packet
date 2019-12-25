@@ -53,10 +53,11 @@ def macos_convert_mac(mac_address: str) -> str:
 # region Get mac of IPv4 gateway over ssh
 def get_ipv4_gateway_mac_over_ssh(target_ipv4_address: str = '192.168.0.5',
                                   target_user_name: str = 'user',
+                                  target_os: str = 'MacOS',
                                   gateway_ipv4_address: str = '192.168.0.254') -> str:
     gateway_mac_address: str = 'No route to host'
     target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp ' + gateway_ipv4_address + '"'],
+                          ' "arp -an ' + gateway_ipv4_address + '"'],
                          shell=True, stdout=PIPE, stderr=STDOUT)
     target_arp_table: bytes = target_command.stdout
     target_arp_table: str = target_arp_table.decode('utf-8')
@@ -74,22 +75,26 @@ def get_ipv4_gateway_mac_over_ssh(target_ipv4_address: str = '192.168.0.5',
 # region Update ARP table over ssh
 def update_arp_table_over_ssh(target_ipv4_address: str = '192.168.0.5',
                               target_user_name: str = 'user',
+                              target_os: str = 'MacOS',
                               gateway_ipv4_address: str = '192.168.0.254',
                               real_gateway_mac_address: str = '12:34:56:78:90:ab') -> bool:
     run(['ssh ' + target_user_name + '@' + target_ipv4_address +
          ' "arp -d ' + gateway_ipv4_address + ' > /dev/null 2>&1; ping -c 1 ' +
          gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
     target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp ' + gateway_ipv4_address + '"'],
+                          ' "arp -an ' + gateway_ipv4_address + '"'],
                          shell=True, stdout=PIPE, stderr=STDOUT)
     target_arp_table: bytes = target_command.stdout
     target_arp_table: str = target_arp_table.decode('utf-8')
     if 'No route to host' in target_arp_table:
         base.print_error('Target: ', target_ipv4_address, ' is disconnected!')
         sleep(5)
-        update_arp_table_over_ssh(target_ipv4_address, target_user_name, gateway_ipv4_address, real_gateway_mac_address)
+        update_arp_table_over_ssh(target_ipv4_address, target_user_name, target_os,
+                                  gateway_ipv4_address, real_gateway_mac_address)
     target_arp_table: List[str] = target_arp_table.split(' ')
-    if target_arp_table[3] == macos_convert_mac(real_gateway_mac_address):
+    if target_os == 'MacOS':
+        real_gateway_mac_address = macos_convert_mac(real_gateway_mac_address)
+    if target_arp_table[3] == real_gateway_mac_address:
         return True
     else:
         return False
@@ -99,6 +104,7 @@ def update_arp_table_over_ssh(target_ipv4_address: str = '192.168.0.5',
 # region Check mac of IPv4 gateway over ssh
 def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                            target_user_name: str = 'user',
+                           target_os: str = 'MacOS',
                            gateway_ipv4_address: str = '192.168.0.254',
                            real_gateway_mac_address: str = '12:34:56:78:90:ab',
                            test_parameters: Union[None, Dict[str, Dict[str, Union[int, str]]]] = None,
@@ -116,10 +122,12 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                                   ' gateway: ' + current_gateway_mac_address +
                                   ' parameters: ' + dumps(test_parameters) + '\n')
         sleep(5)
-        check_ipv4_gateway_mac(target_ipv4_address, target_user_name, gateway_ipv4_address, real_gateway_mac_address,
+        check_ipv4_gateway_mac(target_ipv4_address, target_user_name, target_os,
+                               gateway_ipv4_address, real_gateway_mac_address,
                                test_parameters, test_parameters_index)
-
-    if current_gateway_mac_address == macos_convert_mac(real_gateway_mac_address):
+    if target_os == 'MacOS':
+        real_gateway_mac_address = macos_convert_mac(real_gateway_mac_address)
+    if current_gateway_mac_address == real_gateway_mac_address:
         if test_parameters is not None:
             base.print_info('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
                             ' parameters: ', dumps(test_parameters))
@@ -135,6 +143,7 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
         while True:
             if update_arp_table_over_ssh(target_ipv4_address=target_ipv4_address,
                                          target_user_name='root',
+                                         target_os=target_os,
                                          gateway_ipv4_address=gateway_ipv4_address,
                                          real_gateway_mac_address=real_gateway_mac_address):
                 break
@@ -175,6 +184,7 @@ if __name__ == '__main__':
         parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
         parser.add_argument('-T', '--target_ip', help='Set target IP address', required=True)
         parser.add_argument('-t', '--target_mac', help='Set target MAC address', required=True)
+        parser.add_argument('-o', '--target_os', help='Set target OS (MacOS, Linux)', default='MacOS')
         parser.add_argument('-u', '--target_user', help='Set target user name for ssh', default='user')
         parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', required=True)
         parser.add_argument('-g', '--gateway_mac', help='Set gateway IP address', required=True)
@@ -195,11 +205,9 @@ if __name__ == '__main__':
         raw_socket.bind((current_network_interface, 0))
         # endregion
 
-        test = get_ipv4_gateway_mac_over_ssh(args.target_ip, 'vladimir', args.gateway_ip)
-
         # region Variables
         number_of_arp_packets: int = 5
-        interval_between_sending_arp_packets: float = 0.1
+        interval_between_sending_arp_packets: float = 0.2
 
         default_network_type: int = 0x0806   # ARP protocol
         default_hardware_type: int = 0x0001  # Ethernet
@@ -484,6 +492,7 @@ if __name__ == '__main__':
 
             check_ipv4_gateway_mac(args.target_ip,
                                    args.target_user,
+                                   args.target_os,
                                    args.gateway_ip,
                                    args.gateway_mac,
                                    tested_parameters[index],
