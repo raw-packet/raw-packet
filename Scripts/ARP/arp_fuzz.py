@@ -101,7 +101,7 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                            target_user_name: str = 'user',
                            gateway_ipv4_address: str = '192.168.0.254',
                            real_gateway_mac_address: str = '12:34:56:78:90:ab',
-                           test_parameters: Union[None, Dict[str, Union[int, str]]] = None,
+                           test_parameters: Union[None, Dict[str, Dict[str, Union[int, str]]]] = None,
                            test_parameters_index: int = 0) -> None:
     current_gateway_mac_address: str = get_ipv4_gateway_mac_over_ssh(target_ipv4_address,
                                                                      target_user_name,
@@ -252,7 +252,6 @@ if __name__ == '__main__':
 
         # Short list
         test_hardware_types: List[int] = [
-            0,  # reserved.	RFC 5494
             1,  # Ethernet.
         ]
 
@@ -324,51 +323,97 @@ if __name__ == '__main__':
         #     23  # MAPOS UNARP.	RFC 2176
         # ]
 
-        # Long list
-        # sender_mac_addresses: List[str] = [
-        #     your_mac_address,  # Your MAC address
-        #     args.gateway_mac,  # Gateway MAC address
-        #     args.target_mac  # Target MAC address
-        # ]
-        # sender_ip_addresses: List[str] = [
-        #     your_ip_address,  # Your IP address
-        #     args.gateway_ip,  # Gateway IP address
-        #     args.target_ip  # Target IP address
-        # ]
-        # target_mac_addresses: List[str] = [
-        #     your_mac_address,  # Your MAC address
-        #     args.gateway_mac,  # Gateway MAC address
-        #     args.target_mac  # Target MAC address
-        # ]
-        # target_ip_addresses: List[str] = [
-        #     your_ip_address,  # Your IP address
-        #     args.gateway_ip,  # Gateway IP address
-        #     args.target_ip  # Target IP address
+        # ARP protection list
+        # test_opcodes: List[int] = [
+        #     0,  # reserved.	RFC 5494
+        #     1,  # Request.	RFC 826, RFC 5227
+        #     3,  # Request Reverse.	RFC 903
+        #     4,  # Reply Reverse.	RFC 903
+        #     5,  # DRARP Request.	RFC 1931
+        #     6,  # DRARP Reply.	RFC 1931
+        #     7,  # DRARP Error.	RFC 1931
+        #     8,  # InARP Request.	RFC 1293
+        #     9,  # InARP Reply.	RFC 1293
+        #     10,  # ARP NAK.	RFC 1577
+        #     11,  # MARS Request.
+        #     12,  # MARS Multi.
+        #     13,  # MARS MServ.
+        #     14,  # MARS Join.
+        #     15,  # MARS Leave.
+        #     16,  # MARS NAK.
+        #     17,  # MARS Unserv.
+        #     18,  # MARS SJoin.
+        #     19,  # MARS SLeave.
+        #     20,  # MARS Grouplist Request.
+        #     21,  # MARS Grouplist Reply.
+        #     22,  # MARS Redirect Map.
+        #     23,  # MAPOS UNARP.	RFC 2176
+        #     24,  # OP_EXP1.	RFC 5494
+        #     25  # OP_EXP2.	RFC 5494
         # ]
 
-        # Short list
+        # Long list
         sender_mac_addresses: List[str] = [
             your_mac_address,  # Your MAC address
-            '00:00:00:00:00:00',  # Empty MAC address
+            args.gateway_mac,  # Gateway MAC address
+            args.target_mac,  # Target MAC address
+            '00:00:00:00:00:00'  # Empty MAC address
         ]
         sender_ip_addresses: List[str] = [
             your_ip_address,  # Your IP address
             args.gateway_ip,  # Gateway IP address
+            args.target_ip,  # Target IP address
+            '0.0.0.0'  # Empty IP address
         ]
         target_mac_addresses: List[str] = [
             your_mac_address,  # Your MAC address
-            '00:00:00:00:00:00',  # Empty MAC address
+            args.gateway_mac,  # Gateway MAC address
+            args.target_mac,  # Target MAC address
+            '00:00:00:00:00:00'  # Empty MAC address
         ]
         target_ip_addresses: List[str] = [
             your_ip_address,  # Your IP address
             args.gateway_ip,  # Gateway IP address
+            args.target_ip,  # Target IP address
+            '0.0.0.0'  # Empty IP address
         ]
 
+        # Short list
+        # sender_mac_addresses: List[str] = [
+        #     your_mac_address,  # Your MAC address
+        # ]
+        # sender_ip_addresses: List[str] = [
+        #     your_ip_address,  # Your IP address
+        # ]
+        # target_mac_addresses: List[str] = [
+        #     '00:00:00:00:00:00',  # Empty MAC address
+        # ]
+        # target_ip_addresses: List[str] = [
+        #     args.gateway_ip,  # Gateway IP address
+        # ]
+
+        # Long list
+        # destination_mac_addresses: List[str] = [
+        #     args.target_mac,  # Target MAC address
+        #     'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+        #     '33:33:00:00:00:01'  # IPv6 multicast MAC address
+        # ]
+
+        # Unicast list
+        # destination_mac_addresses: List[str] = [
+        #     args.target_mac,  # Target MAC address
+        # ]
+
+        # Multicast list
+        # destination_mac_addresses: List[str] = [
+        #     '33:33:00:00:00:01',  # IPv6 multicast MAC address
+        # ]
+
+        # Broadcast list
         destination_mac_addresses: List[str] = [
-            args.target_mac,  # Target MAC address
             'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
-            '33:33:00:00:00:01'  # IPv6 multicast MAC address
         ]
+
         source_mac_addresses: List[str] = [
             your_mac_address  # Your MAC address
         ]
@@ -410,7 +455,7 @@ if __name__ == '__main__':
         # endregion
 
         # region Check ARP
-        for index in range(1250, len(tested_parameters)):
+        for index in range(0, len(tested_parameters)):
 
             sender_mac: bytes = eth.convert_mac(mac_address=tested_parameters[index]['ARP']['sender_mac_address'])
             sender_ip: bytes = inet_aton(tested_parameters[index]['ARP']['sender_ip_address'])
