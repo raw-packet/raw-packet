@@ -33,7 +33,7 @@ __status__ = 'Production'
 
 # region Main function
 if __name__ == '__main__':
-    
+
     # region Import Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
 
@@ -67,12 +67,12 @@ if __name__ == '__main__':
         parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output', default=False)
         args = parser.parse_args()
         # endregion
-        
+
         # region Print banner if argument quit is not set
         if not args.quiet:
             base.print_banner()
         # endregion
-        
+
         # region Get listen network interface, your IP and MAC address, first and last IP in local network
         if args.interface is None:
             base.print_warning('Please set a network interface for send ARP spoofing packets ...')
@@ -82,7 +82,7 @@ if __name__ == '__main__':
         first_ip_address: str = base.get_first_ip_on_interface(current_network_interface)
         last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
         # endregion
-        
+
         # region Set gateway IP address
         if args.gateway_ip is None:
             gateway_ip_address: str = base.get_interface_gateway(current_network_interface)
@@ -93,11 +93,11 @@ if __name__ == '__main__':
             gateway_ip_address: str = args.gateway_ip
         base.print_info('Gateway IP address: ', gateway_ip_address)
         # endregion
-        
+
         # region Bind raw socket
         raw_socket.bind((current_network_interface, 0))
         # endregion
-        
+
         # region General output
         if not args.quiet:
             base.print_info('Network interface: ', current_network_interface)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
             base.print_info('First ip address: ', first_ip_address)
             base.print_info('Last ip address: ', last_ip_address)
         # endregion
-        
+
         # region ARP spoofing with Multicast ARP requests
         if args.multicast_requests:
             base.print_info('Spoof ARP table: ', gateway_ip_address + ' -> ' + your_mac_address)
@@ -152,12 +152,12 @@ if __name__ == '__main__':
                     hosts_pretty_table.add_row([str(device_index), device['ip-address'],
                                                 device['mac-address'], device['vendor']])
                     device_index += 1
-        
+
                 print(hosts_pretty_table)
                 device_index -= 1
-                current_device_index = input(base.c_info + 'Set device index from range (1-' + 
+                current_device_index = input(base.c_info + 'Set device index from range (1-' +
                                              str(device_index) + '): ')
-        
+
                 if not current_device_index.isdigit():
                     base.print_error('Your input data: ' + str(current_device_index) + ' is not digit!')
                     exit(1)
@@ -165,7 +165,7 @@ if __name__ == '__main__':
                 if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
                     base.print_error('Your number is not within range (1-' + str(device_index) + ')')
                     exit(1)
-        
+
                 current_device_index = int(current_device_index) - 1
                 device: Dict[str, str] = results[current_device_index]
                 target_ip_address: str = device['ip-address']
@@ -173,7 +173,7 @@ if __name__ == '__main__':
                 if device['vendor'] is not None and device['vendor'] != '':
                     target_vendor: str = device['vendor']
         # endregion
-        
+
         # region Target IP address is set
         else:
             assert base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address), \
