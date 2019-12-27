@@ -111,6 +111,7 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                            test_parameters_index: int = 0) -> None:
     current_gateway_mac_address: str = get_ipv4_gateway_mac_over_ssh(target_ipv4_address,
                                                                      target_user_name,
+                                                                     target_os,
                                                                      gateway_ipv4_address)
 
     if current_gateway_mac_address == 'No route to host' or current_gateway_mac_address == 'host':
@@ -204,6 +205,8 @@ if __name__ == '__main__':
         # region Bind raw socket
         raw_socket.bind((current_network_interface, 0))
         # endregion
+
+        # test = get_ipv4_gateway_mac_over_ssh(args.target_ip, args.target_user, args.target_os, args.gateway_ip)
 
         # region Variables
         number_of_arp_packets: int = 5
@@ -463,7 +466,7 @@ if __name__ == '__main__':
         # endregion
 
         # region Check ARP
-        for index in range(0, len(tested_parameters)):
+        for index in range(270, len(tested_parameters)):
 
             sender_mac: bytes = eth.convert_mac(mac_address=tested_parameters[index]['ARP']['sender_mac_address'])
             sender_ip: bytes = inet_aton(tested_parameters[index]['ARP']['sender_ip_address'])
