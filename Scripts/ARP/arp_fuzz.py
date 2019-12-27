@@ -466,7 +466,7 @@ if __name__ == '__main__':
         # endregion
 
         # region Check ARP
-        for index in range(270, len(tested_parameters)):
+        for index in range(0, len(tested_parameters)):
 
             sender_mac: bytes = eth.convert_mac(mac_address=tested_parameters[index]['ARP']['sender_mac_address'])
             sender_ip: bytes = inet_aton(tested_parameters[index]['ARP']['sender_ip_address'])
