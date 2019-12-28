@@ -414,32 +414,32 @@ if __name__ == '__main__':
         #     args.target_ip,  # Target IP address
         #     '0.0.0.0'  # Empty IP address
         # ]
-        # target_mac_addresses: List[str] = [
-        #     your_mac_address,  # Your MAC address
-        #     args.gateway_mac,  # Gateway MAC address
-        #     args.target_mac,  # Target MAC address
-        #     '00:00:00:00:00:00'  # Empty MAC address
-        # ]
-        # target_ip_addresses: List[str] = [
-        #     your_ip_address,  # Your IP address
-        #     args.gateway_ip,  # Gateway IP address
-        #     args.target_ip,  # Target IP address
-        #     '0.0.0.0'  # Empty IP address
-        # ]
+        target_mac_addresses: List[str] = [
+            your_mac_address,  # Your MAC address
+            args.gateway_mac,  # Gateway MAC address
+            args.target_mac,  # Target MAC address
+            '00:00:00:00:00:00'  # Empty MAC address
+        ]
+        target_ip_addresses: List[str] = [
+            your_ip_address,  # Your IP address
+            args.gateway_ip,  # Gateway IP address
+            args.target_ip,  # Target IP address
+            '0.0.0.0'  # Empty IP address
+        ]
 
         # Short list
         sender_mac_addresses: List[str] = [
             your_mac_address,  # Your MAC address
         ]
         sender_ip_addresses: List[str] = [
-            your_ip_address,  # Your IP address
-        ]
-        target_mac_addresses: List[str] = [
-            '00:00:00:00:00:00',  # Empty MAC address
-        ]
-        target_ip_addresses: List[str] = [
             args.gateway_ip,  # Gateway IP address
         ]
+        # target_mac_addresses: List[str] = [
+        #     '00:00:00:00:00:00',  # Empty MAC address
+        # ]
+        # target_ip_addresses: List[str] = [
+        #     args.gateway_ip,  # Gateway IP address
+        # ]
 
         # Long list
         destination_mac_addresses: List[str] = [
