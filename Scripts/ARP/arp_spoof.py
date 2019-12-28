@@ -67,7 +67,7 @@ if __name__ == '__main__':
                             help='Send only ARP IPv4 multicast requests')
         parser.add_argument('--ipv6_multicast_requests', action='store_true',
                             help='Send only ARP IPv6 multicast requests')
-        parser.add_argument('--broadcast_requests', action='store_true',
+        parser.add_argument('-R', '--broadcast_requests', action='store_true',
                             help='Send only ARP broadcast requests')
         parser.add_argument('-q', '--quiet', action='store_true',
                             help='Minimal output')
