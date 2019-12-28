@@ -21,6 +21,7 @@ from socket import inet_aton
 from time import sleep
 from typing import Union, List, Dict
 from json import dumps
+import re
 # endregion
 
 # region Authorship information
@@ -56,19 +57,31 @@ def get_ipv4_gateway_mac_over_ssh(target_ipv4_address: str = '192.168.0.5',
                                   target_os: str = 'MacOS',
                                   gateway_ipv4_address: str = '192.168.0.254') -> str:
     gateway_mac_address: str = 'No route to host'
-    target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp -an ' + gateway_ipv4_address + '"'],
-                         shell=True, stdout=PIPE, stderr=STDOUT)
+    if target_os == 'MacOS' or target_os == 'Linux':
+        target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
+                              ' "arp -an ' + gateway_ipv4_address + '"'],
+                             shell=True, stdout=PIPE, stderr=STDOUT)
+    else:
+        target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
+                              ' "arp -a ' + gateway_ipv4_address + ' | findstr ' + gateway_ipv4_address + '"'],
+                             shell=True, stdout=PIPE, stderr=STDOUT)
     target_arp_table: bytes = target_command.stdout
     target_arp_table: str = target_arp_table.decode('utf-8')
     if 'No route to host' in target_arp_table:
         return gateway_mac_address
     else:
-        target_arp_table: List[str] = target_arp_table.split(' ')
-        try:
-            return target_arp_table[3]
-        except IndexError:
-            return gateway_mac_address
+        if target_os == 'MacOS' or target_os == 'Linux':
+            target_arp_table: List[str] = target_arp_table.split(' ')
+            try:
+                return target_arp_table[3]
+            except IndexError:
+                return gateway_mac_address
+        else:
+            if re.search(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})',
+                         target_arp_table):
+                mac_address = re.search(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})',
+                                        target_arp_table)
+                return mac_address.group(1).replace('-', ':')
 # endregion
 
 
@@ -78,23 +91,20 @@ def update_arp_table_over_ssh(target_ipv4_address: str = '192.168.0.5',
                               target_os: str = 'MacOS',
                               gateway_ipv4_address: str = '192.168.0.254',
                               real_gateway_mac_address: str = '12:34:56:78:90:ab') -> bool:
-    run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-         ' "arp -d ' + gateway_ipv4_address + ' > /dev/null 2>&1; ping -c 1 ' +
-         gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
-    target_command = run(['ssh ' + target_user_name + '@' + target_ipv4_address +
-                          ' "arp -an ' + gateway_ipv4_address + '"'],
-                         shell=True, stdout=PIPE, stderr=STDOUT)
-    target_arp_table: bytes = target_command.stdout
-    target_arp_table: str = target_arp_table.decode('utf-8')
-    if 'No route to host' in target_arp_table:
-        base.print_error('Target: ', target_ipv4_address, ' is disconnected!')
-        sleep(5)
-        update_arp_table_over_ssh(target_ipv4_address, target_user_name, target_os,
-                                  gateway_ipv4_address, real_gateway_mac_address)
-    target_arp_table: List[str] = target_arp_table.split(' ')
+    if target_os == 'MacOS' or target_os == 'Linux':
+        run(['ssh ' + target_user_name + '@' + target_ipv4_address +
+             ' "arp -d ' + gateway_ipv4_address + ' > /dev/null 2>&1; ping -c 1 ' +
+             gateway_ipv4_address + ' > /dev/null 2>&1"'], shell=True)
+    else:
+        run(['ssh ' + target_user_name + '@' + target_ipv4_address +
+             ' "arp -d ' + gateway_ipv4_address + '"'], shell=True)
+        run(['ssh ' + target_user_name + '@' + target_ipv4_address +
+             ' "ping -n 1 ' + gateway_ipv4_address + '"'], shell=True)
+    current_gateway_mac_address = get_ipv4_gateway_mac_over_ssh(target_ipv4_address, target_user_name,
+                                                                target_os, gateway_ipv4_address)
     if target_os == 'MacOS':
         real_gateway_mac_address = macos_convert_mac(real_gateway_mac_address)
-    if target_arp_table[3] == real_gateway_mac_address:
+    if current_gateway_mac_address == real_gateway_mac_address:
         return True
     else:
         return False
@@ -185,7 +195,7 @@ if __name__ == '__main__':
         parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
         parser.add_argument('-T', '--target_ip', help='Set target IP address', required=True)
         parser.add_argument('-t', '--target_mac', help='Set target MAC address', required=True)
-        parser.add_argument('-o', '--target_os', help='Set target OS (MacOS, Linux)', default='MacOS')
+        parser.add_argument('-o', '--target_os', help='Set target OS (MacOS, Linux, Windows)', default='MacOS')
         parser.add_argument('-u', '--target_user', help='Set target user name for ssh', default='user')
         parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', required=True)
         parser.add_argument('-g', '--gateway_mac', help='Set gateway IP address', required=True)
@@ -206,7 +216,7 @@ if __name__ == '__main__':
         raw_socket.bind((current_network_interface, 0))
         # endregion
 
-        # test = get_ipv4_gateway_mac_over_ssh(args.target_ip, args.target_user, args.target_os, args.gateway_ip)
+        test = get_ipv4_gateway_mac_over_ssh(args.target_ip, args.target_user, args.target_os, args.gateway_ip)
 
         # region Variables
         number_of_arp_packets: int = 5
@@ -404,11 +414,14 @@ if __name__ == '__main__':
         # ]
 
         # Long list
-        # destination_mac_addresses: List[str] = [
-        #     args.target_mac,  # Target MAC address
-        #     'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
-        #     '33:33:00:00:00:01'  # IPv6 multicast MAC address
-        # ]
+        destination_mac_addresses: List[str] = [
+            args.target_mac,  # Target MAC address
+            'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+            '33:33:00:00:00:01',  # IPv6 multicast MAC address
+            '01:00:5e:00:00:01',  # IPv4 multicast MAC address
+            '01:00:5e:00:00:02',  # IPv4 multicast MAC address
+            '01:00:5e:7f:ff:fa',  # IPv4 multicast MAC address
+        ]
 
         # Unicast list
         # destination_mac_addresses: List[str] = [
@@ -421,9 +434,9 @@ if __name__ == '__main__':
         # ]
 
         # Broadcast list
-        destination_mac_addresses: List[str] = [
-            'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
-        ]
+        # destination_mac_addresses: List[str] = [
+        #     'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+        # ]
 
         source_mac_addresses: List[str] = [
             your_mac_address  # Your MAC address
