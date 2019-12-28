@@ -151,9 +151,15 @@ def check_ipv4_gateway_mac(target_ipv4_address: str = '192.168.0.5',
                 result_file.write('index: ' + str(test_parameters_index) +
                                   ' gateway: ' + current_gateway_mac_address +
                                   ' parameters: ' + dumps(test_parameters) + '\n')
+
+        if target_os == 'MacOS' or target_os == 'Linux':
+            user_for_update_arp = 'root'
+        else:
+            user_for_update_arp = target_user_name
+
         while True:
             if update_arp_table_over_ssh(target_ipv4_address=target_ipv4_address,
-                                         target_user_name='root',
+                                         target_user_name=user_for_update_arp,
                                          target_os=target_os,
                                          gateway_ipv4_address=gateway_ipv4_address,
                                          real_gateway_mac_address=real_gateway_mac_address):
