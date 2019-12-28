@@ -20,7 +20,7 @@ from netaddr import IPNetwork, IPAddress
 from netaddr.core import AddrFormatError
 from struct import pack, error
 from ipaddress import IPv4Address, AddressValueError
-from re import match
+from re import match, compile
 import subprocess as sub
 import psutil as ps
 import socket as sock
@@ -47,6 +47,7 @@ class Base:
     # region Set variables
     vendor_list: List[Dict[str, str]] = list()
     os_installed_packages_list = None
+    windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
     # endregion
 
     # region Init
@@ -1587,6 +1588,19 @@ class Base:
                 if vendor_dictionary['prefix'] in mac_address:
                     return vendor_dictionary['vendor']
         return 'Unknown vendor'
+
+    def macos_encode_mac_address(self, mac_address: str) -> str:
+        if self.mac_address_validation(mac_address):
+            address_in_macos_arp_table: str = ''
+            for part_of_address in mac_address.split(':'):
+                if part_of_address[0] == '0':
+                    address_in_macos_arp_table += part_of_address[1] + ':'
+                else:
+                    address_in_macos_arp_table += part_of_address + ':'
+            return address_in_macos_arp_table[:-1]
+        else:
+            return mac_address
+
     # endregion
 
 # endregion
