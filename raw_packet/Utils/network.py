@@ -3289,6 +3289,8 @@ class RawICMPv4:
     eth: RawEthernet = RawEthernet()
     ip: RawIPv4 = RawIPv4()
     udp: RawUDP = RawUDP()
+    packet_length: int = 4
+    packet_type: int = 1
     # endregion
 
     @staticmethod
@@ -3305,6 +3307,55 @@ class RawICMPv4:
         s += s >> 16
         s = ~s
         return (((s >> 8) & 0xff) | s << 8) & 0xffff
+
+    def parse_packet(self,
+                     packet: bytes,
+                     exit_on_failure: bool = False,
+                     quiet: bool = True):
+        """
+        Parse ICMPv4 packet
+        :param packet: Bytes of packet
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Parsed ICMPv4 packet dictionary (example: {}) or None if error
+        """
+        error_text: str = 'Failed to parse ICMPv4 packet!'
+        icmpv4_packet: Dict[str, Union[int, str, bytes]] = dict()
+        try:
+            assert not len(packet) < RawICMPv4.packet_length, \
+                ' Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal ICMPv4 packet length: ' + self.base.info_text(str(RawICMPv4.packet_length))
+
+            icmpv4_detailed = unpack('!' '2B' 'H', packet[:4])
+
+            icmpv4_packet['type'] = int(icmpv4_detailed[0])
+            icmpv4_packet['code'] = int(icmpv4_detailed[1])
+            icmpv4_packet['checksum'] = int(icmpv4_detailed[2])
+
+            # ICMPv4 Echo (ping) request or reply
+            if icmpv4_packet['type'] == 0 or icmpv4_packet['type'] == 8:
+                icmpv4_detailed = unpack('!' '2H', packet[4:8])
+                icmpv4_packet['identifier'] = int(icmpv4_detailed[0])
+                icmpv4_packet['sequence_number'] = int(icmpv4_detailed[1])
+                # ICMPv4 Echo (ping) reply - add 8 bytes timestamp
+                if icmpv4_packet['type'] == 0:
+                    icmpv4_detailed = unpack('!' 'Q', packet[8:16])
+                    icmpv4_packet['timestamp'] = int(icmpv4_detailed[0])
+                    icmpv4_packet['data'] = str(packet[16:])
+                # ICMPv4 Echo (ping) request
+                if icmpv4_packet['type'] == 8:
+                    icmpv4_packet['data'] = str(packet[8:])
+
+            return icmpv4_packet
+
+        except AssertionError as Error:
+            error_text += Error.args[0]
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(1)
+        return None
 
     def make_packet(self,
                     ethernet_src_mac: str = '01:23:45:67:89:0a',
@@ -5313,6 +5364,31 @@ class RawSniff:
                             #     # endregion
                             #
                             # # endregion
+
+                        # endregion
+
+                        # region ICMPv4
+                        if 'ICMPv4' in protocols and ipv4_header_dict['protocol'] == self.icmpv4.packet_type:
+
+                            # region Parse ICMPv4 packet
+                            icmpv4_packet_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
+                            icmpv4_packet: Union[bytes, Any] = \
+                                packet[icmpv4_packet_offset:]
+                            icmpv4_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
+                                self.icmpv4.parse_packet(packet=icmpv4_packet, exit_on_failure=False, quiet=True)
+                            # endregion
+
+                            # region Could not parse ICMPv4 packet - break
+                            assert icmpv4_packet_dict is not None, 'Bad ICMPv4 packet!'
+                            # endregion
+
+                            # region Call function with full ICMPv4 packet
+                            prn({
+                                'Ethernet': ethernet_header_dict,
+                                'IPv4': ipv4_header_dict,
+                                'ICMPv4': icmpv4_packet_dict
+                            })
+                            # endregion
 
                         # endregion
 
