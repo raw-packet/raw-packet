@@ -38,8 +38,8 @@ class ScriptAppleArpDosTest(unittest.TestCase):
     path.append(root_path)
     from raw_packet.Utils.base import Base
     base: Base = Base()
-    network_interface: str = 'wlan0'
-    target_ipv4_address: str = '192.168.0.53'
+    network_interface: str = 'eth1'
+    target_ipv4_address: str = '192.168.1.5'
     bad_network_interface: str = 'wlan0123'
     bad_ipv4_address: str = '192.168.0.1234'
     bad_mac_address: str = '12:34:56:78:90:abc'
