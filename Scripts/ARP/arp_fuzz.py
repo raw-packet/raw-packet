@@ -13,7 +13,6 @@ Copyright 2019, Raw-packet Project
 # region Import
 from sys import path
 from os.path import dirname, abspath
-from subprocess import run, PIPE, STDOUT
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW
 from struct import pack
@@ -64,7 +63,7 @@ def get_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
                 'Not found host: ' + base.error_text(gateway_ipv4_address) + \
                 ' in ARP table in host: ' + base.error_text(args.target_ip)
             mac_address = base.windows_mac_address_regex.search(arp_table)
-            return mac_address.group(1).replace('-', ':')
+            return mac_address.group(1).replace('-', ':').lower()
 
         else:
             target_arp_table: List[str] = arp_table.split(' ')
@@ -197,6 +196,10 @@ if __name__ == '__main__':
         parser.add_argument('-k', '--target_ssh_pkey', help='Set target private key for ssh', default=None)
         parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', required=True)
         parser.add_argument('-g', '--gateway_mac', help='Set gateway IP address', required=True)
+        parser.add_argument('-A', '--all_tests', action='store_true', help='Test all fields')
+        parser.add_argument('-R', '--only_requests', action='store_true', help='Send only ARP requests')
+        parser.add_argument('-B', '--only_broadcast', action='store_true', help='Send only Broadcast packets')
+        parser.add_argument('-M', '--only_multicast', action='store_true', help='Send only Multicast packets')
         args = parser.parse_args()
         # endregion
 
@@ -252,52 +255,53 @@ if __name__ == '__main__':
         default_protocol_size: int = 0x04    # Length of IP address
         default_opcode: int = 0x0002         # ARP response
 
-        # Long list
-        # test_hardware_types: List[int] = [
-        #     0,  # reserved.	RFC 5494
-        #     1,  # Ethernet.
-        #     2,  # Experimental Ethernet.
-        #     3,  # Amateur Radio AX.25.
-        #     4,  # Proteon ProNET Token Ring.
-        #     5,  # Chaos.
-        #     6,  # IEEE 802.
-        #     7,  # ARCNET.	RFC 1201
-        #     8,  # Hyperchannel.
-        #     9,  # Lanstar.
-        #     10,  # Autonet Short Address.
-        #     11,  # LocalTalk.
-        #     12,  # LocalNet (IBM PCNet or SYTEK LocalNET).
-        #     13,  # Ultra link.
-        #     14,  # SMDS.
-        #     15,  # Frame Relay.
-        #     16,  # ATM, Asynchronous Transmission Mode.
-        #     17,  # HDLC.
-        #     18,  # Fibre Channel.	RFC 4338
-        #     19,  # ATM, Asynchronous Transmission Mode.	RFC 2225
-        #     20,  # Serial Line.
-        #     21,  # ATM, Asynchronous Transmission Mode.
-        #     22,  # MIL-STD-188-220.
-        #     23,  # Metricom.
-        #     24,  # IEEE 1394.1995.
-        #     25,  # MAPOS.
-        #     26,  # Twinaxial.
-        #     27,  # EUI-64.
-        #     28,  # HIPARP.	RFC 2834, RFC 2835
-        #     29,  # IP and ARP over ISO 7816-3.
-        #     30,  # ARPSec.
-        #     31,  # IPsec tunnel.	RFC 3456
-        #     32,  # Infiniband.	RFC 4391
-        #     33,  # CAI, TIA-102 Project 25 Common Air Interface.
-        #     34,  # Wiegand Interface.
-        #     35,  # Pure IP.
-        #     36,  # HW_EXP1	RFC 5494
-        #     256  # HW_EXP2
-        # ]
-
-        # Short list
-        test_hardware_types: List[int] = [
-            1,  # Ethernet.
-        ]
+        if args.all_tests:
+            # Long list
+            test_hardware_types: List[int] = [
+                0,  # reserved.	RFC 5494
+                1,  # Ethernet.
+                2,  # Experimental Ethernet.
+                3,  # Amateur Radio AX.25.
+                4,  # Proteon ProNET Token Ring.
+                5,  # Chaos.
+                6,  # IEEE 802.
+                7,  # ARCNET.	RFC 1201
+                8,  # Hyperchannel.
+                9,  # Lanstar.
+                10,  # Autonet Short Address.
+                11,  # LocalTalk.
+                12,  # LocalNet (IBM PCNet or SYTEK LocalNET).
+                13,  # Ultra link.
+                14,  # SMDS.
+                15,  # Frame Relay.
+                16,  # ATM, Asynchronous Transmission Mode.
+                17,  # HDLC.
+                18,  # Fibre Channel.	RFC 4338
+                19,  # ATM, Asynchronous Transmission Mode.	RFC 2225
+                20,  # Serial Line.
+                21,  # ATM, Asynchronous Transmission Mode.
+                22,  # MIL-STD-188-220.
+                23,  # Metricom.
+                24,  # IEEE 1394.1995.
+                25,  # MAPOS.
+                26,  # Twinaxial.
+                27,  # EUI-64.
+                28,  # HIPARP.	RFC 2834, RFC 2835
+                29,  # IP and ARP over ISO 7816-3.
+                30,  # ARPSec.
+                31,  # IPsec tunnel.	RFC 3456
+                32,  # Infiniband.	RFC 4391
+                33,  # CAI, TIA-102 Project 25 Common Air Interface.
+                34,  # Wiegand Interface.
+                35,  # Pure IP.
+                36,  # HW_EXP1	RFC 5494
+                256  # HW_EXP2
+            ]
+        else:
+            # Short list
+            test_hardware_types: List[int] = [
+                1,  # Ethernet.
+            ]
 
         test_protocol_types: List[int] = [
             0x0800  # IPv4
@@ -311,158 +315,115 @@ if __name__ == '__main__':
             0x04  # Length of IP address
         ]
 
-        # Long list
-        # test_opcodes: List[int] = [
-        #     0,  # reserved.	RFC 5494
-        #     1,  # Request.	RFC 826, RFC 5227
-        #     2,  # Reply.	RFC 826, RFC 1868, RFC 5227
-        #     3,  # Request Reverse.	RFC 903
-        #     4,  # Reply Reverse.	RFC 903
-        #     5,  # DRARP Request.	RFC 1931
-        #     6,  # DRARP Reply.	RFC 1931
-        #     7,  # DRARP Error.	RFC 1931
-        #     8,  # InARP Request.	RFC 1293
-        #     9,  # InARP Reply.	RFC 1293
-        #     10,  # ARP NAK.	RFC 1577
-        #     11,  # MARS Request.
-        #     12,  # MARS Multi.
-        #     13,  # MARS MServ.
-        #     14,  # MARS Join.
-        #     15,  # MARS Leave.
-        #     16,  # MARS NAK.
-        #     17,  # MARS Unserv.
-        #     18,  # MARS SJoin.
-        #     19,  # MARS SLeave.
-        #     20,  # MARS Grouplist Request.
-        #     21,  # MARS Grouplist Reply.
-        #     22,  # MARS Redirect Map.
-        #     23,  # MAPOS UNARP.	RFC 2176
-        #     24,  # OP_EXP1.	RFC 5494
-        #     25  # OP_EXP2.	RFC 5494
-        # ]
+        if args.all_tests:
+            # Long list
+            test_opcodes: List[int] = [
+                0,  # reserved.	RFC 5494
+                1,  # Request.	RFC 826, RFC 5227
+                2,  # Reply.	RFC 826, RFC 1868, RFC 5227
+                3,  # Request Reverse.	RFC 903
+                4,  # Reply Reverse.	RFC 903
+                5,  # DRARP Request.	RFC 1931
+                6,  # DRARP Reply.	RFC 1931
+                7,  # DRARP Error.	RFC 1931
+                8,  # InARP Request.	RFC 1293
+                9,  # InARP Reply.	RFC 1293
+                10,  # ARP NAK.	RFC 1577
+                11,  # MARS Request.
+                12,  # MARS Multi.
+                13,  # MARS MServ.
+                14,  # MARS Join.
+                15,  # MARS Leave.
+                16,  # MARS NAK.
+                17,  # MARS Unserv.
+                18,  # MARS SJoin.
+                19,  # MARS SLeave.
+                20,  # MARS Grouplist Request.
+                21,  # MARS Grouplist Reply.
+                22,  # MARS Redirect Map.
+                23,  # MAPOS UNARP.	RFC 2176
+                24,  # OP_EXP1.	RFC 5494
+                25  # OP_EXP2.	RFC 5494
+            ]
+        elif args.only_requests:
+            # Only ARP requests
+            test_opcodes: List[int] = [
+                1,  # Request.	RFC 826, RFC 5227
+            ]
+        else:
+            # Short list
+            test_opcodes: List[int] = [
+                1,  # Request.	RFC 826, RFC 5227
+                2,  # Reply.	RFC 826, RFC 1868, RFC 5227
+            ]
 
-        # Short list
-        # test_opcodes: List[int] = [
-        #     0,  # reserved.	RFC 5494
-        #     1,  # Request.	RFC 826, RFC 5227
-        #     2,  # Reply.	RFC 826, RFC 1868, RFC 5227
-        #     5,  # DRARP Request.	RFC 1931
-        #     6,  # DRARP Reply.	RFC 1931
-        #     7,  # DRARP Error.	RFC 1931
-        #     8,  # InARP Request.	RFC 1293
-        #     9,  # InARP Reply.	RFC 1293
-        #     10,  # ARP NAK.	RFC 1577
-        #     11,  # MARS Request.
-        #     12,  # MARS Multi.
-        #     13,  # MARS MServ.
-        #     14,  # MARS Join.
-        #     15,  # MARS Leave.
-        #     16,  # MARS NAK.
-        #     17,  # MARS Unserv.
-        #     18,  # MARS SJoin.
-        #     19,  # MARS SLeave.
-        #     20,  # MARS Grouplist Request.
-        #     21,  # MARS Grouplist Reply.
-        #     22,  # MARS Redirect Map.
-        #     23  # MAPOS UNARP.	RFC 2176
-        # ]
+        if args.all_tests:
+            # Long list
+            sender_mac_addresses: List[str] = [
+                your_mac_address,  # Your MAC address
+                args.gateway_mac,  # Gateway MAC address
+                args.target_mac,  # Target MAC address
+                '00:00:00:00:00:00'  # Empty MAC address
+            ]
+            sender_ip_addresses: List[str] = [
+                your_ip_address,  # Your IP address
+                args.gateway_ip,  # Gateway IP address
+                args.target_ip,  # Target IP address
+                '0.0.0.0'  # Empty IP address
+            ]
+            target_mac_addresses: List[str] = [
+                your_mac_address,  # Your MAC address
+                args.gateway_mac,  # Gateway MAC address
+                args.target_mac,  # Target MAC address
+                '00:00:00:00:00:00'  # Empty MAC address
+            ]
+            target_ip_addresses: List[str] = [
+                your_ip_address,  # Your IP address
+                args.gateway_ip,  # Gateway IP address
+                args.target_ip,  # Target IP address
+                '0.0.0.0'  # Empty IP address
+            ]
+        else:
+            # Short list
+            sender_mac_addresses: List[str] = [
+                your_mac_address,  # Your MAC address
+            ]
+            sender_ip_addresses: List[str] = [
+                args.gateway_ip,  # Gateway IP address
+            ]
+            target_mac_addresses: List[str] = [
+                args.target_mac,  # Target MAC address
+                '00:00:00:00:00:00'  # Empty MAC address
+            ]
+            target_ip_addresses: List[str] = [
+                args.target_ip,  # Target IP address
+                '0.0.0.0'  # Empty IP address
+            ]
 
-        # ARP protection list
-        # test_opcodes: List[int] = [
-        #     0,  # reserved.	RFC 5494
-        #     1,  # Request.	RFC 826, RFC 5227
-        #     3,  # Request Reverse.	RFC 903
-        #     4,  # Reply Reverse.	RFC 903
-        #     5,  # DRARP Request.	RFC 1931
-        #     6,  # DRARP Reply.	RFC 1931
-        #     7,  # DRARP Error.	RFC 1931
-        #     8,  # InARP Request.	RFC 1293
-        #     9,  # InARP Reply.	RFC 1293
-        #     10,  # ARP NAK.	RFC 1577
-        #     11,  # MARS Request.
-        #     12,  # MARS Multi.
-        #     13,  # MARS MServ.
-        #     14,  # MARS Join.
-        #     15,  # MARS Leave.
-        #     16,  # MARS NAK.
-        #     17,  # MARS Unserv.
-        #     18,  # MARS SJoin.
-        #     19,  # MARS SLeave.
-        #     20,  # MARS Grouplist Request.
-        #     21,  # MARS Grouplist Reply.
-        #     22,  # MARS Redirect Map.
-        #     23,  # MAPOS UNARP.	RFC 2176
-        #     24,  # OP_EXP1.	RFC 5494
-        #     25  # OP_EXP2.	RFC 5494
-        # ]
-
-        # Only ARP requests
-        test_opcodes: List[int] = [
-            1,  # Request.	RFC 826, RFC 5227
-        ]
-
-        # Long list
-        # sender_mac_addresses: List[str] = [
-        #     your_mac_address,  # Your MAC address
-        #     args.gateway_mac,  # Gateway MAC address
-        #     args.target_mac,  # Target MAC address
-        #     '00:00:00:00:00:00'  # Empty MAC address
-        # ]
-        # sender_ip_addresses: List[str] = [
-        #     your_ip_address,  # Your IP address
-        #     args.gateway_ip,  # Gateway IP address
-        #     args.target_ip,  # Target IP address
-        #     '0.0.0.0'  # Empty IP address
-        # ]
-        target_mac_addresses: List[str] = [
-            your_mac_address,  # Your MAC address
-            args.gateway_mac,  # Gateway MAC address
-            args.target_mac,  # Target MAC address
-            '00:00:00:00:00:00'  # Empty MAC address
-        ]
-        target_ip_addresses: List[str] = [
-            your_ip_address,  # Your IP address
-            args.gateway_ip,  # Gateway IP address
-            args.target_ip,  # Target IP address
-            '0.0.0.0'  # Empty IP address
-        ]
-
-        # Short list
-        sender_mac_addresses: List[str] = [
-            your_mac_address,  # Your MAC address
-        ]
-        sender_ip_addresses: List[str] = [
-            args.gateway_ip,  # Gateway IP address
-        ]
-        # target_mac_addresses: List[str] = [
-        #     '00:00:00:00:00:00',  # Empty MAC address
-        # ]
-        # target_ip_addresses: List[str] = [
-        #     args.gateway_ip,  # Gateway IP address
-        # ]
-
-        # Long list
-        destination_mac_addresses: List[str] = [
-            args.target_mac,  # Target MAC address
-            'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
-            '33:33:00:00:00:01',  # IPv6 multicast MAC address
-            '01:00:5e:00:00:01',  # IPv4 multicast MAC address
-        ]
-
-        # Unicast list
-        # destination_mac_addresses: List[str] = [
-        #     args.target_mac,  # Target MAC address
-        # ]
-
-        # Multicast list
-        # destination_mac_addresses: List[str] = [
-        #     '33:33:00:00:00:01',  # IPv6 multicast MAC address
-        # ]
-
-        # Broadcast list
-        # destination_mac_addresses: List[str] = [
-        #     'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
-        # ]
+        if args.all_tests:
+            # Long list
+            destination_mac_addresses: List[str] = [
+                args.target_mac,  # Target MAC address
+                'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+                '33:33:00:00:00:01',  # IPv6 multicast MAC address
+                '01:00:5e:00:00:01',  # IPv4 multicast MAC address
+            ]
+        elif args.only_broadcast:
+            # Only Broadcast packets
+            destination_mac_addresses: List[str] = [
+                'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+            ]
+        elif args.only_multicast:
+            # Only Multicast packets
+            destination_mac_addresses: List[str] = [
+                '33:33:00:00:00:01',  # IPv6 multicast MAC address
+                '01:00:5e:00:00:01',  # IPv4 multicast MAC address
+            ]
+        else:
+            # Short list
+            destination_mac_addresses: List[str] = [
+                args.target_mac,  # Target MAC address
+            ]
 
         source_mac_addresses: List[str] = [
             your_mac_address  # Your MAC address
