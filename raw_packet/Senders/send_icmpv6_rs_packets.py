@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from raw_packet.Utils.base import Base
 from argparse import ArgumentParser
