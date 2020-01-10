@@ -86,8 +86,8 @@ git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
 sudo apt update && sudo apt install -y python3 python3-pip python3-scapy \
                                        python3-netifaces python-ipaddress \
                                        python3-netaddr python3-psutil \
-                                       python3-prettytable php lsof \
-                                       net-tools wireless-tools \
+                                       python3-prettytable python3-distro
+                                       php lsof net-tools wireless-tools \
                                        nmap aircrack-ng
 ```
 

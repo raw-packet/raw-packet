@@ -3813,8 +3813,8 @@ class RawDHCPv6:
                     'duid-type': int(option_detailed[0]),
                     'hardware-type': int(option_detailed[1]),
                     'duid-time': int(option_detailed[2]),
-                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[3])),
-                    'raw': hexlify(packet[offset:offset+option_length])
+                    'mac-address': self.eth.convert_mac(option_detailed[3]),
+                    'raw': packet[offset:offset+option_length]
                 }
 
             elif option_type == 2:
@@ -3822,8 +3822,8 @@ class RawDHCPv6:
                 option_value = {
                     'duid-type': int(option_detailed[0]),
                     'duid-time': int(option_detailed[1]),
-                    'mac-address': self.eth.convert_mac(hexlify(option_detailed[2])),
-                    'raw': hexlify(packet[offset:offset+option_length])
+                    'mac-address': self.eth.convert_mac(option_detailed[2]),
+                    'raw': packet[offset:offset+option_length]
                 }
 
             elif option_type == 3:
@@ -3845,7 +3845,7 @@ class RawDHCPv6:
                 }
 
             else:
-                option_value = hexlify(packet[offset:offset + option_length])
+                option_value = packet[offset:offset + option_length]
 
             offset += option_length
 
@@ -5148,13 +5148,12 @@ class RawSniff:
         # region Start sniffing
         while True:
 
-            # region Try
-            try:
+            # region Sniff packets from RAW socket
+            packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(65535)
+            for packet in packets:
 
-                # region Sniff packets from RAW socket
-                packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(65535)
-
-                for packet in packets:
+                # region Try
+                try:
 
                     # region Parse Ethernet header
                     ethernet_header: Union[bytes, Any] = packet[0:self.eth.header_length]
@@ -5564,17 +5563,17 @@ class RawSniff:
 
                 # endregion
 
-            # endregion
+                # region Exception - KeyboardInterrupt
+                except KeyboardInterrupt:
+                    self.Base.print_info('Exit')
+                    exit(0)
+                # endregion
 
-            # region Exception - KeyboardInterrupt
-            except KeyboardInterrupt:
-                self.Base.print_info('Exit')
-                exit(0)
-            # endregion
+                # region Exception - AssertionError
+                except AssertionError:
+                    pass
+                # endregion
 
-            # region Exception - AssertionError
-            except AssertionError:
-                pass
             # endregion
 
         # endregion
