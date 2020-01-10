@@ -6,7 +6,7 @@
 arp_spoof.py: ARP spoofing script
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -22,7 +22,7 @@ from typing import Union, List, Dict
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
 __version__ = '0.2.1'

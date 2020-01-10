@@ -3,7 +3,7 @@
 test_dns_server.py: DNS server in Raw sockets
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -28,7 +28,7 @@ from json.decoder import JSONDecodeError
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
 __version__ = '0.2.1'

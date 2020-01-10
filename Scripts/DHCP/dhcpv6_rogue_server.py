@@ -6,7 +6,7 @@
 dhcpv6_rogue_server.py: Rogue SLAAC/DHCPv6 server
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -38,7 +38,7 @@ import subprocess as sub
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
 __version__ = '0.2.1'

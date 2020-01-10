@@ -3,7 +3,7 @@
 test_base.py: Base class for Raw-packet project
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -31,7 +31,7 @@ from typing import Dict, List, Union
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
 __version__ = '0.2.1'
@@ -95,7 +95,7 @@ class Base:
         print(green_color + "                        |_|                      v" + current_version + end_color)
         print(yellow_color + "\r\n             https://raw-packet.github.io/\r\n" + end_color)
 
-    def color_print(self, color: str = 'blue', *strings: str) -> None:
+    def _color_print(self, color: str = 'blue', *strings: str) -> None:
         """
         Print colored text in console
         :param color: Set color: blue, red, orange, green (default: blue)
@@ -104,12 +104,14 @@ class Base:
         """
         if color == 'blue':
             stdout.write(self.c_info)
-        if color == 'red':
+        elif color == 'red':
             stdout.write(self.c_error)
-        if color == 'orange':
+        elif color == 'orange':
             stdout.write(self.c_warning)
-        if color == 'green':
+        elif color == 'green':
             stdout.write(self.c_success)
+        else:
+            stdout.write(self.c_info)
         for index in range(len(strings)):
             if index % 2 == 0:
                 stdout.write(strings[index])
@@ -125,39 +127,7 @@ class Base:
                 stdout.write(strings[index] + self.cEND)
         stdout.write('\n')
 
-    def print_info(self, *strings: str) -> None:
-        """
-        Print informational text in console
-        :param strings: Strings for printing in console
-        :return: None
-        """
-        self.color_print('blue', *strings)
-
-    def print_error(self, *strings: str) -> None:
-        """
-        Print error text in console
-        :param strings: Strings for printing in console
-        :return: None
-        """
-        self.color_print('red', *strings)
-
-    def print_warning(self, *strings: str) -> None:
-        """
-        Print warning text in console
-        :param strings: Strings for printing in console
-        :return: None
-        """
-        self.color_print('orange', *strings)
-
-    def print_success(self, *strings: str) -> None:
-        """
-        Print success text in console
-        :param strings: Strings for printing in console
-        :return: None
-        """
-        self.color_print('green', *strings)
-
-    def color_text(self, color: str = 'blue', string: str = '') -> str:
+    def _color_text(self, color: str = 'blue', string: str = '') -> str:
         """
         Make colored string
         :param color: Set color: blue, red, orange, green (default: blue)
@@ -166,12 +136,46 @@ class Base:
         """
         if color == 'blue':
             return self.cINFO + string + self.cEND
-        if color == 'red':
+        elif color == 'red':
             return self.cERROR + string + self.cEND
-        if color == 'orange':
+        elif color == 'orange':
             return self.cWARNING + string + self.cEND
-        if color == 'green':
+        elif color == 'green':
             return self.cSUCCESS + string + self.cEND
+        else:
+            return self.cINFO + string + self.cEND
+
+    def print_info(self, *strings: str) -> None:
+        """
+        Print informational text in console
+        :param strings: Strings for printing in console
+        :return: None
+        """
+        self._color_print('blue', *strings)
+
+    def print_error(self, *strings: str) -> None:
+        """
+        Print error text in console
+        :param strings: Strings for printing in console
+        :return: None
+        """
+        self._color_print('red', *strings)
+
+    def print_warning(self, *strings: str) -> None:
+        """
+        Print warning text in console
+        :param strings: Strings for printing in console
+        :return: None
+        """
+        self._color_print('orange', *strings)
+
+    def print_success(self, *strings: str) -> None:
+        """
+        Print success text in console
+        :param strings: Strings for printing in console
+        :return: None
+        """
+        self._color_print('green', *strings)
 
     def info_text(self, text: str) -> str:
         """
@@ -179,7 +183,7 @@ class Base:
         :param text: Input string (example: 'test')
         :return: Colored string (example: '\033[1;34mtest\033[0m')
         """
-        return self.color_text('blue', text)
+        return self._color_text('blue', text)
 
     def error_text(self, text: str) -> str:
         """
@@ -187,7 +191,7 @@ class Base:
         :param text: Input string (example: 'test')
         :return: Colored string (example: '\033[1;31mtest\033[0m')
         """
-        return self.color_text('red', text)
+        return self._color_text('red', text)
 
     def warning_text(self, text: str) -> str:
         """
@@ -195,7 +199,7 @@ class Base:
         :param text: Input string (example: 'test')
         :return: Colored string (example: '\033[1;32mtest\033[0m')
         """
-        return self.color_text('orange', text)
+        return self._color_text('orange', text)
 
     def success_text(self, text: str) -> str:
         """
@@ -203,7 +207,8 @@ class Base:
         :param text: Input string (example: 'test')
         :return: Colored string (example: '\033[1;33mtest\033[0m')
         """
-        return self.color_text('green', text)
+        return self._color_text('green', text)
+
     # endregion
 
     # region Check platform and user functions
@@ -1064,7 +1069,7 @@ class Base:
         return None
 
     def check_installed_software(self,
-                                 software_name: str = 'python3',
+                                 software_name: str = 'apache2',
                                  exit_on_failure: bool = True,
                                  exit_code: int = 26,
                                  quiet: bool = False) -> bool:
