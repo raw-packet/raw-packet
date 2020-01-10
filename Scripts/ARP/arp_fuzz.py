@@ -104,7 +104,7 @@ def update_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
 # endregion
 
 
-# region Check mac of IPv4 gateway over ssh
+# region Check MAC address of IPv4 gateway over ssh
 def check_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
                                             target_os: str = 'MacOS',
                                             gateway_ipv4_address: str = '192.168.0.254',
@@ -222,16 +222,19 @@ if __name__ == '__main__':
         ssh_client: SSHClient = SSHClient()
         ssh_client.set_missing_host_key_policy(AutoAddPolicy)
 
-        if args.target_ssh_pkey is None:
+        if args.target_ssh_pkey is None and args.target_ssh_pass is None:
             default_private_key_file: str = str(Path.home()) + '/.ssh/id_rsa'
             assert isfile(default_private_key_file), \
                 'Could not found private SSH key: ' + base.error_text(default_private_key_file)
             private_key = RSAKey.from_private_key_file(default_private_key_file)
-        else:
+
+        if args.target_ssh_pkey is not None:
             private_key = RSAKey.from_private_key_file(args.target_ssh_pkey)
 
         assert private_key is not None or args.target_ssh_pass is not None, \
-            'Password and private key file for SSH is None!'
+            'Password and private key file for SSH is None!' + \
+            ' Please set SSH password: ' + base.info_text('--target_ssh_pass <ssh_password>') + \
+            ' or SSH private key file: ' + base.info_text('--target_ssh_pkey <ssh_pkey_path>')
 
         if args.target_ssh_pass is not None:
             ssh_client.connect(hostname=args.target_ip, username=args.target_ssh_user, password=args.target_ssh_pass)
@@ -423,6 +426,7 @@ if __name__ == '__main__':
             # Short list
             destination_mac_addresses: List[str] = [
                 args.target_mac,  # Target MAC address
+                'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
             ]
 
         source_mac_addresses: List[str] = [
