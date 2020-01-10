@@ -41,6 +41,13 @@ __status__ = 'Development'
 def get_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
                                           target_os: str = 'MacOS',
                                           gateway_ipv4_address: str = '192.168.0.254') -> Union[None, str]:
+    """
+    Get MAC address of IPv4 gateway in target host over SSH
+    :param connected_ssh_client: Already connected SSH client
+    :param target_os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+    :param gateway_ipv4_address: IPv4 address of gateway
+    :return: None if error or MAC address string
+    """
     gateway_mac_address: Union[None, str] = None
     try:
         if target_os == 'Windows':
@@ -86,6 +93,14 @@ def update_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
                                              target_os: str = 'MacOS',
                                              gateway_ipv4_address: str = '192.168.0.254',
                                              real_gateway_mac_address: str = '12:34:56:78:90:ab') -> bool:
+    """
+    Update ARP table on target host over SSH after spoofing
+    :param connected_ssh_client: Already connected SSH client
+    :param target_os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+    :param gateway_ipv4_address: IPv4 address of gateway
+    :param real_gateway_mac_address: Real IPv4 gateway MAC address
+    :return: True if MAC address is changed or False if error
+    """
     connected_ssh_client.exec_command('arp -d ' + gateway_ipv4_address)
     if target_os == 'MacOS' or target_os == 'Linux':
         connected_ssh_client.exec_command('ping -c 1 ' + gateway_ipv4_address)
@@ -111,6 +126,16 @@ def check_ipv4_gateway_mac_address_over_ssh(connected_ssh_client: SSHClient,
                                             real_gateway_mac_address: str = '12:34:56:78:90:ab',
                                             test_parameters: Union[None, Dict[str, Dict[str, Union[int, str]]]] = None,
                                             test_parameters_index: int = 0) -> None:
+    """
+    Check MAC address of IPv4 gateway in target host over SSH
+    :param connected_ssh_client: Already connected SSH client
+    :param target_os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+    :param gateway_ipv4_address: IPv4 address of gateway
+    :param real_gateway_mac_address: Real IPv4 gateway MAC address
+    :param test_parameters: Dictionary of tested parameters
+    :param test_parameters_index: Index of current test
+    :return: None
+    """
     current_gateway_mac_address: str = get_ipv4_gateway_mac_address_over_ssh(
         connected_ssh_client=connected_ssh_client,
         target_os=target_os,
