@@ -648,7 +648,7 @@ def reply(request):
 if __name__ == "__main__":
 
     # region Send ICMPv6 advertise packets in other thread
-    # tm.add_task(send_icmpv6_advertise_packets)
+    tm.add_task(send_icmpv6_advertise_packets)
     # endregion
 
     # region Add multicast MAC addresses on interface
