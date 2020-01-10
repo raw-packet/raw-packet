@@ -51,8 +51,8 @@ def disconnect_device(network_interface, ip_address, mac_address,
     if not use_deauth_technique:
         # Start Network conflict creator script
         sub.Popen(['python3 ' + project_root_path + '/Scripts/Others/network_conflict_creator.py' +
-                   ' --interface ' + network_interface + ' --target_ip ' + ip_address + ' --target_mac ' + mac_address +
-                   ' --requests --quiet --exit &'],
+                   ' --interface ' + network_interface + ' --target_ip ' + ip_address +
+                   ' --target_mac ' + mac_address + ' --requests --quiet --exit &'],
                   shell=True)
 
     else:
@@ -147,9 +147,9 @@ def rogue_dhcp_server_predict_trid(network_interface, target_mac_address, new_ta
 def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_global_ipv6_address):
 
     # Start DHCPv6 rogue server
-    sub.Popen(['python ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' + network_interface +
-               ' --prefix ' + prefix + ' --target_ip ' + target_global_ipv6_address +
-               ' --target_mac ' + target_mac_address + ' --quiet &'],
+    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' +
+               network_interface + ' --prefix ' + prefix + ' --target_ip ' +
+               target_global_ipv6_address + ' --target_mac ' + target_mac_address + ' --quiet &'],
               shell=True)
 
     # Wait 3 seconds
