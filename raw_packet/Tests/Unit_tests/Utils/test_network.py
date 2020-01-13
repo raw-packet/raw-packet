@@ -8,10 +8,7 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
 import unittest
-path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Authorship information
