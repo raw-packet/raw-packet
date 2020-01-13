@@ -48,6 +48,8 @@ class Variables:
     apple_device_username: str = 'user'
 
     bad_network_interface: str = 'wlan123'
+    bad_mac_address: str = '12:34:56:78:90:abc'
     bad_ipv4_address: str = '192.168.0.1234'
+    bad_ipv6_address: str = 'fd00:::123'
 
 # endregion
