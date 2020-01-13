@@ -15,6 +15,8 @@ from subprocess import run, PIPE
 from netaddr import IPNetwork
 from time import sleep
 from typing import List
+from sys import path
+from os.path import dirname, abspath
 import unittest
 # endregion
 
@@ -34,6 +36,7 @@ __status__ = 'Development'
 class BaseTest(unittest.TestCase):
 
     # region Properties
+    path.append(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
     from raw_packet.Utils.base import Base
     from raw_packet.Tests.Unit_tests.variables import Variables
     base: Base = Base()

@@ -8,6 +8,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
+from sys import path
+from os.path import dirname, abspath
 import unittest
 # endregion
 
@@ -27,6 +29,7 @@ __status__ = 'Development'
 class NetworkTest(unittest.TestCase):
 
     # region Properties
+    path.append(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4,  RawUDP, RawDNS, RawICMPv4, RawDHCPv4
     from raw_packet.Utils.network import RawIPv6, RawICMPv6, RawDHCPv6

@@ -8,6 +8,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
+from sys import path
+from os.path import dirname, abspath
 import unittest
 # endregion
 
@@ -27,6 +29,7 @@ __status__ = 'Development'
 class ArpScanTest(unittest.TestCase):
 
     # region Properties
+    path.append(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
     from raw_packet.Scanners.arp_scanner import ArpScan
     from raw_packet.Tests.Unit_tests.variables import Variables
     arp_scan: ArpScan = ArpScan()

@@ -14,6 +14,8 @@ from subprocess import Popen, PIPE
 from typing import List, Dict
 from json import dump
 from os import remove
+from sys import path
+from os.path import dirname, abspath
 import unittest
 # endregion
 
@@ -33,6 +35,7 @@ __status__ = 'Development'
 class DnsServerTest(unittest.TestCase):
 
     # region Properties
+    path.append(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.tm import ThreadManager
     from raw_packet.Servers.dns_server import RawDnsServer
