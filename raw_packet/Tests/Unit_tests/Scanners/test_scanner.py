@@ -8,11 +8,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
 from unittest.mock import patch
 import unittest
-path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Authorship information
@@ -32,17 +29,11 @@ class ScannerTest(unittest.TestCase):
 
     # region Properties
     from raw_packet.Scanners.scanner import Scanner
+    from raw_packet.Tests.Unit_tests.variables import Variables
     scanner: Scanner = Scanner()
-
-    # region Must change this value for your test
-    network_interface: str = 'wlan0'
-    router_ipv4_address: str = '192.168.0.254'
-    apple_device_mac_address: str = 'd8:96:95:f3:b4:67'
     # endregion
 
-    # endregion
-
-    def test_apple_device_selection(self):
+    def test01_apple_device_selection(self):
         apple_devices = [['192.168.0.1', '12:34:56:78:90:ab', 'Apple, Inc.'],
                          ['192.168.0.2', '12:34:56:78:90:ac', 'Apple, Inc.']]
         bad_apple_devices = [['192.168.0.1', '12:34:56:78:90:ab', 'Apple, Inc.'],
@@ -75,7 +66,7 @@ class ScannerTest(unittest.TestCase):
             selection_result = self.scanner.apple_device_selection(apple_devices)
             self.assertEqual(apple_devices[1], selection_result)
 
-    def test_ipv6_device_selection(self):
+    def test02_ipv6_device_selection(self):
         ipv6_devices = [{'ip-address': 'fd00::1', 'mac-address': '12:34:56:78:90:ab', 'vendor': 'Apple Inc.'},
                         {'ip-address': 'fd00::2', 'mac-address': '12:34:56:78:90:ac', 'vendor': 'Apple Inc.'}]
         bad_ipv6_devices1 = [{'ip-address': 'fd00::1', 'mac-address': '12:34:56:78:90:ab', 'vendor': 'Apple Inc.'},
@@ -109,47 +100,52 @@ class ScannerTest(unittest.TestCase):
         with patch('builtins.input', return_value='2'):
             self.assertEqual(self.scanner.ipv6_device_selection(ipv6_devices), ipv6_devices[1])
 
-    def test_find_ip_in_local_network(self):
-        scan_result = self.scanner.find_ip_in_local_network(network_interface=self.network_interface)
+    def test03_find_ip_in_local_network(self):
+        scan_result = \
+            self.scanner.find_ip_in_local_network(network_interface=ScannerTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_result)
-        self.assertIn(self.router_ipv4_address, scan_result)
+        self.assertIn(ScannerTest.Variables.router_ipv4_address, scan_result)
 
-    def test_find_apple_devices_by_mac(self):
-        scan_results = self.scanner.find_apple_devices_by_mac(network_interface=self.network_interface)
+    def test04_find_apple_devices_by_mac(self):
+        scan_results = \
+            self.scanner.find_apple_devices_by_mac(network_interface=ScannerTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_results)
         find_apple_device: bool = False
         for scan_result in scan_results:
-            if self.apple_device_mac_address in scan_result:
+            if ScannerTest.Variables.apple_device_mac_address in scan_result:
                 find_apple_device = True
                 break
         self.assertTrue(find_apple_device)
 
-    def test_find_apple_devices_by_mac_ipv6(self):
-        scan_results = self.scanner.find_apple_devices_by_mac_ipv6(network_interface=self.network_interface)
+    def test05_find_apple_devices_by_mac_ipv6(self):
+        scan_results = \
+            self.scanner.find_apple_devices_by_mac_ipv6(network_interface=ScannerTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_results)
         find_apple_device: bool = False
         for scan_result in scan_results:
-            if self.apple_device_mac_address in scan_result:
+            if ScannerTest.Variables.apple_device_mac_address in scan_result:
                 find_apple_device = True
                 break
         self.assertTrue(find_apple_device)
 
-    def test_find_ipv6_devices(self):
-        scan_results = self.scanner.find_ipv6_devices(network_interface=self.network_interface)
+    def test06_find_ipv6_devices(self):
+        scan_results = \
+            self.scanner.find_ipv6_devices(network_interface=ScannerTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_results)
         find_apple_device: bool = False
         for scan_result in scan_results:
-            if self.apple_device_mac_address == scan_result['mac-address']:
+            if ScannerTest.Variables.apple_device_mac_address == scan_result['mac-address']:
                 find_apple_device = True
                 break
         self.assertTrue(find_apple_device)
 
-    def test_find_apple_devices_with_nmap(self):
-        scan_results = self.scanner.find_apple_devices_with_nmap(network_interface=self.network_interface)
+    def test07_find_apple_devices_with_nmap(self):
+        scan_results = \
+            self.scanner.find_apple_devices_with_nmap(network_interface=ScannerTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_results)
         find_apple_device: bool = False
         for scan_result in scan_results:
-            if self.apple_device_mac_address in scan_result:
+            if ScannerTest.Variables.apple_device_mac_address in scan_result:
                 find_apple_device = True
                 break
         self.assertTrue(find_apple_device)

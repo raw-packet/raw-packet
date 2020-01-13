@@ -8,10 +8,7 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
 import unittest
-path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Authorship information
@@ -31,21 +28,18 @@ class ICMPv6ScanTest(unittest.TestCase):
 
     # region Properties
     from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+    from raw_packet.Tests.Unit_tests.variables import Variables
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
-
-    # region Must change this value for your test
-    network_interface: str = 'wlan0'
-    ipv6_router_mac_address: str = 'c4:a8:1d:8a:f9:b0'
     # endregion
 
-    # endregion
-
-    def test_scan(self):
-        scan_result = self.icmpv6_scan.scan(network_interface=self.network_interface)
+    def test01_scan(self):
+        scan_result = self.icmpv6_scan.scan(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
         self.assertIsNotNone(scan_result)
 
-    def test_search_router(self):
-        ipv6_router_info = self.icmpv6_scan.search_router(network_interface=self.network_interface)
+    def test02_search_router(self):
+        ipv6_router_info = \
+            self.icmpv6_scan.search_router(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
         self.assertTrue('router_mac_address' in ipv6_router_info.keys())
-        self.assertEqual(ipv6_router_info['router_mac_address'], self.ipv6_router_mac_address)
+        self.assertEqual(ipv6_router_info['router_mac_address'], ICMPv6ScanTest.Variables.router_mac_address)
+
 # endregion

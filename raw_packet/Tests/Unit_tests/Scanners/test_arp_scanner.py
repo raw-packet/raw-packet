@@ -8,10 +8,7 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
 import unittest
-path.append(dirname(dirname(abspath(__file__))))
 # endregion
 
 # region Authorship information
@@ -33,46 +30,40 @@ class ArpScanTest(unittest.TestCase):
     from raw_packet.Scanners.arp_scanner import ArpScan
     from raw_packet.Tests.Unit_tests.variables import Variables
     arp_scan: ArpScan = ArpScan()
-
-    # region Must change this value for your test
-    network_interface: str = Variables.test_network_interface
-    router_ipv4_address: str = Variables.router_ipv4_address
-    router_mac_address: str = Variables.router_mac_address
     # endregion
 
-    # endregion
-
-    def test_scan(self):
-        arp_scan_results = self.arp_scan.scan(network_interface=self.network_interface, timeout=1, retry=1,
-                                              show_scan_percentage=False)
+    def test01_scan(self):
+        arp_scan_results = self.arp_scan.scan(network_interface=ArpScanTest.Variables.test_network_interface,
+                                              timeout=1, retry=1, show_scan_percentage=False)
         find_router_mac: bool = False
         find_router_ip: bool = False
         for arp_scan_result in arp_scan_results:
-            if arp_scan_result['mac-address'] == self.router_mac_address:
+            if arp_scan_result['mac-address'] == ArpScanTest.Variables.router_mac_address:
                 find_router_mac = True
-            if arp_scan_result['ip-address'] == self.router_ipv4_address:
+            if arp_scan_result['ip-address'] == ArpScanTest.Variables.router_ipv4_address:
                 find_router_ip = True
         self.assertTrue(find_router_mac)
         self.assertTrue(find_router_ip)
 
-    def test_scan_with_exclude(self):
-        arp_scan_results = self.arp_scan.scan(network_interface=self.network_interface, timeout=1, retry=1,
-                                              show_scan_percentage=False,
-                                              exclude_ip_addresses=[self.router_ipv4_address])
+    def test02_scan_with_exclude(self):
+        arp_scan_results = self.arp_scan.scan(network_interface=ArpScanTest.Variables.test_network_interface, 
+                                              timeout=1, retry=1, show_scan_percentage=False,
+                                              exclude_ip_addresses=[ArpScanTest.Variables.router_ipv4_address],
+                                              exit_on_failure=False)
         find_router_mac: bool = False
         find_router_ip: bool = False
         for arp_scan_result in arp_scan_results:
-            if arp_scan_result['mac-address'] == self.router_mac_address:
+            if arp_scan_result['mac-address'] == ArpScanTest.Variables.router_mac_address:
                 find_router_mac = True
-            if arp_scan_result['ip-address'] == self.router_ipv4_address:
+            if arp_scan_result['ip-address'] == ArpScanTest.Variables.router_ipv4_address:
                 find_router_ip = True
         self.assertFalse(find_router_mac)
         self.assertFalse(find_router_ip)
 
-    def test_get_mac_address(self):
-        mac_address = self.arp_scan.get_mac_address(network_interface=self.network_interface,
-                                                    target_ip_address=self.router_ipv4_address,
+    def test03_get_mac_address(self):
+        mac_address = self.arp_scan.get_mac_address(network_interface=ArpScanTest.Variables.test_network_interface,
+                                                    target_ip_address=ArpScanTest.Variables.router_ipv4_address,
                                                     timeout=1, retry=1, show_scan_percentage=False)
-        self.assertEqual(mac_address, self.router_mac_address)
+        self.assertEqual(mac_address, ArpScanTest.Variables.router_mac_address)
 
 # endregion
