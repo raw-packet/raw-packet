@@ -23,7 +23,6 @@ __status__ = 'Development'
 class Variables:
 
     test_network_interface: str = 'wlan0'
-    bad_network_interface: str = 'wlan123'
 
     ipv4_network_mask: str = '255.255.255.0'
     ipv4_broadcast: str = '192.168.1.255'
@@ -47,5 +46,8 @@ class Variables:
     apple_device_ipv4_address: str = '192.168.1.3'
     apple_device_ipv6_link_address: str = 'fe80::444:83c5:5bb:58f3'
     apple_device_username: str = 'user'
+
+    bad_network_interface: str = 'wlan123'
+    bad_ipv4_address: str = '192.168.0.1234'
 
 # endregion
