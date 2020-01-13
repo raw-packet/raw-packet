@@ -79,7 +79,7 @@ class DnsServerTest(unittest.TestCase):
     result_addresses: List[str] = list()
     # endregion
 
-    def test_resolve_ipv4_fake_domain(self):
+    def test01_resolve_ipv4_fake_domain(self):
         for fake_domain in self.fake_domains:
             answers = self.test_ipv6_resolver.query(fake_domain, A)
             for answer in answers:
@@ -87,7 +87,7 @@ class DnsServerTest(unittest.TestCase):
             self.assertEqual(self.result_addresses, self.fake_ipv4_addresses)
             self.result_addresses.clear()
 
-    def test_resolve_ipv6_fake_domain(self):
+    def test02_resolve_ipv6_fake_domain(self):
         for fake_domain in self.fake_domains:
             answers = self.test_ipv6_resolver.query(fake_domain, AAAA)
             for answer in answers:
@@ -95,14 +95,14 @@ class DnsServerTest(unittest.TestCase):
             self.assertEqual(self.result_addresses, self.fake_ipv6_addresses)
             self.result_addresses.clear()
 
-    def test_resolve_no_such_domain(self):
+    def test03_resolve_no_such_domain(self):
         for no_such_domain in self.no_such_domains:
             nslookup_process = Popen(['nslookup', no_such_domain, self.ipv6_address], stdout=PIPE, stderr=PIPE)
             (nslookup_stdout, nslookup_stderr) = nslookup_process.communicate()
             nslookup_stdout: str = nslookup_stdout.decode('utf-8')
             self.assertIn('server can\'t find ' + no_such_domain, nslookup_stdout)
 
-    def test_resolve_ipv4_real_domain(self):
+    def test04_resolve_ipv4_real_domain(self):
         for real_domain in self.real_domains:
             answers = self.test_ipv6_resolver.query(real_domain, A)
             for answer in answers:
@@ -111,7 +111,7 @@ class DnsServerTest(unittest.TestCase):
             self.assertNotEqual(len(self.result_addresses), 0)
             self.result_addresses.clear()
 
-    def test_resolve_ipv6_real_domain(self):
+    def test05_resolve_ipv6_real_domain(self):
         for real_domain in self.real_domains:
             answers = self.test_ipv6_resolver.query(real_domain, AAAA)
             for answer in answers:
@@ -120,7 +120,7 @@ class DnsServerTest(unittest.TestCase):
             self.assertNotEqual(len(self.result_addresses), 0)
             self.result_addresses.clear()
 
-    def test_resolve_config_domains(self):
+    def test06_resolve_config_domains(self):
         for config_fake_domain in self.config_fake_domains:
 
             answers = self.test_ipv6_resolver.query(config_fake_domain, A)

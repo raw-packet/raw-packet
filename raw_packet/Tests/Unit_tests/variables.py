@@ -46,5 +46,6 @@ class Variables:
     apple_device_mac_address: str = '8c:85:90:26:02:be'
     apple_device_ipv4_address: str = '192.168.1.3'
     apple_device_ipv6_link_address: str = 'fe80::444:83c5:5bb:58f3'
+    apple_device_username: str = 'user'
 
 # endregion
