@@ -8,20 +8,6 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-
-# region Add project root path
-from sys import path
-from os.path import dirname, abspath
-path.append(dirname(dirname(abspath(__file__))))
-# endregion
-
-# region Raw-packet modules
-from raw_packet.Utils.base import Base
-from raw_packet.Utils.tm import ThreadManager
-from raw_packet.Servers.dns_server import RawDnsServer
-# endregion
-
-# region Import libraries
 from dns.resolver import Resolver
 from dns.rdatatype import A, AAAA, NS, MX
 from subprocess import Popen, PIPE
@@ -29,8 +15,6 @@ from typing import List, Dict
 from json import dump
 from os import remove
 import unittest
-# endregion
-
 # endregion
 
 # region Authorship information
@@ -49,6 +33,10 @@ __status__ = 'Development'
 class DnsServerTest(unittest.TestCase):
 
     # region Properties
+    from raw_packet.Utils.base import Base
+    from raw_packet.Utils.tm import ThreadManager
+    from raw_packet.Servers.dns_server import RawDnsServer
+
     base: Base = Base()
     tm: ThreadManager = ThreadManager(2)
     dns_server: RawDnsServer = RawDnsServer()
