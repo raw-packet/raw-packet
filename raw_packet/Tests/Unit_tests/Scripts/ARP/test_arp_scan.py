@@ -9,6 +9,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from os.path import dirname, abspath
+from sys import path
 from subprocess import run, PIPE
 import unittest
 # endregion
@@ -29,8 +30,9 @@ __status__ = 'Development'
 class ScriptArpScanTest(unittest.TestCase):
 
     # region Properties
-    from raw_packet.Tests.Unit_tests.variables import Variables
     root_path = dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
+    path.append(root_path)
+    from raw_packet.Tests.Unit_tests.variables import Variables
     # endregion
 
     def test01_main(self):
