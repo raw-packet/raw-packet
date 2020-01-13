@@ -31,12 +31,13 @@ class ArpScanTest(unittest.TestCase):
 
     # region Properties
     from raw_packet.Scanners.arp_scanner import ArpScan
+    from raw_packet.Tests.Unit_tests.variables import Variables
     arp_scan: ArpScan = ArpScan()
 
     # region Must change this value for your test
-    network_interface: str = 'wlan0'
-    router_ipv4_address: str = '192.168.0.254'
-    router_mac_address: str = 'c4:a8:1d:8a:f9:b0'
+    network_interface: str = Variables.test_network_interface
+    router_ipv4_address: str = Variables.router_ipv4_address
+    router_mac_address: str = Variables.router_mac_address
     # endregion
 
     # endregion
