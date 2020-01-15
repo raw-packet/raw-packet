@@ -36,13 +36,24 @@ class ICMPv6ScanTest(unittest.TestCase):
     # endregion
 
     def test01_scan(self):
-        scan_result = self.icmpv6_scan.scan(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
-        self.assertIsNotNone(scan_result)
+        icmpv6_scan_results = self.icmpv6_scan.scan(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
+        self.assertIsNotNone(icmpv6_scan_results)
+        self.assertTrue(len(icmpv6_scan_results) > 0)
+        find_router_mac: bool = False
+        find_router_ip: bool = False
+        for icmpv6_scan_result in icmpv6_scan_results:
+            if icmpv6_scan_result['mac-address'] == ICMPv6ScanTest.Variables.router_mac_address:
+                find_router_mac = True
+            if icmpv6_scan_result['ip-address'] == ICMPv6ScanTest.Variables.router_ipv6_link_address:
+                find_router_ip = True
+        self.assertTrue(find_router_mac)
+        self.assertTrue(find_router_ip)
 
     def test02_search_router(self):
         ipv6_router_info = \
             self.icmpv6_scan.search_router(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
         self.assertTrue('router_mac_address' in ipv6_router_info.keys())
         self.assertEqual(ipv6_router_info['router_mac_address'], ICMPv6ScanTest.Variables.router_mac_address)
+        self.assertEqual(ipv6_router_info['router_ipv6_address'], ICMPv6ScanTest.Variables.router_ipv6_link_address)
 
 # endregion

@@ -38,6 +38,7 @@ class ArpScanTest(unittest.TestCase):
     def test01_scan(self):
         arp_scan_results = self.arp_scan.scan(network_interface=ArpScanTest.Variables.test_network_interface,
                                               timeout=1, retry=1, show_scan_percentage=False)
+        self.assertIsNotNone(arp_scan_results)
         find_router_mac: bool = False
         find_router_ip: bool = False
         for arp_scan_result in arp_scan_results:
