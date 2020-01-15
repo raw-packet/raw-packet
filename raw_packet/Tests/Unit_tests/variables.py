@@ -32,6 +32,7 @@ class Variables:
     ipv4_penultimate_address: str = '192.168.1.253'
     ipv4_last_address: str = '192.168.1.254'
 
+    router_vendor: str = 'Tp-Link Technologies'
     router_mac_address: str = '3c:46:d8:82:7b:27'
     router_ipv4_address: str = '192.168.1.1'
     router_ipv6_link_address: str = 'fe80::3e46:d8ff:fe82:7b27'
