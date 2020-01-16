@@ -15,6 +15,7 @@ from time import sleep
 from os import kill
 from signal import SIGTERM
 from sys import path
+from re import sub
 import unittest
 # endregion
 
@@ -39,68 +40,55 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
     from raw_packet.Utils.base import Base
     from raw_packet.Tests.Unit_tests.variables import Variables
     base: Base = Base()
-    # network_interface: str = 'wlan0'
-    # your_mac_address: str = base.get_interface_mac_address(network_interface)
-    # your_ipv6_address: str = base.get_interface_ipv6_link_address(network_interface)
-    router_ipv6_address: str = 'fe80::c6a8:1dff:fe8a:f9b0'
-    router_mac_address: str = 'c4:a8:1d:8a:f9:b0'
-    target_ipv4_address: str = '192.168.0.4'
-    target_mac_address: str = 'd8:96:95:f3:b4:67'
-    target_username: str = 'vladimir'
-    bad_network_interface: str = 'wlan0123'
-    bad_mac_address: str = '01:23:45:67:89:0ab'
-    bad_ipv6_address1: str = 'fd00:::123'
-    bad_ipv6_address2: str = 'fd00::123'
     # endregion
-
-    @staticmethod
-    def convert_mac(mac_address: str) -> str:
-        address_in_macos_arp_table: str = ''
-        for part_of_address in mac_address.split(':'):
-            if part_of_address[0] == '0':
-                address_in_macos_arp_table += part_of_address[1] + ':'
-            else:
-                address_in_macos_arp_table += part_of_address + ':'
-        return address_in_macos_arp_table[:-1]
 
     def get_ipv6_router_mac_address_over_ssh(self) -> str:
         gateway_mac_address: str = ''
-        target_command = run(['ssh ' + self.target_username + '@' + self.target_ipv4_address +
-                              ' "ndp -an | grep ' + self.router_ipv6_address + '"'],
+        target_command = run(['ssh ' + ScriptICMPV6ScanTest.Variables.apple_device_username + '@' + 
+                              ScriptICMPV6ScanTest.Variables.apple_device_ipv4_address + ' "ndp -an | grep ' + 
+                              ScriptICMPV6ScanTest.Variables.router_ipv6_link_address + '"'],
                              shell=True, stdout=PIPE, stderr=STDOUT)
-        target_ndp_table: bytes = target_command.stdout
-        target_ndp_table: str = target_ndp_table.decode('utf-8')
+        target_ndp_table: str = target_command.stdout.decode('utf-8')
+        target_ndp_table: str = sub(r' +', ' ', target_ndp_table)
         target_ndp_table: List[str] = target_ndp_table.split(' ')
         try:
-            return target_ndp_table[3]
+            return target_ndp_table[1]
         except IndexError:
             return gateway_mac_address
 
-    def test01_router_advertisement(self):
+    def test01_neighbor_advertisement(self):
         current_router_mac_address: str = ''
-        while self.convert_mac(self.router_mac_address) != current_router_mac_address:
+        while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
+                current_router_mac_address:
             current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
             sleep(1)
-        icmpv6_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                              ScriptICMPV6ScanTest.Variables.test_network_interface + 
-                              ' --technique 1 --target_mac ' + self.target_mac_address], shell=True)
+        Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
+               ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 2 --target_mac ' +
+               ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
         sleep(15)
         current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
-        kill(icmpv6_spoof.pid, SIGTERM)
-        self.assertEqual(self.convert_mac(ScriptICMPV6ScanTest.Variables.your_mac_address), current_router_mac_address)
+        while self.base.get_process_pid('/icmpv6_spoof.py') != -1:
+            kill(self.base.get_process_pid('/icmpv6_spoof.py'), SIGTERM)
+            sleep(0.5)
+        self.assertEqual(self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.your_mac_address),
+                         current_router_mac_address)
 
-    def test02_neighbor_advertisement(self):
+    def test02_router_advertisement(self):
         current_router_mac_address: str = ''
-        while self.convert_mac(self.router_mac_address) != current_router_mac_address:
+        while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
+                current_router_mac_address:
             current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
             sleep(1)
-        icmpv6_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                              ScriptICMPV6ScanTest.Variables.test_network_interface +
-                              ' --technique 2 --target_mac ' + self.target_mac_address], shell=True)
+        Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
+               ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+               ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
         sleep(15)
         current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
-        kill(icmpv6_spoof.pid, SIGTERM)
-        self.assertEqual(self.convert_mac(ScriptICMPV6ScanTest.Variables.your_mac_address), current_router_mac_address)
+        while self.base.get_process_pid('/icmpv6_spoof.py') != -1:
+            kill(self.base.get_process_pid('/icmpv6_spoof.py'), SIGTERM)
+            sleep(0.5)
+        self.assertEqual(self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.your_mac_address),
+                         current_router_mac_address)
 
     def test03_bad_interface(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
@@ -111,56 +99,54 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
 
     def test04_bad_target_mac_address(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_mac ' + ScriptICMPV6ScanTest.Variables.bad_mac_address],
-                           shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+                            ScriptICMPV6ScanTest.Variables.bad_mac_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
         self.assertIn(ScriptICMPV6ScanTest.Variables.bad_mac_address, icmpv6_spoof_output)
 
     def test05_target_ip_without_target_mac(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_ip ' + self.bad_ipv6_address1], shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_ip ' +
+                            ScriptICMPV6ScanTest.Variables.bad_ipv6_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
         self.assertIn('target_mac', icmpv6_spoof_output)
 
     def test06_bad_target_ip_address1(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_mac ' + self.target_mac_address +
-                            ' --target_ip ' + self.bad_ipv6_address1], shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+                            ScriptICMPV6ScanTest.Variables.apple_device_mac_address + ' --target_ip ' +
+                            ScriptICMPV6ScanTest.Variables.bad_ipv6_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
-        self.assertIn(self.bad_ipv6_address1, icmpv6_spoof_output)
+        self.assertIn(ScriptICMPV6ScanTest.Variables.bad_ipv6_address, icmpv6_spoof_output)
 
     def test07_bad_target_ip_address2(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_mac ' + self.target_mac_address +
-                            ' --target_ip ' + self.bad_ipv6_address2], shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+                            ScriptICMPV6ScanTest.Variables.apple_device_mac_address + ' --target_ip ' +
+                            ScriptICMPV6ScanTest.Variables.router_ipv6_glob_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
-        self.assertIn(self.bad_ipv6_address2, icmpv6_spoof_output)
+        self.assertIn(ScriptICMPV6ScanTest.Variables.router_ipv6_glob_address, icmpv6_spoof_output)
 
     def test08_bad_target_ip_address3(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_mac ' + self.target_mac_address +
-                            ' --target_ip ' + ScriptICMPV6ScanTest.Variables.router_ipv6_link_address],
-                           shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+                            ScriptICMPV6ScanTest.Variables.apple_device_mac_address + ' --target_ip ' +
+                            ScriptICMPV6ScanTest.Variables.router_ipv6_link_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
         self.assertIn(ScriptICMPV6ScanTest.Variables.router_ipv6_link_address, icmpv6_spoof_output)
 
     def test09_bad_target_ip_address4(self):
         icmpv6_spoof = run(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' + 
-                            ScriptICMPV6ScanTest.Variables.test_network_interface +
-                            ' --technique 1 --target_mac ' + self.target_mac_address +
-                            ' --target_ip ' + self.your_ipv6_address], shell=True, stdout=PIPE)
+                            ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
+                            ScriptICMPV6ScanTest.Variables.apple_device_mac_address + ' --target_ip ' +
+                            ScriptICMPV6ScanTest.Variables.your_ipv6_link_address], shell=True, stdout=PIPE)
         icmpv6_spoof_output: str = icmpv6_spoof.stdout.decode('utf-8')
         print(icmpv6_spoof_output)
-        self.assertIn(self.your_ipv6_address, icmpv6_spoof_output)
+        self.assertIn(ScriptICMPV6ScanTest.Variables.your_ipv6_link_address, icmpv6_spoof_output)
 
 # endregion

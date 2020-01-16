@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
     # region Init Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
+    from raw_packet.Tests.Unit_tests.variables import Variables
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDNS, RawDHCPv4, RawICMPv4
     from raw_packet.Utils.network import RawIPv6, RawICMPv6, RawDHCPv6
@@ -61,7 +62,7 @@ if __name__ == "__main__":
         # region Create raw socket
 
         raw_socket = socket(AF_PACKET, SOCK_RAW)
-        raw_socket.bind(('wlan0', 0))
+        raw_socket.bind((Variables.test_network_interface, 0))
         # endregion
 
         # region Base functions
@@ -69,55 +70,55 @@ if __name__ == "__main__":
         base.print_info('Network functions:')
 
         print('\nNetwork interface settings:')
-        print(dumps(base.get_interface_settings('eth0'), indent=4))
+        print(dumps(base.get_interface_settings(Variables.test_network_interface), indent=4))
 
         print('\nMac address:')
-        print(base.get_interface_mac_address('eth0', False))
+        print(base.get_interface_mac_address(Variables.test_network_interface, False))
 
         print('\nipv4 address:')
-        print(base.get_interface_ip_address('eth0', False))
+        print(base.get_interface_ip_address(Variables.test_network_interface, False))
 
         print('\nipv6 link local address:')
-        print(base.get_interface_ipv6_link_address('eth0', False))
+        print(base.get_interface_ipv6_link_address(Variables.test_network_interface, False))
 
         print('\nipv6 link local address by mac address:')
         print(base.make_ipv6_link_address('12:34:56:78:90:ab'))
 
         print('\nipv6 link global address:')
-        print(base.get_interface_ipv6_glob_address('eth0'))
+        print(base.get_interface_ipv6_glob_address(Variables.test_network_interface))
 
         print('\nipv6 global addresses:')
-        print(base.get_interface_ipv6_glob_addresses('eth0'))
+        print(base.get_interface_ipv6_glob_addresses(Variables.test_network_interface))
 
         print('\nNetwork mask:')
-        print(base.get_interface_netmask('eth0', False))
+        print(base.get_interface_netmask(Variables.test_network_interface, False))
 
         print('\nFirst ipv4:')
-        print(base.get_first_ip_on_interface('eth0', False))
+        print(base.get_first_ip_on_interface(Variables.test_network_interface, False))
 
         print('\nSecond ipv4:')
-        print(base.get_second_ip_on_interface('eth0', False))
+        print(base.get_second_ip_on_interface(Variables.test_network_interface, False))
 
         print('\nPenultimate ipv4:')
-        print(base.get_penultimate_ip_on_interface('eth0', False))
+        print(base.get_penultimate_ip_on_interface(Variables.test_network_interface, False))
 
         print('\nLast ipv4:')
-        print(base.get_last_ip_on_interface('eth0', False))
+        print(base.get_last_ip_on_interface(Variables.test_network_interface, False))
 
         print('\nRandom ipv4:')
-        print(base.get_random_ip_on_interface('eth0', False))
+        print(base.get_random_ip_on_interface(Variables.test_network_interface, False))
 
         print('\nipv4 network:')
-        print(base.get_interface_network('eth0', False))
+        print(base.get_interface_network(Variables.test_network_interface, False))
 
         print('\nipv4 broadcast:')
-        print(base.get_interface_broadcast('eth0', False))
+        print(base.get_interface_broadcast(Variables.test_network_interface, False))
 
         print('\nipv4 gateway:')
-        print(base.get_interface_ipv4_gateway('eth0', False))
+        print(base.get_interface_ipv4_gateway(Variables.test_network_interface, False))
 
         print('\nipv6 gateway:')
-        print(base.get_interface_ipv6_gateway('eth0', False))
+        print(base.get_interface_ipv6_gateway(Variables.test_network_interface, False))
 
         print('\n')
         base.print_info('Software functions:')

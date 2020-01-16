@@ -15,8 +15,6 @@ from signal import SIGTERM
 from time import sleep, time
 from subprocess import Popen, run, PIPE
 import unittest
-
-root_path = dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
 # endregion
 
 # region Authorship information
@@ -35,25 +33,22 @@ __status__ = 'Development'
 class ScriptAppleArpDosTest(unittest.TestCase):
 
     # region Properties
+    root_path = dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
     path.append(root_path)
     from raw_packet.Utils.base import Base
+    from raw_packet.Tests.Unit_tests.variables import Variables
     base: Base = Base()
-    network_interface: str = 'eth1'
-    target_ipv4_address: str = '192.168.1.5'
-    bad_network_interface: str = 'wlan0123'
-    bad_ipv4_address: str = '192.168.0.1234'
-    bad_mac_address: str = '12:34:56:78:90:abc'
     # endregion
 
     def test01_main_arp_scan(self):
-        apple_arp_dos = Popen(['python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
-                               self.network_interface], shell=True, stdout=PIPE)
+        apple_arp_dos = Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
+                               ScriptAppleArpDosTest.Variables.test_network_interface], shell=True, stdout=PIPE)
         find_target: bool = False
         start_time = time()
         for output_line in apple_arp_dos.stdout:
             output_line: str = output_line.decode('utf-8')
             print(output_line[:-1])
-            if self.target_ipv4_address in output_line:
+            if ScriptAppleArpDosTest.Variables.apple_device_ipv4_address in output_line:
                 find_target = True
                 break
             else:
@@ -66,14 +61,14 @@ class ScriptAppleArpDosTest(unittest.TestCase):
         self.assertTrue(find_target)
 
     def test02_main_nmap_scan(self):
-        apple_arp_dos = Popen(['python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
-                               self.network_interface + ' -n'], shell=True, stdout=PIPE)
+        apple_arp_dos = Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
+                               ScriptAppleArpDosTest.Variables.test_network_interface + ' -n'], shell=True, stdout=PIPE)
         find_target: bool = False
         start_time = time()
         for output_line in apple_arp_dos.stdout:
             output_line: str = output_line.decode('utf-8')
             print(output_line[:-1])
-            if self.target_ipv4_address in output_line:
+            if ScriptAppleArpDosTest.Variables.apple_device_ipv4_address in output_line:
                 find_target = True
                 break
             else:
@@ -86,36 +81,39 @@ class ScriptAppleArpDosTest(unittest.TestCase):
         self.assertTrue(find_target)
 
     def test03_main_bad_interface(self):
-        apple_arp_dos = run(['python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
-                             self.bad_network_interface], shell=True, stdout=PIPE)
+        apple_arp_dos = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
+                             ScriptAppleArpDosTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
         apple_arp_dos_output: bytes = apple_arp_dos.stdout
         apple_arp_dos_output: str = apple_arp_dos_output.decode('utf-8')
         print(apple_arp_dos_output)
-        self.assertIn(self.bad_network_interface, apple_arp_dos_output)
+        self.assertIn(ScriptAppleArpDosTest.Variables.bad_network_interface, apple_arp_dos_output)
 
     def test04_main_bad_target_ip(self):
-        apple_arp_dos = run(['python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
-                             self.network_interface + ' -t ' + self.bad_ipv4_address], shell=True, stdout=PIPE)
+        apple_arp_dos = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
+                             ScriptAppleArpDosTest.Variables.test_network_interface + ' -t ' + 
+                             ScriptAppleArpDosTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
         apple_arp_dos_output: bytes = apple_arp_dos.stdout
         apple_arp_dos_output: str = apple_arp_dos_output.decode('utf-8')
         print(apple_arp_dos_output)
-        self.assertIn(self.bad_ipv4_address, apple_arp_dos_output)
+        self.assertIn(ScriptAppleArpDosTest.Variables.bad_ipv4_address, apple_arp_dos_output)
 
     def test05_main_bad_target_mac(self):
-        apple_arp_dos = run(['python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
-                             self.network_interface + ' -t ' + self.target_ipv4_address +
-                             ' -m ' + self.bad_mac_address], shell=True, stdout=PIPE)
+        apple_arp_dos = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
+                             ScriptAppleArpDosTest.Variables.test_network_interface + ' -t ' + 
+                             ScriptAppleArpDosTest.Variables.apple_device_ipv4_address + ' -m ' + 
+                             ScriptAppleArpDosTest.Variables.bad_mac_address], shell=True, stdout=PIPE)
         apple_arp_dos_output: bytes = apple_arp_dos.stdout
         apple_arp_dos_output: str = apple_arp_dos_output.decode('utf-8')
         print(apple_arp_dos_output)
-        self.assertIn(self.bad_mac_address, apple_arp_dos_output)
+        self.assertIn(ScriptAppleArpDosTest.Variables.bad_mac_address, apple_arp_dos_output)
 
     def test06_main(self):
-        command: str = 'python3 ' + root_path + '/Scripts/Apple/apple_arp_dos.py -i ' + self.network_interface + \
-                       ' -t ' + self.target_ipv4_address
+        command: str = 'python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' + \
+                       ScriptAppleArpDosTest.Variables.test_network_interface + ' -t ' + \
+                       ScriptAppleArpDosTest.Variables.apple_device_ipv4_address
         process = Popen(command, shell=True)
         sleep(10)
-        response = system("ping -c 1 " + self.target_ipv4_address)
+        response = system("ping -c 1 " + ScriptAppleArpDosTest.Variables.apple_device_ipv4_address)
         kill(process.pid, SIGTERM)
         while self.base.get_process_pid('/apple_arp_dos.py') != -1:
             kill(self.base.get_process_pid('/apple_arp_dos.py'), SIGTERM)

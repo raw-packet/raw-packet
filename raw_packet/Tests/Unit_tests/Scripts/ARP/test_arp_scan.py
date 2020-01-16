@@ -38,8 +38,7 @@ class ScriptArpScanTest(unittest.TestCase):
     def test01_main(self):
         arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' +
                         ScriptArpScanTest.Variables.test_network_interface], shell=True, stdout=PIPE)
-        arp_scan_output: bytes = arp_scan.stdout
-        arp_scan_output: str = arp_scan_output.decode('utf-8')
+        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
         print(arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.router_ipv4_address, arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.router_mac_address, arp_scan_output)
@@ -47,8 +46,7 @@ class ScriptArpScanTest(unittest.TestCase):
     def test02_main_bad_interface(self):
         arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
                         ScriptArpScanTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
-        arp_scan_output: bytes = arp_scan.stdout
-        arp_scan_output: str = arp_scan_output.decode('utf-8')
+        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
         print(arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.bad_network_interface, arp_scan_output)
 
@@ -56,8 +54,7 @@ class ScriptArpScanTest(unittest.TestCase):
         arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
                         ScriptArpScanTest.Variables.test_network_interface + ' -T ' + 
                         ScriptArpScanTest.Variables.router_ipv4_address], shell=True, stdout=PIPE)
-        arp_scan_output: bytes = arp_scan.stdout
-        arp_scan_output: str = arp_scan_output.decode('utf-8')
+        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
         print(arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.router_ipv4_address, arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.router_mac_address, arp_scan_output)
@@ -66,8 +63,7 @@ class ScriptArpScanTest(unittest.TestCase):
         arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
                         ScriptArpScanTest.Variables.test_network_interface + ' -T ' + 
                         ScriptArpScanTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_scan_output: bytes = arp_scan.stdout
-        arp_scan_output: str = arp_scan_output.decode('utf-8')
+        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
         print(arp_scan_output)
         self.assertIn(ScriptArpScanTest.Variables.bad_ipv4_address, arp_scan_output)
 

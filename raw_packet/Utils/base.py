@@ -1594,7 +1594,12 @@ class Base:
                     return vendor_dictionary['vendor']
         return 'Unknown vendor'
 
-    def macos_encode_mac_address(self, mac_address: str) -> str:
+    def macos_encode_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:
+        """
+        Convert MAC address to MacOS format
+        :param mac_address: MAC address string (example: 01:23:45:67:89:0a)
+        :return: Converted MAC address string (example: 1:23:45:67:89:a)
+        """
         if self.mac_address_validation(mac_address):
             address_in_macos_arp_table: str = ''
             for part_of_address in mac_address.split(':'):

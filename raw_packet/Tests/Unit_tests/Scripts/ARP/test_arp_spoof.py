@@ -48,13 +48,13 @@ class ScriptArpSpoofTest(unittest.TestCase):
         arp_spoof_command: str = 'python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' + \
                                  ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' + \
                                  ScriptArpSpoofTest.Variables.apple_device_ipv4_address
-        run(arp_spoof_command, shell=True)
+        Popen(arp_spoof_command, shell=True)
         tshark_command: str = 'tshark -i ' + ScriptArpSpoofTest.Variables.test_network_interface + \
                               ' -f "ether src ' + ScriptArpSpoofTest.Variables.your_mac_address + \
                               ' and ether dst ' + ScriptArpSpoofTest.Variables.apple_device_mac_address + \
                               ' and arp" -B 65535 -w ' + self.tshark_pcap_filename + \
                               ' 1>/dev/null 2>&1'
-        run(tshark_command, shell=True)
+        Popen(tshark_command, shell=True)
         sleep(5)
         while self.base.get_process_pid('/arp_spoof.py') != -1:
             kill(self.base.get_process_pid('/arp_spoof.py'), SIGTERM)
@@ -67,11 +67,11 @@ class ScriptArpSpoofTest(unittest.TestCase):
             for packet in packets:
                 if packet.haslayer(ARP):
                     arp_packet = packet[ARP]
-                    print('ARP opcode: ' + str(arp_packet.op))
-                    print('ARP sender MAC: ' + arp_packet.hwsrc)
-                    print('ARP target MAC: ' + arp_packet.hwdst)
-                    print('ARP sender IP: ' + arp_packet.psrc)
-                    print('ARP target IP: ' + arp_packet.pdst)
+                    self.base.print_info('ARP opcode: ', str(arp_packet.op))
+                    self.base.print_info('ARP sender MAC: ', arp_packet.hwsrc)
+                    self.base.print_info('ARP target MAC: ', arp_packet.hwdst)
+                    self.base.print_info('ARP sender IP: ', arp_packet.psrc)
+                    self.base.print_info('ARP target IP: ', arp_packet.pdst)
                     if arp_packet.hwsrc == ScriptArpSpoofTest.Variables.your_mac_address and \
                             arp_packet.hwdst == ScriptArpSpoofTest.Variables.apple_device_mac_address and \
                             arp_packet.psrc == ScriptArpSpoofTest.Variables.router_ipv4_address and \
@@ -90,13 +90,13 @@ class ScriptArpSpoofTest(unittest.TestCase):
         arp_spoof_command: str = 'python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' + \
                                  ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' + \
                                  ScriptArpSpoofTest.Variables.apple_device_ipv4_address + ' -r'
-        run(arp_spoof_command, shell=True)
+        Popen(arp_spoof_command, shell=True)
         tshark_command: str = 'tshark -i ' + ScriptArpSpoofTest.Variables.test_network_interface + \
                               ' -f "ether src ' + ScriptArpSpoofTest.Variables.your_mac_address + \
                               ' and ether dst ' + ScriptArpSpoofTest.Variables.apple_device_mac_address + \
                               ' and arp" -B 65535 -w ' + self.tshark_pcap_filename + \
                               ' 1>/dev/null 2>&1'
-        run(tshark_command, shell=True)
+        Popen(tshark_command, shell=True)
         sleep(5)
         while self.base.get_process_pid('/arp_spoof.py') != -1:
             kill(self.base.get_process_pid('/arp_spoof.py'), SIGTERM)
@@ -109,11 +109,11 @@ class ScriptArpSpoofTest(unittest.TestCase):
             for packet in packets:
                 if packet.haslayer(ARP):
                     arp_packet = packet[ARP]
-                    print('ARP opcode: ' + str(arp_packet.op))
-                    print('ARP sender MAC: ' + arp_packet.hwsrc)
-                    print('ARP target MAC: ' + arp_packet.hwdst)
-                    print('ARP sender IP: ' + arp_packet.psrc)
-                    print('ARP target IP: ' + arp_packet.pdst)
+                    self.base.print_info('ARP opcode: ', str(arp_packet.op))
+                    self.base.print_info('ARP sender MAC: ', arp_packet.hwsrc)
+                    self.base.print_info('ARP target MAC: ', arp_packet.hwdst)
+                    self.base.print_info('ARP sender IP: ', arp_packet.psrc)
+                    self.base.print_info('ARP target IP: ', arp_packet.pdst)
                     if arp_packet.hwsrc == ScriptArpSpoofTest.Variables.your_mac_address and \
                             arp_packet.hwdst == '00:00:00:00:00:00' and \
                             arp_packet.psrc == ScriptArpSpoofTest.Variables.router_ipv4_address and \
@@ -127,38 +127,34 @@ class ScriptArpSpoofTest(unittest.TestCase):
         self.assertTrue(find_spoof_packet)
 
     def test03_main_bad_interface(self):
-        arp_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                           ScriptArpSpoofTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
-        arp_spoof_output: bytes = arp_spoof.stdout
-        arp_spoof_output: str = arp_spoof_output.decode('utf-8')
+        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
+                         ScriptArpSpoofTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
+        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
         print(arp_spoof_output)
         self.assertIn(ScriptArpSpoofTest.Variables.bad_network_interface, arp_spoof_output)
 
     def test04_main_bad_gateway_ip(self):
-        arp_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                           ScriptArpSpoofTest.Variables.test_network_interface + ' -g ' +
-                           ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_spoof_output: bytes = arp_spoof.stdout
-        arp_spoof_output: str = arp_spoof_output.decode('utf-8')
+        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
+                         ScriptArpSpoofTest.Variables.test_network_interface + ' -g ' +
+                         ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
+        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
         print(arp_spoof_output)
         self.assertIn(ScriptArpSpoofTest.Variables.bad_ipv4_address, arp_spoof_output)
 
     def test05_main_bad_target_ip(self):
-        arp_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                           ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
-                           ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_spoof_output: bytes = arp_spoof.stdout
-        arp_spoof_output: str = arp_spoof_output.decode('utf-8')
+        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
+                         ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
+                         ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
+        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
         print(arp_spoof_output)
         self.assertIn(ScriptArpSpoofTest.Variables.bad_ipv4_address, arp_spoof_output)
 
     def test06_main_bad_target_mac(self):
-        arp_spoof = Popen(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                           ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
-                           ScriptArpSpoofTest.Variables.apple_device_ipv4_address + ' -m ' +
-                           ScriptArpSpoofTest.Variables.bad_mac_address], shell=True, stdout=PIPE)
-        arp_spoof_output: bytes = arp_spoof.stdout
-        arp_spoof_output: str = arp_spoof_output.decode('utf-8')
+        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
+                         ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
+                         ScriptArpSpoofTest.Variables.apple_device_ipv4_address + ' -m ' +
+                         ScriptArpSpoofTest.Variables.bad_mac_address], shell=True, stdout=PIPE)
+        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
         print(arp_spoof_output)
         self.assertIn(ScriptArpSpoofTest.Variables.bad_mac_address, arp_spoof_output)
 

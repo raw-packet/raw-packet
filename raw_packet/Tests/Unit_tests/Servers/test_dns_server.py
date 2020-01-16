@@ -10,7 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from dns.resolver import Resolver
 from dns.rdatatype import A, AAAA, NS, MX
-from subprocess import Popen, PIPE
+from subprocess import run, PIPE
 from typing import List, Dict
 from json import dump
 from os import remove
@@ -100,9 +100,8 @@ class DnsServerTest(unittest.TestCase):
 
     def test03_resolve_no_such_domain(self):
         for no_such_domain in self.no_such_domains:
-            nslookup_process = Popen(['nslookup', no_such_domain, self.ipv6_address], stdout=PIPE, stderr=PIPE)
-            (nslookup_stdout, nslookup_stderr) = nslookup_process.communicate()
-            nslookup_stdout: str = nslookup_stdout.decode('utf-8')
+            nslookup_process = run(['nslookup ' + no_such_domain + ' ' + self.ipv6_address], stdout=PIPE, shell=True)
+            nslookup_stdout: str = nslookup_process.stdout.decode('utf-8')
             self.assertIn('server can\'t find ' + no_such_domain, nslookup_stdout)
 
     def test04_resolve_ipv4_real_domain(self):
@@ -165,10 +164,8 @@ class DnsServerTest(unittest.TestCase):
             self.result_addresses.clear()
 
         for no_such_domain in self.config_no_such_domains:
-
-            nslookup_process = Popen(['nslookup', no_such_domain, self.ipv6_address], stdout=PIPE, stderr=PIPE)
-            (nslookup_stdout, nslookup_stderr) = nslookup_process.communicate()
-            nslookup_stdout: str = nslookup_stdout.decode('utf-8')
+            nslookup_process = run(['nslookup ' + no_such_domain + ' ' + self.ipv6_address], stdout=PIPE, shell=True)
+            nslookup_stdout: str = nslookup_process.stdout.decode('utf-8')
             self.assertIn('server can\'t find ' + no_such_domain, nslookup_stdout)
 
         remove(self.config_file_name)

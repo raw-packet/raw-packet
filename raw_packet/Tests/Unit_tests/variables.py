@@ -22,7 +22,7 @@ __status__ = 'Development'
 # region Main class - Variables
 class Variables:
 
-    test_network_interface: str = 'wlan0'
+    test_network_interface: str = 'eth1'
 
     ipv4_network_mask: str = '255.255.255.0'
     ipv4_broadcast: str = '192.168.1.255'
@@ -32,25 +32,26 @@ class Variables:
     ipv4_penultimate_address: str = '192.168.1.253'
     ipv4_last_address: str = '192.168.1.254'
 
-    router_vendor: str = 'Tp-Link Technologies'
-    router_mac_address: str = '3c:46:d8:82:7b:27'
-    router_ipv4_address: str = '192.168.1.1'
-    router_ipv6_link_address: str = 'fe80::3e46:d8ff:fe82:7b27'
-    router_ipv6_glob_address: str = 'fd00::1'
+    router_vendor: str = 'VMware'
+    router_mac_address: str = '00:0c:29:87:d3:5d'
+    router_ipv4_address: str = '192.168.1.254'
+    router_ipv6_link_address: str = 'fe80::20c:29ff:fe87:d35d'
+    router_ipv6_glob_address: str = 'fd3d:3be1:e8b2:fd00::1'
 
-    your_mac_address: str = '84:16:f9:19:ad:14'
+    your_mac_address: str = '00:0c:29:70:75:4b'
     your_ipv4_address: str = '192.168.1.2'
-    your_ipv6_link_address: str = 'fe80::74f7:7a74:d00:ffb'
-    your_ipv6_glob_address: str = 'fd00::123'
+    your_ipv6_link_address: str = 'fe80::20c:29ff:fe70:754b'
+    your_ipv6_glob_address: str = 'fd3d:3be1:e8b2:fd00::b3c'
 
-    apple_device_mac_address: str = '8c:85:90:26:02:be'
+    apple_device_mac_address: str = '00:03:93:ce:12:7d'
     apple_device_ipv4_address: str = '192.168.1.3'
-    apple_device_ipv6_link_address: str = 'fe80::444:83c5:5bb:58f3'
-    apple_device_username: str = 'user'
+    apple_device_ipv6_link_address: str = 'fe80::203:93ff:fece:127d'
+    apple_device_username: str = 'admin'
 
     bad_network_interface: str = 'wlan123'
     bad_mac_address: str = '12:34:56:78:90:abc'
     bad_ipv4_address: str = '192.168.0.1234'
     bad_ipv6_address: str = 'fd00:::123'
+    bad_port: str = '1234567'
 
 # endregion
