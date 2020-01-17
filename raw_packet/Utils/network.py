@@ -3179,6 +3179,112 @@ class RawDHCPv4:
             exit(exit_code)
         return None
 
+    def make_offer_packet(self,
+                          ethernet_src_mac: str = '01:23:45:67:89:0a',
+                          ethernet_dst_mac: Union[None, str] = None,
+                          ip_src: str = '192.168.1.1',
+                          ip_dst: Union[None, str] = None,
+                          transaction_id: int = 1,
+                          your_client_ip: str = '192.168.1.2',
+                          client_mac: str = '01:23:45:67:89:0b',
+                          dhcp_server_id: Union[None, str] = None,
+                          lease_time: int = 600,
+                          netmask: str = '255.255.255.0',
+                          router: Union[None, str] = None,
+                          dns: Union[None, str] = None) -> Union[None, bytes]:
+        """
+        Make DHCPv4 Offer packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header or None (default: 'ff:ff:ff:ff:ff:ff')
+        :param ip_src: Source IPv4 address string in Network header or None (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 address string in Network header or None (default: '255.255.255.255')
+        :param transaction_id: BOOTP Transaction ID integer (example: 1)
+        :param your_client_ip: BOOTP YIADDR - Your client IP address (example: '192.168.1.2')
+        :param client_mac: Client MAC address (example: '01:23:45:67:89:0b')
+        :param dhcp_server_id: IPv4 address of DHCPv4 server (default: <ip_src>)
+        :param lease_time: Lease time integer (example: 600)
+        :param netmask: IPv4 network mask (example: '255.255.255.0')
+        :param router: Router IPv4 address (default: <ip_src>)
+        :param dns: DNS IPv4 address (default: <router>)
+        :return: Bytes of packet or None if error
+        """
+        if ethernet_dst_mac is None:
+            ethernet_dst_mac = 'ff:ff:ff:ff:ff:ff'
+        if ip_dst is None:
+            ip_dst = '255.255.255.255'
+        if dhcp_server_id is None:
+            dhcp_server_id = ip_src
+        if router is None:
+            router = ip_src
+        if dns is None:
+            dns = router
+        return self.make_response_packet(ethernet_src_mac=ethernet_src_mac,
+                                         ethernet_dst_mac=ethernet_dst_mac,
+                                         ip_src=ip_src,
+                                         ip_dst=ip_dst,
+                                         transaction_id=transaction_id,
+                                         your_client_ip=your_client_ip,
+                                         dhcp_message_type=2,
+                                         client_mac=client_mac,
+                                         dhcp_server_id=dhcp_server_id,
+                                         lease_time=lease_time,
+                                         netmask=netmask,
+                                         router=router,
+                                         dns=dns)
+
+    def make_ack_packet(self,
+                        ethernet_src_mac: str = '01:23:45:67:89:0a',
+                        ethernet_dst_mac: Union[None, str] = None,
+                        ip_src: str = '192.168.1.1',
+                        ip_dst: Union[None, str] = None,
+                        transaction_id: int = 1,
+                        your_client_ip: str = '192.168.1.2',
+                        client_mac: str = '01:23:45:67:89:0b',
+                        dhcp_server_id: Union[None, str] = None,
+                        lease_time: int = 600,
+                        netmask: str = '255.255.255.0',
+                        router: Union[None, str] = None,
+                        dns: Union[None, str] = None) -> Union[None, bytes]:
+        """
+        Make DHCPv4 ACK packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header or None (default: 'ff:ff:ff:ff:ff:ff')
+        :param ip_src: Source IPv4 address string in Network header or None (example: '192.168.1.1')
+        :param ip_dst: Destination IPv4 address string in Network header or None (default: '255.255.255.255')
+        :param transaction_id: BOOTP Transaction ID integer (example: 1)
+        :param your_client_ip: BOOTP YIADDR - Your client IP address (example: '192.168.1.2')
+        :param client_mac: Client MAC address (example: '01:23:45:67:89:0b')
+        :param dhcp_server_id: IPv4 address of DHCPv4 server (default: <ip_src>)
+        :param lease_time: Lease time integer (example: 600)
+        :param netmask: IPv4 network mask (example: '255.255.255.0')
+        :param router: Router IPv4 address (default: <ip_src>)
+        :param dns: DNS IPv4 address (default: <router>)
+        :return: Bytes of packet or None if error
+        """
+        if ethernet_dst_mac is None:
+            ethernet_dst_mac = 'ff:ff:ff:ff:ff:ff'
+        if ip_dst is None:
+            ip_dst = '255.255.255.255'
+        if dhcp_server_id is None:
+            dhcp_server_id = ip_src
+        if router is None:
+            router = ip_src
+        if dns is None:
+            dns = router
+        return self.make_response_packet(ethernet_src_mac=ethernet_src_mac,
+                                         ethernet_dst_mac=ethernet_dst_mac,
+                                         ip_src=ip_src,
+                                         ip_dst=ip_dst,
+                                         transaction_id=transaction_id,
+                                         your_client_ip=your_client_ip,
+                                         dhcp_message_type=5,
+                                         client_mac=client_mac,
+                                         dhcp_server_id=dhcp_server_id,
+                                         lease_time=lease_time,
+                                         netmask=netmask,
+                                         router=router,
+                                         dns=dns)
+
     def make_release_packet(self,
                             ethernet_src_mac: str = '01:23:45:67:89:0b',
                             ethernet_dst_mac: str = '01:23:45:67:89:0a',

