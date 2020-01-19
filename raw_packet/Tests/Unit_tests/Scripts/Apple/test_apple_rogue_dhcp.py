@@ -106,11 +106,11 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
         run(['python3 ' + self.root_path + '/Scripts/Others/network_conflict_creator.py --interface ' +
              ScriptAppleRogueDhcpTest.Variables.test_network_interface + ' --target_mac ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address + ' --target_ip ' +
-             ScriptAppleRogueDhcpTest.Variables.apple_device_ipv4_address], shell=True)
+             ScriptAppleRogueDhcpTest.Variables.apple_device_ipv4_address + ' --quiet'], shell=True)
         run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' +
              ScriptAppleRogueDhcpTest.Variables.test_network_interface + ' --target_mac ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address + ' --target_new_ip ' +
-             ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address], shell=True)
+             ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address + ' --quiet'], shell=True)
         sleep(5)
         response: int = system("ping -c 1 " + ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address)
         self.assertEqual(response, 0)
