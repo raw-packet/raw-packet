@@ -121,6 +121,27 @@ class ScriptAppleMitmTest(unittest.TestCase):
             dig_result: str = dig_result[:-1]
         return dig_result
 
+    def kill_test_process(self) -> None:
+        while self.base.get_process_pid('/apple_mitm.py') != -1:
+            kill(self.base.get_process_pid('/apple_mitm.py'), SIGTERM)
+            sleep(0.1)
+
+    @staticmethod
+    def restart_dhcp_server_over_ssh() -> None:
+        run(['ssh ' + ScriptAppleMitmTest.Variables.router_root_username + '@' +
+             ScriptAppleMitmTest.Variables.router_ipv4_address + ' "/etc/init.d/dnsmasq restart"'], shell=True)
+
+    def check_apple_device_connected(self) -> None:
+        self.kill_test_process()
+        sleep(5)
+        response: int = system("ping -c 1 " + ScriptAppleMitmTest.Variables.apple_device_ipv4_address)
+        if response == 0:
+            return None
+        else:
+            self.restart_dhcp_server_over_ssh()
+            while response != 0:
+                response = system("ping -c 1 " + ScriptAppleMitmTest.Variables.apple_device_ipv4_address)
+
     def test01_main_bad_technique1(self):
         mitm_process = Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_mitm.py'],
                              stdout=PIPE, stdin=PIPE, stderr=STDOUT, shell=True)
@@ -284,22 +305,27 @@ class ScriptAppleMitmTest(unittest.TestCase):
     #     self.restart_wifi_over_ssh()
 
     # Not work
-    # def test17_main_predict_dhcp(self):
-    #     current_gateway_mac_address: str = self.get_ipv4_gateway_mac_address_over_ssh()
-    #     current_gateway_ipv4_address: str = self.get_ipv4_gateway_ip_address_over_ssh()
-    #     current_domain_ipv4_address: str = self.get_domain_address_over_ssh('A', self.test_domain)
-    #     current_domain_ipv6_address: str = self.get_domain_address_over_ssh('AAAA', self.test_domain)
-    #     self.assertEqual(self.base.macos_encode_mac_address(ScriptAppleMitmTest.Variables.router_mac_address), current_gateway_mac_address)
-    #     self.assertEqual(ScriptAppleMitmTest.Variables.router_ipv4_address, current_gateway_ipv4_address)
-    #     self.assertNotEqual(current_domain_ipv4_address, ScriptAppleMitmTest.Variables.your_ipv4_address)
-    #     self.assertNotEqual(current_domain_ipv6_address, ScriptAppleMitmTest.Variables.your_ipv6_link_address)
-    #     Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_mitm.py -T 3 -D 1 -l ' + self.network_interface +
-    #            ' -n ' + self.target_new_ipv4_address + ' -t ' + ScriptAppleMitmTest.Variables.apple_device_ipv4_address + ' >/tmp/apple_mitm.output'],
-    #           shell=True)
-    #     sleep(35)
-    #     current_gateway_ipv4_address: str = self.get_ipv4_gateway_ip_address_over_ssh(self.target_new_ipv4_address)
-    #     self.base.kill_process_by_name('/apple_mitm.py')
-    #     self.assertEqual('no gateway', current_gateway_ipv4_address)
-    #     self.restart_wifi_over_ssh(self.target_new_ipv4_address)
+    def test17_main_predict_dhcp(self):
+        self.check_apple_device_connected()
+        current_gateway_mac_address: str = self.get_ipv4_gateway_mac_address_over_ssh()
+        current_gateway_ipv4_address: str = self.get_ipv4_gateway_ip_address_over_ssh()
+        current_domain_ipv4_address: str = self.get_domain_address_over_ssh('A', self.test_domain)
+        current_domain_ipv6_address: str = self.get_domain_address_over_ssh('AAAA', self.test_domain)
+        self.assertEqual(self.base.macos_encode_mac_address(ScriptAppleMitmTest.Variables.router_mac_address),
+                         current_gateway_mac_address)
+        self.assertEqual(ScriptAppleMitmTest.Variables.router_ipv4_address, current_gateway_ipv4_address)
+        self.assertNotEqual(current_domain_ipv4_address, ScriptAppleMitmTest.Variables.your_ipv4_address)
+        self.assertNotEqual(current_domain_ipv6_address, ScriptAppleMitmTest.Variables.your_ipv6_link_address)
+        Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_mitm.py -T 3 -D 1 -l ' +
+               ScriptAppleMitmTest.Variables.test_network_interface + ' -n ' +
+               ScriptAppleMitmTest.Variables.apple_device_new_ipv4_address + ' -t ' +
+               ScriptAppleMitmTest.Variables.apple_device_ipv4_address + ' >/tmp/apple_mitm.output'], shell=True)
+        sleep(35)
+        current_gateway_ipv4_address: str = \
+            self.get_ipv4_gateway_ip_address_over_ssh(ScriptAppleMitmTest.Variables.apple_device_new_ipv4_address)
+        self.base.kill_process_by_name('/apple_mitm.py')
+        self.assertEqual(ScriptAppleMitmTest.Variables.your_ipv4_address, current_gateway_ipv4_address)
+        self.base.success_text('MiTM success!')
+        self.check_apple_device_connected()
 
 # endregion
