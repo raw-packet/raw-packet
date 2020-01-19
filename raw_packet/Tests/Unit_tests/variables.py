@@ -48,6 +48,7 @@ class Variables:
 
     apple_device_mac_address: str = '00:03:93:12:34:56'
     apple_device_ipv4_address: str = '192.168.1.3'
+    apple_device_new_ipv4_address: str = '192.168.1.111'
     apple_device_ipv6_link_address: str = 'fe80::1016:45cc:5037:e16d'
     apple_device_username: str = 'admin'
     apple_device_root_username: str = 'root'
