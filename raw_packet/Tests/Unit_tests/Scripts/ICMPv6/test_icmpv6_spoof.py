@@ -56,12 +56,20 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
         except IndexError:
             return gateway_mac_address
 
+    def restart_network_interface_over_ssh(self) -> None:
+        run(['ssh ' + ScriptICMPV6ScanTest.Variables.apple_device_root_username + '@' +
+             ScriptICMPV6ScanTest.Variables.apple_device_ipv4_address + ' "ifconfig ' +
+             ScriptICMPV6ScanTest.Variables.apple_device_network_interface + ' down && ifconfig ' +
+             ScriptICMPV6ScanTest.Variables.apple_device_network_interface + ' up"'],
+            shell=True)
+
     def test01_neighbor_advertisement(self):
         current_router_mac_address: str = ''
         while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
                 current_router_mac_address:
             current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
-            sleep(1)
+            self.restart_network_interface_over_ssh()
+            sleep(5)
         Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
                ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 2 --target_mac ' +
                ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
@@ -78,7 +86,8 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
         while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
                 current_router_mac_address:
             current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
-            sleep(1)
+            self.restart_network_interface_over_ssh()
+            sleep(5)
         Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
                ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
                ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
