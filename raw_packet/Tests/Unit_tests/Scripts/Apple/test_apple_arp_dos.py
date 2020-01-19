@@ -40,7 +40,29 @@ class ScriptAppleArpDosTest(unittest.TestCase):
     base: Base = Base()
     # endregion
 
+    def kill_test_process(self) -> None:
+        while self.base.get_process_pid('/apple_arp_dos.py') != -1:
+            kill(self.base.get_process_pid('/apple_arp_dos.py'), SIGTERM)
+            sleep(0.1)
+
+    @staticmethod
+    def restart_dhcp_server_over_ssh() -> None:
+        run(['ssh ' + ScriptAppleArpDosTest.Variables.router_root_username + '@' +
+             ScriptAppleArpDosTest.Variables.router_ipv4_address + ' "/etc/init.d/dnsmasq restart"'], shell=True)
+
+    def check_apple_device_connected(self) -> None:
+        self.kill_test_process()
+        sleep(5)
+        response: int = system("ping -c 1 " + ScriptAppleArpDosTest.Variables.apple_device_ipv4_address)
+        if response == 0:
+            return None
+        else:
+            self.restart_dhcp_server_over_ssh()
+            while response != 0:
+                response = system("ping -c 1 " + ScriptAppleArpDosTest.Variables.apple_device_ipv4_address)
+
     def test01_main_arp_scan(self):
+        self.check_apple_device_connected()
         apple_arp_dos = Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
                                ScriptAppleArpDosTest.Variables.test_network_interface], shell=True, stdout=PIPE)
         find_target: bool = False
@@ -51,16 +73,13 @@ class ScriptAppleArpDosTest(unittest.TestCase):
             if ScriptAppleArpDosTest.Variables.apple_device_ipv4_address in output_line:
                 find_target = True
                 break
-            else:
-                if int(time() - start_time) > 10:
-                    kill(apple_arp_dos.pid, SIGTERM)
-                    while self.base.get_process_pid('/apple_arp_dos.py') != -1:
-                        kill(self.base.get_process_pid('/apple_arp_dos.py'), SIGTERM)
-                        sleep(0.5)
-                    break
+            if int(time() - start_time) > 10:
+                self.kill_test_process()
+                break
         self.assertTrue(find_target)
 
     def test02_main_nmap_scan(self):
+        self.check_apple_device_connected()
         apple_arp_dos = Popen(['python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' +
                                ScriptAppleArpDosTest.Variables.test_network_interface + ' -n'], shell=True, stdout=PIPE)
         find_target: bool = False
@@ -71,13 +90,9 @@ class ScriptAppleArpDosTest(unittest.TestCase):
             if ScriptAppleArpDosTest.Variables.apple_device_ipv4_address in output_line:
                 find_target = True
                 break
-            else:
-                if int(time() - start_time) > 120:
-                    kill(apple_arp_dos.pid, SIGTERM)
-                    while self.base.get_process_pid('/apple_arp_dos.py') != -1:
-                        kill(self.base.get_process_pid('/apple_arp_dos.py'), SIGTERM)
-                        sleep(0.5)
-                    break
+            if int(time() - start_time) > 120:
+                self.kill_test_process()
+                break
         self.assertTrue(find_target)
 
     def test03_main_bad_interface(self):
@@ -108,16 +123,14 @@ class ScriptAppleArpDosTest(unittest.TestCase):
         self.assertIn(ScriptAppleArpDosTest.Variables.bad_mac_address, apple_arp_dos_output)
 
     def test06_main(self):
+        self.check_apple_device_connected()
         command: str = 'python3 ' + self.root_path + '/Scripts/Apple/apple_arp_dos.py -i ' + \
                        ScriptAppleArpDosTest.Variables.test_network_interface + ' -t ' + \
                        ScriptAppleArpDosTest.Variables.apple_device_ipv4_address
-        process = Popen(command, shell=True)
+        Popen(command, shell=True)
         sleep(10)
         response = system("ping -c 1 " + ScriptAppleArpDosTest.Variables.apple_device_ipv4_address)
-        kill(process.pid, SIGTERM)
-        while self.base.get_process_pid('/apple_arp_dos.py') != -1:
-            kill(self.base.get_process_pid('/apple_arp_dos.py'), SIGTERM)
-            sleep(0.5)
         self.assertNotEqual(response, 0)
+        self.check_apple_device_connected()
 
 # endregion

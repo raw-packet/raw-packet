@@ -16,6 +16,7 @@ from os import kill
 from signal import SIGTERM
 from sys import path
 from re import sub
+from typing import Union
 import unittest
 # endregion
 
@@ -42,7 +43,8 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
     base: Base = Base()
     # endregion
 
-    def get_ipv6_router_mac_address_over_ssh(self) -> str:
+    @staticmethod
+    def get_ipv6_router_mac_address_over_ssh() -> str:
         gateway_mac_address: str = ''
         target_command = run(['ssh ' + ScriptICMPV6ScanTest.Variables.apple_device_username + '@' + 
                               ScriptICMPV6ScanTest.Variables.apple_device_ipv4_address + ' "ndp -an | grep ' + 
@@ -56,24 +58,28 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
         except IndexError:
             return gateway_mac_address
 
-    def restart_network_interface_over_ssh(self) -> None:
+    @staticmethod
+    def restart_network_interface_over_ssh(network_interface: Union[None, str] = None) -> None:
+        if network_interface is None:
+            network_interface = ScriptICMPV6ScanTest.Variables.apple_device_network_interface
         run(['ssh ' + ScriptICMPV6ScanTest.Variables.apple_device_root_username + '@' +
-             ScriptICMPV6ScanTest.Variables.apple_device_ipv4_address + ' "ifconfig ' +
-             ScriptICMPV6ScanTest.Variables.apple_device_network_interface + ' down && ifconfig ' +
-             ScriptICMPV6ScanTest.Variables.apple_device_network_interface + ' up"'],
-            shell=True)
+             ScriptICMPV6ScanTest.Variables.apple_device_ipv4_address + ' "ifconfig ' + network_interface +
+             ' down && ifconfig ' + network_interface + ' up"'], shell=True)
+
+    @staticmethod
+    def restart_dhcp_server_over_ssh() -> None:
+        run(['ssh ' + ScriptICMPV6ScanTest.Variables.router_root_username + '@' +
+             ScriptICMPV6ScanTest.Variables.router_ipv4_address + ' "/etc/init.d/dnsmasq restart"'], shell=True)
 
     def test01_neighbor_advertisement(self):
-        current_router_mac_address: str = ''
         while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
-                current_router_mac_address:
-            current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
+                self.get_ipv6_router_mac_address_over_ssh():
             self.restart_network_interface_over_ssh()
-            sleep(5)
+            sleep(10)
         Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
                ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 2 --target_mac ' +
                ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
-        sleep(15)
+        sleep(20)
         current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
         while self.base.get_process_pid('/icmpv6_spoof.py') != -1:
             kill(self.base.get_process_pid('/icmpv6_spoof.py'), SIGTERM)
@@ -82,16 +88,14 @@ class ScriptICMPV6ScanTest(unittest.TestCase):
                          current_router_mac_address)
 
     def test02_router_advertisement(self):
-        current_router_mac_address: str = ''
         while self.base.macos_encode_mac_address(ScriptICMPV6ScanTest.Variables.router_mac_address) != \
-                current_router_mac_address:
-            current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
+                self.get_ipv6_router_mac_address_over_ssh():
             self.restart_network_interface_over_ssh()
-            sleep(5)
+            sleep(10)
         Popen(['python3 ' + self.root_path + '/Scripts/ICMPv6/icmpv6_spoof.py -i ' +
                ScriptICMPV6ScanTest.Variables.test_network_interface + ' --technique 1 --target_mac ' +
                ScriptICMPV6ScanTest.Variables.apple_device_mac_address], shell=True)
-        sleep(15)
+        sleep(20)
         current_router_mac_address = self.get_ipv6_router_mac_address_over_ssh()
         while self.base.get_process_pid('/icmpv6_spoof.py') != -1:
             kill(self.base.get_process_pid('/icmpv6_spoof.py'), SIGTERM)

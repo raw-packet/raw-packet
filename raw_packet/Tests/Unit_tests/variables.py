@@ -23,6 +23,8 @@ __status__ = 'Development'
 class Variables:
 
     test_network_interface: str = 'eth1'
+    test_wireless_listen_interface: str = 'wlan0'
+    test_wireless_deauth_interface: str = 'wlan1'
 
     ipv4_network_mask: str = '255.255.255.0'
     ipv4_broadcast: str = '192.168.1.255'
@@ -37,6 +39,7 @@ class Variables:
     router_ipv4_address: str = '192.168.1.254'
     router_ipv6_link_address: str = 'fe80::221:91ff:fe12:3456'
     router_ipv6_glob_address: str = 'fd06:46b2:4912::1'
+    router_root_username: str = 'root'
 
     your_mac_address: str = '08:00:27:af:c6:44'
     your_ipv4_address: str = '192.168.1.2'
