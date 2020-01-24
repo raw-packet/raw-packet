@@ -4075,6 +4075,7 @@ class RawDHCPv6:
                           domain_search: str = 'domain.local',
                           ipv6_address: str = 'fd00::2',
                           client_duid_timeval: Union[None, int] = None,
+                          cid: Union[None, bytes] = None,
                           server_duid_mac: Union[None, str] = None):
 
         if 16777215 < transaction_id < 0:
@@ -4083,10 +4084,13 @@ class RawDHCPv6:
         packet_body = pack('!L', transaction_id)[1:]
         options = {}
 
-        if client_duid_timeval is None:
-            options[1] = self._make_duid(ethernet_dst_mac)                       # Client Identifier
+        if cid is not None:
+            options[1] = cid
         else:
-            options[1] = self._make_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
+            if client_duid_timeval is None:
+                options[1] = self._make_duid(ethernet_dst_mac)                       # Client Identifier
+            else:
+                options[1] = self._make_duid(ethernet_dst_mac, client_duid_timeval)  # Client Identifier
 
         if server_duid_mac is None:
             options[2] = self._make_duid(ethernet_src_mac)  # Server Identifier
