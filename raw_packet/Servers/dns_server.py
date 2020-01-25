@@ -1,9 +1,9 @@
 # region Description
 """
-dns_server.py: DNS server
+test_dns_server.py: DNS server in Raw sockets
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -11,479 +11,472 @@ Copyright 2019, Raw-packet Project
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import Sniff_raw, DNS_raw
+from raw_packet.Utils.network import RawSniff, RawDNS
 # endregion
 
 # region Import libraries
 from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, gaierror
+from subprocess import run
+from typing import List, Union, Dict
+from re import match
+from os.path import isfile, getsize
+from json import load, dump
+from json.decoder import JSONDecodeError
 # endregion
 
 # endregion
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
 # endregion
 
 
-# region Class DNS server
-class DnsServer:
+# region Class Raw DNS server
+class RawDnsServer:
 
-    # region Set variables
-    base = None
-    sniff = None
-    dns = None
+    # region Set properties
+    base: Base = Base()
+    sniff: RawSniff = RawSniff()
+    dns: RawDNS = RawDNS()
 
-    rawSocket = None
+    rawSocket: socket = socket(AF_PACKET, SOCK_RAW)
+    your_ipv4_address: Union[None, str] = None
+    your_ipv6_address: Union[None, str] = None
+    config: Dict[str, Dict[str, Union[bool, str, List[str]]]] = dict()
 
-    network_interface = None
-    port = 0
-    your_mac_address = None
-    your_ip_address = None
-    your_ipv6_addresses = None
+    A_DNS_QUERY: int = 1
+    AAAA_DNS_QUERY: int = 28
+    NS_DNS_QUERY: int = 2
+    MX_DNS_QUERY: int = 15
 
-    target_ip_address = None
-    target_ipv6_address = None
-
-    fake_answers = False
-    fake_domains = []
-    fake_addresses = {}
-    no_such_names = []
-
-    DNS_QUERY_TYPES = []
-    A_DNS_QUERY = 0
-    AAAA_DNS_QUERY = 0
-
-    success_domains = []
+    log_file_name: Union[None, str] = None
+    log_file_format: Union[None, str] = None
     # endregion
 
     # region Init
     def __init__(self):
-        self.base = Base()
-        self.sniff = Sniff_raw()
-        self.dns = DNS_raw()
+        # Iptables drop output ICMP and ICMPv6 destination-unreachable packets
+        run('iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP', shell=True)
+        run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
+    # endregion
 
-        self.rawSocket = socket(AF_PACKET, SOCK_RAW)
+    # region Write log file
+    def _write_to_log(self, from_ip_address: str, to_ip_address: str,
+                      query_type: str, query_name: str, answer_address: str):
 
-        self.port = 53
-        self.A_DNS_QUERY = 1
-        self.AAAA_DNS_QUERY = 28
+        if not isfile(self.log_file_name + '.' + self.log_file_format):
+            with open(file=self.log_file_name + '.' + self.log_file_format, mode='w') as log_file:
+                if self.log_file_format == 'csv':
+                    log_file.write('From IP address,To IP address,Query type,Query name,Answer address\n')
+                if self.log_file_format == 'xml':
+                    log_file.write('<?xml version="1.0" ?>\n<dns_queries>\n</dns_queries>\n')
+                if self.log_file_format == 'json':
+                    log_file.write('{\n"dns_queries": [\n')
+
+        with open(file=self.log_file_name + '.' + self.log_file_format, mode='r+') as log_file:
+
+            log_file_pointer: int = getsize(self.log_file_name + '.' + self.log_file_format)
+
+            if self.log_file_format == 'csv' or self.log_file_format == 'txt':
+                log_file.seek(log_file_pointer)
+                log_file.write(from_ip_address + ',' + to_ip_address + ',' +
+                               query_type + ',' + query_name + ',' + answer_address + '\n')
+
+            if self.log_file_format == 'json':
+                if log_file_pointer > 20:
+                    log_file.seek(log_file_pointer - 4, 0)
+                    log_file.write(',')
+                else:
+                    log_file.seek(log_file_pointer)
+                dump({'from_ip_address': from_ip_address,
+                      'to_ip_address': to_ip_address,
+                      'query_type': query_type,
+                      'query_name': query_name,
+                      'answer_address': answer_address}, log_file, indent=4)
+                log_file.write(']\n}\n')
+
+            if self.log_file_format == 'xml':
+                log_file.seek(log_file_pointer - 15, 0)
+                log_file.write('\t<dns_query>\n' +
+                               '\t\t<from_ip_address>' + from_ip_address + '</from_ip_address>\n' +
+                               '\t\t<to_ip_address>' + to_ip_address + '</to_ip_address>\n' +
+                               '\t\t<query_type>' + query_type + '</query_type>\n' +
+                               '\t\t<query_name>' + query_name + '</query_name>\n' +
+                               '\t\t<answer_address>' + answer_address + '</answer_address>\n' +
+                               '\t</dns_query>\n' +
+                               '</dns_queries>\n')
+    # endregion
+
+    # region DNS integer query type to string
+    @staticmethod
+    def _int_type_to_str_type(query_type: int = 1) -> str:
+        if query_type == RawDnsServer.A_DNS_QUERY:
+            return 'A'
+        elif query_type == RawDnsServer.AAAA_DNS_QUERY:
+            return 'AAAA'
+        elif query_type == RawDnsServer.NS_DNS_QUERY:
+            return 'NS'
+        elif query_type == RawDnsServer.MX_DNS_QUERY:
+            return 'MX'
+        else:
+            return 'A'
+    # endregion
+
+    # region DNS string query type to integer
+    @staticmethod
+    def _str_type_to_int_type(query_type: str = 'A') -> int:
+        if query_type == 'A':
+            return RawDnsServer.A_DNS_QUERY
+        elif query_type == 'AAAA':
+            return RawDnsServer.AAAA_DNS_QUERY
+        elif query_type == 'NS':
+            return RawDnsServer.NS_DNS_QUERY
+        elif query_type == 'MX':
+            return RawDnsServer.MX_DNS_QUERY
+        else:
+            return 1
     # endregion
 
     # region Get first IPv4 or IPv6 address of domain
     @staticmethod
-    def _get_domain_address(query_name, query_type=1):
+    def _get_domain_address(query_name: str, query_type: int = 1) -> Union[List[str], None]:
 
-        # Set proto
-        if query_type == 28:
-            proto = AF_INET6
+        # region Check DNS query type and set proto
+        if query_type == RawDnsServer.AAAA_DNS_QUERY:
+            proto: int = AF_INET6
+        elif query_type == RawDnsServer.A_DNS_QUERY:
+            proto: int = AF_INET
         else:
-            proto = AF_INET
+            return None
+        # endregion
 
+        # region Resolve query name
         try:
             # Get list of addresses
             addresses = getaddrinfo(query_name, None, proto)
-
             # Return first address from list
             return [addresses[0][4][0]]
-
         except gaierror:
-
             # Could not resolve name
             return None
+        # endregion
+
     # endregion
 
     # region DNS reply function
-    def _reply(self, request):
+    def _reply(self, request: Dict) -> None:
+        try:
 
-        # region This request is DNS query
-        if 'DNS' in request.keys():
+            # region This request is DNS query
+            assert 'DNS' in request.keys(), 'This is not DNS request!'
 
-            for request_query in request['DNS']['queries']:
+            for query in request['DNS']['queries']:
 
-                # region Get DNS query type
-                query_type = request_query['type']
+                # region Local variables
+                assert ('IPv4' in request.keys() or 'IPv6' in request.keys()), 'Not found Network layer protocol!'
+                ip_src: Union[None, str] = None
+                ip_dst: Union[None, str] = None
+                if 'IPv4' in request.keys():
+                    ip_src: Union[None, str] = request['IPv4']['destination-ip']
+                    ip_dst: Union[None, str] = request['IPv4']['source-ip']
+                if 'IPv6' in request.keys():
+                    ip_src: Union[None, str] = request['IPv6']['destination-ip']
+                    ip_dst: Union[None, str] = request['IPv6']['source-ip']
+                answers: List[Dict[str, Union[int, str]]] = list()
+                addresses: Union[None, str, List[str]] = None
+                success: bool = False
                 # endregion
 
-                # region Type of DNS query type: A or AAAA
-                if query_type in self.DNS_QUERY_TYPES:
-
-                    try:
-
-                        # region Local variables
-                        query_class = request_query['class']
-                        answer = []
-                        addresses = None
-                        # endregion
-
-                        # region Create query list
-                        if request_query['name'].endswith("."):
-                            query_name = request_query['name'][:-1]
-                        else:
-                            query_name = request_query['name']
-
-                        query = [{
-                            "type": query_type,
-                            "class": query_class,
-                            "name": query_name
-                        }]
-                        # endregion
-
-                        # region Script arguments condition check
-
-                        # region Variable fake_answers is True
-                        if self.fake_answers:
-                            addresses = self.fake_addresses[query_type]
-                        # endregion
-
-                        # region Variable fake_answers is False
-                        else:
-
-                            # region Fake domains list is set
-                            if len(self.fake_domains) > 0:
-
-                                # region Fake domains list is set and DNS query name in fake domains list
-                                if query_name in self.fake_domains:
-
-                                    # region A DNS query
-                                    if query_type == self.A_DNS_QUERY:
-
-                                        # Fake IPv4 is set
-                                        if self.A_DNS_QUERY in self.fake_addresses.keys():
-                                            if len(self.fake_addresses[self.A_DNS_QUERY]) > 0:
-                                                addresses = self.fake_addresses[self.A_DNS_QUERY]
-
-                                        # Fake IPv4 is NOT set
-                                        else:
-                                            addresses = self._get_domain_address(query_name, query_type)
-
-                                    # endregion
-
-                                    # region AAAA DNS query
-                                    if query_type == self.AAAA_DNS_QUERY:
-
-                                        # Fake IPv6 is set
-                                        if self.AAAA_DNS_QUERY in self.fake_addresses.keys():
-                                            if len(self.fake_addresses[self.AAAA_DNS_QUERY]) > 0:
-                                                addresses = self.fake_addresses[self.AAAA_DNS_QUERY]
-
-                                        # Fake IPv6 is NOT set
-                                        else:
-                                            addresses = self._get_domain_address(query_name, query_type)
-
-                                    # endregion
-
-                                # endregion
-
-                                # region Fake domains list is set and DNS query name NOT in fake domains list
-                                else:
-                                    addresses = self._get_domain_address(query_name, query_type)
-                                # endregion
-
-                            # endregion
-
-                            # region Fake domains list is NOT set
-                            else:
-
-                                # region A DNS query
-                                if query_type == self.A_DNS_QUERY:
-
-                                    # Fake IPv4 is set
-                                    if self.A_DNS_QUERY in self.fake_addresses.keys():
-                                        if len(self.fake_addresses[self.A_DNS_QUERY]) > 0:
-                                            addresses = self.fake_addresses[self.A_DNS_QUERY]
-
-                                    # Fake IPv4 is NOT set
-                                    else:
-                                        addresses = self._get_domain_address(query_name, query_type)
-
-                                # endregion
-
-                                # region AAAA DNS query
-                                if query_type == self.AAAA_DNS_QUERY:
-
-                                    # Fake IPv6 is set
-                                    if self.AAAA_DNS_QUERY in self.fake_addresses.keys():
-                                        if len(self.fake_addresses[self.AAAA_DNS_QUERY]) > 0:
-                                            addresses = self.fake_addresses[self.AAAA_DNS_QUERY]
-
-                                    # Fake IPv6 is NOT set
-                                    else:
-                                        addresses = self._get_domain_address(query_name, query_type)
-
-                                # endregion
-
-                            # endregion
-
-                        # endregion
-
-                        # endregion
-
-                        # region Query name in no_such_names list
-                        if query_name in self.no_such_names:
-                            addresses = ['no such name']
-                        # endregion
-
-                        # region Answer addresses is set
-
-                        if addresses is not None:
-
-                            # region Create answer list
-                            dns_answer_flags = 0x8580
-
-                            for address in addresses:
-                                if address == 'no such name':
-                                    dns_answer_flags = 0x8183
-                                    answer = []
-                                    break
-                                else:
-                                    answer.append({"name": query_name,
-                                                   "type": query_type,
-                                                   "class": query_class,
-                                                   "ttl": 0xffff,
-                                                   "address": address})
-
-                            # endregion
-
-                            # region Make dns answer packet
-                            if 'IP' in request.keys():
-                                dns_answer_packet = self.dns.make_response_packet(
-                                    src_mac=request['Ethernet']['destination'],
-                                    dst_mac=request['Ethernet']['source'],
-                                    src_ip=request['IP']['destination-ip'],
-                                    dst_ip=request['IP']['source-ip'],
-                                    src_port=53,
-                                    dst_port=request['UDP']['source-port'],
-                                    tid=request['DNS']['transaction-id'],
-                                    flags=dns_answer_flags,
-                                    queries=query,
-                                    answers_address=answer)
-
-                            elif 'IPv6' in request.keys():
-                                dns_answer_packet = self.dns.make_response_packet(
-                                    src_mac=request['Ethernet']['destination'],
-                                    dst_mac=request['Ethernet']['source'],
-                                    src_ip=request['IPv6']['destination-ip'],
-                                    dst_ip=request['IPv6']['source-ip'],
-                                    src_port=53,
-                                    dst_port=request['UDP']['source-port'],
-                                    tid=request['DNS']['transaction-id'],
-                                    flags=dns_answer_flags,
-                                    queries=query,
-                                    answers_address=answer)
-
-                            else:
-                                dns_answer_packet = None
-                            # endregion
-
-                            # region Send DNS answer packet
-                            if dns_answer_packet is not None:
-                                self.rawSocket.send(dns_answer_packet)
-                            # endregion
-
-                            # region Print info message
-                            if 'IP' in request.keys():
-                                if query_type == 1:
-                                    if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
-                                                                " to ", request['IP']['destination-ip'], " type: ",
-                                                                "A", " domain: ", query_name, " answer: ",
-                                                                (", ".join(addresses)))
-                                    else:
-                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                             " to ", request['IP']['destination-ip'], " type: ", "A",
-                                                             " domain: ", query_name, " answer: ",
-                                                             (", ".join(addresses)))
-                                if query_type == 28:
-                                    if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IP']['source-ip'],
-                                                                " to ", request['IP']['destination-ip'], " type: ",
-                                                                "AAAA", " domain: ", query_name, " answer: ",
-                                                                (", ".join(addresses)))
-                                    else:
-                                        self.base.print_info("DNS query from: ", request['IP']['source-ip'],
-                                                             " to ", request['IP']['destination-ip'], " type: ", "AAAA",
-                                                             " domain: ", query_name, " answer: ",
-                                                             (", ".join(addresses)))
-
-                            if 'IPv6' in request.keys():
-                                if query_type == 1:
-                                    if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IPv6']['source-ip'],
-                                                                " to ", request['IPv6']['destination-ip'], " type: ",
-                                                                "A", " domain: ", query_name, " answer: ",
-                                                                (", ".join(addresses)))
-                                    else:
-                                        self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
-                                                             " to ", request['IPv6']['destination-ip'], " type: ", "A",
-                                                             " domain: ", query_name, " answer: ",
-                                                             (", ".join(addresses)))
-                                if query_type == 28:
-                                    if query_name in self.success_domains:
-                                        self.base.print_success("DNS query from: ", request['IPv6']['source-ip'],
-                                                                " to ", request['IPv6']['destination-ip'], " type: ",
-                                                                "AAAA", " domain: ", query_name, " answer: ",
-                                                                (", ".join(addresses)))
-                                    else:
-                                        self.base.print_info("DNS query from: ", request['IPv6']['source-ip'],
-                                                             " to ", request['IPv6']['destination-ip'], " type: ",
-                                                             "AAAA", " domain: ", query_name, " answer: ",
-                                                             (", ".join(addresses)))
-                            # endregion
-
-                        # endregion
-
-                    except:
-                        pass
+                # region Check query name
+                if query['name'].endswith('.'):
+                    query['name']: str = query['name'][:-1]
                 # endregion
 
-        # endregion
+                # region Check config
+                for fake_domain_regexp in self.config.keys():
 
+                    if match(fake_domain_regexp, query['name']):
+
+                        # region No such domain
+                        if 'no such domain' in self.config[fake_domain_regexp].keys():
+                            if self.config[fake_domain_regexp]['no such domain']:
+                                addresses = ['no such domain']
+                                break
+                        # endregion
+
+                        # region Success domain
+                        if 'success' in self.config[fake_domain_regexp].keys():
+                            if self.config[fake_domain_regexp]['success']:
+                                success = True
+                        # endregion
+
+                        # region Fake addresses is set
+                        query_type_string: str = self._int_type_to_str_type(query['type'])
+                        if query_type_string in self.config[fake_domain_regexp].keys():
+                            if type(self.config[fake_domain_regexp][query_type_string]) is str:
+                                if self.config[fake_domain_regexp][query_type_string] == 'my ipv4 address':
+                                    addresses = [self.your_ipv4_address]
+                                elif self.config[fake_domain_regexp][query_type_string] == 'my ipv6 address':
+                                    addresses = [self.your_ipv6_address]
+                                else:
+                                    addresses = [self.config[fake_domain_regexp][query_type_string]]
+                            if type(self.config[fake_domain_regexp][query_type_string]) is list:
+                                addresses = self.config[fake_domain_regexp][query_type_string]
+                            break
+                        # endregion
+
+                        # region Fake address is NOT set
+                        else:
+                            addresses = self._get_domain_address(query['name'], query['type'])
+                        # endregion
+
+                # endregion
+
+                # region DNS query name NOT in fake domains regexp list
+                if addresses is None:
+                    addresses = self._get_domain_address(query['name'], query['type'])
+                # endregion
+
+                # endregion
+
+                # region Answer addresses is set
+
+                assert addresses is not None, 'Addresses in DNS answer is None!'
+
+                # region Create answer list
+                dns_answer_flags = 0x8080
+
+                for address in addresses:
+                    if address == 'no such domain':
+                        dns_answer_flags = 0x8183
+                        answers = list()
+                        break
+                    else:
+                        answers.append({'name': query['name'],
+                                        'type': query['type'],
+                                        'class': query['class'],
+                                        'ttl': 65535,
+                                        'address': address})
+
+                # endregion
+
+                # region Make dns answer packet
+                dns_answer_packet: Union[None, bytes] = self.dns.make_response_packet(
+                    ethernet_src_mac=request['Ethernet']['destination'],
+                    ethernet_dst_mac=request['Ethernet']['source'],
+                    ip_src=ip_src,
+                    ip_dst=ip_dst,
+                    udp_src_port=request['UDP']['destination-port'],
+                    udp_dst_port=request['UDP']['source-port'],
+                    transaction_id=request['DNS']['transaction-id'],
+                    flags=dns_answer_flags,
+                    queries=[query],
+                    answers_address=answers)
+                # endregion
+
+                # region Send DNS answer packet
+                if dns_answer_packet is not None:
+                    self.rawSocket.send(dns_answer_packet)
+                # endregion
+
+                # region Print info message
+                if success:
+                    self.base.print_success('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
+                                            self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
+                                            ' answer: ', (', '.join(addresses)))
+                else:
+                    self.base.print_info('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
+                                         self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
+                                         ' answer: ', (', '.join(addresses)))
+                self._write_to_log(from_ip_address=ip_dst,
+                                   to_ip_address=ip_src,
+                                   query_type=self._int_type_to_str_type(query['type']),
+                                   query_name=query['name'],
+                                   answer_address=(' '.join(addresses)))
+                # endregion
+
+                # endregion
+
+            # endregion
+
+        except AssertionError:
+            pass
     # endregion
 
-    # region Start server
-    def listen(self, listen_network_interface, listen_port=53, target_mac_address=None,
-               target_ip_address=None, target_ipv6_address=None, fake_answers=False,
-               fake_ip_addresses=[], fake_ipv6_addresses=[], fake_domains=[], no_such_names=[],
-               listen_ipv6=False, disable_ipv4=False, disable_ipv6=False, success_domains=[]):
+    # region Start DNS listener
+    def listen(self,
+               listen_network_interface: str = 'eth0',
+               listen_port: int = 53,
+               target_mac_address: Union[None, str] = None,
+               target_ipv4_address: Union[None, str] = None,
+               target_ipv6_address: Union[None, str] = None,
+               fake_answers: bool = False,
+               fake_ipv4_addresses: List[str] = [],
+               fake_ipv6_addresses: List[str] = [],
+               fake_domains_regexp: List[str] = [],
+               no_such_domains: List[str] = [],
+               listen_ipv6: bool = False,
+               disable_ipv4: bool = False,
+               success_domains: List[str] = [],
+               config_file: Union[None, str] = None,
+               log_file_name: str = 'dns_server_log',
+               log_file_format: str = 'csv') -> None:
+        try:
+            # region Set log file name and format
+            self.log_file_name = log_file_name
+            self.log_file_format = log_file_format
+            # endregion
 
-        # region Set success domains
-        self.success_domains = success_domains
-        # endregion
+            # region Set listen UDP port
+            if listen_port != 53:
+                assert 0 < listen_port < 65536, \
+                    'Bad value in "listen_port": ' + self.base.error_text(str(listen_port)) + \
+                    ' listen UDP port must be in range: ' + self.base.info_text('1 - 65535')
+            # endregion
 
-        # region Set fake answers
-        self.fake_answers = fake_answers
-        # endregion
+            # region Get your MAC, IP and IPv6 addresses
+            your_mac_address = self.base.get_interface_mac_address(listen_network_interface)
+            self.your_ipv4_address = self.base.get_interface_ip_address(listen_network_interface)
+            self.your_ipv6_address = self.base.make_ipv6_link_address(your_mac_address)
+            if listen_ipv6:
+                self.your_ipv6_address = self.base.get_interface_ipv6_link_address(listen_network_interface)
+            # endregion
 
-        # region Set DNS_QUERY_TYPES
-        if listen_ipv6:
-            if disable_ipv4:
-                self.DNS_QUERY_TYPES = [28]
+            # region Bind raw socket
+            self.rawSocket.bind((listen_network_interface, 0))
+            # endregion
+
+            # region Check config file
+            if config_file is not None:
+                assert isfile(config_file), 'Not found config file: ' + self.base.error_text(str(config_file))
+                with open(config_file, 'r') as config_file_descriptor:
+                    self.config = load(config_file_descriptor)
+            # endregion
+
+            # region Set fake ipv4 addresses
+            if len(fake_ipv4_addresses) == 0:
+                fake_ipv4_addresses = [self.your_ipv4_address]
             else:
-                if disable_ipv6:
-                    self.DNS_QUERY_TYPES = [1]
-                else:
-                    self.DNS_QUERY_TYPES = [1, 28]
-        else:
-            self.DNS_QUERY_TYPES = [1]
-        # endregion
+                for fake_ipv4_address in fake_ipv4_addresses:
+                    assert self.base.ip_address_validation(fake_ipv4_address), \
+                        'Bad fake IPv4 address: ' + self.base.error_text(fake_ipv4_address) + \
+                        ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
+            # endregion
 
-        # region Set listen network interface
-        self.network_interface = listen_network_interface
-        # endregion
-
-        # region Set listen UDP port
-        if listen_port != 53:
-            if 0 < listen_port < 65535:
-                self.port = listen_port
-            else:
-                self.base.print_error("Bad value in `listen_port`: ", str(listen_port),
-                                      "; listen UDP port must be in range: ", "1 - 65534")
-                exit(1)
-        # endregion
-
-        # region Get your MAC, IP and IPv6 addresses
-        self.your_mac_address = self.base.get_netiface_mac_address(self.network_interface)
-        self.your_ip_address = self.base.get_netiface_ip_address(self.network_interface)
-
-        if listen_ipv6:
-            self.your_ipv6_addresses = self.base.get_netiface_ipv6_link_address(self.network_interface)
-            self.fake_addresses[self.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
-        else:
-            self.fake_addresses[self.AAAA_DNS_QUERY] = None
-        # endregion
-
-        # region Bind raw socket
-        self.rawSocket.bind((self.network_interface, 0))
-        # endregion
-
-        # region Set fake addresses
-        if len(fake_ip_addresses) > 0:
-            self.fake_addresses[self.A_DNS_QUERY] = fake_ip_addresses
-        else:
-            if not disable_ipv4:
-                self.fake_addresses[self.A_DNS_QUERY] = [self.your_ip_address]
-
-        if len(fake_ipv6_addresses) > 0:
-            self.fake_addresses[self.AAAA_DNS_QUERY] = fake_ipv6_addresses
-            if disable_ipv4:
-                self.DNS_QUERY_TYPES = [self.AAAA_DNS_QUERY]
-            else:
-                self.DNS_QUERY_TYPES = [self.A_DNS_QUERY, self.AAAA_DNS_QUERY]
-        else:
-            if self.fake_answers:
-                if listen_ipv6:
-                    self.fake_addresses[self.AAAA_DNS_QUERY] = [self.your_ipv6_addresses]
-        # endregion
-
-        # region Set fake domains and "no such names" lists
-        self.fake_domains = fake_domains
-        self.no_such_names = no_such_names
-        # endregion
-
-        # region Check target IPv4 address
-        if target_ip_address is not None:
-            if not self.base.ip_address_validation(target_ip_address):
-                self.base.print_error("Bad target IPv4 address: ", target_ip_address)
-                exit(1)
-            else:
-                self.target_ip_address = target_ip_address
-        # endregion
-
-        # region Check target IPv6 address
-        if target_ipv6_address is not None:
-            if not self.base.ipv6_address_validation(target_ipv6_address):
-                self.base.print_error("Bad target IPv6 address: ", target_ipv6_address)
-                exit(1)
-            else:
-                self.target_ipv6_address = target_ipv6_address
-        # endregion
-
-        # region Sniffing DNS requests
-
-        # region Set network filter
-        network_filters = {}
-
-        if target_mac_address is not None:
-            network_filters['Ethernet'] = {'source': target_mac_address}
-        else:
-            network_filters['Ethernet'] = {'not-source': self.your_mac_address}
-
-        if self.target_ip_address is not None:
-            network_filters['IP'] = {'source-ip': self.target_ip_address}
-
-        if self.target_ipv6_address is not None:
-            network_filters['IPv6'] = {'source-ip': self.target_ipv6_address}
-
-        network_filters['IP'] = {'not-source-ip': '127.0.0.1'}
-        network_filters['UDP'] = {'destination-port': self.port}
-        # endregion
-
-        # region Clear fake_answers list
-        if not self.fake_answers:
+            # region Set fake ipv6 addresses
             if len(fake_ipv6_addresses) == 0:
-                del self.fake_addresses[self.AAAA_DNS_QUERY]
-            if len(fake_ip_addresses) == 0:
-                del self.fake_addresses[self.A_DNS_QUERY]
-        # endregion
-
-        # region Start sniffer
-        if listen_ipv6:
-            if disable_ipv4:
-                self.sniff.start(protocols=['IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                fake_ipv6_addresses = [self.your_ipv6_address]
             else:
-                self.sniff.start(protocols=['IP', 'IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
-        else:
-            self.sniff.start(protocols=['IP', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
-        # endregion
+                for fake_ipv6_address in fake_ipv6_addresses:
+                    assert self.base.ipv6_address_validation(fake_ipv6_address), \
+                        'Bad fake IPv6 address: ' + self.base.error_text(fake_ipv6_address) + \
+                        ' example IPv6 address: ' + self.base.info_text('fd00::1')
+            # endregion
 
-        # endregion
+            # region Set success domains
+            for success_domain in success_domains:
+                try:
+                    self.config[success_domain].update({'success': True})
+                except KeyError:
+                    self.config[success_domain] = {'success': True}
+            # endregion
+
+            # region Set no such domains
+            for no_such_domain in no_such_domains:
+                try:
+                    self.config[no_such_domain].update({'no such domain': True})
+                except KeyError:
+                    self.config[no_such_domain] = {'no such domain': True}
+            # endregion
+
+            # region Set fake domains regexp
+            for fake_domain_regexp in fake_domains_regexp:
+                try:
+                    self.config[fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self.config[fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+            # endregion
+
+            # region Set fake answers
+            if fake_answers:
+                try:
+                    self.config['.*'].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self.config['.*'] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+            # endregion
+
+            # region Check target MAC address
+            if target_mac_address is not None:
+                assert self.base.mac_address_validation(target_mac_address), \
+                    'Bad target MAC address: ' + self.base.error_text(target_mac_address) + \
+                    ' example MAC address: ' + self.base.info_text('01:23:45:67:89:0a')
+                self.target_mac_address = target_mac_address
+            # endregion
+
+            # region Check target IPv4 address
+            if target_ipv4_address is not None:
+                assert self.base.ip_address_validation(target_ipv4_address), \
+                    'Bad target IPv4 address: ' + self.base.error_text(target_ipv4_address) + \
+                    ' example IPv4 address: ' + self.base.info_text('192.168.1.1')
+            # endregion
+
+            # region Check target IPv6 address
+            if target_ipv6_address is not None:
+                assert self.base.ipv6_address_validation(target_ipv6_address), \
+                    'Bad target IPv6 address: ' + self.base.error_text(target_ipv6_address) + \
+                    ' example IPv6 address: ' + self.base.info_text('fd00::1')
+            # endregion
+
+            # region Sniffing DNS requests
+
+            # region Set network filter
+            network_filters = {}
+
+            if listen_network_interface != 'lo':
+                if target_mac_address is not None:
+                    network_filters['Ethernet'] = {'source': target_mac_address}
+                else:
+                    network_filters['Ethernet'] = {'not-source': your_mac_address}
+                if target_ipv4_address is not None:
+                    network_filters['IPv4'] = {'source-ip': target_ipv4_address}
+                if target_ipv6_address is not None:
+                    network_filters['IPv6'] = {'source-ip': target_ipv6_address}
+                network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
+                network_filters['IPv6'] = {'not-source-ip': '::1'}
+                network_filters['UDP'] = {'destination-port': listen_port}
+            else:
+                network_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
+                network_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
+                network_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
+                network_filters['UDP'] = {'destination-port': listen_port}
+            # endregion
+
+            # region Start sniffer
+            if listen_ipv6:
+                if disable_ipv4:
+                    self.sniff.start(protocols=['IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                else:
+                    self.sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+            else:
+                self.sniff.start(protocols=['IPv4', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+            # endregion
+
+            # endregion
+
+        except AssertionError as Error:
+            self.base.print_error(Error.args[0])
+            exit(1)
+
+        except JSONDecodeError:
+            self.base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
+            exit(1)
 
     # endregion
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # region Description
@@ -6,7 +6,7 @@
 dnsmasploit.py: Exploit for dnsmasq CVE-2017-14493 and CVE-2017-14494
 Author: Vladimir Ivanov
 License: MIT
-Copyright 2019, Raw-packet Project
+Copyright 2020, Raw-packet Project
 """
 # endregion
 
@@ -44,10 +44,10 @@ from select import select
 
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
-__copyright__ = 'Copyright 2019, Raw-packet Project'
+__copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['hackituria']
 __license__ = 'MIT'
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'

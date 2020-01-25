@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.network import IP_raw, TCP_raw, Ethernet_raw, ARP_raw
