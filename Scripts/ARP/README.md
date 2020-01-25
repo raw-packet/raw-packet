@@ -8,16 +8,16 @@ The [Address Resolution Protocol (ARP)](https://en.wikipedia.org/wiki/Address_Re
 This script creates and sends ARP requests (Who has?) to search for alive hosts on the local network.
 
 ```
-root@kali:~/raw-packet# python Scripts/ARP/arp_scan.py -h
-usage: arp_scan.py [-h] [-i INTERFACE] [-I TARGET_IP] [-t TIMEOUT] [-r RETRY]
+root@kali:~/raw-packet# python3 Scripts/ARP/arp_scan.py --help
+usage: arp_scan.py [-h] [-i INTERFACE] [-T TARGET_IP] [-t TIMEOUT] [-r RETRY]
 
-ARP scanner script
+ARP scan script
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for ARP scanner
-  -I TARGET_IP, --target_ip TARGET_IP
+  -T TARGET_IP, --target_ip TARGET_IP
                         Set target IP address
   -t TIMEOUT, --timeout TIMEOUT
                         Set timeout (default=3)
@@ -39,21 +39,30 @@ This script implement the ARP spoofing attack.
 ARP spoofing, ARP cache poisoning or ARP poison routing, is a technique that  an attacker sends fake (spoofed) Address Resolution Protocol (ARP) messages onto a local network.
 
 ```
-root@kali:~/raw-packet# python Scripts/ARP/arp_spoof.py -h
-usage: arp_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-g GATEWAY_IP] [-r]
-                    [-q]
+root@kali:~/raw-packet# python3 Scripts/ARP/arp_spoof.py --help
+usage: arp_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                    [-g GATEWAY_IP] [-r] [--ipv4_multicast_requests]
+                    [--ipv6_multicast_requests] [-R] [-q]
 
-ARP spoofing
+ARP spoofing script
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for send ARP packets
   -t TARGET_IP, --target_ip TARGET_IP
-                        Set client IP address
+                        Set target IP address
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
   -g GATEWAY_IP, --gateway_ip GATEWAY_IP
                         Set gateway IP address
   -r, --requests        Send only ARP requests
+  --ipv4_multicast_requests
+                        Send only ARP IPv4 multicast requests
+  --ipv6_multicast_requests
+                        Send only ARP IPv6 multicast requests
+  -R, --broadcast_requests
+                        Send only ARP broadcast requests
   -q, --quiet           Minimal output
 ```
 

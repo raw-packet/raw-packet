@@ -41,6 +41,28 @@ Required OS: [Linux based](https://en.wikipedia.org/wiki/Linux)<br/>
 Python versions: [3.7](https://www.python.org/downloads/release/python-374/)<br/>
 License: [MIT](https://github.com/raw-packet/raw-packet/blob/master/LICENSE)
 
+# Install
+
+## Debian based OS install with apt (recommended):
+```
+git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
+sudo apt update && sudo apt install -y python3 python3-pip python3-scapy \
+                                       python3-netifaces python-ipaddress \
+                                       python3-netaddr python3-psutil \
+                                       python3-prettytable python3-distro \
+                                       python3-xmltodict php lsof net-tools \
+                                       wireless-tools nmap aircrack-ng
+```
+
+## Debian based OS install with pip:
+```
+git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
+sudo apt update && sudo apt install -y python3 python3-pip apache2 php \
+                                       lsof net-tools wireless-tools \
+                                       nmap aircrack-ng
+sudo pip3 install -r requirements.txt
+```
+
 # Publications
 
 Apple security updates: [https://support.apple.com/en-us/HT209341](https://support.apple.com/en-us/HT209341)<br/>
@@ -75,30 +97,6 @@ Script [time_test.py](https://github.com/raw-packet/raw-packet/blob/master/Scrip
 ![Scapy vs. Raw-packet DHCP discover requests](https://raw-packet.github.io/static/images/others/DHCP_discover_requests_timing.png)
 
 ![Scapy vs. Raw-packet DNS requests](https://raw-packet.github.io/static/images/others/DNS_requests_timing.png)
-
-# Install
-
-## Python 3
-
-### Debian based OS install with apt (recommended):
-```
-git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
-sudo apt update && sudo apt install -y python3 python3-pip python3-scapy \
-                                       python3-netifaces python-ipaddress \
-                                       python3-netaddr python3-psutil \
-                                       python3-prettytable python3-distro \
-                                       python3-xmltodict php lsof net-tools \
-                                       wireless-tools nmap aircrack-ng
-```
-
-### Debian based OS install with pip:
-```
-git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
-sudo apt update && sudo apt install -y python3 python3-pip apache2 php \
-                                       lsof net-tools wireless-tools \
-                                       nmap aircrack-ng
-sudo pip3 install -r requirements.txt
-```
 
 # Scripts
 
@@ -236,16 +234,16 @@ The [Address Resolution Protocol (ARP)](https://en.wikipedia.org/wiki/Address_Re
 This script creates and sends ARP requests (Who has?) to search for alive hosts on the local network.
 
 ```
-root@kali:~/raw-packet# python Scripts/ARP/arp_scan.py -h
-usage: arp_scan.py [-h] [-i INTERFACE] [-I TARGET_IP] [-t TIMEOUT] [-r RETRY]
+root@kali:~/raw-packet# python3 Scripts/ARP/arp_scan.py --help
+usage: arp_scan.py [-h] [-i INTERFACE] [-T TARGET_IP] [-t TIMEOUT] [-r RETRY]
 
-ARP scanner script
+ARP scan script
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for ARP scanner
-  -I TARGET_IP, --target_ip TARGET_IP
+  -T TARGET_IP, --target_ip TARGET_IP
                         Set target IP address
   -t TIMEOUT, --timeout TIMEOUT
                         Set timeout (default=3)
@@ -267,21 +265,30 @@ This script implement the ARP spoofing attack.
 ARP spoofing, ARP cache poisoning or ARP poison routing, is a technique that  an attacker sends fake (spoofed) Address Resolution Protocol (ARP) messages onto a local network.
 
 ```
-root@kali:~/raw-packet# python Scripts/ARP/arp_spoof.py -h
-usage: arp_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-g GATEWAY_IP] [-r]
-                    [-q]
+root@kali:~/raw-packet# python3 Scripts/ARP/arp_spoof.py --help
+usage: arp_spoof.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                    [-g GATEWAY_IP] [-r] [--ipv4_multicast_requests]
+                    [--ipv6_multicast_requests] [-R] [-q]
 
-ARP spoofing
+ARP spoofing script
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for send ARP packets
   -t TARGET_IP, --target_ip TARGET_IP
-                        Set client IP address
+                        Set target IP address
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
   -g GATEWAY_IP, --gateway_ip GATEWAY_IP
                         Set gateway IP address
   -r, --requests        Send only ARP requests
+  --ipv4_multicast_requests
+                        Send only ARP IPv4 multicast requests
+  --ipv6_multicast_requests
+                        Send only ARP IPv6 multicast requests
+  -R, --broadcast_requests
+                        Send only ARP broadcast requests
   -q, --quiet           Minimal output
 ```
 
