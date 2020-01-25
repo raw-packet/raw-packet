@@ -11,7 +11,7 @@ This script automatically finds Apple devices on the local network using an ARP,
 1. RA Spoofing (IPv6)
 
 ```
-root@kali:~/raw-packet# python Scripts/Apple/apple_mitm.py -h
+root@kali:~/raw-packet# python3 Scripts/Apple/apple_mitm.py --help
 usage: apple_mitm.py [-h] [-T TECHNIQUE] [-D DISCONNECT] [-l LISTEN_IFACE]
                      [-d DEAUTH_IFACE] [-0 DEAUTH_PACKETS]
                      [-f PHISHING_DOMAIN] [-p PHISHING_DOMAIN_PATH]
@@ -68,18 +68,22 @@ optional arguments:
 Disconnect Apple device from the local network using ARP packets
 
 ```
-root@kali:~/raw-packet# python Scripts/Apple/apple_arp_dos.py -h
-usage: apple_arp_dos.py [-h] [-i IFACE] [-t TARGET_IP] [-s]
+root@kali:~/raw-packet# python3 Scripts/Apple/apple_arp_dos.py --help
+usage: apple_arp_dos.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                        [-n] [-q]
 
-DoS Apple devices in local network with ARP packets
+Disconnect Apple device in local network with ARP packets
 
 optional arguments:
   -h, --help            show this help message and exit
-  -i IFACE, --iface IFACE
+  -i INTERFACE, --interface INTERFACE
                         Set interface name for send ARP packets
   -t TARGET_IP, --target_ip TARGET_IP
                         Set target IP address
-  -s, --nmap_scan       Use nmap for Apple device detection
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -n, --nmap_scan       Use nmap for Apple device detection
+  -q, --quit            Minimal output
 ```
 
 ### Sample script output:
@@ -95,8 +99,9 @@ optional arguments:
 Rogue DHCP server for Apple device with predict next DHCP transaction ID
 
 ```
-root@kali:~/raw-packet# python Scripts/Apple/apple_rogue_dhcp.py --help
-usage: apple_rogue_dhcp.py [-h] [-i INTERFACE] -t TARGET_MAC -I TARGET_IP [-q]
+root@kali:~/raw-packet# python3 Scripts/Apple/apple_rogue_dhcp.py --help
+usage: apple_rogue_dhcp.py [-h] [-i INTERFACE] -m TARGET_MAC -t TARGET_NEW_IP
+                           [-b] [-q]
 
 Rogue DHCP server for Apple devices
 
@@ -104,11 +109,15 @@ optional arguments:
   -h, --help            show this help message and exit
   -i INTERFACE, --interface INTERFACE
                         Set interface name for send DHCP reply packets
-  -t TARGET_MAC, --target_mac TARGET_MAC
+  -m TARGET_MAC, --target_mac TARGET_MAC
                         Set target MAC address, required!
-  -I TARGET_IP, --target_ip TARGET_IP
-                        Set client IP address, required!
+  -t TARGET_NEW_IP, --target_new_ip TARGET_NEW_IP
+                        Set new client IP address, required!
+  -b, --broadcast       Send broadcast DHCPv4 responses
   -q, --quiet           Minimal output
 ```
+
+### Sample script output:
+![apple_rogue_dhcp.py output](https://raw-packet.github.io/static/images/screenshots/apple_rogue_dhcp.py_screenshot.png)
 
 ---
