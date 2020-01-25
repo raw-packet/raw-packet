@@ -123,7 +123,7 @@ def reply(request):
     # endregion
 
     # region Check this client already in global clients dictionary
-    client_already_in_dictionary = False
+    client_already_in_dictionary: bool = False
     if client_mac_address in clients.keys():
         client_already_in_dictionary = True
     # endregion
@@ -163,7 +163,6 @@ def reply(request):
                 client_mac_address,
                 {'router solicitation': True, 'network prefix': network_prefix},
                 client_already_in_dictionary)
-
         # endregion
 
         # region ICMPv6 Neighbor Solicitation
