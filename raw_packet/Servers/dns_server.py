@@ -287,11 +287,11 @@ class RawDnsServer:
                 # endregion
 
                 # region Print info message
-                if success:
+                if success and query['name'] != '':
                     self.base.print_success('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
                                             self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
                                             ' answer: ', (', '.join(addresses)))
-                else:
+                if not success and query['name'] != '':
                     self.base.print_info('DNS query from: ', ip_dst, ' to ', ip_src, ' type: ',
                                          self._int_type_to_str_type(query['type']), ' domain: ', query['name'],
                                          ' answer: ', (', '.join(addresses)))
