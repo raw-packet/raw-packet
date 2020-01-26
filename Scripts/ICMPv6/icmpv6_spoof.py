@@ -13,7 +13,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from sys import path
 from os.path import dirname, abspath
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from prettytable import PrettyTable
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     try:
 
         # region Parse script arguments
-        parser = ArgumentParser(description='ICMPv6 spoofing')
+        parser = ArgumentParser(description='ICMPv6 spoofing', formatter_class=RawTextHelpFormatter)
         parser.add_argument('-T', '--technique', type=int, default=None,
                             help='Set ICMPv6 MiTM technique (example: 1)' +
                                  '\n1. ICMPv6 RA (Router Advertisement) Spoofing' +
