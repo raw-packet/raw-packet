@@ -181,7 +181,8 @@ def reply(request: Dict[str, Dict[Union[int, str], Union[int, str]]]):
                                                       sender_ip=requested_ip,
                                                       target_mac=arp_sender_mac_address,
                                                       target_ip=arp_sender_ip_address)
-                        send_raw_socket.send(arp_reply)
+                        for _ in range(5):
+                            send_raw_socket.send(arp_reply)
                         base.print_info('ARP response to:  ', arp_sender_mac_address, ' "',
                                         arp_target_ip_address + ' is at ' + your_mac_address,
                                         '" (IPv4 address conflict)')
