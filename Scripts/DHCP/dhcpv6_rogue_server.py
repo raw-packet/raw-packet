@@ -221,7 +221,8 @@ def reply(request):
             if not disable_dhcpv6:
                 try:
                     if clients[client_mac_address]['dhcpv6 mitm'] == 'success':
-                        test = clients[client_mac_address]['neighbor solicitation your address']
+                        test = clients[client_mac_address]['neighbor solicitation advertise address']
+                        # test = clients[client_mac_address]['neighbor solicitation your address']
 
                         try:
                             test = clients[client_mac_address]['success message']
