@@ -736,9 +736,10 @@ optional arguments:
 Script for creating network conflicts for varius testing.
 
 ```
-root@shakal:~/raw-packet# python Scripts/Others/network_conflict_creator.py --help
-usage: network_conflict_creator.py [-h] [-i INTERFACE] -t TARGET_IP
-                                   [-m TARGET_MAC] [-a] [-r] [-p PACKETS] [-q]
+root@kali:~/raw-packet# python3 Scripts/Others/network_conflict_creator.py --help
+usage: network_conflict_creator.py [-h] [-i INTERFACE] [-t TARGET_IP]
+                                   [-m TARGET_MAC] [--replies] [--requests]
+                                   [--broadcast] [-p PACKETS] [-q] [-e]
 
 Network conflict creator script
 
@@ -750,11 +751,13 @@ optional arguments:
                         Set target IP address
   -m TARGET_MAC, --target_mac TARGET_MAC
                         Set target MAC address
-  -a, --answers         Send only ARP answers
-  -r, --requests        Send only ARP requests
+  --replies             Send only ARP replies
+  --requests            Send only ARP requests
+  --broadcast           Send broadcast ARP requests
   -p PACKETS, --packets PACKETS
-                        Number of ARP answer packets (default: 10)
+                        Number of ARP packets (default: 10)
   -q, --quiet           Minimal output
+  -e, --exit            Exit on success
 ```
 
 ### Sample script output:
