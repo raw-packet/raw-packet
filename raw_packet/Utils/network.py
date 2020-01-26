@@ -4051,13 +4051,12 @@ class RawDHCPv6:
 
         if preference is not None:
             options[7] = pack('!B', preference)
-
         options[20] = b''                                    # Reconfigure Accept
         options[23] = self.ipv6.pack_addr(dns_address)       # DNS recursive name server
         options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
 
-        options[3] = pack('!' '3I' '2H', iaid, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+        options[3] = pack('!' '3I' '2H', iaid, 3000, 4800, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
                      pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
@@ -4102,7 +4101,7 @@ class RawDHCPv6:
         options[24] = self.dns.pack_dns_name(domain_search)  # Domain search list
         options[82] = pack('!I', 0x3c)                       # SOL_MAX_RT
 
-        options[3] = pack('!' '3I' '2H', 1, 21600, 34560, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
+        options[3] = pack('!' '3I' '2H', 1, 3000, 4800, 5, 24) + self.ipv6.pack_addr(ipv6_address) + \
                      pack('!2I', 0xffffffff, 0xffffffff)     # Identity Association for Non-temporary address
 
         return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
