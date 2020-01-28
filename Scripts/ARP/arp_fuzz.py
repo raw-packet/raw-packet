@@ -211,7 +211,7 @@ if __name__ == '__main__':
         # endregion
 
         # region Parse script arguments
-        parser: ArgumentParser = ArgumentParser(description='ARP spoofing script')
+        parser: ArgumentParser = ArgumentParser(description='ARP fuzzing script')
         parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
         parser.add_argument('-T', '--target_ip', help='Set target IP address', required=True)
         parser.add_argument('-t', '--target_mac', help='Set target MAC address', required=True)
