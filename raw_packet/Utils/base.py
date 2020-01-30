@@ -27,6 +27,8 @@ import socket as sock
 from distro import linux_distribution
 from prettytable import PrettyTable
 from typing import Dict, List, Union
+from paramiko import RSAKey, SSHClient, AutoAddPolicy
+from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
 # endregion
 
 # region Authorship information
@@ -1611,6 +1613,113 @@ class Base:
         else:
             return mac_address
 
+    def exec_command_over_ssh(self,
+                              command: str = 'ifconfig',
+                              ssh_user: str = 'root',
+                              ssh_password: Union[None, str] = None,
+                              ssh_pkey: Union[None, RSAKey] = None,
+                              ssh_host: str = '192.168.0.1',
+                              need_output: bool = True,
+                              exit_on_failure: bool = True) -> Union[None, bool, str]:
+        """
+        Exec cmd command over SSH
+        :param command: CMD command string (example: 'ifconfig')
+        :param ssh_user: SSH user string (example: 'root')
+        :param ssh_password: SSH password string or None if use ssh private key
+        :param ssh_pkey: SSH private key or None if use ssh password
+        :param ssh_host: SSH host string (example: '192.168.0.1')
+        :param need_output: Need command output or not (default: True)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :return: True or False if not need output, Output string or None if need output
+        """
+        command_result: Union[None, str] = None
+        try:
+            assert not (ssh_password is None and ssh_pkey is None), \
+                'SSH password and private key is None'
+
+            ssh_client: SSHClient = SSHClient()
+            ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+            if ssh_password is not None:
+                ssh_client.connect(hostname=ssh_host, username=ssh_user, password=ssh_password)
+            if ssh_pkey is not None:
+                ssh_client.connect(hostname=ssh_host, username=ssh_user, pkey=ssh_pkey)
+
+            if need_output:
+                stdin, stdout, stderr = ssh_client.exec_command(command)
+                ssh_client.close()
+                return stdout.read().decode('utf-8')
+            else:
+                ssh_client.exec_command(command)
+                ssh_client.close()
+                return True
+
+        except AssertionError as Error:
+            self.print_error(Error.args[0])
+
+        except NoValidConnectionsError:
+            self.print_error('Could not connect to SSH host: ', ssh_host)
+
+        except AuthenticationException:
+            self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
+
+        if exit_on_failure:
+            exit(1)
+        if need_output:
+            return command_result
+        else:
+            return False
+
+    def download_file_over_ssh(self,
+                               remote_path: str = '/tmp/test.txt',
+                               local_path: str = 'test.txt',
+                               ssh_user: str = 'root',
+                               ssh_password: Union[None, str] = None,
+                               ssh_pkey: Union[None, RSAKey] = None,
+                               ssh_host: str = '192.168.0.1',
+                               exit_on_failure: bool = True) -> Union[bool]:
+        """
+        Transfer file over SSH
+        :param remote_path: Remote file path string
+        :param local_path: Local file path string
+        :param ssh_user: SSH user string (example: 'root')
+        :param ssh_password: SSH password string or None if use ssh private key
+        :param ssh_pkey: SSH private key or None if use ssh password
+        :param ssh_host: SSH host string (example: '192.168.0.1')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :return: True or False if not need output, Output string or None if need output
+        """
+        try:
+            assert not (ssh_password is None and ssh_pkey is None), \
+                'SSH password and private key is None'
+
+            ssh_client: SSHClient = SSHClient()
+            ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+            if ssh_password is not None:
+                ssh_client.connect(hostname=ssh_host, username=ssh_user, password=ssh_password)
+            if ssh_pkey is not None:
+                ssh_client.connect(hostname=ssh_host, username=ssh_user, pkey=ssh_pkey)
+
+            sftp = ssh_client.open_sftp()
+            sftp.get(remote_path, local_path)
+            sftp.close()
+            ssh_client.close()
+            return True
+
+        except AssertionError as Error:
+            self.print_error(Error.args[0])
+
+        except NoValidConnectionsError:
+            self.print_error('Could not connect to SSH host: ', ssh_host)
+
+        except AuthenticationException:
+            self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
+
+        except FileNotFoundError:
+            self.print_error('Not found remote file: ', remote_path)
+
+        if exit_on_failure:
+            exit(1)
+        return False
     # endregion
 
 # endregion
