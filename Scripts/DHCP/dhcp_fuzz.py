@@ -20,10 +20,11 @@ from socket import inet_aton
 from time import sleep
 from typing import Union, List, Dict
 from re import sub
-from paramiko import RSAKey, SSHClient, AutoAddPolicy
-from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
+from paramiko import RSAKey
 from pathlib import Path
 from os.path import isfile
+from os import remove
+from scapy.all import rdpcap, BOOTP
 # endregion
 
 # region Authorship information
@@ -40,6 +41,7 @@ __status__ = 'Development'
 
 tested_index: int = 0
 transactions: List[int] = list()
+send_transactions: Dict[int, List[int]] = {}
 
 
 # region Get address of IPv4 gateway over ssh
@@ -61,29 +63,20 @@ def get_ipv4_gateway_over_ssh(ssh_user: str = 'root',
     """
     gateway_ipv4_address: Union[None, str] = None
     try:
-        assert not (ssh_password is None and ssh_pkey is None), \
-            'SSH password and private key is None'
-
-        ssh_client: SSHClient = SSHClient()
-        ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        if ssh_password is not None:
-            ssh_client.connect(hostname=ssh_host, username=ssh_user, password=ssh_password)
-        if ssh_pkey is not None:
-            ssh_client.connect(hostname=ssh_host, username=ssh_user, pkey=ssh_pkey)
-
         if os == 'MacOS':
             route_table_command: str = 'netstat -nr | grep default | grep ' + network_interface + \
                                        ' | awk \'{print $2}\''
         elif os == 'Linux':
-            # route_table_command: str = 'ip route | grep default | grep ' + network_interface + \
-            #                            ' | awk \'{print $3}\''
             route_table_command: str = 'route -n | grep UG | grep ' + network_interface + \
                                        ' | awk \'{print $2}\''
         else:
             route_table_command: str = 'ipconfig | findstr /i "Gateway"'
 
-        stdin, stdout, stderr = ssh_client.exec_command(route_table_command)
-        route_table_result: str = stdout.read().decode('utf-8')
+        route_table_result: str = base.exec_command_over_ssh(command=route_table_command,
+                                                             ssh_user=ssh_user,
+                                                             ssh_password=ssh_password,
+                                                             ssh_pkey=ssh_pkey,
+                                                             ssh_host=ssh_host)
         route_table_result: List[str] = route_table_result.splitlines()
         route_table_result: str = route_table_result[0]
 
@@ -106,14 +99,6 @@ def get_ipv4_gateway_over_ssh(ssh_user: str = 'root',
 
     except IndexError:
         return gateway_ipv4_address
-
-    except NoValidConnectionsError:
-        base.print_error('Could not connect to SSH host: ', ssh_host)
-        return gateway_ipv4_address
-
-    except AuthenticationException:
-        base.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
-        return gateway_ipv4_address
 # endregion
 
 
@@ -134,42 +119,81 @@ def dhclient_over_ssh(ssh_user: str = 'root',
     :param network_interface: Network interface
     :return: True if success or False if error
     """
-    try:
-        assert not (ssh_password is None and ssh_pkey is None), \
-            'SSH password and private key is None'
+    if os == 'MacOS':
+        dhclient_command: str = 'ipconfig set ' + network_interface + ' DHCP'
+    elif os == 'Linux':
+        dhclient_command: str = 'rm -f /var/lib/dhcp/dhclient.leases; dhclient ' + network_interface
+    else:
+        dhclient_command: str = 'ipconfig /release && ipconfig /renew'
 
-        ssh_client: SSHClient = SSHClient()
-        ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        if ssh_password is not None:
-            ssh_client.connect(hostname=ssh_host, username=ssh_user, password=ssh_password)
-        if ssh_pkey is not None:
-            ssh_client.connect(hostname=ssh_host, username=ssh_user, pkey=ssh_pkey)
+    return base.exec_command_over_ssh(command=dhclient_command,
+                                      ssh_user=ssh_user,
+                                      ssh_password=ssh_password,
+                                      ssh_pkey=ssh_pkey,
+                                      ssh_host=ssh_host,
+                                      need_output=False)
+# endregion
 
-        if os == 'MacOS':
-            dhclient_command: str = 'ipconfig set ' + network_interface + ' DHCP'
-        elif os == 'Linux':
-            dhclient_command: str = 'rm -f /var/lib/dhcp/dhclient.leases; dhclient ' + network_interface
-        else:
-            dhclient_command: str = 'ipconfig /release && ipconfig /renew'
 
-        ssh_client.exec_command(dhclient_command)
-        ssh_client.close()
-        return True
+# region Start tshark over ssh
+def start_tshark_over_ssh(ssh_user: str = 'root',
+                          ssh_password: Union[None, str] = None,
+                          ssh_pkey: Union[None, RSAKey] = None,
+                          ssh_host: str = '192.168.0.1',
+                          os: str = 'MacOS',
+                          network_interface: str = 'en0') -> bool:
+    """
+    Start tshark over ssh
+    :param ssh_user: SSH Username
+    :param ssh_password: SSH Password
+    :param ssh_pkey: SSH Private key
+    :param ssh_host: SSH Host
+    :param os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+    :param network_interface: Network interface
+    :return: True if success or False if error
+    """
+    if os == 'Linux' or os == 'MacOS':
+        start_tshark_command: str = 'rm -f /tmp/dhcp.pcap; tshark -i ' + network_interface + \
+                                    ' -w /tmp/dhcp.pcap -f "ether src ' + your_mac_address + '"'
+    else:
+        start_tshark_command: str = 'cd C:\Windows\Temp && del /f dhcp.pcap && tshark -i ' + network_interface + \
+                                    ' -w dhcp.pcap -f "ether src ' + your_mac_address + '"'
 
-    except AssertionError as Error:
-        base.print_error(Error.args[0])
-        return False
+    return base.exec_command_over_ssh(command=start_tshark_command,
+                                      ssh_user=ssh_user,
+                                      ssh_password=ssh_password,
+                                      ssh_pkey=ssh_pkey,
+                                      ssh_host=ssh_host,
+                                      need_output=False)
+# endregion
 
-    except IndexError:
-        return False
 
-    except NoValidConnectionsError:
-        base.print_error('Could not connect to SSH host: ', ssh_host)
-        return False
+# region Stop tshark over ssh
+def stop_tshark_over_ssh(ssh_user: str = 'root',
+                         ssh_password: Union[None, str] = None,
+                         ssh_pkey: Union[None, RSAKey] = None,
+                         ssh_host: str = '192.168.0.1',
+                         os: str = 'MacOS') -> bool:
+    """
+    Stop tshark over ssh
+    :param ssh_user: SSH Username
+    :param ssh_password: SSH Password
+    :param ssh_pkey: SSH Private key
+    :param ssh_host: SSH Host
+    :param os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+    :return: True if success or False if error
+    """
+    if os == 'Linux' or os == 'MacOS':
+        stop_tshark_command: str = 'pkill tshark'
+    else:
+        stop_tshark_command: str = 'taskkill /IM "tshark.exe" /F'
 
-    except AuthenticationException:
-        base.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
-        return False
+    return base.exec_command_over_ssh(command=stop_tshark_command,
+                                      ssh_user=ssh_user,
+                                      ssh_password=ssh_password,
+                                      ssh_pkey=ssh_pkey,
+                                      ssh_host=ssh_host,
+                                      need_output=False)
 # endregion
 
 
@@ -177,7 +201,7 @@ def dhclient_over_ssh(ssh_user: str = 'root',
 def make_reply(bootp_transaction_id: int = 1,
                dhcpv4_message_type: int = 2) -> bytes:
 
-    if tested_index == len(tested_parameters) - 1:
+    if tested_index == len(tested_parameters):
         base.info_text('Exit ...')
         exit(0)
 
@@ -412,6 +436,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--target_ssh_pass', help='Set target password for ssh', default=None)
     parser.add_argument('-k', '--target_ssh_pkey', help='Set target private key for ssh', default=None)
     parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', required=True)
+    parser.add_argument('-s', '--send', action='store_true', help='Send packets to target')
     parser.add_argument('-A', '--all_tests', action='store_true', help='Test all fields')
     parser.add_argument('-B', '--only_broadcast', action='store_true', help='Send only Broadcast packets')
     parser.add_argument('-M', '--only_multicast', action='store_true', help='Send only Multicast packets')
@@ -548,9 +573,6 @@ if __name__ == '__main__':
             # Long list
             destination_ports: List[int] = [
                 68,  # DHCPv4 response destination port
-                67,  # DHCPv4 response source port
-                546,  # DHCPv6 response destination port
-                547,  # DHCPv6 response source port
             ]
             source_ports: List[int] = [
                 68,  # DHCPv4 response destination port
@@ -562,11 +584,11 @@ if __name__ == '__main__':
             # Short list
             destination_ports: List[int] = [
                 68,  # DHCPv4 response destination port
-                67,  # DHCPv4 response source port
             ]
             source_ports: List[int] = [
                 67,  # DHCPv4 response source port
-                5353,  # MDNS port
+                546,  # DHCPv6 response destination port
+                547,  # DHCPv6 response source port
             ]
         # endregion
 
@@ -802,19 +824,111 @@ if __name__ == '__main__':
 
         # endregion
 
-        # region Sniffer
-        network_filters = {
-            'Ethernet': {'source': args.target_mac, 'destination': 'ff:ff:ff:ff:ff:ff'},
-            'IPv4': {'source-ip': '0.0.0.0', 'destination-ip': '255.255.255.255'},
-            'UDP': {'source-port': 68, 'destination-port': 67}
-        }
-        dhclient_over_ssh(ssh_user=args.target_ssh_user,
-                          ssh_password=args.target_ssh_pass,
-                          ssh_pkey=private_key,
-                          ssh_host=args.target_ip,
-                          os=args.target_os,
-                          network_interface=args.target_interface)
-        sniff.start(protocols=['IPv4', 'UDP', 'DHCPv4'], prn=reply, filters=network_filters)
+        # region Send
+        if args.send:
+            pcap_file: str = '/tmp/dhcp.pcap'
+            if isfile(pcap_file):
+                remove(pcap_file)
+            start_tshark_over_ssh(ssh_user=args.target_ssh_user,
+                                  ssh_password=args.target_ssh_pass,
+                                  ssh_pkey=private_key,
+                                  ssh_host=args.target_ip,
+                                  os=args.target_os,
+                                  network_interface=args.target_interface)
+            sleep(1)
+            transaction: int = 0
+            dhcpv4_message_types: Dict[int, str] = {
+                1: 'Discover',
+                2: 'Offer',
+                3: 'Request',
+                4: 'Decline',
+                5: 'ACK',
+                6: 'NAK',
+                7: 'Release',
+                8: 'Inform',
+                9: 'Force Renew',
+                10: 'Lease Query',
+                11: 'Lease Unassigned',
+                12: 'Lease Unknown',
+                13: 'Lease Active',
+                14: 'Bulk Lease Query',
+                15: 'Lease Query Done',
+                16: 'Active Lease Query',
+                17: 'Lease Query Status',
+                18: 'TLS'
+            }
+            base.print_info('Length of tested parameters: ',
+                            str(len(tested_parameters) * len(dhcpv4_message_types.keys())))
+            for dhcpv4_message_type in dhcpv4_message_types.keys():
+                for tested_index in range(0, len(tested_parameters), 1):
+                    for _ in range(3):
+                        raw_socket.send(make_reply(bootp_transaction_id=transaction,
+                                                   dhcpv4_message_type=dhcpv4_message_type))
+                    send_transactions[transaction] = [dhcpv4_message_type, tested_index]
+                    transaction += 1
+                    sleep(0.1)
+            sleep(3)
+            stop_tshark_over_ssh(ssh_user=args.target_ssh_user,
+                                 ssh_password=args.target_ssh_pass,
+                                 ssh_pkey=private_key,
+                                 ssh_host=args.target_ip,
+                                 os=args.target_os)
+            sleep(3)
+            if args.target_os == 'Windows':
+                base.download_file_over_ssh(remote_path='C:\Windows\Temp\dhcp.pcap',
+                                            local_path=pcap_file,
+                                            ssh_user=args.target_ssh_user,
+                                            ssh_password=args.target_ssh_pass,
+                                            ssh_pkey=private_key,
+                                            ssh_host=args.target_ip)
+            else:
+                base.download_file_over_ssh(remote_path=pcap_file,
+                                            local_path=pcap_file,
+                                            ssh_user=args.target_ssh_user,
+                                            ssh_password=args.target_ssh_pass,
+                                            ssh_pkey=private_key,
+                                            ssh_host=args.target_ip)
+            assert isfile(pcap_file), \
+                'Can not download pcap file with DHCPv4 traffic over SSH'
+            base.print_info('Pcap file with DHCPv4 traffic is downloaded to: ', pcap_file)
+            packets = rdpcap(pcap_file)
+            for packet in packets:
+                if packet.haslayer(BOOTP):
+                    sniff_transaction = packet[BOOTP].xid
+                    if sniff_transaction not in transactions:
+                        transactions.append(sniff_transaction)
+
+            for send_transaction in send_transactions.keys():
+                if send_transaction in transactions:
+                    base.print_success('Tested index: ',
+                                       str(send_transactions[send_transaction][1]),
+                                       ' DHCPv4 message type: ',
+                                       dhcpv4_message_types[send_transactions[send_transaction][0]],
+                                       ' Tested parameters: ',
+                                       str(tested_parameters[send_transactions[send_transaction][1]]))
+                else:
+                    base.print_error('Tested index: ',
+                                     str(send_transactions[send_transaction][1]),
+                                     ' DHCPv4 message type: ',
+                                     dhcpv4_message_types[send_transactions[send_transaction][0]],
+                                     ' Tested parameters: ',
+                                     str(tested_parameters[send_transactions[send_transaction][1]]))
+        # endregion
+
+        # region Sniff
+        else:
+            network_filters = {
+                'Ethernet': {'source': args.target_mac, 'destination': 'ff:ff:ff:ff:ff:ff'},
+                'IPv4': {'source-ip': '0.0.0.0', 'destination-ip': '255.255.255.255'},
+                'UDP': {'source-port': 68, 'destination-port': 67}
+            }
+            dhclient_over_ssh(ssh_user=args.target_ssh_user,
+                              ssh_password=args.target_ssh_pass,
+                              ssh_pkey=private_key,
+                              ssh_host=args.target_ip,
+                              os=args.target_os,
+                              network_interface=args.target_interface)
+            sniff.start(protocols=['IPv4', 'UDP', 'DHCPv4'], prn=reply, filters=network_filters)
         # endregion
 
     except KeyboardInterrupt:
