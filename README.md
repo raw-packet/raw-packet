@@ -50,8 +50,9 @@ sudo apt update && sudo apt install -y python3 python3-pip python3-scapy \
                                        python3-netifaces python-ipaddress \
                                        python3-netaddr python3-psutil \
                                        python3-prettytable python3-distro \
-                                       python3-xmltodict php lsof net-tools \
-                                       wireless-tools nmap aircrack-ng
+                                       python3-xmltodict python3-paramiko \
+                                       php lsof net-tools wireless-tools \
+                                       nmap aircrack-ng
 ```
 
 ## Debian based OS install with pip:
