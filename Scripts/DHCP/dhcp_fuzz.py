@@ -238,7 +238,7 @@ def make_reply(bootp_transaction_id: int = 1,
                                         network_type=tested_parameters[tested_index]['Ethernet']['network_type'])
 
     ip_header: bytes = ipv4.make_header(source_ip=tested_parameters[tested_index]['Network']['source_ip_address'],
-                                        destination_ip=tested_parameters[tested_index]['Network']['source_ip_address'],
+                                        destination_ip=tested_parameters[tested_index]['Network']['destination_ip_address'],
                                         data_len=len(bootp_packet + dhcpv4_packet),
                                         transport_protocol_len=udp.header_length,
                                         transport_protocol_type=udp.header_type)
@@ -557,11 +557,13 @@ if __name__ == '__main__':
             # Short list
             destination_ip_addresses: List[str] = [
                 args.target_ip,  # Target IPv4 address
+                '0.0.0.0',  # Zeros
                 '255.255.255.255',  # Broadcast IPv4 address
             ]
             source_ip_addresses: List[str] = [
                 your_ip_address,  # Your IPv4 address
                 '0.0.0.0',  # Zeros
+                '255.255.255.255',  # Broadcast IPv4 address
             ]
         transport_types: List[int] = [
             udp.header_type
@@ -572,6 +574,7 @@ if __name__ == '__main__':
         if args.all_tests:
             # Long list
             destination_ports: List[int] = [
+                67,  # DHCPv4 response source port
                 68,  # DHCPv4 response destination port
             ]
             source_ports: List[int] = [
@@ -583,12 +586,12 @@ if __name__ == '__main__':
         else:
             # Short list
             destination_ports: List[int] = [
+                67,  # DHCPv4 response source port
                 68,  # DHCPv4 response destination port
             ]
             source_ports: List[int] = [
                 67,  # DHCPv4 response source port
-                546,  # DHCPv6 response destination port
-                547,  # DHCPv6 response source port
+                68,  # DHCPv4 response destination port
             ]
         # endregion
 
