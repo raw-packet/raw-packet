@@ -461,6 +461,22 @@ if __name__ == '__main__':
             0x0806  # ARP protocol
         ]
 
+        base.print_info('Destination MAC address: ', str(destination_mac_addresses))
+        base.print_info('Source MAC address: ', str(source_mac_addresses))
+        base.print_info('Network type: ', str(network_types))
+
+        base.print_info('ARP hardware type: ', str(test_hardware_types))
+        base.print_info('ARP protocol type: ', str(test_protocol_types))
+        base.print_info('ARP hardware size: ', str(test_hardware_sizes))
+        base.print_info('ARP protocol size: ', str(test_protocol_sizes))
+        base.print_info('ARP opcode: ', str(test_opcodes))
+        base.print_info('ARP sender MAC address: ', str(sender_mac_addresses))
+        base.print_info('ARP sender IP address: ', str(sender_ip_addresses))
+        base.print_info('ARP target MAC address: ', str(target_mac_addresses))
+        base.print_info('ARP target IP address: ', str(target_ip_addresses))
+
+        base.print_info('Make all permutations of tested parameters ...')
+
         tested_parameters: List[Dict[str, Dict[str, Union[int, str]]]] = list()
         for test_hardware_type in test_hardware_types:
             for test_protocol_type in test_protocol_types:
@@ -492,6 +508,8 @@ if __name__ == '__main__':
                                                                 'network_type': network_type
                                                             }
                                                         })
+        base.print_info('All permutations are created, length of fuzzing packets: ',
+                        str(len(tested_parameters)))
         # endregion
 
         # region Check ARP
