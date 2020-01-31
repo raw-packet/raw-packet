@@ -238,7 +238,7 @@ def make_reply(bootp_transaction_id: int = 1,
                                         network_type=tested_parameters[tested_index]['Ethernet']['network_type'])
 
     ip_header: bytes = ipv4.make_header(source_ip=tested_parameters[tested_index]['Network']['source_ip_address'],
-                                        destination_ip=tested_parameters[tested_index]['Network']['source_ip_address'],
+                                        destination_ip=tested_parameters[tested_index]['Network']['destination_ip_address'],
                                         data_len=len(bootp_packet + dhcpv4_packet),
                                         transport_protocol_len=udp.header_length,
                                         transport_protocol_type=udp.header_type)
@@ -294,107 +294,7 @@ def reply(packet: Dict):
                               ssh_host=args.target_ip,
                               os=args.target_os,
                               network_interface=args.target_interface)
-
 # endregion
-
-
-# # region Update gateway
-# def update_ipv4_gateway_over_ssh(connected_ssh_client: SSHClient,
-#                                  target_os: str = 'MacOS',
-#                                  gateway_ipv4_address: str = '192.168.0.254',
-#                                  real_gateway_mac_address: str = '12:34:56:78:90:ab') -> bool:
-#     """
-#     Update ARP table on target host over SSH after spoofing
-#     :param connected_ssh_client: Already connected SSH client
-#     :param target_os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
-#     :param gateway_ipv4_address: IPv4 address of gateway
-#     :param real_gateway_mac_address: Real IPv4 gateway MAC address
-#     :return: True if MAC address is changed or False if error
-#     """
-#     connected_ssh_client.exec_command('arp -d ' + gateway_ipv4_address)
-#     if target_os == 'MacOS' or target_os == 'Linux':
-#         connected_ssh_client.exec_command('ping -c 1 ' + gateway_ipv4_address)
-#     else:
-#         connected_ssh_client.exec_command('ping -n 1 ' + gateway_ipv4_address)
-#     current_gateway_mac_address = get_ipv4_gateway_mac_address_over_ssh(
-#         connected_ssh_client=ssh_client,
-#         target_os=target_os,
-#         gateway_ipv4_address=gateway_ipv4_address)
-#     if target_os == 'MacOS':
-#         real_gateway_mac_address = base.macos_encode_mac_address(real_gateway_mac_address)
-#     if current_gateway_mac_address == real_gateway_mac_address:
-#         return True
-#     else:
-#         return False
-#
-#
-# # endregion
-#
-#
-# # region Check MAC address of IPv4 gateway over ssh
-# def check_ipv4_gateway_over_ssh(connected_ssh_client: SSHClient,
-#                                 target_os: str = 'MacOS',
-#                                 gateway_ipv4_address: str = '192.168.0.254',
-#                                 real_gateway_mac_address: str = '12:34:56:78:90:ab',
-#                                 test_parameters: Union[None, Dict[str, Dict[str, Union[int, str]]]] = None,
-#                                 test_parameters_index: int = 0) -> None:
-#     """
-#     Check MAC address of IPv4 gateway in target host over SSH
-#     :param connected_ssh_client: Already connected SSH client
-#     :param target_os: MacOS, Linux or Windows (Installation of OpenSSH For Windows: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
-#     :param gateway_ipv4_address: IPv4 address of gateway
-#     :param real_gateway_mac_address: Real IPv4 gateway MAC address
-#     :param test_parameters: Dictionary of tested parameters
-#     :param test_parameters_index: Index of current test
-#     :return: None
-#     """
-#     current_gateway_mac_address: str = get_ipv4_gateway_mac_address_over_ssh(
-#         connected_ssh_client=connected_ssh_client,
-#         target_os=target_os,
-#         gateway_ipv4_address=gateway_ipv4_address)
-#
-#     if current_gateway_mac_address is None:
-#         if test_parameters is not None:
-#             base.print_warning('index: ', str(test_parameters_index), ' parameters: ', dumps(test_parameters))
-#             with open('arp_fuzz_disconnect.txt', 'a') as result_file:
-#                 result_file.write('index: ' + str(test_parameters_index) +
-#                                   ' parameters: ' + dumps(test_parameters) + '\n')
-#         sleep(5)
-#         check_ipv4_gateway_mac_address_over_ssh(connected_ssh_client,
-#                                                 target_os,
-#                                                 gateway_ipv4_address,
-#                                                 real_gateway_mac_address,
-#                                                 test_parameters,
-#                                                 test_parameters_index)
-#
-#     if target_os == 'MacOS':
-#         real_gateway_mac_address = base.macos_encode_mac_address(real_gateway_mac_address)
-#
-#     if current_gateway_mac_address == real_gateway_mac_address:
-#         if test_parameters is not None:
-#             base.print_info('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
-#                             ' parameters: ', dumps(test_parameters))
-#
-#     else:
-#         if test_parameters is not None:
-#             base.print_success('index: ', str(test_parameters_index), ' gateway: ', current_gateway_mac_address,
-#                                ' parameters: ', dumps(test_parameters))
-#             with open('arp_fuzz_success.txt', 'a') as result_file:
-#                 result_file.write('index: ' + str(test_parameters_index) +
-#                                   ' gateway: ' + current_gateway_mac_address +
-#                                   ' parameters: ' + dumps(test_parameters) + '\n')
-#
-#         while True:
-#             if update_ipv4_gateway_mac_address_over_ssh(connected_ssh_client=connected_ssh_client,
-#                                                         target_os=target_os,
-#                                                         gateway_ipv4_address=gateway_ipv4_address,
-#                                                         real_gateway_mac_address=real_gateway_mac_address):
-#                 break
-#             else:
-#                 sleep(1)
-#
-#
-# # endregion
 
 
 # region Main function
@@ -487,8 +387,12 @@ if __name__ == '__main__':
         transport_layer_fields: List[Dict[str, Union[int, str]]] = list()
         bootp_fields: List[Dict[str, Union[int, str]]] = list()
         dhcp_options: List[Dict[str, Union[int, str]]] = list()
+        # endregion
 
-        # region Ethernet
+        # region Make tested parameters
+
+        # region Link layer
+        base.print_info('Make link layer tested parameters ...')
         if args.all_tests:
             # Long list
             destination_mac_addresses: List[str] = [
@@ -520,9 +424,21 @@ if __name__ == '__main__':
         network_types: List[int] = [
             ipv4.header_type  # IPv4 protocol
         ]
+        for destination_mac_address in destination_mac_addresses:
+            for source_mac_address in source_mac_addresses:
+                for network_type in network_types:
+                    link_layer_fields.append({
+                        'destination_mac_address': destination_mac_address,
+                        'source_mac_address': source_mac_address,
+                        'network_type': network_type
+                    })
+        base.print_info('Destination MAC address: ', str(destination_mac_addresses))
+        base.print_info('Source MAC address: ', str(source_mac_addresses))
+        base.print_info('Network type: ', str(network_types))
         # endregion
 
-        # region IPv4
+        # region Network layer
+        base.print_info('Make network layer tested parameters ...')
         if args.all_tests:
             # Long list
             destination_ip_addresses: List[str] = [
@@ -557,21 +473,36 @@ if __name__ == '__main__':
             # Short list
             destination_ip_addresses: List[str] = [
                 args.target_ip,  # Target IPv4 address
+                '0.0.0.0',  # Zeros
                 '255.255.255.255',  # Broadcast IPv4 address
             ]
             source_ip_addresses: List[str] = [
                 your_ip_address,  # Your IPv4 address
                 '0.0.0.0',  # Zeros
+                '255.255.255.255',  # Broadcast IPv4 address
             ]
         transport_types: List[int] = [
             udp.header_type
         ]
+        for destination_ip_address in destination_ip_addresses:
+            for source_ip_address in source_ip_addresses:
+                for transport_type in transport_types:
+                    network_layer_fields.append({
+                        'destination_ip_address': destination_ip_address,
+                        'source_ip_address': source_ip_address,
+                        'transport_type': transport_type
+                    })
+        base.print_info('Destination IP address: ', str(destination_ip_addresses))
+        base.print_info('Source IP address: ', str(source_ip_addresses))
+        base.print_info('Transport type: ', str(transport_types))
         # endregion
 
-        # region UDP
+        # region Transport layer
+        base.print_info('Make transport layer tested parameters ...')
         if args.all_tests:
             # Long list
             destination_ports: List[int] = [
+                67,  # DHCPv4 response source port
                 68,  # DHCPv4 response destination port
             ]
             source_ports: List[int] = [
@@ -583,16 +514,25 @@ if __name__ == '__main__':
         else:
             # Short list
             destination_ports: List[int] = [
+                67,  # DHCPv4 response source port
                 68,  # DHCPv4 response destination port
             ]
             source_ports: List[int] = [
                 67,  # DHCPv4 response source port
-                546,  # DHCPv6 response destination port
-                547,  # DHCPv6 response source port
+                68,  # DHCPv4 response destination port
             ]
+        for destination_port in destination_ports:
+            for source_port in source_ports:
+                transport_layer_fields.append({
+                    'destination_port': destination_port,
+                    'source_port': source_port
+                })
+        base.print_info('Destination port: ', str(destination_ports))
+        base.print_info('Source port: ', str(source_ports))
         # endregion
 
         # region BOOTP
+        base.print_info('Make BOOTP tested parameters ...')
         if args.all_tests:
             # Long list
             bootp_message_types: List[int] = [
@@ -680,9 +620,42 @@ if __name__ == '__main__':
             bootp_client_macs: List[str] = [
                 args.target_mac,  # Target MAC address
             ]
+        for bootp_message_type in bootp_message_types:
+            for bootp_hardware_type in bootp_hardware_types:
+                for bootp_hardware_length in bootp_hardware_lengths:
+                    for bootp_hop in bootp_hops:
+                        for bootp_flag in bootp_flags:
+                            for bootp_client_ip in bootp_client_ips:
+                                for bootp_your_ip in bootp_your_ips:
+                                    for bootp_next_server_ip in bootp_next_server_ips:
+                                        for bootp_relay_agent_ip in bootp_relay_agent_ips:
+                                            for bootp_client_mac in bootp_client_macs:
+                                                bootp_fields.append({
+                                                    'message_type': bootp_message_type,
+                                                    'hardware_type': bootp_hardware_type,
+                                                    'hardware_length': bootp_hardware_length,
+                                                    'hops': bootp_hop,
+                                                    'flags': bootp_flag,
+                                                    'client_ip': bootp_client_ip,
+                                                    'your_ip': bootp_your_ip,
+                                                    'next_server_ip': bootp_next_server_ip,
+                                                    'relay_agent_ip': bootp_relay_agent_ip,
+                                                    'client_mac': bootp_client_mac
+                                                })
+        base.print_info('BOOTP message type: ', str(bootp_message_types))
+        base.print_info('BOOTP hardware type: ', str(bootp_hardware_types))
+        base.print_info('BOOTP hardware length: ', str(bootp_hardware_lengths))
+        base.print_info('BOOTP hops: ', str(bootp_hops))
+        base.print_info('BOOTP flags: ', str(bootp_flags))
+        base.print_info('BOOTP client ip: ', str(bootp_client_ips))
+        base.print_info('BOOTP your ip: ', str(bootp_your_ips))
+        base.print_info('BOOTP next server ip: ', str(bootp_next_server_ips))
+        base.print_info('BOOTP agent ip: ', str(bootp_relay_agent_ips))
+        base.print_info('BOOTP client mac: ', str(bootp_client_macs))
         # endregion
 
         # region DHCPv4
+        base.print_info('Make DHCPv4 tested parameters ...')
         if args.all_tests:
             # Long list
             dhcp_server_identifiers: List[str] = [
@@ -728,67 +701,6 @@ if __name__ == '__main__':
             dhcp_domains: List[bytes] = [
                 b'local',
             ]
-        # endregion
-
-        # region Make tested parameters
-
-        # region Link layer
-        for destination_mac_address in destination_mac_addresses:
-            for source_mac_address in source_mac_addresses:
-                for network_type in network_types:
-                    link_layer_fields.append({
-                        'destination_mac_address': destination_mac_address,
-                        'source_mac_address': source_mac_address,
-                        'network_type': network_type
-                    })
-        # endregion
-
-        # region Network layer
-        for destination_ip_address in destination_ip_addresses:
-            for source_ip_address in source_ip_addresses:
-                for transport_type in transport_types:
-                    network_layer_fields.append({
-                        'destination_ip_address': destination_ip_address,
-                        'source_ip_address': source_ip_address,
-                        'transport_type': transport_type
-                    })
-        # endregion
-
-        # region Transport layer
-        for destination_port in destination_ports:
-            for source_port in source_ports:
-                transport_layer_fields.append({
-                    'destination_port': destination_port,
-                    'source_port': source_port
-                })
-        # endregion
-
-        # region BOOTP
-        for bootp_message_type in bootp_message_types:
-            for bootp_hardware_type in bootp_hardware_types:
-                for bootp_hardware_length in bootp_hardware_lengths:
-                    for bootp_hop in bootp_hops:
-                        for bootp_flag in bootp_flags:
-                            for bootp_client_ip in bootp_client_ips:
-                                for bootp_your_ip in bootp_your_ips:
-                                    for bootp_next_server_ip in bootp_next_server_ips:
-                                        for bootp_relay_agent_ip in bootp_relay_agent_ips:
-                                            for bootp_client_mac in bootp_client_macs:
-                                                bootp_fields.append({
-                                                    'message_type': bootp_message_type,
-                                                    'hardware_type': bootp_hardware_type,
-                                                    'hardware_length': bootp_hardware_length,
-                                                    'hops': bootp_hop,
-                                                    'flags': bootp_flag,
-                                                    'client_ip': bootp_client_ip,
-                                                    'your_ip': bootp_your_ip,
-                                                    'next_server_ip': bootp_next_server_ip,
-                                                    'relay_agent_ip': bootp_relay_agent_ip,
-                                                    'client_mac': bootp_client_mac
-                                                })
-        # endregion
-
-        # region DHCP
         for dhcp_server_identifier in dhcp_server_identifiers:
             for dhcp_lease_time in dhcp_lease_times:
                 for dhcp_subnet_mask in dhcp_subnet_masks:
@@ -803,9 +715,16 @@ if __name__ == '__main__':
                                     'dns_server': dhcp_dns_server,
                                     'domain': dhcp_domain
                                 })
+        base.print_info('DHCPv4 server identifier: ', str(dhcp_server_identifiers))
+        base.print_info('DHCPv4 lease time: ', str(dhcp_lease_times))
+        base.print_info('DHCPv4 subnet mask: ', str(dhcp_subnet_masks))
+        base.print_info('DHCPv4 router: ', str(dhcp_routers))
+        base.print_info('DHCPv4 dns server: ', str(dhcp_dns_servers))
+        base.print_info('DHCPv4 domain: ', str(dhcp_domains))
         # endregion
 
         # region Make all tested parameters
+        base.print_info('Make all permutations of tested parameters ...')
         for link_layer in link_layer_fields:
             for network_layer in network_layer_fields:
                 for transport_layer in transport_layer_fields:
@@ -818,10 +737,10 @@ if __name__ == '__main__':
                                 'BOOTP': bootp,
                                 'DHCP': dhcp
                             })
+        base.print_info('All permutations are created, length of fuzzing packets: ',
+                        str(len(tested_parameters)))
         # endregion
         
-        # endregion
-
         # endregion
 
         # region Send
@@ -940,3 +859,4 @@ if __name__ == '__main__':
         raw_socket.close()
         base.print_error(Error.args[0])
         exit(1)
+# endregion
