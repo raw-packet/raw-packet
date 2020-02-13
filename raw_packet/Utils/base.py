@@ -1646,8 +1646,9 @@ class Base:
 
             if need_output:
                 stdin, stdout, stderr = ssh_client.exec_command(command)
+                command_result = stdout.read().decode('utf-8') + stderr.read().decode('utf-8')
                 ssh_client.close()
-                return stdout.read().decode('utf-8')
+                return command_result
             else:
                 ssh_client.exec_command(command)
                 ssh_client.close()
