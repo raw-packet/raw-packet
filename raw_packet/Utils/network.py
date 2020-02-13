@@ -3966,10 +3966,17 @@ class RawDHCPv6:
 
     def make_solicit_packet(self,
                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                            ethernet_dst_mac: Union[None, str] = None,
                             ipv6_src: str = 'fd00::1',
+                            ipv6_dst: Union[None, str] = None,
                             transaction_id: int = 1,
                             client_mac_address: str = '01:23:45:67:89:0a',
                             option_request_list: List[int] = [23, 24]):
+        if ethernet_dst_mac is None:
+            ethernet_dst_mac = '33:33:00:01:00:02'
+
+        if ipv6_dst is None:
+            ipv6_dst = 'ff02::1:2'
 
         if 16777215 < transaction_id < 0:
             return None
@@ -3987,9 +3994,43 @@ class RawDHCPv6:
 
         options[6] = option_request_string  # Options request
 
-        return self.make_packet(ethernet_src_mac, '33:33:00:01:00:02',
-                                ipv6_src, 'ff02::1:2', 0, 546, 547,
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst, 0, 546, 547,
                                 1, packet_body, options)
+
+    def make_request_packet(self,
+                            ethernet_src_mac: str = '01:23:45:67:89:0a',
+                            ethernet_dst_mac: Union[None, str] = None,
+                            ipv6_src: str = 'fd00::1',
+                            ipv6_dst: Union[None, str] = None,
+                            transaction_id: int = 1,
+                            client_mac_address: str = '01:23:45:67:89:0a',
+                            option_request_list: List[int] = [23, 24]):
+        if ethernet_dst_mac is None:
+            ethernet_dst_mac = '33:33:00:01:00:02'
+
+        if ipv6_dst is None:
+            ipv6_dst = 'ff02::1:2'
+
+        if 16777215 < transaction_id < 0:
+            return None
+
+        packet_body = pack('!L', transaction_id)[1:]
+        options: Dict[int, bytes] = dict()
+        options[3] = pack('!' '3Q', 0, 0, 0)  # Identity Association for Non-temporary Address
+        options[14] = b''  # Rapid commit
+        options[8] = pack('!H', 0)  # Elapsed time
+        options[1] = self._make_duid(client_mac_address)  # Client identifier
+
+        option_request_string = b''
+        for option_request in option_request_list:
+            option_request_string += pack('!H', option_request)
+
+        options[6] = option_request_string  # Options request
+
+        return self.make_packet(ethernet_src_mac, ethernet_dst_mac,
+                                ipv6_src, ipv6_dst, 0, 546, 547,
+                                3, packet_body, options)
 
     def make_relay_forw_packet(self,
                                ethernet_src_mac: str = '01:23:45:67:89:0a',
