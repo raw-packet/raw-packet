@@ -346,15 +346,27 @@ class Base:
     # endregion
 
     # region Network interface functions
+    @staticmethod
+    def list_of_network_interfaces() -> Union[None, List[str]]:
+        """
+        Get list of network interfaces
+        :return: list of network interfaces (example: ['lo', 'eth0'])
+        """
+        return interfaces()
+
     def network_interface_selection(self,
-                                    interface_name: Union[None, str] = None) -> str:
+                                    interface_name: Union[None, str] = None,
+                                    exclude_interface: Union[None, str] = None) -> str:
         """
         Select network interface
         :param interface_name: Network interface name (example: 'eth0'; default: None)
+        :param exclude_interface: Exclude network interface from list of interfaces (example: 'eth1'; default: None)
         :return: Network interface name (example: 'eth0')
         """
         network_interface_index: int = 1
         available_network_interfaces: List[str] = interfaces()
+        if exclude_interface is not None:
+            available_network_interfaces.remove(exclude_interface)
 
         if interface_name is not None:
             if interface_name in available_network_interfaces:
