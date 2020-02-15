@@ -381,10 +381,33 @@ class Base:
             if len(available_network_interfaces) > 1:
                 self.print_info('Your interface list:')
 
-                interfaces_pretty_table = PrettyTable([self.info_text('Index'), self.info_text('Interface name')])
+                interfaces_pretty_table = PrettyTable([self.info_text('Index'),
+                                                       self.info_text('Interface name'),
+                                                       self.info_text('MAC address'),
+                                                       self.info_text('IPv4 address'),
+                                                       self.info_text('IPv6 address')])
 
                 for network_interface in available_network_interfaces:
-                    interfaces_pretty_table.add_row([str(network_interface_index), network_interface])
+                    network_interface_mac_address: Union[None, str] = \
+                        self.get_interface_mac_address(network_interface)
+                    if network_interface_mac_address is None:
+                        network_interface_mac_address = 'None'
+
+                    network_interface_ipv4_address: Union[None, str] = \
+                        self.get_interface_ip_address(network_interface)
+                    if network_interface_ipv4_address is None:
+                        network_interface_ipv4_address = 'None'
+
+                    network_interface_ipv6_address: Union[None, str] = \
+                        self.get_interface_ipv6_link_address(network_interface)
+                    if network_interface_ipv6_address is None:
+                        network_interface_ipv6_address = 'None'
+
+                    interfaces_pretty_table.add_row([str(network_interface_index),
+                                                     network_interface,
+                                                     network_interface_mac_address,
+                                                     network_interface_ipv4_address,
+                                                     network_interface_ipv6_address])
                     network_interface_index += 1
 
                 print(interfaces_pretty_table)
@@ -411,6 +434,7 @@ class Base:
                 except:
                     self.print_error('This network interface has some problem!')
                     exit(1)
+                self.print_info('Your choose network interface: ', current_network_interface)
                 return current_network_interface
 
             if len(available_network_interfaces) == 1:
