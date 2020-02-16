@@ -354,7 +354,7 @@ optional arguments:
 
 ## Script: [dhcp_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv4/dhcp_rogue_server.py)
 
-This script implements an attack on network clients by using fake DHCP server which answers with malicius configuration faster than legitimate DHCP server. This attack also known as Rogue DHCP Server Attack.
+This script implements an attack on network clients by using fake DHCP server which answers with malicious configuration faster than legitimate DHCP server. This attack also known as Rogue DHCP Server Attack.
 
 ```
 root@kali:~/raw-packet# python3 Scripts/DHCPv4/dhcp_rogue_server.py --help
@@ -455,7 +455,7 @@ The [Dynamic Host Configuration Protocol version 6 (DHCPv6)](https://en.wikipedi
 
 ## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv6/dhcpv6_rogue_server.py)
 
-This script implements fake DHCPv6 server for perfom SLAAC attack/Rogue DHCPv6.
+This script implements fake DHCPv6 server for performing SLAAC attack/Rogue DHCPv6.
 
 ```
 root@kali:~/raw-packet# python3 Scripts/DHCPv6/dhcpv6_rogue_server.py --help
@@ -627,7 +627,7 @@ optional arguments:
 
 ## Script: [dns_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DNS/dns_server.py)
 
-This script impelements a simple DNS server (like a [dnschef](https://github.com/iphelix/dnschef)), which is useful in MiTM attacks. You can setup A or AAAA records for several domains. 
+This script implements a simple DNS server (like a [dnschef](https://github.com/iphelix/dnschef)), which is useful in MiTM attacks. You can setup A or AAAA records for several domains. 
 
 ```
 root@kali:~/raw-packet# python3 Scripts/DNS/dns_server.py --help
@@ -829,7 +829,7 @@ optional arguments:
 
 ## Script: [network_conflict_creator.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/network_conflict_creator.py)
 
-Script for creating network conflicts for varius testing.
+Script for creating network conflicts for various testing.
 
 ```
 root@kali:~/raw-packet# python3 Scripts/Others/network_conflict_creator.py --help
