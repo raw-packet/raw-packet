@@ -308,13 +308,13 @@ optional arguments:
 
 The [Dynamic Host Configuration Protocol (DHCP)](https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol) is a network management protocol used on UDP/IP networks whereby a DHCP server dynamically assigns an IP address and other network configuration parameters to each device on a network so they can communicate with other IP networks.
 
-## Script: [dhcp_starvation.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcp_starvation.py)
+## Script: [dhcp_starvation.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv4/dhcp_starvation.py)
 
 This script implement the attack - DHCP starvation.
 DHCP starvation attack is an attack that targets DHCP servers whereby forged DHCP requests are crafted by an attacker with the intent of exhausting all available IP addresses that can be allocated by the DHCP server.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcp_starvation.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv4/dhcp_starvation.py --help
 usage: dhcp_starvation.py [-h] [-i INTERFACE] [-d DELAY] [-t TIMEOUT] [-n]
                           [-v DHCP_OPTION_VALUE] [-c DHCP_OPTION_CODE] [-f]
                           [-m]
@@ -352,12 +352,12 @@ optional arguments:
 
 ---
 
-## Script: [dhcp_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcp_rogue_server.py)
+## Script: [dhcp_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv4/dhcp_rogue_server.py)
 
 This script implements an attack on network clients by using fake DHCP server which answers with malicius configuration faster than legitimate DHCP server. This attack also known as Rogue DHCP Server Attack.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcp_rogue_server.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv4/dhcp_rogue_server.py --help
 usage: dhcp_rogue_server.py [-h] [-i INTERFACE] [-f FIRST_OFFER_IP]
                             [-l LAST_OFFER_IP] [-t TARGET_MAC] [-T TARGET_IP]
                             [-m NETMASK] [--dhcp_mac DHCP_MAC]
@@ -453,12 +453,12 @@ optional arguments:
 
 The [Dynamic Host Configuration Protocol version 6 (DHCPv6)](https://en.wikipedia.org/wiki/DHCPv6) is a network protocol for configuring Internet Protocol version 6 (IPv6) hosts with IP addresses, IP prefixes and other configuration data required to operate in an IPv6 network. It is the IPv6 equivalent of the Dynamic Host Configuration Protocol for IPv4.
 
-## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcpv6_rogue_server.py)
+## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv6/dhcpv6_rogue_server.py)
 
 This script implements fake DHCPv6 server for perfom SLAAC attack/Rogue DHCPv6.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcpv6_rogue_server.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv6/dhcpv6_rogue_server.py --help
 usage: dhcpv6_rogue_server.py [-h] [-i INTERFACE] [-p PREFIX]
                               [-f FIRST_SUFFIX] [-l LAST_SUFFIX]
                               [-t TARGET_MAC] [-T TARGET_IPV6] [-D] [-d DNS]

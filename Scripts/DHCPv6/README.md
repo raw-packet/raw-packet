@@ -2,12 +2,12 @@
 
 The [Dynamic Host Configuration Protocol version 6 (DHCPv6)](https://en.wikipedia.org/wiki/DHCPv6) is a network protocol for configuring Internet Protocol version 6 (IPv6) hosts with IP addresses, IP prefixes and other configuration data required to operate in an IPv6 network. It is the IPv6 equivalent of the Dynamic Host Configuration Protocol for IPv4.
 
-## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcpv6_rogue_server.py)
+## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv6/dhcpv6_rogue_server.py)
 
 This script implements fake DHCPv6 server for perfom SLAAC attack/Rogue DHCPv6.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcpv6_rogue_server.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv6/dhcpv6_rogue_server.py --help
 usage: dhcpv6_rogue_server.py [-h] [-i INTERFACE] [-p PREFIX]
                               [-f FIRST_SUFFIX] [-l LAST_SUFFIX]
                               [-t TARGET_MAC] [-T TARGET_IPV6] [-D] [-d DNS]

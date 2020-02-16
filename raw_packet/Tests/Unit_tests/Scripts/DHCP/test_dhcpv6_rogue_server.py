@@ -141,7 +141,7 @@ class ScriptDhcpv6RogueServerTest(unittest.TestCase):
         self.assertIn(ScriptDhcpv6RogueServerTest.Variables.router_ipv6_glob_address,
                       self.get_ipv6_nameservers_apple_device_over_ssh())
         self.stop_dhcpv6_server_in_router_over_ssh()
-        Popen(['python3 ' + self.root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py -i ' +
+        Popen(['python3 ' + self.root_path + '/Scripts/DHCPv6/dhcpv6_rogue_server.py -i ' +
                ScriptDhcpv6RogueServerTest.Variables.test_network_interface + ' --target_mac ' +
                ScriptDhcpv6RogueServerTest.Variables.apple_device_mac_address + ' --target_ip ' +
                ScriptDhcpv6RogueServerTest.Variables.apple_device_ipv6_glob_address], shell=True)
