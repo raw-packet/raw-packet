@@ -37,7 +37,7 @@ class Variables:
     router_vendor: str = 'D-Link'
     router_mac_address: str = '00:21:91:12:34:56'
     router_ipv4_address: str = '192.168.1.254'
-    router_ipv6_link_address: str = 'fe80::221:91ff:fe12:3456'
+    router_ipv6_link_address: str = 'fe80::a00:27ff:feae:6aaf'
     router_ipv6_glob_address: str = 'fd06:46b2:4912::1'
     router_root_username: str = 'root'
 
