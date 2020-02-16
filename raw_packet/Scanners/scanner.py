@@ -119,12 +119,95 @@ class Scanner:
             return None
     # endregion
 
+    # region IPv4 device selection
+    def ipv4_device_selection(self, ipv4_devices: Union[None, List[Dict[str, str]]],
+                              exit_on_failure: bool = False) -> Union[None, Dict[str, str]]:
+        try:
+            assert ipv4_devices is not None, 'List of IPv4 devices is None!'
+            assert len(ipv4_devices) != 0, 'List of IPv4 devices is empty!'
+            for ipv4_device in ipv4_devices:
+                assert len(ipv4_device) == 3, \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+                assert 'ip-address' in ipv4_device.keys(), \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+                assert self.base.ip_address_validation(ipv4_device['ip-address']), \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+                assert 'mac-address' in ipv4_device.keys(), \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+                assert self.base.mac_address_validation(ipv4_device['mac-address']), \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+                assert 'vendor' in ipv4_device.keys(), \
+                    'Bad dict of IPv4 device, example: ' + \
+                    '[{"ip-address": "fd00::1", "mac-address": "12:34:56:78:90:ab", "vendor": "Apple, Inc."}]'
+            ipv4_device: Union[None, Dict[str, str]] = None
+
+            # region IPv4 devices is found
+
+            # region Only one IPv4 device found
+            if len(ipv4_devices) == 1:
+                ipv4_device: Dict[str, str] = ipv4_devices[0]
+                self.base.print_info('Only one IPv4 device found:')
+                self.base.print_success(ipv4_device['ip-address'] + ' (' + ipv4_device['mac-address'] + ') ' +
+                                        ipv4_device['vendor'])
+            # endregion
+
+            # region More than one IPv4 device found
+            if len(ipv4_devices) > 1:
+                self.base.print_success('Found ', str(len(ipv4_devices)), ' IPv4 alive hosts!')
+                device_index: int = 1
+                pretty_table = PrettyTable([self.base.info_text('Index'),
+                                            self.base.info_text('IPv4 address'),
+                                            self.base.info_text('MAC address'),
+                                            self.base.info_text('Vendor')])
+                for ipv4_device in ipv4_devices:
+                    pretty_table.add_row([str(device_index), ipv4_device['ip-address'],
+                                          ipv4_device['mac-address'], ipv4_device['vendor']])
+                    device_index += 1
+                print(pretty_table)
+                device_index -= 1
+                current_device_index: Union[int, str] = \
+                    input(self.base.c_info + 'Set device index from range (1-' + str(device_index) + '): ')
+                assert current_device_index.isdigit(), \
+                    'Your input data is not digit!'
+                current_device_index: int = int(current_device_index)
+                assert not any([current_device_index < 1, current_device_index > device_index]), \
+                    'Your number is not within range (1-' + str(device_index) + ')'
+                current_device_index: int = int(current_device_index) - 1
+                ipv4_device: Dict[str, str] = ipv4_devices[current_device_index]
+            # endregion
+            # endregion
+
+            # region IPv4 devices not found
+            else:
+                if exit_on_failure:
+                    self.base.print_error('Could not find IPv4 devices!')
+                    exit(1)
+            # endregion
+
+            return ipv4_device
+
+        except KeyboardInterrupt:
+            self.base.print_info('Exit')
+            exit(0)
+
+        except AssertionError as Error:
+            self.base.print_error(Error.args[0])
+            if exit_on_failure:
+                exit(1)
+            return None
+    # endregion
+
     # region IPv6 device selection
     def ipv6_device_selection(self, ipv6_devices: Union[None, List[Dict[str, str]]],
                               exit_on_failure: bool = False) -> Union[None, Dict[str, str]]:
         try:
-            assert ipv6_devices is not None, 'List of Apple devices is None!'
-            assert len(ipv6_devices) != 0, 'List of Apple devices is empty!'
+            assert ipv6_devices is not None, 'List of IPv6 devices is None!'
+            assert len(ipv6_devices) != 0, 'List of IPv6 devices is empty!'
             for ipv6_device in ipv6_devices:
                 assert len(ipv6_device) == 3, \
                     'Bad dict of IPv6 device, example: ' + \
