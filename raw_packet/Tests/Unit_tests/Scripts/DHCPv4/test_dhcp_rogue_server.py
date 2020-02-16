@@ -102,7 +102,7 @@ class ScriptDhcpRogueServerTest(unittest.TestCase):
         self.assertEqual(self.get_ipv4_gateway_apple_device_over_ssh(),
                          ScriptDhcpRogueServerTest.Variables.router_ipv4_address)
         self.stop_dhcp_server_in_router_over_ssh()
-        Popen(['python3 ' + self.root_path + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
+        Popen(['python3 ' + self.root_path + '/Scripts/DHCPv4/dhcp_rogue_server.py -i ' +
                ScriptDhcpRogueServerTest.Variables.test_network_interface + ' --target_mac ' +
                ScriptDhcpRogueServerTest.Variables.apple_device_mac_address + ' --target_ip ' +
                ScriptDhcpRogueServerTest.Variables.apple_device_ipv4_address], shell=True)
@@ -126,7 +126,7 @@ class ScriptDhcpRogueServerTest(unittest.TestCase):
     #                      ScriptDhcpRogueServerTest.Variables.router_ipv4_address)
     #     self.stop_dhcp_server_in_router_over_ssh()
     #     self.restart_apple_device_interface_over_ssh()
-    #     Popen(['python3 ' + self.root_path + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
+    #     Popen(['python3 ' + self.root_path + '/Scripts/DHCPv4/dhcp_rogue_server.py -i ' +
     #            ScriptDhcpRogueServerTest.Variables.test_network_interface + ' --target_mac ' +
     #            ScriptDhcpRogueServerTest.Variables.apple_device_mac_address + ' --target_ip ' +
     #            ScriptDhcpRogueServerTest.Variables.apple_device_new_ipv4_address], shell=True)
@@ -142,7 +142,7 @@ class ScriptDhcpRogueServerTest(unittest.TestCase):
         self.check_apple_device_connected()
         self.assertEqual(self.get_ipv4_gateway_apple_device_over_ssh(),
                          ScriptDhcpRogueServerTest.Variables.router_ipv4_address)
-        Popen(['python3 ' + self.root_path + '/Scripts/DHCP/dhcp_rogue_server.py -i ' +
+        Popen(['python3 ' + self.root_path + '/Scripts/DHCPv4/dhcp_rogue_server.py -i ' +
                ScriptDhcpRogueServerTest.Variables.test_network_interface + ' --target_mac ' +
                ScriptDhcpRogueServerTest.Variables.apple_device_mac_address + ' --target_ip ' +
                ScriptDhcpRogueServerTest.Variables.apple_device_ipv4_address + ' --apple'], shell=True)

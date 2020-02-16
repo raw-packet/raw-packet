@@ -308,13 +308,13 @@ optional arguments:
 
 The [Dynamic Host Configuration Protocol (DHCP)](https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol) is a network management protocol used on UDP/IP networks whereby a DHCP server dynamically assigns an IP address and other network configuration parameters to each device on a network so they can communicate with other IP networks.
 
-## Script: [dhcp_starvation.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcp_starvation.py)
+## Script: [dhcp_starvation.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv4/dhcp_starvation.py)
 
 This script implement the attack - DHCP starvation.
 DHCP starvation attack is an attack that targets DHCP servers whereby forged DHCP requests are crafted by an attacker with the intent of exhausting all available IP addresses that can be allocated by the DHCP server.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcp_starvation.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv4/dhcp_starvation.py --help
 usage: dhcp_starvation.py [-h] [-i INTERFACE] [-d DELAY] [-t TIMEOUT] [-n]
                           [-v DHCP_OPTION_VALUE] [-c DHCP_OPTION_CODE] [-f]
                           [-m]
@@ -352,12 +352,12 @@ optional arguments:
 
 ---
 
-## Script: [dhcp_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcp_rogue_server.py)
+## Script: [dhcp_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv4/dhcp_rogue_server.py)
 
 This script implements an attack on network clients by using fake DHCP server which answers with malicius configuration faster than legitimate DHCP server. This attack also known as Rogue DHCP Server Attack.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcp_rogue_server.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv4/dhcp_rogue_server.py --help
 usage: dhcp_rogue_server.py [-h] [-i INTERFACE] [-f FIRST_OFFER_IP]
                             [-l LAST_OFFER_IP] [-t TARGET_MAC] [-T TARGET_IP]
                             [-m NETMASK] [--dhcp_mac DHCP_MAC]
@@ -449,12 +449,16 @@ optional arguments:
 
 ---
 
-## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCP/dhcpv6_rogue_server.py)
+# DHCPv6
+
+The [Dynamic Host Configuration Protocol version 6 (DHCPv6)](https://en.wikipedia.org/wiki/DHCPv6) is a network protocol for configuring Internet Protocol version 6 (IPv6) hosts with IP addresses, IP prefixes and other configuration data required to operate in an IPv6 network. It is the IPv6 equivalent of the Dynamic Host Configuration Protocol for IPv4.
+
+## Script: [dhcpv6_rogue_server.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/DHCPv6/dhcpv6_rogue_server.py)
 
 This script implements fake DHCPv6 server for perfom SLAAC attack/Rogue DHCPv6.
 
 ```
-root@kali:~/raw-packet# python3 Scripts/DHCP/dhcpv6_rogue_server.py --help
+root@kali:~/raw-packet# python3 Scripts/DHCPv6/dhcpv6_rogue_server.py --help
 usage: dhcpv6_rogue_server.py [-h] [-i INTERFACE] [-p PREFIX]
                               [-f FIRST_SUFFIX] [-l LAST_SUFFIX]
                               [-t TARGET_MAC] [-T TARGET_IPV6] [-D] [-d DNS]
@@ -491,7 +495,44 @@ optional arguments:
 ![dhcpv6_rogue_server.py result](https://raw-packet.github.io/static/images/screenshots/dhcpv6_rogue_server.py_result.png)
 
 ### Demo video:
-[![DHCP Rogue server preview](https://raw-packet.github.io/static/images/gifs/dhcpv6_rogue_server.gif)](https://youtu.be/4Sd4O35Ykaw)
+[![DHCPv6 Rogue server preview](https://raw-packet.github.io/static/images/gifs/dhcpv6_rogue_server.gif)](https://youtu.be/4Sd4O35Ykaw)
+
+---
+
+# ICMPv4
+
+## Script: [icmpv4_redirect.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/ICMPv4/icmpv4_redirect.py)
+
+This script implement the ICMPv4 redirect attack. 
+
+```
+root@kali:~/raw-packet# python3 Scripts/ICMPv4/icmpv4_redirect.py -h
+usage: icmpv4_redirect.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
+                          [-g GATEWAY_IP] [-r REDIRECT_IP] [-q]
+
+ICMPv4 redirect script
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INTERFACE, --interface INTERFACE
+                        Set interface name for send ICMP redirect packets
+  -t TARGET_IP, --target_ip TARGET_IP
+                        Set target IP address
+  -m TARGET_MAC, --target_mac TARGET_MAC
+                        Set target MAC address
+  -g GATEWAY_IP, --gateway_ip GATEWAY_IP
+                        Set gateway IP address (default: <your_ip_address>)
+  -r REDIRECT_IP, --redirect_ip REDIRECT_IP
+                        Set IP addresses where to redirect (example:
+                        8.8.8.8,1.1.1.1)
+  -q, --quiet           Minimal output
+```
+
+### Sample script output:
+![icmpv4_redirect.py output](https://raw-packet.github.io/static/images/screenshots/icmpv4_redirect.py_screenshot.png)
+
+### Traffic sample generated by this script:
+![icmpv4_redirect.py traffic](https://raw-packet.github.io/static/images/screenshots/icmpv4_redirect.py_traffic.png)
 
 ---
 
@@ -731,6 +772,60 @@ optional arguments:
 ---
 
 # Miscellaneous scripts
+
+## Script: [network_security_check.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/network_security_check.py)
+
+Checking network security mechanisms such as: Dynamic ARP Inspection, DHCP snooping, etc.
+
+```
+root@kali:~/raw-packet# python3 Scripts/Others/network_security_check.py -h
+usage: network_security_check.py [-h] [-s SEND_INTERFACE]
+                                 [-l LISTEN_INTERFACE]
+                                 [-n TEST_HOST_INTERFACE] [-t TEST_HOST]
+                                 [-m TEST_MAC] [-o TEST_OS] [-u TEST_SSH_USER]
+                                 [-p TEST_SSH_PASS] [-k TEST_SSH_PKEY]
+                                 [-G GATEWAY_IP] [-g GATEWAY_MAC]
+                                 [-r NUMBER_OF_PACKETS]
+
+Checking network security mechanisms
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SEND_INTERFACE, --send_interface SEND_INTERFACE
+                        Set interface name for send packets
+  -l LISTEN_INTERFACE, --listen_interface LISTEN_INTERFACE
+                        Set interface name for listen packets
+  -n TEST_HOST_INTERFACE, --test_host_interface TEST_HOST_INTERFACE
+                        Set test host network interface for listen packets
+  -t TEST_HOST, --test_host TEST_HOST
+                        Set test host IP address for ssh connection
+  -m TEST_MAC, --test_mac TEST_MAC
+                        Set test host MAC address for ssh connection
+  -o TEST_OS, --test_os TEST_OS
+                        Set test host OS (MacOS, Linux, Windows)
+  -u TEST_SSH_USER, --test_ssh_user TEST_SSH_USER
+                        Set test host user name for ssh connection
+  -p TEST_SSH_PASS, --test_ssh_pass TEST_SSH_PASS
+                        Set test host password for ssh connection
+  -k TEST_SSH_PKEY, --test_ssh_pkey TEST_SSH_PKEY
+                        Set test host private key for ssh connection
+  -G GATEWAY_IP, --gateway_ip GATEWAY_IP
+                        Set gateway IP address
+  -g GATEWAY_MAC, --gateway_mac GATEWAY_MAC
+                        Set gateway MAC address
+  -r NUMBER_OF_PACKETS, --number_of_packets NUMBER_OF_PACKETS
+                        Set number of network packets for each test
+```
+
+### Sample script output:
+![network_security_check.py output](https://raw-packet.github.io/static/images/screenshots/network_security_check.py_screenshot.png)
+
+### Traffic sample generated by this script:
+![network_security_check.py traffic](https://raw-packet.github.io/static/images/screenshots/network_security_check.py_traffic.png)
+
+### Pcap file: [network_security_check.pcapng](https://raw-packet.github.io/static/traffic/network_security_check.pcapng)
+
+---
 
 ## Script: [network_conflict_creator.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Others/network_conflict_creator.py)
 

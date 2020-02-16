@@ -130,7 +130,7 @@ def rogue_dhcp_server(network_interface: str = 'eth0',
                       ip_address: str = '129.168.0.1'):
 
     # Start DHCP rogue server
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcp_rogue_server.py --interface ' + network_interface +
+    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCPv4/dhcp_rogue_server.py --interface ' + network_interface +
                ' --target_ip ' + ip_address + ' --target_mac ' + mac_address + ' --apple --quiet &'],
               shell=True)
 
@@ -162,7 +162,7 @@ def rogue_dhcpv6_server(network_interface: str = 'eth0',
                         global_ipv6_address: str = 'fe80::123'):
 
     # Start DHCPv6 rogue server
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCP/dhcpv6_rogue_server.py --interface ' +
+    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCPv6/dhcpv6_rogue_server.py --interface ' +
                network_interface + ' --prefix ' + prefix + ' --target_ip ' + global_ipv6_address +
                ' --target_mac ' + mac_address + ' --quiet &'], shell=True)
 

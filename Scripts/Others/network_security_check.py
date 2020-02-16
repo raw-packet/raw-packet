@@ -3,7 +3,7 @@
 
 # region Description
 """
-network_security_check.py: Checking network security mechanisms such as: ARP protection, DHCP snooping, etc.
+network_security_check.py: Checking network security mechanisms such as: Dynamic ARP Inspection, DHCP snooping, etc.
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -21,11 +21,12 @@ from pathlib import Path
 from os.path import isfile
 from os import remove
 from subprocess import run, Popen
-from scapy.all import rdpcap, Ether, ARP, IP, UDP, BOOTP, DHCP, IPv6
+from scapy.all import rdpcap, Ether, ARP, IP, UDP, BOOTP, DHCP, ICMP, IPv6
 from scapy.all import ICMPv6ND_RS, ICMPv6ND_RA, ICMPv6ND_NS, ICMPv6ND_NA
 from scapy.all import DHCP6_Solicit, DHCP6_Advertise, DHCP6_Request, DHCP6_Reply
 from time import sleep
 from random import randint
+from re import findall, MULTILINE
 # endregion
 
 # region Authorship information
@@ -47,11 +48,14 @@ if __name__ == '__main__':
 
     from raw_packet.Utils.base import Base
     from raw_packet.Scanners.arp_scanner import ArpScan
-    from raw_packet.Utils.network import RawARP, RawDHCPv4, RawICMPv6, RawDHCPv6
+    from raw_packet.Scanners.scanner import Scanner
+    from raw_packet.Utils.network import RawARP, RawICMPv4, RawDHCPv4, RawICMPv6, RawDHCPv6
 
     base: Base = Base()
     arp_scan: ArpScan = ArpScan()
+    scanner: Scanner = Scanner()
     arp: RawARP = RawARP()
+    icmpv4: RawICMPv4 = RawICMPv4()
     dhcpv4: RawDHCPv4 = RawDHCPv4()
     icmpv6: RawICMPv6 = RawICMPv6()
     dhcpv6: RawDHCPv6 = RawDHCPv6()
@@ -73,7 +77,7 @@ if __name__ == '__main__':
         parser.add_argument('-s', '--send_interface', help='Set interface name for send packets', default=None)
         parser.add_argument('-l', '--listen_interface', help='Set interface name for listen packets', default=None)
         parser.add_argument('-n', '--test_host_interface', help='Set test host network interface for listen packets',
-                            default='eth0')
+                            default=None)
         parser.add_argument('-t', '--test_host', help='Set test host IP address for ssh connection', default=None)
         parser.add_argument('-m', '--test_mac', help='Set test host MAC address for ssh connection', default=None)
         parser.add_argument('-o', '--test_os', help='Set test host OS (MacOS, Linux, Windows)', default='Linux')
@@ -82,7 +86,15 @@ if __name__ == '__main__':
         parser.add_argument('-k', '--test_ssh_pkey', help='Set test host private key for ssh connection', default=None)
         parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', default=None)
         parser.add_argument('-g', '--gateway_mac', help='Set gateway MAC address', default=None)
+        parser.add_argument('-r', '--number_of_packets', type=int,
+                            help='Set number of network packets for each test', default=10)
+        parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
         args = parser.parse_args()
+        # endregion
+
+        # region Print banner
+        if not args.quiet:
+            base.print_banner()
         # endregion
 
         # region Get network interface, your IP and MAC address
@@ -115,6 +127,28 @@ if __name__ == '__main__':
         ssh_private_key: Union[None, RSAKey] = None
 
         pcap_file: str = '/tmp/spoofing.pcap'
+        windows_temp_directory: Union[None, str] = None
+        # endregion
+
+        # region Check gateway IP and MAC address
+        if args.gateway_ip is not None:
+            assert base.ip_address_in_network(args.gateway_ip, your_network), \
+                'Gateway IP address: ' + base.error_text(args.gateway_ip) + \
+                ' not in your network: ' + base.info_text(your_network)
+            gateway_ip_address: str = str(args.gateway_ip)
+        else:
+            gateway_ip_address: str = base.get_interface_gateway(send_network_interface)
+        scan_gateway_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
+                                                                 target_ip_address=gateway_ip_address,
+                                                                 show_scan_percentage=False)
+        if args.gateway_mac is not None:
+            assert base.mac_address_validation(args.gateway_mac), \
+                'Bad gateway MAC address: ' + base.error_text(args.gateway_mac)
+            assert args.gateway_mac == scan_gateway_mac_address, \
+                'Gateway MAC address in argument: ' + base.error_text(args.gateway_mac) + \
+                ' is not real gateway MAC address: ' + base.info_text(scan_gateway_mac_address)
+        gateway_mac_address: str = scan_gateway_mac_address
+        gateway_ipv6_address: str = base.make_ipv6_link_address(gateway_mac_address)
         # endregion
 
         # region Set listen interface or test host
@@ -153,13 +187,17 @@ if __name__ == '__main__':
 
             # region Not found network interface with IP address in test network, set test host IP address for SSH conn
             else:
-                while True:
-                    test_ip_address = input(base.c_info + 'Please set test host IP address for SSH connect: ')
-                    if base.ip_address_in_network(test_ip_address, your_network):
-                        break
-                    else:
-                        base.print_error('Test host IP address: ', test_ip_address,
-                                         ' not in network: ' + base.info_text(your_network))
+                if not args.quiet:
+                    arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
+                                                     timeout=5, retry=5, show_scan_percentage=True,
+                                                     exclude_ip_addresses=[gateway_ip_address])
+                else:
+                    arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
+                                                     timeout=5, retry=5, show_scan_percentage=False,
+                                                     exclude_ip_addresses=[gateway_ip_address])
+                target = scanner.ipv4_device_selection(arp_scan_results)
+                test_ip_address = target['ip-address']
+                test_mac_address = target['mac-address']
             # endregion
 
         # endregion
@@ -168,29 +206,31 @@ if __name__ == '__main__':
         if args.test_host is not None or test_ip_address is not None:
 
             # region Check test host IP and MAC address
-            if args.test_host is not None:
-                assert base.ip_address_in_network(args.test_host, your_network), \
-                    'Test host IP address: ' + base.error_text(args.test_host) + \
-                    ' not in your network: ' + base.info_text(your_network)
-                test_ip_address = str(args.test_host)
-            scan_test_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
-                                                                  target_ip_address=test_ip_address,
-                                                                  show_scan_percentage=False)
-            if args.test_mac is not None:
-                assert base.mac_address_validation(args.test_mac), \
-                    'Bad test host MAC address: ' + base.error_text(args.test_mac)
-                assert args.test_mac == scan_test_mac_address, \
-                    'Test host MAC address in argument: ' + base.error_text(args.test_mac) + \
-                    ' is not real test host MAC address: ' + base.info_text(scan_test_mac_address)
-            test_mac_address = scan_test_mac_address
-            test_ipv6_address = base.make_ipv6_link_address(test_mac_address)
+            if test_ip_address is not None and test_mac_address is not None:
+                test_ipv6_address = base.make_ipv6_link_address(test_mac_address)
+            else:
+                if args.test_host is not None:
+                    assert base.ip_address_in_network(args.test_host, your_network), \
+                        'Test host IP address: ' + base.error_text(args.test_host) + \
+                        ' not in your network: ' + base.info_text(your_network)
+                    test_ip_address = str(args.test_host)
+                scan_test_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
+                                                                      target_ip_address=test_ip_address,
+                                                                      show_scan_percentage=False)
+                if args.test_mac is not None:
+                    assert base.mac_address_validation(args.test_mac), \
+                        'Bad test host MAC address: ' + base.error_text(args.test_mac)
+                    assert args.test_mac == scan_test_mac_address, \
+                        'Test host MAC address in argument: ' + base.error_text(args.test_mac) + \
+                        ' is not real test host MAC address: ' + base.info_text(scan_test_mac_address)
+                test_mac_address = scan_test_mac_address
+                test_ipv6_address = base.make_ipv6_link_address(test_mac_address)
             # endregion
 
             # region Check test host SSH user, password and private key
             ssh_user = args.test_ssh_user
             ssh_password = args.test_ssh_pass
             ssh_private_key = None
-            test_interface = args.test_host_interface
             test_os = str(args.test_os).lower()
 
             if args.test_ssh_pkey is None and ssh_password is None:
@@ -210,15 +250,35 @@ if __name__ == '__main__':
             if test_os == 'linux' or test_os == 'macos':
                 command: str = 'ifconfig'
             else:
-                command: str = 'ipconfig'
+                command: str = 'netsh interface show interface'
             test_host_network_interfaces: str = base.exec_command_over_ssh(command=command,
                                                                            ssh_user=ssh_user,
                                                                            ssh_password=ssh_password,
                                                                            ssh_pkey=ssh_private_key,
                                                                            ssh_host=test_ip_address)
-            assert test_interface in test_host_network_interfaces, \
-                'Not found network interface: ' + base.error_text(test_interface) + \
-                ' in ' + base.info_text(command) + ' output: \n' + base.info_text(test_host_network_interfaces)
+
+            if test_os == 'linux' or test_os == 'macos':
+                test_host_network_interfaces_list = findall(r'^([a-zA-Z0-9]{2,32})\:\ ',
+                                                            test_host_network_interfaces,
+                                                            MULTILINE)
+            else:
+                test_host_network_interfaces_list = test_host_network_interfaces.split()
+
+            if args.test_host_interface is None:
+                base.print_info('Network interfaces list on test host: \n', test_host_network_interfaces)
+                test_interface = input('Please set network interface on test host: ')
+            else:
+                test_interface = args.test_host_interface
+                if test_interface not in test_host_network_interfaces_list:
+                    base.print_info('Network interfaces list on test host: \n', test_host_network_interfaces)
+
+            while True:
+                if test_interface not in test_host_network_interfaces_list:
+                    base.print_warning('Network interface: ', test_interface,
+                                       ' not in network interfaces list on test host')
+                    test_interface = input('Please set network interface on test host: ')
+                else:
+                    break
             # endregion
 
         # endregion
@@ -226,7 +286,7 @@ if __name__ == '__main__':
         # region Check listen network interface
         if (args.listen_interface is not None or listen_network_interface is not None) and test_ip_address is None:
             if args.listen_interface is not None:
-                assert args.listen_interface not in list_of_network_interfaces, \
+                assert args.listen_interface in list_of_network_interfaces, \
                     'Network interface: ' + base.error_text(args.listen_interface) + \
                     ' not in available network interfaces list: ' + base.info_text(str(list_of_network_interfaces))
                 listen_network_interface = args.listen_interface
@@ -237,42 +297,22 @@ if __name__ == '__main__':
             test_os = 'linux'
         # endregion
 
-        # region Check gateway IP and MAC address
-        if args.gateway_ip is not None:
-            assert base.ip_address_in_network(args.gateway_ip, your_network), \
-                'Gateway IP address: ' + base.error_text(args.test_host) + \
-                ' not in your network: ' + base.info_text(your_network)
-            gateway_ip_address: str = str(args.gateway_ip)
-        else:
-            gateway_ip_address: str = base.get_interface_gateway(send_network_interface)
-        scan_gateway_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
-                                                                 target_ip_address=gateway_ip_address,
-                                                                 show_scan_percentage=False)
-        if args.gateway_mac is not None:
-            assert base.mac_address_validation(args.gateway_mac), \
-                'Bad gateway MAC address: ' + base.error_text(args.gateway_mac)
-            assert args.gateway_mac == scan_gateway_mac_address, \
-                'Gateway MAC address in argument: ' + base.error_text(args.gateway_mac) + \
-                ' is not real gateway MAC address: ' + base.info_text(scan_gateway_mac_address)
-        gateway_mac_address: str = scan_gateway_mac_address
-        gateway_ipv6_address: str = base.make_ipv6_link_address(gateway_mac_address)
-        # endregion
-
         # region Output
-        base.print_info('Send network interface: ', send_network_interface)
-        base.print_info('Send network interface IP address: ', your_ip_address)
-        base.print_info('Send network interface MAC address: ', your_mac_address)
-        if listen_network_interface is not None:
-            base.print_info('Listen network interface: ', listen_network_interface)
-            base.print_info('Listen network interface IP address: ', test_ip_address)
-            base.print_info('Listen network interface MAC address: ', test_mac_address)
-        if ssh_user is not None:
-            base.print_info('Test host IP address: ', test_ip_address)
-            base.print_info('Test host MAC address: ', test_mac_address)
-            base.print_info('Test host OS: ', test_os)
-            base.print_info('Test host network interface: ', test_interface)
-        base.print_info('Gateway IP address: ', gateway_ip_address)
-        base.print_info('Gateway MAC address: ', gateway_mac_address)
+        if not args.quiet:
+            base.print_info('Send network interface: ', send_network_interface)
+            base.print_info('Send network interface IP address: ', your_ip_address)
+            base.print_info('Send network interface MAC address: ', your_mac_address)
+            if listen_network_interface is not None:
+                base.print_info('Listen network interface: ', listen_network_interface)
+                base.print_info('Listen network interface IP address: ', test_ip_address)
+                base.print_info('Listen network interface MAC address: ', test_mac_address)
+            if ssh_user is not None:
+                base.print_info('Test host IP address: ', test_ip_address)
+                base.print_info('Test host MAC address: ', test_mac_address)
+                base.print_info('Test host OS: ', test_os)
+                base.print_info('Test host network interface: ', test_interface)
+            base.print_info('Gateway IP address: ', gateway_ip_address)
+            base.print_info('Gateway MAC address: ', gateway_mac_address)
         # endregion
 
         # region Start tshark
@@ -281,10 +321,12 @@ if __name__ == '__main__':
                                         ' -w /tmp/spoofing.pcap -f "ether src ' + your_mac_address + \
                                         '" >/dev/null 2>&1'
         else:
-            start_tshark_command: str = 'cd C:\Windows\Temp && del /f spoofing.pcap && tshark -i ' + test_interface + \
+            start_tshark_command: str = 'cd %temp% & del /f spoofing.pcap &' \
+                                        ' "C:\\Program Files\\Wireshark\\tshark.exe" -i ' + test_interface + \
                                         ' -w spoofing.pcap -f "ether src ' + your_mac_address + '"'
         if ssh_user is not None:
-            base.print_info('Start tshark on test host')
+            if not args.quiet:
+                base.print_info('Start tshark on test host: ', test_ip_address)
             base.exec_command_over_ssh(command=start_tshark_command,
                                        ssh_user=ssh_user,
                                        ssh_password=ssh_password,
@@ -293,7 +335,7 @@ if __name__ == '__main__':
                                        need_output=False)
 
             if test_os == 'linux' or test_os == 'macos':
-                sleep(1)
+                start_tshark_retry: int = 1
                 while base.exec_command_over_ssh(command='pgrep tshark',
                                                  ssh_user=ssh_user,
                                                  ssh_password=ssh_password,
@@ -306,11 +348,29 @@ if __name__ == '__main__':
                                                ssh_host=test_ip_address,
                                                need_output=False)
                     sleep(1)
+                    start_tshark_retry += 1
+                    if start_tshark_retry == 5:
+                        base.print_error('Failed to start tshark on test host: ', test_ip_address)
+                        exit(1)
+            else:
+                windows_temp_directory = base.exec_command_over_ssh(command='echo %temp%',
+                                                                    ssh_user=ssh_user,
+                                                                    ssh_password=ssh_password,
+                                                                    ssh_pkey=ssh_private_key,
+                                                                    ssh_host=test_ip_address)
+                assert windows_temp_directory is not None or windows_temp_directory != '', \
+                    'Can not get variable %temp% on Windows host: ' + base.error_text(test_ip_address)
+                if windows_temp_directory.endswith('\n'):
+                    windows_temp_directory = windows_temp_directory[:-1]
+                if windows_temp_directory.endswith('\r'):
+                    windows_temp_directory = windows_temp_directory[:-1]
         else:
             if isfile(pcap_file):
                 remove(pcap_file)
-            base.print_info('Start tshark on listen interface: ', listen_network_interface)
+            if not args.quiet:
+                base.print_info('Start tshark on listen interface: ', listen_network_interface)
             Popen([start_tshark_command], shell=True)
+        sleep(5)
         # endregion
 
         # region Send ARP packets
@@ -321,9 +381,23 @@ if __name__ == '__main__':
                                               sender_ip=gateway_ip_address,
                                               target_mac=test_mac_address,
                                               target_ip=test_ip_address)
-        for _ in range(10):
+        for _ in range(args.number_of_packets):
             raw_socket.send(arp_packet)
             sleep(0.1)
+        # endregion
+
+        # region Send ICMPv4 packets
+        base.print_info('Send ICMPv4 packets to: ', test_ip_address + ' (' + test_mac_address + ')')
+        icmpv4_packet: bytes = icmpv4.make_redirect_packet(ethernet_src_mac=your_mac_address,
+                                                           ethernet_dst_mac=test_mac_address,
+                                                           ip_src=gateway_ip_address,
+                                                           ip_dst=test_ip_address,
+                                                           gateway_address=your_ip_address,
+                                                           payload_ip_src=test_ip_address,
+                                                           payload_ip_dst='8.8.8.8')
+        for _ in range(args.number_of_packets):
+            raw_socket.send(icmpv4_packet)
+            sleep(0.5)
         # endregion
 
         # region Send DHCPv4 packets
@@ -360,7 +434,7 @@ if __name__ == '__main__':
                                                    dhcp_server_id=your_ip_address,
                                                    router=your_ip_address,
                                                    dns=your_ip_address)
-        for _ in range(10):
+        for _ in range(args.number_of_packets):
             raw_socket.send(discover_packet)
             raw_socket.send(offer_packet)
             raw_socket.send(request_packet)
@@ -391,7 +465,7 @@ if __name__ == '__main__':
                                                                      ipv6_src=gateway_ipv6_address,
                                                                      ipv6_dst=test_ipv6_address,
                                                                      target_ipv6_address=gateway_ipv6_address)
-        for _ in range(10):
+        for _ in range(args.number_of_packets):
             raw_socket.send(rs_packet)
             raw_socket.send(ra_packet)
             raw_socket.send(ns_packet)
@@ -431,7 +505,7 @@ if __name__ == '__main__':
                                                        dns_address=your_ipv6_address,
                                                        ipv6_address='fd00::123',
                                                        client_duid_timeval=1)
-        for _ in range(10):
+        for _ in range(args.number_of_packets):
             raw_socket.send(solicit_packet)
             raw_socket.send(advertise_packet)
             raw_socket.send(request_packet)
@@ -439,13 +513,15 @@ if __name__ == '__main__':
             sleep(0.1)
         # endregion
 
-        # region Stop tshark on test host
+        # region Stop tshark
+        sleep(5)
         if test_os == 'linux' or test_os == 'macos':
             stop_tshark_command: str = 'pkill tshark >/dev/null 2>&1'
         else:
             stop_tshark_command: str = 'taskkill /IM "tshark.exe" /F'
         if ssh_user is not None:
-            base.print_info('Stop tshark on test host')
+            if not args.quiet:
+                base.print_info('Stop tshark on test host: ', test_ip_address)
             base.exec_command_over_ssh(command=stop_tshark_command,
                                        ssh_user=ssh_user,
                                        ssh_password=ssh_password,
@@ -453,7 +529,8 @@ if __name__ == '__main__':
                                        ssh_host=test_ip_address,
                                        need_output=False)
         else:
-            base.print_info('Stop tshark on listen interface: ', listen_network_interface)
+            if not args.quiet:
+                base.print_info('Stop tshark on listen interface: ', listen_network_interface)
             run([stop_tshark_command], shell=True)
         # endregion
 
@@ -461,10 +538,10 @@ if __name__ == '__main__':
         if ssh_user is not None:
             if isfile(pcap_file):
                 remove(pcap_file)
-            base.print_info('Download pcap file with test traffic over SSH to: ', pcap_file)
-            sleep(3)
+            if not args.quiet:
+                base.print_info('Download pcap file with test traffic over SSH to: ', pcap_file)
             if test_os == 'windows':
-                base.download_file_over_ssh(remote_path='C:\Windows\Temp\spoofing.pcap',
+                base.download_file_over_ssh(remote_path=windows_temp_directory + '\spoofing.pcap',
                                             local_path=pcap_file,
                                             ssh_user=ssh_user,
                                             ssh_password=ssh_password,
@@ -485,9 +562,12 @@ if __name__ == '__main__':
         # endregion
 
         # region Analyze pcap file from test host
-        base.print_info('Analyze pcap file:')
+        if not args.quiet:
+            base.print_info('Analyze pcap file:')
 
         sniff_arp_spoof_packets: bool = False
+
+        sniff_icmpv4_redirect_packets: bool = False
 
         sniff_dhcpv4_discover_packets: bool = False
         sniff_dhcpv4_offer_packets: bool = False
@@ -515,6 +595,15 @@ if __name__ == '__main__':
                         packet[ARP].hwdst == test_mac_address and \
                         packet[ARP].pdst == test_ip_address:
                     sniff_arp_spoof_packets = True
+
+            if packet.haslayer(ICMP):
+                if packet[Ether].src == your_mac_address and \
+                        packet[Ether].dst == test_mac_address and \
+                        packet[IP].src == gateway_ip_address and \
+                        packet[IP].dst == test_ip_address and \
+                        packet[ICMP].code == 1 and \
+                        packet[ICMP].gw == your_ip_address:
+                    sniff_icmpv4_redirect_packets = True
 
             if packet.haslayer(DHCP):
                 if packet[Ether].src == your_mac_address and \
@@ -644,6 +733,11 @@ if __name__ == '__main__':
             base.print_success('ARP protection disabled')
         else:
             base.print_error('ARP protection enabled')
+
+        if sniff_icmpv4_redirect_packets:
+            base.print_success('ICMPv4 redirect protection disabled')
+        else:
+            base.print_error('ICMPv4 redirect protection enabled')
 
         if sniff_dhcpv4_discover_packets and \
                 sniff_dhcpv4_offer_packets and \
