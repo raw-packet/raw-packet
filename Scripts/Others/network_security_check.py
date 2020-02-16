@@ -735,9 +735,9 @@ if __name__ == '__main__':
             base.print_error('ARP protection enabled')
 
         if sniff_icmpv4_redirect_packets:
-            base.print_success('ICMPv4 redirect protection disabled')
+            base.print_success('ICMPv4 Redirect protection disabled')
         else:
-            base.print_error('ICMPv4 redirect protection enabled')
+            base.print_error('ICMPv4 Redirect protection enabled')
 
         if sniff_dhcpv4_discover_packets and \
                 sniff_dhcpv4_offer_packets and \
