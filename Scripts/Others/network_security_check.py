@@ -21,12 +21,15 @@ from pathlib import Path
 from os.path import isfile
 from os import remove
 from subprocess import run, Popen
-from scapy.all import rdpcap, Ether, ARP, IP, UDP, BOOTP, DHCP, ICMP, IPv6
-from scapy.all import ICMPv6ND_RS, ICMPv6ND_RA, ICMPv6ND_NS, ICMPv6ND_NA
+from scapy.all import rdpcap, Ether, Dot3, LLC, STP, ARP, IP, UDP, BOOTP, DHCP, ICMP, IPv6
+from scapy.all import ICMPv6ND_RS, ICMPv6ND_RA, ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_Redirect
 from scapy.all import DHCP6_Solicit, DHCP6_Advertise, DHCP6_Request, DHCP6_Reply
 from time import sleep
 from random import randint
 from re import findall, MULTILINE
+from time import time
+from sys import stdout
+from json import dumps
 # endregion
 
 # region Authorship information
@@ -86,8 +89,10 @@ if __name__ == '__main__':
         parser.add_argument('-k', '--test_ssh_pkey', help='Set test host private key for ssh connection', default=None)
         parser.add_argument('-G', '--gateway_ip', help='Set gateway IP address', default=None)
         parser.add_argument('-g', '--gateway_mac', help='Set gateway MAC address', default=None)
-        parser.add_argument('-r', '--number_of_packets', type=int,
-                            help='Set number of network packets for each test', default=10)
+        parser.add_argument('-r', '--number_of_packets', type=int, default=10,
+                            help='Set number of network packets for each test (default: 10)')
+        parser.add_argument('-L', '--listen_time', type=int, default=60,
+                            help='Set time to listen broadcast packets in seconds (default: 60)')
         parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
         args = parser.parse_args()
         # endregion
@@ -318,12 +323,11 @@ if __name__ == '__main__':
         # region Start tshark
         if test_os == 'linux' or test_os == 'macos':
             start_tshark_command: str = 'rm -f /tmp/spoofing.pcap; tshark -i ' + test_interface + \
-                                        ' -w /tmp/spoofing.pcap -f "ether src ' + your_mac_address + \
-                                        '" >/dev/null 2>&1'
+                                        ' -w /tmp/spoofing.pcap >/dev/null 2>&1'
         else:
             start_tshark_command: str = 'cd %temp% & del /f spoofing.pcap &' \
                                         ' "C:\\Program Files\\Wireshark\\tshark.exe" -i ' + test_interface + \
-                                        ' -w spoofing.pcap -f "ether src ' + your_mac_address + '"'
+                                        ' -w spoofing.pcap'
         if ssh_user is not None:
             if not args.quiet:
                 base.print_info('Start tshark on test host: ', test_ip_address)
@@ -370,6 +374,7 @@ if __name__ == '__main__':
             if not args.quiet:
                 base.print_info('Start tshark on listen interface: ', listen_network_interface)
             Popen([start_tshark_command], shell=True)
+        start_time = time()
         sleep(5)
         # endregion
 
@@ -383,7 +388,7 @@ if __name__ == '__main__':
                                               target_ip=test_ip_address)
         for _ in range(args.number_of_packets):
             raw_socket.send(arp_packet)
-            sleep(0.1)
+            sleep(0.5)
         # endregion
 
         # region Send ICMPv4 packets
@@ -439,11 +444,18 @@ if __name__ == '__main__':
             raw_socket.send(offer_packet)
             raw_socket.send(request_packet)
             raw_socket.send(ack_packet)
-            sleep(0.1)
+            sleep(0.5)
         # endregion
 
         # region Send ICMPv6 packets
         base.print_info('Send ICMPv6 packets to: ', test_ipv6_address + ' (' + test_mac_address + ')')
+        rd_packet: bytes = icmpv6.make_redirect_packet(ethernet_src_mac=your_mac_address,
+                                                       ethernet_dst_mac=test_mac_address,
+                                                       original_router_ipv6_address=gateway_ipv6_address,
+                                                       victim_address_ipv6_address=test_ipv6_address,
+                                                       new_router_ipv6_address=your_ipv6_address,
+                                                       new_router_mac_address=your_mac_address,
+                                                       redirected_ipv6_address='2001:4860:4860::8888')
         rs_packet: bytes = icmpv6.make_router_solicit_packet(ethernet_src_mac=your_mac_address,
                                                              ethernet_dst_mac='33:33:00:00:00:02',
                                                              ipv6_src=gateway_ipv6_address,
@@ -466,11 +478,12 @@ if __name__ == '__main__':
                                                                      ipv6_dst=test_ipv6_address,
                                                                      target_ipv6_address=gateway_ipv6_address)
         for _ in range(args.number_of_packets):
+            raw_socket.send(rd_packet)
             raw_socket.send(rs_packet)
             raw_socket.send(ra_packet)
             raw_socket.send(ns_packet)
             raw_socket.send(na_packet)
-            sleep(0.1)
+            sleep(0.5)
         # endregion
 
         # region Send DHCPv6 packets
@@ -510,11 +523,20 @@ if __name__ == '__main__':
             raw_socket.send(advertise_packet)
             raw_socket.send(request_packet)
             raw_socket.send(reply_packet)
-            sleep(0.1)
+            sleep(0.5)
         # endregion
 
         # region Stop tshark
-        sleep(5)
+        while int(time() - start_time) < args.listen_time:
+            stdout.write('\r')
+            if args.listen_time - int(time() - start_time) > 1:
+                stdout.write(base.c_info + 'Wait: ' +
+                             base.info_text(str(args.listen_time - int(time() - start_time)) + ' sec.   '))
+            else:
+                stdout.write('')
+            stdout.flush()
+            sleep(1)
+
         if test_os == 'linux' or test_os == 'macos':
             stop_tshark_command: str = 'pkill tshark >/dev/null 2>&1'
         else:
@@ -565,6 +587,9 @@ if __name__ == '__main__':
         if not args.quiet:
             base.print_info('Analyze pcap file:')
 
+        sniff_stp_packets: bool = False
+        sniff_stp_fields: Dict[str, Dict[str, str]] = dict()
+
         sniff_arp_spoof_packets: bool = False
 
         sniff_icmpv4_redirect_packets: bool = False
@@ -574,6 +599,7 @@ if __name__ == '__main__':
         sniff_dhcpv4_request_packets: bool = False
         sniff_dhcpv4_ack_packets: bool = False
 
+        sniff_icmpv6_rd_packets: bool = False
         sniff_icmpv6_rs_packets: bool = False
         sniff_icmpv6_ra_packets: bool = False
         sniff_icmpv6_ns_packets: bool = False
@@ -586,6 +612,15 @@ if __name__ == '__main__':
 
         packets = rdpcap(pcap_file)
         for packet in packets:
+            if packet.haslayer(STP):
+                sniff_stp_fields['802.3'] = {'source': packet[Dot3].src,
+                                             'destination': packet[Dot3].dst}
+                sniff_stp_fields['Spanning Tree Protocol'] = {'bridge id': packet[STP].bridgeid,
+                                                              'bridge mac': packet[STP].bridgemac,
+                                                              'port id': packet[STP].portid,
+                                                              'root id': packet[STP].rootid,
+                                                              'root mac': packet[STP].rootmac}
+                sniff_stp_packets = True
 
             if packet.haslayer(ARP):
                 if packet[Ether].src == your_mac_address and \
@@ -647,6 +682,16 @@ if __name__ == '__main__':
                     sniff_dhcpv4_ack_packets = True
 
             if packet.haslayer(IPv6):
+                if packet.haslayer(ICMPv6ND_Redirect):
+                    if packet[Ether].src == your_mac_address and \
+                            packet[Ether].dst == test_mac_address and \
+                            packet[IPv6].src == gateway_ipv6_address and \
+                            packet[IPv6].dst == test_ipv6_address and \
+                            packet[ICMPv6ND_Redirect].type == 137 and \
+                            packet[ICMPv6ND_Redirect].tgt == your_ipv6_address and \
+                            packet[ICMPv6ND_Redirect].dst == '2001:4860:4860::8888':
+                        sniff_icmpv6_rd_packets = True
+
                 if packet.haslayer(ICMPv6ND_RS):
                     if packet[Ether].src == your_mac_address and \
                             packet[Ether].dst == '33:33:00:00:00:02' and \
@@ -747,6 +792,11 @@ if __name__ == '__main__':
         else:
             base.print_error('DHCPv4 protection enabled')
 
+        if sniff_icmpv6_rd_packets:
+            base.print_success('ICMPv6 Redirect protection disabled')
+        else:
+            base.print_error('ICMPv6 Redirect protection enabled')
+
         if sniff_icmpv6_rs_packets and sniff_icmpv6_ra_packets:
             base.print_success('ICMPv6 Router Advertisement protection disabled')
         else:
@@ -764,6 +814,12 @@ if __name__ == '__main__':
             base.print_success('DHCPv6 protection disabled')
         else:
             base.print_error('DHCPv6 protection enabled')
+
+        if sniff_stp_packets:
+            base.print_success('STP packets from: ', sniff_stp_fields['802.3']['source'],
+                               ' possible STP (RSTP, PVSTP, MSTP) spoofing')
+        else:
+            base.print_error('STP packets not found')
         # endregion
 
     except KeyboardInterrupt:
