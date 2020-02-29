@@ -4223,6 +4223,7 @@ class RawICMPv6:
         self.types['Router Advertisement'] = 134
         self.types['Neighbor Solicitation'] = 135
         self.types['Neighbor Advertisement'] = 136
+        self.types['Redirect'] = 137
         self.types['Multicast listener report'] = 143
 
     @staticmethod
@@ -4948,6 +4949,69 @@ class RawICMPv6:
 
         except TypeError:
             error_text = 'Failed to make ICMPv6 Multicast listener report packet!'
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
+    def make_redirect_packet(self,
+                             ethernet_src_mac: str = '01:23:45:67:89:0a',
+                             ethernet_dst_mac: str = '01:23:45:67:89:0b',
+                             original_router_ipv6_address: str = 'fd00::1',
+                             victim_address_ipv6_address: str = 'fd00::2',
+                             new_router_ipv6_address: str = 'fd00::3',
+                             new_router_mac_address: Union[None, str] = None,
+                             redirected_ipv6_address: str = '2001:4860:4860::8888',
+                             redirected_header: Union[None, bytes] = None,
+                             exit_on_failure: bool = True,
+                             exit_code: int = 54,
+                             quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make ICMPv6 redirect packet
+        :param ethernet_src_mac: Source MAC address string in Ethernet header (example: '01:23:45:67:89:0a')
+        :param ethernet_dst_mac: Destination MAC address string in Ethernet header (example: '01:23:45:67:89:0b')
+        :param original_router_ipv6_address: Original router IPv6 address - Source address in IPv6 header (example: 'fd00::1')
+        :param victim_address_ipv6_address: Victim IPv6 address - Destination address in IPv6 header (example: 'fd00::2')
+        :param new_router_ipv6_address: New router IPv6 address (example: 'fd00::3')
+        :param new_router_mac_address: New router MAC address (default: <ethernet_src_mac>)
+        :param redirected_ipv6_address: IPv6 address for redirect (example: '2001:4860:4860::8888')
+        :param redirected_header: Bytes of redirected header (default: None)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 46)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of ICMPv6 Redirect packet or None if error
+        """
+        try:
+            if new_router_mac_address is None:
+                new_router_mac_address = ethernet_src_mac
+            body = pack('!I', 0x00000000)  # Reserved
+            body += self.ipv6.pack_addr(new_router_ipv6_address)  # ICMPv6 Redirect target address
+            body += self.ipv6.pack_addr(redirected_ipv6_address)  # ICMPv6 Redirect destination address
+
+            # ICMPv6 Option: Target link-layer address
+            body += self.make_option(option_type=2, option_value=self.eth.convert_mac(new_router_mac_address))
+
+            # ICMPv6 Option: Redirected header
+            if redirected_header is not None:
+                body += self.make_option(option_type=4, option_value=redirected_header)
+
+            return self.make_packet(ethernet_src_mac=ethernet_src_mac,
+                                    ethernet_dst_mac=ethernet_dst_mac,
+                                    ipv6_src=original_router_ipv6_address,
+                                    ipv6_dst=victim_address_ipv6_address,
+                                    ipv6_flow=0,
+                                    icmpv6_type=self.types['Redirect'],
+                                    icmpv6_code=0,
+                                    icmpv6_body=body,
+                                    exit_on_failure=exit_on_failure,
+                                    exit_code=exit_code,
+                                    quiet=quiet)
+
+        except TypeError:
+            error_text = 'Failed to make ICMPv6 Redirect packet!'
 
         if not quiet:
             self.base.print_error(error_text)
