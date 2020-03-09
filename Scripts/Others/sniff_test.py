@@ -42,6 +42,11 @@ def print_packet(request):
 
     print("\n")
 
+    if '802.11' in request.keys():
+        base.print_info("802.11 packet source: ", request['802.11']['source'],
+                        " destination: ", request['802.11']['destination'],
+                        " BSS ID: ", request['802.11']['bss id'])
+
     if 'ARP' in request.keys():
         base.print_info("ARP packet from: ", request['Ethernet']['source'])
 
@@ -55,32 +60,34 @@ def print_packet(request):
 
     if 'DNS' in request.keys():
 
-        if 'IP' in request.keys():
+        if 'IPv4' in request.keys():
             base.print_info("DNS packet from: ",
-                            request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
+                            request['IPv4']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
         if 'IPv6' in request.keys():
             base.print_info("DNS packet from: ",
                             request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
-    # if 'MDNS' in request.keys():
-    #
-    #     if 'IP' in request.keys():
-    #         base.print_info("MDNS packet from: ",
-    #                         request['IP']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
-    #
-    #     if 'IPv6' in request.keys():
-    #         base.print_info("MDNS packet from: ",
-    #                         request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
-
-    if 'DHCP' in request.keys():
-        base.print_info("DHCP packet from: ", request['Ethernet']['source'])
+    if 'DHCPv4' in request.keys():
+        base.print_info("DHCPv4 packet from: ", request['Ethernet']['source'])
 
     if 'DHCPv6' in request.keys():
         base.print_info("DHCPv6 packet from: ",
                         request['IPv6']['source-ip'] + " (" + request['Ethernet']['source'] + ")")
 
-    print(dumps(request, indent=4))
+    for proto in request.keys():
+        if type(request[proto]) is dict:
+            for key in request[proto].keys():
+
+                if type(request[proto][key]) is bytes:
+                    request[proto][key] = str(request[proto][key])
+
+                if type(request[proto][key]) is dict:
+                    for value in request[proto][key].keys():
+                        if type(request[proto][key][value]) is bytes:
+                            request[proto][key][value] = str(request[proto][key][value])
+
+    print(dumps(request, sort_keys=True, indent=4))
 
 # endregion
 
@@ -89,7 +96,8 @@ def print_packet(request):
 if __name__ == "__main__":
 
     # region Print info message
-    base.print_info("Available protocols: ", "Ethernet ARP IPv4 IPv6 UDP DNS ICMPv4")
+    base.print_info("Available protocols: ",
+                    "Radiotap 802.11 Ethernet ARP IPv4 IPv6 UDP DNS ICMPv4 DHCPv4 ICMPv6 DHCPv4")
     base.print_info("Start test sniffing ...")
     # endregion
 
@@ -97,6 +105,8 @@ if __name__ == "__main__":
     sniff = RawSniff()
     sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS', 'ICMPv4'],
                 prn=print_packet, filters={'UDP': {'source-port': 53}})
+    # sniff.start(protocols=['Radiotap', '802.11'], prn=print_packet,
+    #             network_interface='wlan0', filters={'802.11': {'type': 0x88, 'bss id': '70:f1:1c:15:15:b8'}})
     # endregion
 
 # endregion

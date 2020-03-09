@@ -34,6 +34,125 @@ __status__ = 'Development'
 # endregion
 
 
+# region Raw Radiotap
+class RawRadiotap:
+    """
+    Class for making and parsing Radiotap header
+    """
+
+    # region Properties
+
+    # Set length of Ethernet header
+    header_length: int = 8
+
+    # Init Raw-packet Base class
+    base: Base = Base()
+
+    # endregion
+
+    def parse_header(self,
+                     packet: bytes,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 43,
+                     quiet: bool = True) -> Union[None, Dict[str, Union[int, str]]]:
+        """
+        Parse Radiotap header
+        :param packet: Bytes of packet
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 43)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Parsed Radiotap header dictionary (example: {'revision': 0, 'pad': 0, 'length': 12}) or None if error
+        """
+        try:
+            assert len(packet) >= self.header_length, \
+                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal Radiotap header length: ' + self.base.info_text(str(self.header_length))
+
+            radiotap_detailed = unpack('2B' 'H' 'I', packet[:8])
+
+            # assert 8 <= int(radiotap_detailed[2]) <= 36, \
+            #     'Bad Radiotap header length: ' + self.base.error_text(str(int(radiotap_detailed[2]))) + \
+            #     ' Radiotap header length must be in range: ' + self.base.info_text('12 - 36')
+
+            return {
+                'revision': int(radiotap_detailed[0]),
+                'pad': int(radiotap_detailed[1]),
+                'length': int(radiotap_detailed[2]),
+                'flags': int(radiotap_detailed[3])
+            }
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        except IndexError:
+            error_text = 'Failed to parse Radiotap header!'
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
+    def make_header(self,
+                    revision: int = 0,
+                    pad: int = 0,
+                    length: int = 8,
+                    present_flags: int = 0x00000000,
+                    exit_on_failure: bool = True,
+                    exit_code: int = 44,
+                    quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make Radiotap header
+        :param revision: Radiotap header revision (default: 0)
+        :param pad: Radiotap header pad (default: 0)
+        :param length: Radiotap header length (default: 8)
+        :param present_flags: Present flags (default: 0x00000000)
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 44)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes Radiotap of header or None if error
+        """
+        error_text: str = 'Failed to make Radiotap header!'
+        packet: bytes = b''
+        try:
+            assert length >= self.header_length, \
+                ' Minimal Radiotap header length - ' + self.base.error_text(str(self.header_length))
+            packet += pack('B', revision)
+            packet += pack('B', pad)
+            packet += pack('H', length)
+            packet += pack('I', present_flags)
+
+            return packet
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'revision' in traceback_text:
+                error_text += ' Bad revision: ' + self.base.error_text(str(revision)) + \
+                              ' revision must be in range: ' + self.base.info_text(str('0 - 255'))
+            if 'pad' in traceback_text:
+                error_text += ' Bad pad: ' + self.base.error_text(str(pad)) + \
+                              ' pad must be in range: ' + self.base.info_text(str('0 - 255'))
+            if 'length' in traceback_text:
+                error_text += ' Bad length: ' + self.base.error_text(str(length)) + \
+                              ' length must be in range: ' + self.base.info_text(str('12 - 65535'))
+            if 'present_flags' in traceback_text:
+                error_text += ' Bad present_flags: ' + self.base.error_text(str(present_flags)) + \
+                              ' present_flags must be in range: ' + self.base.info_text(str('0 - 4294967295'))
+
+        except AssertionError as Error:
+            error_text += Error.args[0]
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
+# endregion
+
+
 # region Raw Ethernet
 class RawEthernet:
     """
@@ -370,6 +489,283 @@ class RawEthernet:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del self.macs[:]
+# endregion
+
+
+# region Raw IEEE 802.11
+class RawIEEE80211:
+    """
+    Class for making and parsing IEEE 802.11 packet
+    """
+
+    # region Properties
+
+    # Set length of IEEE 802.11 packet
+    packet_length: int = 24
+
+    # Init Raw-packet Base class
+    base: Base = Base()
+
+    # Init RawEthernet class
+    eth: RawEthernet = RawEthernet()
+
+    # Init RawRadiotap class
+    radio: RawRadiotap = RawRadiotap()
+
+    # endregion
+
+    def parse_packet(self,
+                     packet: bytes,
+                     exit_on_failure: bool = False,
+                     exit_code: int = 43,
+                     quiet: bool = True) -> \
+            Union[None, Dict[str, Union[int, str, bytes, Dict[Union[int, str], Union[int, bytes]]]]]:
+        """
+        Parse IEEE 802.11 packet
+        :param packet: Bytes of packet
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 43)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Parsed IEEE 802.11 packet dictionary or None if error
+        """
+        try:
+            assert len(packet) >= RawIEEE80211.packet_length + 2, \
+                'Bad packet length: ' + self.base.error_text(str(len(packet))) + \
+                ' minimal IEEE 802.11 packet length: ' + self.base.info_text(str(self.packet_length + 2))
+
+            iee80211_detailed = unpack('!' '2B' 'H' '6s' '6s' '6s', packet[:self.packet_length - 2])
+            sequence_and_fragment = unpack('H', packet[self.packet_length - 2:self.packet_length])[0]
+
+            iee80211_parsed: Dict[str, Union[int, str, bytes, Dict[Union[int, str], Union[int, bytes]]]] = {
+                'type': int(iee80211_detailed[0]),
+                'flags': int(iee80211_detailed[1]),
+                'duration': int(iee80211_detailed[2]),
+                'destination': self.eth.convert_mac(mac_address=iee80211_detailed[3],
+                                                    exit_on_failure=exit_on_failure,
+                                                    exit_code=exit_code, quiet=quiet),
+                'source': self.eth.convert_mac(mac_address=iee80211_detailed[4],
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code, quiet=quiet),
+                'bss id': self.eth.convert_mac(mac_address=iee80211_detailed[5],
+                                               exit_on_failure=exit_on_failure,
+                                               exit_code=exit_code, quiet=quiet),
+                'sequence number': int(sequence_and_fragment & 0b1111111111110000) >> 4,
+                'fragment number': int(sequence_and_fragment & 0b0000000000001111)
+            }
+            if len(packet) > self.packet_length + 4:
+
+                # region Beacon frame
+                if iee80211_parsed['type'] == 0x80:
+
+                    # Fixed parameters
+                    fixed_parameters = unpack('!' 'Q' 'H' 'H', packet[self.packet_length:self.packet_length + 12])
+                    iee80211_parsed['timestamp'] = int(fixed_parameters[0])
+                    iee80211_parsed['beacon interval'] = int(fixed_parameters[1])
+                    iee80211_parsed['capabilities information'] = int(fixed_parameters[2])
+
+                    # Tagged parameters
+                    iee80211_parsed['tag']: Dict[int, bytes] = dict()
+                    position = self.packet_length + 12
+                    while position < len(packet) - 1:
+                        tag_number = int(unpack('B', packet[position:position + 1])[0])
+                        tag_length = int(unpack('B', packet[position + 1:position + 2])[0])
+                        tag_value = bytes(packet[position + 2:position + 2 + tag_length])
+                        iee80211_parsed['tag'][tag_number] = tag_value
+                        position += 2 + tag_length
+                # endregion
+
+                # region QoS Data
+                if iee80211_parsed['type'] == 0x88:
+
+                    # region Authentication
+                    if iee80211_parsed['flags'] == 0x01 or iee80211_parsed['flags'] == 0x02:
+                        iee80211_parsed['qos control'] = \
+                            unpack('!H', packet[self.packet_length:self.packet_length + 2])[0]
+                        iee80211_parsed['logical-link control']: Dict[str, Union[int, bytes]] = dict()
+                        logical_link_control = \
+                            unpack('3B', packet[self.packet_length + 2:self.packet_length + 5])
+                        iee80211_parsed['logical-link control']['dsap'] = int(logical_link_control[0])
+                        iee80211_parsed['logical-link control']['ssap'] = int(logical_link_control[1])
+                        iee80211_parsed['logical-link control']['control field'] = int(logical_link_control[2])
+                        iee80211_parsed['logical-link control']['organization code'] = \
+                            bytes(packet[self.packet_length + 5:self.packet_length + 8])
+                        iee80211_parsed['logical-link control']['type'] = \
+                            unpack('!H', packet[self.packet_length + 8:self.packet_length + 10])[0]
+
+                        # 802.11x Authentication
+                        if iee80211_parsed['logical-link control']['type'] == 0x888e:
+                            iee80211_parsed['802.11x authentication']: Dict[str, Union[int, bytes]] = dict()
+                            authentication = \
+                                unpack('!' '2B' 'H' 'B' '2H' 'Q',
+                                       packet[self.packet_length + 10:self.packet_length + 27])
+                            iee80211_parsed['802.11x authentication']['version'] = int(authentication[0])
+                            iee80211_parsed['802.11x authentication']['type'] = int(authentication[1])
+                            iee80211_parsed['802.11x authentication']['length'] = int(authentication[2])
+                            iee80211_parsed['802.11x authentication']['key descriptor'] = int(authentication[3])
+                            iee80211_parsed['802.11x authentication']['key information'] = int(authentication[4])
+                            iee80211_parsed['802.11x authentication']['key length'] = int(authentication[5])
+                            iee80211_parsed['802.11x authentication']['replay counter'] = int(authentication[6])
+                            iee80211_parsed['802.11x authentication']['wpa key nonce'] = \
+                                bytes(packet[self.packet_length + 27:self.packet_length + 59])
+                            iee80211_parsed['802.11x authentication']['key iv'] = \
+                                bytes(packet[self.packet_length + 59:self.packet_length + 75])
+                            iee80211_parsed['802.11x authentication']['wpa key rsc'] = \
+                                bytes(packet[self.packet_length + 75:self.packet_length + 83])
+                            iee80211_parsed['802.11x authentication']['wpa key id'] = \
+                                bytes(packet[self.packet_length + 83:self.packet_length + 91])
+                            iee80211_parsed['802.11x authentication']['wpa key mic'] = \
+                                bytes(packet[self.packet_length + 91:self.packet_length + 107])
+                            iee80211_parsed['802.11x authentication']['wpa key length'] = \
+                                int(unpack('!H', packet[self.packet_length + 107:self.packet_length + 109])[0])
+                            iee80211_parsed['802.11x authentication']['wpa key data'] = \
+                                bytes(packet[self.packet_length + 109:
+                                             self.packet_length + 109 +
+                                             iee80211_parsed['802.11x authentication']['wpa key length']])
+                            assert len(packet) - 4 == \
+                                   self.packet_length + 109 + \
+                                   iee80211_parsed['802.11x authentication']['wpa key length'], \
+                                'Bad 802.11x authentication packet'
+                            iee80211_parsed['frame check sequence'] = \
+                                unpack('!I', packet[len(packet) - 4:len(packet)])[0]
+                            if iee80211_parsed['sequence number'] == 0 and iee80211_parsed['flags'] == 0x02:
+                                iee80211_parsed['802.11x authentication']['message number'] = 1
+                            if iee80211_parsed['sequence number'] == 0 and iee80211_parsed['flags'] == 0x01:
+                                iee80211_parsed['802.11x authentication']['message number'] = 2
+                                iee80211_parsed['802.11x authentication']['eapol'] = \
+                                    b''.join([packet[self.packet_length + 10:self.packet_length + 91],
+                                              b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+                                              pack('!H', iee80211_parsed['802.11x authentication']['wpa key length']),
+                                              packet[self.packet_length + 109:len(packet) - 4]])
+                            if iee80211_parsed['sequence number'] == 1 and iee80211_parsed['flags'] == 0x02:
+                                iee80211_parsed['802.11x authentication']['message number'] = 3
+                            if iee80211_parsed['sequence number'] == 1 and iee80211_parsed['flags'] == 0x01:
+                                iee80211_parsed['802.11x authentication']['message number'] = 4
+                    # endregion
+
+                # endregion
+
+                else:
+                    iee80211_parsed['data'] = packet[self.packet_length:len(packet) - 4]
+                    iee80211_parsed['frame check sequence'] = unpack('!I', packet[len(packet) - 4:len(packet)])[0]
+            else:
+                iee80211_parsed['fixed parameters'] = packet[self.packet_length:len(packet)]
+
+            return iee80211_parsed
+
+        except AssertionError as Error:
+            error_text = Error.args[0]
+
+        except IndexError:
+            error_text = 'Failed to parse IEEE 802.11 packet!'
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
+    def make_packet(self,
+                    type: int = 0,
+                    flags: int = 0,
+                    duration: int = 0,
+                    destination_address: str = '01:23:45:67:89:0a',
+                    source_address: str = '01:23:45:67:89:0b',
+                    bss_id: str = '01:23:45:67:89:0b',
+                    fragment_number: int = 0,
+                    sequence_number: int = 0,
+                    data: Union[None, bytes] = None,
+                    frame_check_sequence: Union[None, bytes] = None,
+                    exit_on_failure: bool = True,
+                    exit_code: int = 44,
+                    quiet: bool = False) -> Union[None, bytes]:
+        """
+        Make IEEE 802.11 packet
+        :param type: IEEE 802.11 type (default: 0)
+        :param flags: IEEE 802.11 flags (default: 0)
+        :param duration: Duration in microseconds (default: 0)
+        :param destination_address: Destination address (example: '01:23:45:67:89:0a')
+        :param source_address: Source address (example: '01:23:45:67:89:0b')
+        :param bss_id: BSS ID (example: '01:23:45:67:89:0b')
+        :param fragment_number: Fragment number (default: 0)
+        :param sequence_number: Sequence number (default: 0)
+        :param data: Bytes of IEEE 802.11 data
+        :param frame_check_sequence: Bytes of frame check sequence
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 44)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: Bytes of IEEE 802.11 packet or None if error
+        """
+        error_text: str = 'Failed to make IEEE 802.11 packet!'
+        packet: bytes = b''
+        try:
+            assert 0 <= fragment_number <= 15, \
+                ' Bad fragment_number: ' + self.base.error_text(str(fragment_number)) + \
+                ' fragment_number must be in range: ' + self.base.info_text(str('0 - 15'))
+            assert 0 <= sequence_number <= 4095, \
+                ' Bad sequence_number: ' + self.base.error_text(str(sequence_number)) + \
+                ' sequence_number must be in range: ' + self.base.info_text(str('0 - 4095'))
+            packet += pack('B', type)
+            packet += pack('B', flags)
+            packet += pack('!H', duration)
+            packet += self.eth.convert_mac(mac_address=destination_address,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code, quiet=quiet)
+            packet += self.eth.convert_mac(mac_address=source_address,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code, quiet=quiet)
+            packet += self.eth.convert_mac(mac_address=bss_id,
+                                           exit_on_failure=exit_on_failure,
+                                           exit_code=exit_code, quiet=quiet)
+            packet += pack('H', (sequence_number << 4) + fragment_number)
+
+            if data is not None:
+                packet += data
+
+            if frame_check_sequence is not None:
+                packet += frame_check_sequence
+
+            radiotap_header = self.radio.make_header()
+            return radiotap_header + packet
+
+        except struct_error as Error:
+            traceback_text: str = format_tb(Error.__traceback__)[0]
+            if 'type' in traceback_text:
+                error_text += ' Bad type: ' + self.base.error_text(str(type)) + \
+                              ' type must be in range: ' + self.base.info_text(str('0 - 255'))
+            if 'flags' in traceback_text:
+                error_text += ' Bad flags: ' + self.base.error_text(str(flags)) + \
+                              ' flags must be in range: ' + self.base.info_text(str('0 - 255'))
+            if 'duration' in traceback_text:
+                error_text += ' Bad duration: ' + self.base.error_text(str(duration)) + \
+                              ' duration must be in range: ' + self.base.info_text(str('0 - 65535'))
+
+        except AssertionError as Error:
+            error_text += Error.args[0]
+
+        if not quiet:
+            self.base.print_error(error_text)
+        if exit_on_failure:
+            exit(exit_code)
+        else:
+            return None
+
+    def make_deauth(self,
+                    duration: int = 0x3a01,
+                    client_address: str = '01:23:45:67:89:0a',
+                    bss_id: str = '01:23:45:67:89:0b',
+                    fragment_number: int = 0,
+                    sequence_number: int = 0):
+        return self.make_packet(type=0xc0,
+                                flags=0x00,
+                                duration=duration,
+                                destination_address=client_address,
+                                source_address=bss_id,
+                                bss_id=bss_id,
+                                fragment_number=fragment_number,
+                                sequence_number=sequence_number,
+                                data=pack('!H', 0x0700))
+
 # endregion
 
 
@@ -5340,7 +5736,9 @@ class RawSniff:
     # region Init
     def __init__(self):
         self.Base: Base = Base()
+        self.radio: RawRadiotap = RawRadiotap()
         self.eth: RawEthernet = RawEthernet()
+        self.iee: RawIEEE80211 = RawIEEE80211()
         self.arp: RawARP = RawARP()
         self.ipv4: RawIPv4 = RawIPv4()
         self.ipv6: RawIPv6 = RawIPv6()
@@ -5353,7 +5751,7 @@ class RawSniff:
     # endregion
 
     # region Start sniffer
-    def start(self, protocols, prn, filters={}):
+    def start(self, protocols, prn, filters={}, network_interface: Union[None, str] = None):
 
         # region Create RAW socket for sniffing
         self.raw_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
@@ -5364,10 +5762,84 @@ class RawSniff:
 
             # region Sniff packets from RAW socket
             packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(65535)
-            for packet in packets:
 
-                # region Try
-                try:
+            # region Try
+            try:
+                if network_interface is not None:
+                    assert packets[1][0] == network_interface, 'Bad network interface!'
+                packet = packets[0]
+
+                # region Radio
+                if 'Radiotap' in protocols:
+
+                    # region Parse Radiotap header
+                    radiotap_header: Union[bytes, Any] = packet[0:self.radio.header_length]
+                    radiotap_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                        self.radio.parse_header(packet=radiotap_header, exit_on_failure=False, quiet=True)
+                    # endregion
+
+                    # region Could not parse Radiotap header - break
+                    assert radiotap_header_dict is not None, 'Bad Radiotap header!'
+                    # endregion
+
+                    # region IEEE 802.11 packet
+                    if '802.11' in protocols:
+
+                        # region Parse IEEE 802.11 packet
+                        iee80211_packet: Union[bytes, Any] = \
+                            packet[radiotap_header_dict['length']:len(packet)]
+                        iee80211_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
+                            self.iee.parse_packet(packet=iee80211_packet, exit_on_failure=False, quiet=True)
+                        # endregion
+
+                        # region Could not parse IEEE 802.11 packet - break
+                        assert iee80211_packet_dict is not None, 'Bad IEEE 802.11 packet!'
+                        # endregion
+
+                        # region IEEE 802.11 filter
+                        if '802.11' in filters.keys():
+                            if 'type' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['type'] == filters['802.11']['type'], \
+                                    'Bad IEEE 802.11 type!'
+                            if 'types' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['type'] in filters['802.11']['types'], \
+                                    'Bad IEEE 802.11 type!'
+                            if 'flags' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['flags'] == filters['802.11']['flags'], \
+                                    'Bad IEEE 802.11 flags!'
+                            if 'source' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['source'] == filters['802.11']['source'], \
+                                    'Bad IEEE 802.11 source!'
+                            if 'destination' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['destination'] == filters['802.11']['destination'], \
+                                    'Bad IEEE 802.11 destination!'
+                            if 'bss id' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['bss id'] == filters['802.11']['bss id'], \
+                                    'Bad IEEE 802.11 bss id!'
+                            if 'not source' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['source'] != filters['802.11']['not source'], \
+                                    'Bad IEEE 802.11 source!'
+                            if 'not destination' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['destination'] != filters['802.11']['not destination'], \
+                                    'Bad IEEE 802.11 destination!'
+                            if 'not bss id' in filters['802.11'].keys():
+                                assert iee80211_packet_dict['bss id'] != filters['802.11']['not bss id'], \
+                                    'Bad IEEE 802.11 bss id!'
+                        # endregion
+
+                        # region Call function with full IEEE 802.11 packet
+                        prn({
+                            'Radiotap': radiotap_header_dict,
+                            '802.11': iee80211_packet_dict
+                        })
+                        # endregion
+
+                    # endregion
+
+                # endregion
+
+                # region Ethernet
+                else:
 
                     # region Parse Ethernet header
                     ethernet_header: Union[bytes, Any] = packet[0:self.eth.header_length]
@@ -5376,7 +5848,7 @@ class RawSniff:
                     # endregion
 
                     # region Could not parse Ethernet header - break
-                    assert ethernet_header_dict is not None, 'Bad Ethernet packet!'
+                    assert ethernet_header_dict is not None, 'Bad Ethernet header!'
                     # endregion
 
                     # region Ethernet filter
@@ -5503,7 +5975,6 @@ class RawSniff:
 
                             # region DHCPv4 packet
                             if 'DHCPv4' in protocols:
-
                                 # region Parse DHCPv4 packet
                                 dhcpv4_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dhcpv4_packet: Union[bytes, Any] = packet[dhcpv4_packet_offset:]
@@ -5529,7 +6000,6 @@ class RawSniff:
 
                             # region DNS packet
                             if 'DNS' in protocols:
-
                                 # region Parse DNS packet
                                 dns_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
@@ -5582,7 +6052,6 @@ class RawSniff:
 
                         # region ICMPv4
                         if 'ICMPv4' in protocols and ipv4_header_dict['protocol'] == self.icmpv4.packet_type:
-
                             # region Parse ICMPv4 packet
                             icmpv4_packet_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
                             icmpv4_packet: Union[bytes, Any] = \
@@ -5673,7 +6142,6 @@ class RawSniff:
 
                             # region DNS packet
                             if 'DNS' in protocols:
-
                                 # region Parse DNS request packet
                                 dns_packet_offset: int = udp_header_offset + self.udp.header_length
                                 dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
@@ -5777,16 +6245,18 @@ class RawSniff:
 
                 # endregion
 
-                # region Exception - KeyboardInterrupt
-                except KeyboardInterrupt:
-                    self.Base.print_info('Exit')
-                    exit(0)
-                # endregion
+            # endregion
 
-                # region Exception - AssertionError
-                except AssertionError:
-                    pass
-                # endregion
+            # region Exception - KeyboardInterrupt
+            except KeyboardInterrupt:
+                self.Base.print_info('Exit')
+                exit(0)
+            # endregion
+
+            # region Exception - AssertionError
+            except AssertionError:
+                pass
+            # endregion
 
             # endregion
 
