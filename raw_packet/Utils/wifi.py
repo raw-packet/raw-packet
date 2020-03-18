@@ -16,7 +16,6 @@ from scapy.all import Dot11EltVendorSpecific
 from scapy.all import Dot11Beacon, Dot11CCMP, Dot11Deauth, EAPOL
 from typing import Dict, Union, List
 from struct import pack, unpack
-from textwrap import fill
 from time import strftime
 from binascii import unhexlify
 from subprocess import CompletedProcess, run, PIPE, Popen
@@ -85,7 +84,9 @@ class WiFi:
     # region Private methods
 
     # region Constructor
-    def __init__(self, wireless_interface, wifi_channel: Union[None, int] = None) -> None:
+    def __init__(self,
+                 wireless_interface,
+                 wifi_channel: Union[None, int] = None) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
@@ -94,7 +95,7 @@ class WiFi:
             self._interface = wireless_interface
             self._start_monitor_mode()
             if wifi_channel is not None:
-                assert self._validate_wifi_channel(wifi_channel=wifi_channel), \
+                assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
                     'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
                 if wifi_channel in self._wifi_channels['2,4 GHz']:
                     self._wifi_channels['2,4 GHz'] = [wifi_channel]
@@ -106,6 +107,7 @@ class WiFi:
             self._thread_manager.add_task(self._sniff)
             if wifi_channel is None:
                 self._thread_manager.add_task(self._scan_ssids)
+
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
             exit(1)
@@ -115,7 +117,7 @@ class WiFi:
     def _start_monitor_mode(self) -> None:
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
-            run([self._airport_path + ' ' + self._interface + ' -z'], shell=True)
+            run([self._airport_path + ' ' + self._interface + ' --disassociate'], shell=True)
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
@@ -137,7 +139,7 @@ class WiFi:
 
     # region Switch WiFi channel on interface
     def _switch_wifi_channel(self, channel: int = 1) -> None:
-        assert self._validate_wifi_channel(wifi_channel=channel)
+        assert self.validate_wifi_channel(wifi_channel=channel)
 
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
@@ -202,7 +204,7 @@ class WiFi:
                     packet[Dot11FCS].addr1 == 'ff:ff:ff:ff:ff:ff' and \
                     packet[Dot11FCS].addr2 != '' and \
                     packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3 and \
-                    packet[RadioTap].dBm_AntSignal > -85:
+                    packet[RadioTap].dBm_AntSignal > -95:
 
                 beacon = packet[Dot11Beacon]
 
@@ -217,6 +219,7 @@ class WiFi:
                     self.bssids[packet[Dot11FCS].addr2]: Dict[str, Union[int, float, str, bytes, List[str]]] = dict()
                     self.bssids[packet[Dot11FCS].addr2]['clients']: List[str] = list()
 
+                # Next Beacon frame
                 else:
                     assert (datetime.utcnow().timestamp() - self.bssids[packet[Dot11FCS].addr2]['timestamp']) > 5, \
                         'Less than 5 seconds have passed'
@@ -288,6 +291,10 @@ class WiFi:
                 self.wpa_handshakes[bssid]['key version'] = eapol['version']
                 self.wpa_handshakes[bssid]['sta'] = packet[Dot11FCS].addr1
                 self.wpa_handshakes[bssid]['anonce'] = eapol['wpa key nonce']
+                self.wpa_handshakes[bssid]['pcap file']: str = \
+                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
+                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.pcap'
+                wrpcap(self.wpa_handshakes[bssid]['pcap file'], packet, append=True)
             # endregion
 
             # region EAPOL Message 2 of 4
@@ -309,7 +316,7 @@ class WiFi:
                               pack('!H', eapol['wpa key length']),
                               packet[EAPOL].original[99:]])
 
-                # region Content hccapx file format - hccapx is a custom format for hashcat
+                # region Content for hccapx file. Format hccapx is a custom format for hashcat
                 hccapx: bytes = b'HCPX'  # Signature
                 hccapx += b'\x04\x00\x00\x00'  # Version
                 hccapx += b'\x02'  # Message pair
@@ -327,7 +334,51 @@ class WiFi:
                 hccapx += self.wpa_handshakes[bssid]['eapol']
                 # Reserved 256 bytes for Client EAPOL key data
                 hccapx += b''.join(b'\x00' for _ in range(256 - len(self.wpa_handshakes[bssid]['eapol'])))
-                self.wpa_handshakes[bssid]['hccapx'] = hccapx
+                self.wpa_handshakes[bssid]['hccapx content']: bytes = hccapx
+                self.wpa_handshakes[bssid]['hccapx file']: str =  \
+                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
+                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.hccapx'
+                # endregion
+
+                # region Hashcat 22000 format
+                hashcat_22000: str = 'WPA*'  # Signature
+
+                # Key version
+                hashcat_22000 += \
+                    '{0:0=2d}'.format(self.wpa_handshakes[bssid]['key version']) + '*'
+
+                # Key mic
+                hashcat_22000 += \
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['key mic']) + '*'
+
+                # BSSID
+                hashcat_22000 += \
+                    ''.join('{:02x}'.format(x) for x in self._convert_mac(bssid)) + '*'
+
+                # Client MAC address
+                hashcat_22000 += \
+                    ''.join('{:02x}'.format(x) for x in self._convert_mac(self.wpa_handshakes[bssid]['sta'])) + '*'
+
+                # ESSID
+                hashcat_22000 += \
+                    ''.join(str(ord(x)) for x in self.wpa_handshakes[bssid]['essid']) + '*'
+
+                # AP Key nonce
+                hashcat_22000 += \
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['anonce']) + '*'
+
+                # Client EAPOL key data
+                hashcat_22000 += \
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['eapol']) + '*'
+
+                # End of file
+                hashcat_22000 += '00\n'
+
+                # Save to wpa_handshakes dictionary
+                self.wpa_handshakes[bssid]['hashcat 22000 content']: str = hashcat_22000
+                self.wpa_handshakes[bssid]['hashcat 22000 file']: str = \
+                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
+                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.22000'
                 # endregion
 
                 # region Print Key info
@@ -352,10 +403,11 @@ class WiFi:
                 # endregion
 
                 # region Save EAPOL session to hccapx file - hccapx is a custom format for hashcat
-                with open('/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' +
-                          self.wpa_handshakes[bssid]['essid'] + '_' +
-                          strftime('%Y%m%d_%H%M%S') + '.hccapx', 'wb') as hccapx_file:
-                    hccapx_file.write(self.wpa_handshakes[bssid]['hccapx'])
+                with open(self.wpa_handshakes[bssid]['hccapx file'], 'wb') as hccapx_file:
+                    hccapx_file.write(self.wpa_handshakes[bssid]['hccapx content'])
+                with open(self.wpa_handshakes[bssid]['hashcat 22000 file'], 'w') as hccapx_file:
+                    hccapx_file.write(self.wpa_handshakes[bssid]['hashcat 22000 content'])
+                wrpcap(self.wpa_handshakes[bssid]['pcap file'], packet, append=True)
                 # endregion
                 
             # endregion
@@ -485,17 +537,23 @@ class WiFi:
                               ' from: ', bssid)
     # endregion
 
-    def _validate_wifi_channel(self, wifi_channel: int) -> bool:
-        return True if wifi_channel in self._wifi_channels['2,4 GHz'] \
-                       or wifi_channel in self._wifi_channels['5 Ghz'] else False
     # endregion
 
     # region Public methods
+
+    # region Validate WiFi channel
+    @staticmethod
+    def validate_wifi_channel(wifi_channel: int) -> bool:
+        return True if wifi_channel in \
+                       [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144] else False
+    # endregion
 
     # region Set WiFi chanel and prohibit switching between channels
     def set_wifi_channel(self, channel: int = 1) -> None:
         self._switch_between_channels = False
         self._switch_wifi_channel(channel=channel)
+    # endregion
+    
     # endregion
 
 # endregion
