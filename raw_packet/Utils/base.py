@@ -21,7 +21,7 @@ from netaddr import IPNetwork, IPAddress
 from netaddr.core import AddrFormatError
 from struct import pack, error
 from ipaddress import IPv4Address, AddressValueError
-from re import match, compile
+from re import match, compile, search
 import subprocess as sub
 import psutil as ps
 import socket as sock
@@ -359,17 +359,64 @@ class Base:
         """
         return interfaces()
 
+    def list_of_wireless_network_interfaces(self) -> List[str]:
+        """
+        Get list of wireless network interfaces
+        :return: list of wireless network interfaces (example: ['wlan0', 'wlan1'])
+        """
+        try:
+            wireless_network_interfaces: List[str] = list()
+            current_platform: str = self.get_platform()
+
+            # Mac OS
+            if current_platform.startswith('Darwin'):
+                interfaces_info: sub.CompletedProcess = \
+                    sub.run(['networksetup -listnetworkserviceorder'], shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                interfaces_info: str = interfaces_info.stdout.decode('utf-8')
+                interfaces_info: List[str] = interfaces_info.splitlines()
+                for output_line in interfaces_info:
+                    if 'Wi-Fi' in output_line and 'Device: ' in output_line:
+                        search_result = search(r'Device: (?P<interface_name>[a-zA-Z0-9]{2,16})\)', output_line)
+                        if search_result is not None:
+                            wireless_network_interfaces.append(search_result.group('interface_name'))
+
+            # Linux
+            if current_platform.startswith('Linux'):
+                interfaces_info: sub.CompletedProcess = \
+                    sub.run(['iwconfig'], shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                interfaces_info: str = interfaces_info.stdout.decode('utf-8')
+                interfaces_info: List[str] = interfaces_info.splitlines()
+                for output_line in interfaces_info:
+                    if 'IEEE 802.11' in output_line:
+                        search_result = search(r'^(?P<interface_name>[a-zA-Z0-9]{2,16}) +IEEE', output_line)
+                        if search_result is not None:
+                            wireless_network_interfaces.append(search_result.group('interface_name'))
+
+            # Other
+            else:
+                pass
+
+            return wireless_network_interfaces
+
+        except AssertionError:
+            return list()
+
     def network_interface_selection(self,
                                     interface_name: Union[None, str] = None,
-                                    exclude_interface: Union[None, str] = None) -> str:
+                                    exclude_interface: Union[None, str] = None,
+                                    only_wireless: bool = False) -> str:
         """
         Select network interface
         :param interface_name: Network interface name (example: 'eth0'; default: None)
         :param exclude_interface: Exclude network interface from list of interfaces (example: 'eth1'; default: None)
+        :param only_wireless: Select network interface only from wireless interfaces (default: False)
         :return: Network interface name (example: 'eth0')
         """
         network_interface_index: int = 1
-        available_network_interfaces: List[str] = interfaces()
+        if not only_wireless:
+            available_network_interfaces: List[str] = interfaces()
+        else:
+            available_network_interfaces: List[str] = self.list_of_wireless_network_interfaces()
         if exclude_interface is not None:
             available_network_interfaces.remove(exclude_interface)
 
@@ -377,14 +424,20 @@ class Base:
             if interface_name in available_network_interfaces:
                 return interface_name
             else:
-                self.print_error('Network interface: ', interface_name, ' does not exist!')
+                if not only_wireless:
+                    self.print_error('Network interface: ', interface_name, ' does not exist!')
+                else:
+                    self.print_error('Wireless network interface: ', interface_name, ' does not exist!')
                 exit(1)
         else:
             if 'lo' in available_network_interfaces:
                 available_network_interfaces.remove('lo')
 
             if len(available_network_interfaces) > 1:
-                self.print_info('Your interface list:')
+                if not only_wireless:
+                    self.print_info('Your interface list:')
+                else:
+                    self.print_info('Your wireless interface list:')
 
                 interfaces_pretty_table = PrettyTable([self.info_text('Index'),
                                                        self.info_text('Interface name'),
@@ -439,27 +492,60 @@ class Base:
                 except:
                     self.print_error('This network interface has some problem!')
                     exit(1)
-                self.print_info('Your choose network interface: ', current_network_interface)
+                if not only_wireless:
+                    self.print_info('Your choose network interface: ', current_network_interface)
+                else:
+                    self.print_info('Your choose wireless network interface: ', current_network_interface)
                 return current_network_interface
 
             if len(available_network_interfaces) == 1:
-                self.print_info('You have only one network interface: ', available_network_interfaces[0])
+                if not only_wireless:
+                    self.print_info('You have only one network interface: ', available_network_interfaces[0])
+                else:
+                    self.print_info('You have only one wireless network interface: ', available_network_interfaces[0])
                 return available_network_interfaces[0]
 
             if len(available_network_interfaces) == 0:
-                self.print_error('Network interfaces not found!')
+                if not only_wireless:
+                    self.print_error('Network interfaces not found!')
+                else:
+                    self.print_error('Wireless network interfaces not found!')
                 exit(1)
 
-    # @staticmethod
-    # def check_netiface_is_wireless(interface_name):
-    #     try:
-    #         wifi = Wireless(interface_name)
-    #         wifi.getEssid()
-    #         result = True
-    #     except:
-    #         result = False
-    #     return result
-    #
+    def check_network_interface_is_wireless(self, interface_name: str = 'wlan0') -> bool:
+        """
+        Check network interface is wireless
+        :param interface_name: Network interface name (example: 'wlan0')
+        :return: True or False
+        """
+        try:
+            current_platform: str = self.get_platform()
+
+            # Mac OS
+            if current_platform.startswith('Darwin'):
+                interface_info: sub.CompletedProcess = \
+                    sub.run(['networksetup -listnetworkserviceorder | grep ' + interface_name],
+                            shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                interface_info: str = interface_info.stdout.decode('utf-8')
+                assert 'Wi-Fi' in interface_info, 'Is not wireless interface!'
+                return True
+
+            # Linux
+            if current_platform.startswith('Linux'):
+                interface_info: sub.CompletedProcess = \
+                    sub.run(['iwconfig ' + interface_name],
+                            shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                interface_info: str = interface_info.stdout.decode('utf-8')
+                assert 'no wireless extensions' not in interface_info, 'Is not wireless interface!'
+                return True
+
+            # Other
+            else:
+                return False
+
+        except AssertionError:
+            return False
+
     # @staticmethod
     # def get_netiface_essid(interface_name):
     #     try:
