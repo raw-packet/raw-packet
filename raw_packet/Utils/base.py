@@ -11,6 +11,7 @@ Copyright 2020, Raw-packet Project
 from platform import system, release
 from sys import exit, stdout
 from os import getuid
+from os import name as os_name
 from os.path import dirname, abspath, isfile, join
 from pwd import getpwuid
 from random import choice, randint
@@ -214,6 +215,10 @@ class Base:
     # endregion
 
     # region Check platform and user functions
+    @staticmethod
+    def get_platform() -> str:
+        return str(system()) + ' ' + str(release())
+
     @staticmethod
     def check_platform(exit_on_failure: bool = True,
                        exit_code: int = 1,
@@ -1371,6 +1376,29 @@ class Base:
             if exit_on_failure:
                 exit(exit_code)
             return False
+
+    def mac_address_normalization(self,
+                                  mac_address: str = 'AB:CD:EF:AB:CD:EF',
+                                  exit_on_failure: bool = False,
+                                  exit_code: int = 30,
+                                  quiet: bool = False) -> Union[None, str]:
+        """
+        Validate MAC address string
+        :param mac_address: MAC address string (example: 'AB:CD:EF:AB:CD:EF')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 10)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: MAC address (example: 'ab:cd:ef:ab:cd:ef') or None if not
+        """
+        try:
+            assert self.mac_address_validation(mac_address=mac_address), 'Bad MAC address'
+            return mac_address.lower()
+        except AssertionError:
+            if not quiet:
+                self.print_error('Failed to normalize MAC address: ', str(mac_address))
+            if exit_on_failure:
+                exit(exit_code)
+            return None
 
     def ip_address_in_range(self,
                             ip_address: str = '192.168.1.2',
