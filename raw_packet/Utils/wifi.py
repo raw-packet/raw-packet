@@ -331,24 +331,24 @@ class WiFi:
                 # endregion
 
                 # region Print Key info
-                print_anonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['anonce'])
-                print_snonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['snonce'])
-                print_key_mic: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['key mic'])
-                print_eapol: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['eapol'])
-
-                self._base.print_success('ESSID (length: ' + str(len(self.wpa_handshakes[bssid]['essid'])) + '): ',
-                                         self.wpa_handshakes[bssid]['essid'])
-                self._base.print_success('Key version: ', str(self.wpa_handshakes[bssid]['key version']))
-                self._base.print_success('BSSID: ', str(bssid))
-                self._base.print_success('STA: ', str(self.wpa_handshakes[bssid]['sta']))
-                self._base.print_success('Anonce: \n', fill(print_anonce, width=52, initial_indent=self._prefix,
-                                                            subsequent_indent=self._prefix))
-                self._base.print_success('Snonce: \n', fill(print_snonce, width=52, initial_indent=self._prefix,
-                                                            subsequent_indent=self._prefix))
-                self._base.print_success('Key MIC: \n', fill(print_key_mic, width=52, initial_indent=self._prefix,
-                                                             subsequent_indent=self._prefix))
-                self._base.print_success('EAPOL: \n', fill(print_eapol, width=52, initial_indent=self._prefix,
-                                                           subsequent_indent=self._prefix))
+                # print_anonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['anonce'])
+                # print_snonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['snonce'])
+                # print_key_mic: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['key mic'])
+                # print_eapol: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['eapol'])
+                #
+                # self._base.print_success('ESSID (length: ' + str(len(self.wpa_handshakes[bssid]['essid'])) + '): ',
+                #                          self.wpa_handshakes[bssid]['essid'])
+                # self._base.print_success('Key version: ', str(self.wpa_handshakes[bssid]['key version']))
+                # self._base.print_success('BSSID: ', str(bssid))
+                # self._base.print_success('STA: ', str(self.wpa_handshakes[bssid]['sta']))
+                # self._base.print_success('Anonce: \n', fill(print_anonce, width=52, initial_indent=self._prefix,
+                #                                             subsequent_indent=self._prefix))
+                # self._base.print_success('Snonce: \n', fill(print_snonce, width=52, initial_indent=self._prefix,
+                #                                             subsequent_indent=self._prefix))
+                # self._base.print_success('Key MIC: \n', fill(print_key_mic, width=52, initial_indent=self._prefix,
+                #                                              subsequent_indent=self._prefix))
+                # self._base.print_success('EAPOL: \n', fill(print_eapol, width=52, initial_indent=self._prefix,
+                #                                            subsequent_indent=self._prefix))
                 # endregion
 
                 # region Save EAPOL session to hccapx file - hccapx is a custom format for hashcat
@@ -387,21 +387,21 @@ class WiFi:
         :param client: A client MAC address (example: '01:23:45:67:89:0b')
         :return: None
         """
-        # # Kill all tcpdump processes
-        # self._base.kill_process_by_name(process_name='tshark')
-        #
-        # # Clear directory for pcap files
-        # if not isdir(self._pcap_directory):
-        #     mkdir(self._pcap_directory)
-        # else:
-        #     rmtree(self._pcap_directory)
-        #     mkdir(self._pcap_directory)
-        #
-        # # Run tcpdump process
-        # Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + self._interface +
-        #        ' -b duration:1 -w ' + self._pcap_directory +
-        #        'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'],
-        #       shell=True, stdout=PIPE, stderr=PIPE)
+        # Kill all tshark processes
+        self._base.kill_process_by_name(process_name='tshark')
+
+        # Clear directory for pcap files
+        if not isdir(self._pcap_directory):
+            mkdir(self._pcap_directory)
+        else:
+            rmtree(self._pcap_directory)
+            mkdir(self._pcap_directory)
+
+        # Run tshark process
+        Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + self._interface +
+               ' -b duration:1 -w ' + self._pcap_directory +
+               'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'],
+              shell=True, stdout=PIPE, stderr=PIPE)
 
         while True:
             # Make list with pcap files
@@ -417,7 +417,7 @@ class WiFi:
                 packets = rdpcap(pcap_file)
 
                 # Delete oldest pcap file
-                # remove(pcap_file)
+                remove(pcap_file)
 
                 # Analyze packets
                 for packet in packets:

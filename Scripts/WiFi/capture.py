@@ -13,9 +13,8 @@ Copyright 2020, Raw-packet Project
 # region Add project root path
 from sys import path
 from os.path import dirname, abspath
-from typing import Dict, Union
-from textwrap import fill
-from time import strftime
+import npyscreen
+from typing import List
 # endregion
 
 # region Authorship information
@@ -30,117 +29,104 @@ __status__ = 'Development'
 # endregion
 
 
-def print_function(request):
-    try:
-        iee80211_packet = request['802.11']
+class WiFiSniffer(npyscreen.StandardApp):
+    def onStart(self):
+        self.addForm("MAIN", MainForm, name="WiFi SSID's", color='DEFAULT')
 
-        if 'tag' in iee80211_packet.keys():
-            if iee80211_packet['bss id'] not in bss_ids.keys():
-                bss_ids[iee80211_packet['bss id']] = \
-                    {'ssid': iee80211_packet['tag'][0].decode("utf-8"),
-                     'channel': int.from_bytes(iee80211_packet['tag'][3], byteorder='little')}
-                base.print_info('BSSID: ', iee80211_packet['bss id'],
-                                ' ESSID: ', bss_ids[iee80211_packet['bss id']]['ssid'],
-                                ' Channel: ', str(bss_ids[iee80211_packet['bss id']]['channel']))
+    def process_event_queues(self, max_events_per_queue=None):
+        try:
+            for queue in self.event_queues.values():
+                for event in queue.get(maximum=max_events_per_queue):
+                    self.process_event(event)
+        except RuntimeError:
+            pass
 
-        if '802.11x authentication' in iee80211_packet.keys():
-            prefix: str = '    '
 
-            # region First EAPOL message
-            if iee80211_packet['802.11x authentication']['message number'] == 1 and \
-                    iee80211_packet['bss id'] not in authentications.keys():
-                bssid = iee80211_packet['bss id']
-                authentications[bssid]: Dict[str, Union[int, str, bytes]] = dict()
+class MyGrid(npyscreen.GridColTitles):
+    def custom_print_cell(self, actual_cell, cell_display_value):
+        actual_cell.color = 'DEFAULT'
 
-                if bssid in bss_ids.keys():
-                    authentications[bssid]['essid'] = bss_ids[bssid]['ssid']
-                else:
-                    authentications[bssid]['essid'] = 'Unknown'
 
-                authentications[bssid]['key version'] = iee80211_packet['802.11x authentication']['version']
-                authentications[bssid]['sta'] = iee80211_packet['destination']
-                authentications[bssid]['anonce'] = iee80211_packet['802.11x authentication']['wpa key nonce']
+class OutputBox(npyscreen.BoxTitle):
+    _contained_widget = npyscreen.MultiLineEdit
 
-                base.print_success('ESSID (length: ' + str(len(authentications[bssid]['essid'])) + '): ',
-                                   authentications[bssid]['essid'])
-                base.print_success('Key version: ', str(authentications[bssid]['key version']))
-                base.print_success('BSSID: ', str(bssid))
-                base.print_success('STA: ', str(authentications[bssid]['sta']))
-                print_anonce: str = ' '.join('{:02X}'.format(x) for x in authentications[bssid]['anonce'])
-                base.print_success('Anonce: \n', fill(print_anonce, width=52, initial_indent=prefix,
-                                                      subsequent_indent=prefix))
-            # endregion
 
-            # region Second EAPOL message
-            if iee80211_packet['802.11x authentication']['message number'] == 2 and \
-                    iee80211_packet['bss id'] in authentications.keys():
-                bssid = iee80211_packet['bss id']
-                assert iee80211_packet['source'] == authentications[bssid]['sta'], 'Bad second EAPOL message'
-                assert 'eapol' not in authentications[bssid].keys(), 'Authentication session already captured'
+class VerbOutputBox(npyscreen.BoxTitle):
+    _contained_widget = npyscreen.MultiLineEdit
 
-                authentications[bssid]['snonce'] = iee80211_packet['802.11x authentication']['wpa key nonce']
-                authentications[bssid]['key mic'] = iee80211_packet['802.11x authentication']['wpa key mic']
-                authentications[bssid]['eapol'] = iee80211_packet['802.11x authentication']['eapol']
 
-                print_snonce: str = ' '.join('{:02X}'.format(x) for x in authentications[bssid]['snonce'])
-                print_key_mic: str = ' '.join('{:02X}'.format(x) for x in authentications[bssid]['key mic'])
-                print_eapol: str = ' '.join('{:02X}'.format(x) for x in authentications[bssid]['eapol'])
+class MainForm(npyscreen.FormBaseNew):
 
-                base.print_success('Snonce: \n', fill(print_snonce, width=52, initial_indent=prefix,
-                                                      subsequent_indent=prefix))
-                base.print_success('Key MIC: \n', fill(print_key_mic, width=52, initial_indent=prefix,
-                                                       subsequent_indent=prefix))
-                base.print_success('EAPOL: \n', fill(print_eapol, width=52, initial_indent=prefix,
-                                                     subsequent_indent=prefix))
+    def create(self):
+        new_handlers = {
+            "^Q": self.exit_func
+        }
+        self.add_handlers(new_handlers)
+        y, x = self.useable_space()
+        self.gd = self.add(MyGrid, col_titles=titles, column_width=18)
+        self.gd.values = []
 
-                # region Save EAPOL session to hccapx file
-                with open('/tmp/wpa' + str(authentications[bssid]['key version']) + '_' +
-                          authentications[bssid]['essid'] + '_' +
-                          strftime('%Y%m%d_%H%M%S') + '.hccapx', 'wb') as hccapx_file:
-                    hccapx_file.write(b'HCPX\x04\x00\x00\x00\x02\x0a')  # write Descriptor
-                    hccapx_file.write(authentications[bssid]['essid'].encode('utf-8'))  # write ESSID
-                    # reserved 32 bytes for ESSID
-                    hccapx_file.write(b''.join(b'\x00' for _ in range(32 - len(authentications[bssid]['essid']))))
-                    hccapx_file.write(b'\x02')
-                    hccapx_file.write(authentications[bssid]['key mic'])  # write wpa key mic
-                    hccapx_file.write(eth.convert_mac(bssid))  # write BSSID
-                    hccapx_file.write(authentications[bssid]['anonce'])  # write AP wpa key nonce
-                    hccapx_file.write(eth.convert_mac(authentications[bssid]['sta']))  # write STA
-                    hccapx_file.write(authentications[bssid]['snonce'])  # write STA wpa key nonce
-                    hccapx_file.write(b'\x79\x00')
-                    hccapx_file.write(authentications[bssid]['eapol'])  # write STA EAPOL key data
-                    # reserved 256 bytes for STA EAPOL key data
-                    hccapx_file.write(b''.join(b'\x00' for _ in range(256 - len(authentications[bssid]['eapol']))))
-                # endregion
+    def while_waiting(self):
+        self.gd.values = self.get_wifi_ssid_rows()
 
-            # endregion
+    @staticmethod
+    def get_wifi_ssid_rows() -> List[List[str]]:
+        rows: List[List[str]] = list()
+        for bssid in wifi.bssids.keys():
+            try:
+                assert 'essid' in wifi.bssids[bssid].keys() and \
+                       'signal' in wifi.bssids[bssid].keys() and \
+                       'channel' in wifi.bssids[bssid].keys() and \
+                       'enc' in wifi.bssids[bssid].keys() and \
+                       'cipher' in wifi.bssids[bssid].keys() and \
+                       'auth' in wifi.bssids[bssid].keys() and \
+                       'clients' in wifi.bssids[bssid].keys(), 'Bad AP'
 
-    except AssertionError:
-        pass
+                assert wifi.bssids[bssid]['enc'] != 'UNKNOWN' or \
+                       wifi.bssids[bssid]['cipher'] != 'UNKNOWN' or \
+                       wifi.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Encryption'
+
+                # essid: str = wifi.bssids[bssid]['essid'] if 'essid' in wifi.bssids[bssid].keys() else '-'
+                # signal: str = str(wifi.bssids[bssid]['signal']) if 'signal' in wifi.bssids[bssid].keys() else '-'
+                # channel: str = str(wifi.bssids[bssid]['channel']) if 'channel' in wifi.bssids[bssid].keys() else '-'
+                # enc: str = str(wifi.bssids[bssid]['enc']) if 'enc' in wifi.bssids[bssid].keys() else '-'
+                # cipher: str = str(wifi.bssids[bssid]['cipher']) if 'cipher' in wifi.bssids[bssid].keys() else '-'
+                # auth: str = str(wifi.bssids[bssid]['auth']) if 'auth' in wifi.bssids[bssid].keys() else '-'
+                # clients: str = str(len(wifi.bssids[bssid]['clients'])) if 'clients' in wifi.bssids[bssid].keys() else '-'
+                # rows.append([essid, bssid, signal, channel, enc, cipher, auth, clients])
+
+                rows.append([
+                    wifi.bssids[bssid]['essid'],
+                    bssid,
+                    wifi.bssids[bssid]['signal'],
+                    wifi.bssids[bssid]['channel'],
+                    wifi.bssids[bssid]['enc'],
+                    wifi.bssids[bssid]['cipher'],
+                    wifi.bssids[bssid]['auth'],
+                    len(wifi.bssids[bssid]['clients'])
+                ])
+            except AssertionError:
+                pass
+        return rows
+
+    def exit_func(self, _input):
+        print("Bye")
 
 
 # region Main function
 if __name__ == "__main__":
 
     path.append(dirname(dirname(dirname(abspath(__file__)))))
-
     from raw_packet.Utils.base import Base
-    from raw_packet.Utils.network import RawSniff
-    from raw_packet.Utils.network import RawEthernet
-
+    from raw_packet.Utils.wifi import WiFi
     base: Base = Base()
-    sniff: RawSniff = RawSniff()
-    eth: RawEthernet = RawEthernet()
+    wifi: WiFi = WiFi('en0')
 
-    bss_ids: Dict[str, Dict[str, str]] = dict()
-    authentications: Dict[str, Dict[str, Union[int, str, bytes]]] = dict()
+    titles = ['ESSID', 'BSSID', 'Signal', 'Channel', 'Encryption', 'Cipher', 'Auth', 'Clients']
 
-    # region Start sniffer
     try:
-        sniff.start(protocols=['Radiotap', '802.11'], prn=print_function,
-                    network_interface='wlan0', filters={'802.11': {'types': [0x80, 0x88]}})
+        WiFiSniffer().run()
     except KeyboardInterrupt:
-        base.print_info('Exit ...')
-    # endregion
+        base.print_info('Exit ....')
 
 # endregion
