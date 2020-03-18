@@ -1,6 +1,6 @@
 # region Description
 """
-test_network.py: Class for creating and parsing network packets for Raw-packet project
+network.py: Class for creating and parsing network packets for Raw-packet project
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
