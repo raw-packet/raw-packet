@@ -79,19 +79,31 @@ class MainForm(npyscreen.FormBaseNew):
         try:
             assert len(wifi.wpa_handshakes) > 0, 'Not Found WPA handhakes'
             for bssid in wifi.wpa_handshakes.keys():
-                assert 'hashcat 22000 content' in wifi.wpa_handshakes[bssid].keys(), 'Not full WPA handhake'
-                # result = wifi.wpa_handshakes[bssid]['hashcat 22000 content'] + '\n'
-                result += '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid]['key version']) + \
-                          ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid]['essid'] + \
-                          ' BSSID: ' + bssid + ' Client: ' + wifi.wpa_handshakes[bssid]['sta'] + '\n'
-                result += '[+] Handshake in PCAP format save to file: ' + \
-                          wifi.wpa_handshakes[bssid]['pcap file'] + '\n'
-                result += '[+] Handshake in HCCAPX format save to file: ' + \
-                          wifi.wpa_handshakes[bssid]['hccapx file'] + '\n'
-                result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
-                          wifi.wpa_handshakes[bssid]['hashcat 22000 file'] + '\n'
+                for client in wifi.wpa_handshakes[bssid].keys():
+                    if isinstance(wifi.wpa_handshakes[bssid][client], dict):
+                        assert 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys(), \
+                            'Not full WPA handhake'
+                        result += '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
+                                  ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
+                                  ' BSSID: ' + bssid + ' Client: ' + client + '\n'
+                        result += '[+] Handshake in PCAP format save to file: ' + \
+                                  wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
+                        result += '[+] Handshake in HCCAPX format save to file: ' + \
+                                  wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
+                        result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
+                                  wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
             return result
+
         except AssertionError:
+            return result
+
+        except KeyError:
+            return result
+
+        except IndexError:
+            return result
+
+        except AttributeError:
             return result
 
     @staticmethod
@@ -107,17 +119,17 @@ class MainForm(npyscreen.FormBaseNew):
                        'auth' in wifi.bssids[bssid].keys() and \
                        'clients' in wifi.bssids[bssid].keys(), 'Bad AP'
 
-                assert wifi.bssids[bssid]['enc'] != 'UNKNOWN' or \
-                       wifi.bssids[bssid]['cipher'] != 'UNKNOWN' or \
-                       wifi.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Encryption'
+                assert wifi.bssids[bssid]['enc'] != 'UNKNOWN', 'Bad Encryption'
+                assert wifi.bssids[bssid]['cipher'] != 'UNKNOWN', 'Bad Cipher'
+                assert wifi.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Authentication'
 
-                rows.append([
-                    wifi.bssids[bssid]['essid'],
-                    bssid,
-                    wifi.bssids[bssid]['signal'],
-                    wifi.bssids[bssid]['channel'],
-                    wifi.bssids[bssid]['enc'] + ' ' + wifi.bssids[bssid]['auth'] + ' ' + wifi.bssids[bssid]['cipher'],
-                    len(wifi.bssids[bssid]['clients'])])
+                rows.append([wifi.bssids[bssid]['essid'], bssid,
+                             wifi.bssids[bssid]['signal'],
+                             wifi.bssids[bssid]['channel'],
+                             wifi.bssids[bssid]['enc'] + ' ' +
+                             wifi.bssids[bssid]['auth'] + ' ' +
+                             wifi.bssids[bssid]['cipher'],
+                             len(wifi.bssids[bssid]['clients'])])
 
             except AssertionError:
                 pass
