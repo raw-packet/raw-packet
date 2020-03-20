@@ -15,6 +15,7 @@ from sys import path
 from os.path import dirname, abspath
 from typing import List
 from argparse import ArgumentParser
+from curses import ascii
 import npyscreen
 # endregion
 
@@ -32,7 +33,7 @@ __status__ = 'Development'
 
 class WiFiSniffer(npyscreen.StandardApp):
     def onStart(self):
-        self.addForm("MAIN", MainForm, name="WiFi SSID's", color='DEFAULT')
+        self.addForm("MAIN", MainForm, name='WiFi SSID\'s', color='DEFAULT')
 
     def process_event_queues(self, max_events_per_queue=None):
         try:
@@ -47,51 +48,105 @@ class MyGrid(npyscreen.GridColTitles):
     def test(self):
         pass
 
-    # def custom_print_cell(self, actual_cell, cell_display_value):
-    #     if cell_display_value == 'FAIL':
-    #        actual_cell.color = 'DANGER'
-    #     elif cell_display_value == 'PASS':
-    #        actual_cell.color = 'GOOD'
-    #     else:
-    #        actual_cell.color = 'DEFAULT'
-
 
 class InfoBox(npyscreen.BoxTitle):
     _contained_widget = npyscreen.MultiLineEdit
 
 
-class MainForm(npyscreen.FormBaseNew):
+class MainForm(npyscreen.Form):
 
     def create(self):
         y, x = self.useable_space()
-        self.gd = self.add(MyGrid, col_titles=titles, column_width=20, max_height=y//2)
+        self.grid = self.add(MyGrid, col_titles=titles, column_width=20, max_height=3*y//4)
+        self.grid.add_handlers({
+            ascii.CR: self.ap_info,
+            ascii.NL: self.ap_info,
+            "^I": self.ap_info,
+            "^D": self.deauth
+        })
         self.InfoBox = self.add(InfoBox, editable=False, name='Information')
-        self.gd.values = []
 
     def while_waiting(self):
-        self.gd.values = self.get_wifi_ssid_rows()
-        self.InfoBox.value = self.pop_info_messages()
+        self.grid.values = self.get_wifi_ssid_rows()
+        self.InfoBox.value = self.get_info_messages()
         self.InfoBox.display()
 
+    def deauth(self, args):
+        try:
+            bssid = self.grid.selected_row()[1]
+            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            if len(wifi.bssids[bssid]['clients']) > 0:
+                popup = npyscreen.Popup(name="Choose client for deauth")
+                opt = popup.add(npyscreen.TitleMultiSelect, name='Deauth', scroll_exit=True,
+                                values=wifi.bssids[bssid]['clients'])
+                popup.edit()
+                # self.InfoBox.value = str(opt.get_selected_objects()) + '\n'
+                if len(opt.get_selected_objects()) > 0:
+                    for client in opt.get_selected_objects():
+                        wifi.send_deauth(bssid, client, 100)
+            else:
+                npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
+                                         ' (' + bssid + ')', title="Deauth Error")
+                self.parentApp.switchFormPrevious()
+
+        except AssertionError as Error:
+            npyscreen.notify_confirm(Error.args[0], title="Assertion Error")
+            self.parentApp.switchFormPrevious()
+
+        except IndexError:
+            pass
+
+        except TypeError:
+            pass
+
+    def ap_info(self, args):
+        try:
+            npyscreen.notify_confirm(self.get_ap_info(self.grid.selected_row()[1]), title="AP information")
+            self.parentApp.switchFormPrevious()
+        except IndexError:
+            pass
+
     @staticmethod
-    def pop_info_messages() -> str:
+    def get_ap_info(bssid: str = '12:34:56:78:90:ab') -> str:
+        try:
+            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            ap_info: str = ''
+            ap_info += 'ESSID: ' + str(wifi.bssids[bssid]['essid']) + '\n'
+            ap_info += 'BSSID: ' + str(bssid) + '\n'
+            ap_info += 'Signal: ' + str(wifi.bssids[bssid]['signal']) + '\n'
+            ap_info += 'Encryption: ' + str(wifi.bssids[bssid]['enc']) + '\n'
+            ap_info += 'Cipher: ' + str(wifi.bssids[bssid]['cipher']) + '\n'
+            ap_info += 'Authentication: ' + str(wifi.bssids[bssid]['auth']) + '\n'
+            ap_info += 'Clients: ' + str(wifi.bssids[bssid]['clients']) + '\n'
+            return ap_info
+
+        except AssertionError as Error:
+            return Error.args[0]
+
+    @staticmethod
+    def get_info_messages() -> str:
         result: str = ''
         try:
-            assert len(wifi.wpa_handshakes) > 0, 'Not Found WPA handhakes'
-            for bssid in wifi.wpa_handshakes.keys():
-                for client in wifi.wpa_handshakes[bssid].keys():
-                    if isinstance(wifi.wpa_handshakes[bssid][client], dict):
-                        assert 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys(), \
-                            'Not full WPA handhake'
-                        result += '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
-                                  ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
-                                  ' BSSID: ' + bssid + ' Client: ' + client + '\n'
-                        result += '[+] Handshake in PCAP format save to file: ' + \
-                                  wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
-                        result += '[+] Handshake in HCCAPX format save to file: ' + \
-                                  wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
-                        result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
-                                  wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
+            if len(wifi.wpa_handshakes) > 0:
+                for bssid in wifi.wpa_handshakes.keys():
+                    for client in wifi.wpa_handshakes[bssid].keys():
+                        if isinstance(wifi.wpa_handshakes[bssid][client], dict):
+                            assert 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys(), \
+                                'Not full WPA handhake'
+                            result += '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
+                                      ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
+                                      ' BSSID: ' + bssid + ' Client: ' + client + '\n'
+                            # result += '[+] Handshake in PCAP format save to file: ' + \
+                            #           wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
+                            # result += '[+] Handshake in HCCAPX format save to file: ' + \
+                            #           wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
+                            # result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
+                            #           wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
+            if len(wifi.deauth_packets) > 0:
+                for deauth_dictioanry in wifi.deauth_packets:
+                    result += '[*] Send ' + str(deauth_dictioanry['packets']) + \
+                              ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
+                              ' Client: ' + str(deauth_dictioanry['client']) + '\n'
             return result
 
         except AssertionError:
@@ -134,6 +189,23 @@ class MainForm(npyscreen.FormBaseNew):
             except AssertionError:
                 pass
         return rows
+
+
+# class DeauthForm(npyscreen.Form):
+#
+#     def create(self):
+#         self.add_handlers({
+#             ascii.CR: self.switch,
+#             ascii.NL: self.switch})
+#
+#     def switch(self):
+#         self.parentApp.switchForm('Main')
+#
+#     @staticmethod
+#     def test():
+#         F = npyscreen.Popup(name="Choose an option")
+#         opt = F.add(npyscreen.TitleMultiSelect, name='test', values=['a', 'b'], scroll_exit=True)
+#         F.edit()
 
 
 # region Main function
