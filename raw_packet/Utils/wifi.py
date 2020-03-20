@@ -36,6 +36,7 @@ class WiFi:
     # region Public variables
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, str, bytes]]]] = dict()
+    deauth_packets: List[Dict[str, Union[int, str]]] = list()
     # endregion
 
     # region Private variables
@@ -576,8 +577,25 @@ class WiFi:
                 sleep(2)
     # endregion
 
+    # endregion
+
+    # region Public methods
+
+    # region Validate WiFi channel
+    @staticmethod
+    def validate_wifi_channel(wifi_channel: int) -> bool:
+        return True if wifi_channel in \
+                       [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144] else False
+    # endregion
+
+    # region Set WiFi chanel and prohibit switching between channels
+    def set_wifi_channel(self, channel: int = 1) -> None:
+        self._switch_between_channels = False
+        self._switch_wifi_channel(channel=channel)
+    # endregion
+
     # region Sending deauth packets
-    def _send_deauth(self,
+    def send_deauth(self,
                      bssid: str = '01:23:45:67:89:0a',
                      client: str = '01:23:45:67:89:0b',
                      number_of_deauth_packets: int = 5) -> None:
@@ -595,28 +613,10 @@ class WiFi:
         for _ in range(number_of_deauth_packets):
             sendp(deauth_packet, iface=self._interface, monitor=True, verbose=False)
 
-        self._base.print_info('Send ', str(number_of_deauth_packets),
-                              ' deauth packets to: ', client,
-                              ' from: ', bssid)
+        self.deauth_packets.append({'packets': number_of_deauth_packets,
+                                    'bssid': bssid, 'client': client})
     # endregion
 
-    # endregion
-
-    # region Public methods
-
-    # region Validate WiFi channel
-    @staticmethod
-    def validate_wifi_channel(wifi_channel: int) -> bool:
-        return True if wifi_channel in \
-                       [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144] else False
-    # endregion
-
-    # region Set WiFi chanel and prohibit switching between channels
-    def set_wifi_channel(self, channel: int = 1) -> None:
-        self._switch_between_channels = False
-        self._switch_wifi_channel(channel=channel)
-    # endregion
-    
     # endregion
 
 # endregion
