@@ -31,6 +31,7 @@ __status__ = 'Development'
 # endregion
 
 
+# region WiFiSniffer Application
 class WiFiSniffer(npyscreen.StandardApp):
     def onStart(self):
         self.addForm("MAIN", MainForm, name='WiFi SSID\'s', color='DEFAULT')
@@ -42,22 +43,28 @@ class WiFiSniffer(npyscreen.StandardApp):
                     self.process_event(event)
         except RuntimeError:
             pass
+# endregion
 
 
-class MyGrid(npyscreen.GridColTitles):
+# region Grid for Main Form
+class MainGrid(npyscreen.GridColTitles):
     def test(self):
         pass
+# endregion
 
 
+# region Box for information messages
 class InfoBox(npyscreen.BoxTitle):
     _contained_widget = npyscreen.MultiLineEdit
+# endregion
 
 
+# region Main Form
 class MainForm(npyscreen.Form):
 
     def create(self):
         y, x = self.useable_space()
-        self.grid = self.add(MyGrid, col_titles=titles, column_width=20, max_height=3*y//4)
+        self.grid = self.add(MainGrid, col_titles=titles, column_width=20, max_height=3*y//4)
         self.grid.add_handlers({
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
@@ -80,10 +87,9 @@ class MainForm(npyscreen.Form):
                 opt = popup.add(npyscreen.TitleMultiSelect, name='Deauth', scroll_exit=True,
                                 values=wifi.bssids[bssid]['clients'])
                 popup.edit()
-                # self.InfoBox.value = str(opt.get_selected_objects()) + '\n'
                 if len(opt.get_selected_objects()) > 0:
                     for client in opt.get_selected_objects():
-                        wifi.send_deauth(bssid, client, 100)
+                        thread_manager.add_task(wifi.send_deauth, bssid, client, 50)
             else:
                 npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
                                          ' (' + bssid + ')', title="Deauth Error")
@@ -189,23 +195,7 @@ class MainForm(npyscreen.Form):
             except AssertionError:
                 pass
         return rows
-
-
-# class DeauthForm(npyscreen.Form):
-#
-#     def create(self):
-#         self.add_handlers({
-#             ascii.CR: self.switch,
-#             ascii.NL: self.switch})
-#
-#     def switch(self):
-#         self.parentApp.switchForm('Main')
-#
-#     @staticmethod
-#     def test():
-#         F = npyscreen.Popup(name="Choose an option")
-#         opt = F.add(npyscreen.TitleMultiSelect, name='test', values=['a', 'b'], scroll_exit=True)
-#         F.edit()
+# endregion
 
 
 # region Main function
@@ -215,7 +205,9 @@ if __name__ == "__main__":
     path.append(dirname(dirname(dirname(abspath(__file__)))))
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.wifi import WiFi
+    from raw_packet.Utils.tm import ThreadManager
     base: Base = Base()
+    thread_manager: ThreadManager = ThreadManager(10)
     # endregion
 
     # region Variables
