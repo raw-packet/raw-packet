@@ -87,14 +87,27 @@ class WiFi:
     # region Constructor
     def __init__(self,
                  wireless_interface,
-                 wifi_channel: Union[None, int] = None) -> None:
+                 wifi_channel: Union[None, int] = None,
+                 ap_bssid: Union[None, str] = None,
+                 client_mac_address: Union[None, str] = None) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
+        :param wifi_channel: WiFi channel number (example: 1)
+        :param ap_bssid: AP BSSID (example: '01:23:45:67:89:0a')
+        :param client_mac_address: Client MAC address (example: '01:23:45:67:89:0b')
         """
         try:
+            # Check network interface is wireless
+            assert self._base.check_network_interface_is_wireless(interface_name=wireless_interface), \
+                'Network interface: ' + self._base.error_text(wireless_interface) + ' is not wireless!'
             self._interface = wireless_interface
-            self._start_monitor_mode()
+
+            # Checking the ability to enable monitoring mode
+            assert self._enable_monitor_mode(), \
+                'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
+
+            # Set WiFi channel
             if wifi_channel is not None:
                 assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
                     'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
@@ -105,7 +118,15 @@ class WiFi:
                     self._wifi_channels['2,4 GHz'] = list()
                     self._wifi_channels['5 Ghz'] = [wifi_channel]
                 self._switch_wifi_channel(channel=wifi_channel)
-            self._thread_manager.add_task(self._sniff)
+
+            # Check tshark start
+            assert self._start_tshark(bssid=ap_bssid, client=client_mac_address), \
+                'Failed to start tshark!'
+
+            # Create thread for reading pcap files
+            self._thread_manager.add_task(self._read_pcap_files)
+
+            # Switching between WiFi channels
             if wifi_channel is None:
                 self._thread_manager.add_task(self._scan_ssids)
 
@@ -114,28 +135,41 @@ class WiFi:
             exit(1)
     # endregion
 
-    # region Start monitor mode on interface
-    def _start_monitor_mode(self) -> None:
+    # region Enable monitor mode on interface
+    def _enable_monitor_mode(self,
+                            wireless_interface: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
-            run([self._airport_path + ' ' + self._interface + ' --disassociate'], shell=True)
+            run([self._airport_path + ' ' + wireless_interface + ' --disassociate'], shell=True)
+            return True
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
-            interface_mode: CompletedProcess = run(['iwconfig ' + self._interface], shell=True, stdout=PIPE)
+            interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
-                self._base.print_info('Set monitor mode on wireless interface: ', self._interface)
-                run(['ifconfig ' + self._interface + ' down'], shell=True, stdout=PIPE)
-                run(['iwconfig ' + self._interface + ' mode monitor'], shell=True, stdout=PIPE)
-                run(['ifconfig ' + self._interface + ' up'], shell=True, stdout=PIPE)
+                self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
+                run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
+                run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
+                run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
+                interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
+                interface_mode: str = interface_mode.stdout.decode('utf-8')
+                if 'Mode:Monitor' not in interface_mode:
+                    return True
+                else:
+                    return False
             else:
-                self._base.print_info('Wireless interface: ', self._interface, ' already in mode monitor')
+                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
+                return True
 
         # Other
         else:
             self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
-            exit(1)
+            return False
     # endregion
 
     # region Switch WiFi channel on interface
@@ -494,35 +528,49 @@ class WiFi:
 
     # endregion
 
-    # region Sniff wireless interface
-    def _sniff(self,
-               bssid: Union[None, str] = None,
-               client: Union[None, str] = None) -> None:
-        """
-        Sniff a wireless interface
-        :param bssid: BSSID (example: '01:23:45:67:89:0a')
-        :param client: A client MAC address (example: '01:23:45:67:89:0b')
-        :return: None
-        """
+    # region Start tshark program
+    def _start_tshark(self,
+                      wireless_interface: Union[None, str] = None,
+                      pcap_files_directory: Union[None, str] = None,
+                      bssid: Union[None, str] = None,
+                      client: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        # Set directory with pcap files
+        if pcap_files_directory is None:
+            pcap_files_directory = self._pcap_directory
+
         # Kill all tshark processes
         self._base.kill_process_by_name(process_name='tshark')
 
-        # Clear directory for pcap files
-        if not isdir(self._pcap_directory):
-            mkdir(self._pcap_directory)
-        else:
-            rmtree(self._pcap_directory)
-            mkdir(self._pcap_directory)
-
         # Run tshark process
-        Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + self._interface +
-               ' -b duration:1 -w ' + self._pcap_directory +
+        Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + wireless_interface +
+               ' -b duration:1 -w ' + pcap_files_directory +
                'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'],
               shell=True, stdout=PIPE, stderr=PIPE)
 
+        return True
+    # endregion
+
+    # region Read pcap files from directory
+    def _read_pcap_files(self,
+                         pcap_files_directory: Union[None, str] = None) -> None:
+        # Set directory with pcap files
+        if pcap_files_directory is None:
+            pcap_files_directory = self._pcap_directory
+
+        # Clear directory for pcap files
+        if not isdir(pcap_files_directory):
+            mkdir(pcap_files_directory)
+        else:
+            rmtree(pcap_files_directory)
+            mkdir(pcap_files_directory)
+
         while True:
             # Make list with pcap files
-            pcap_files: List[str] = [path_join(self._pcap_directory, file) for file in listdir(self._pcap_directory)]
+            pcap_files: List[str] = [path_join(pcap_files_directory, file) for file in listdir(pcap_files_directory)]
 
             # If length of pcap file more than one
             if len(pcap_files) > 1:
@@ -542,8 +590,10 @@ class WiFi:
                         assert packet.haslayer(RadioTap), 'Is not RadioTap packet!'
                         assert packet.haslayer(Dot11FCS), 'Is not IEEE 802.11 packet!'
                         self._analyze_packet(packet)
+
                     except IndexError:
                         pass
+
                     except AssertionError:
                         pass
 
@@ -551,20 +601,6 @@ class WiFi:
             else:
                 sleep(1)
 
-            # if bssid is not None and client is not None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr1 == bssid and x.addr2 == client) or
-            #                             (x.addr1 == client and x.addr2 == bssid))
-            # if bssid is not None and client is None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr1 == bssid and (x.FCfield.value % 2 != 0)) or
-            #                             (x.addr2 == bssid and (x.FCfield.value % 2 == 0)))
-            # if bssid is None and client is not None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr2 == client and (x.FCfield.value % 2 != 0)) or
-            #                             (x.addr1 == client and (x.FCfield.value % 2 == 0)))
-            # if bssid is None and client is None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, monitor=True, timeout=timeout)
     # endregion
 
     # region Scan WiFi channels and search AP ssids
