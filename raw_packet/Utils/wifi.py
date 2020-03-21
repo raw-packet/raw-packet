@@ -35,8 +35,8 @@ class WiFi:
 
     # region Public variables
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
-    wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, str, bytes]]]] = dict()
-    deauth_packets: List[Dict[str, Union[int, str]]] = list()
+    wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
+    deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     # endregion
 
     # region Private variables
@@ -334,11 +334,11 @@ class WiFi:
                 client: str = packet[Dot11FCS].addr1
 
                 if bssid not in self.wpa_handshakes.keys():
-                    self.wpa_handshakes[bssid]: Dict[str, Union[str, Dict[str, Union[int, str, bytes]]]] = dict()
+                    self.wpa_handshakes[bssid]: Dict[str, Union[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
                 assert client not in self.wpa_handshakes[bssid].keys(), \
                     'First EAPOL message already in the dictionary!'
 
-                self.wpa_handshakes[bssid][client]: Dict[str, Union[int, str, bytes]] = dict()
+                self.wpa_handshakes[bssid][client]: Dict[str, Union[int, float, str, bytes]] = dict()
 
                 self.wpa_handshakes[bssid][client]['essid'] = 'Unknown'
                 if bssid in self.bssids.keys() and 'essid' in self.bssids[bssid].keys():
@@ -370,6 +370,7 @@ class WiFi:
                 assert 'eapol' not in self.wpa_handshakes[bssid][client].keys(), \
                     'Authentication session already captured'
 
+                self.wpa_handshakes[bssid][client]['timestamp']: datetime = datetime.utcnow().timestamp()
                 self.wpa_handshakes[bssid][client]['snonce'] = eapol['wpa key nonce']
                 self.wpa_handshakes[bssid][client]['key mic'] = eapol['wpa key mic']
                 self.wpa_handshakes[bssid][client]['eapol'] = \
@@ -596,9 +597,9 @@ class WiFi:
 
     # region Sending deauth packets
     def send_deauth(self,
-                     bssid: str = '01:23:45:67:89:0a',
-                     client: str = '01:23:45:67:89:0b',
-                     number_of_deauth_packets: int = 50) -> None:
+                    bssid: str = '01:23:45:67:89:0a',
+                    client: str = '01:23:45:67:89:0b',
+                    number_of_deauth_packets: int = 50) -> None:
         """
         Sending 802.11 deauth packets
         :param bssid: BSSID (example: '01:23:45:67:89:0a')
@@ -618,7 +619,8 @@ class WiFi:
             sendp(ap_deauth_packet, iface=self._interface, monitor=True, verbose=False)
 
         self.deauth_packets.append({'packets': number_of_deauth_packets,
-                                    'bssid': bssid, 'client': client})
+                                    'bssid': bssid, 'client': client,
+                                    'timestamp': datetime.utcnow().timestamp()})
     # endregion
 
     # endregion
