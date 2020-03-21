@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from curses import ascii
 from typing import Dict
 from collections import OrderedDict
+from time import sleep
 import npyscreen
 # endregion
 
@@ -64,6 +65,8 @@ class InfoBox(npyscreen.BoxTitle):
 # region Main Form
 class MainForm(npyscreen.Form):
 
+    wifi_channel: int = -1
+
     def create(self):
         y, x = self.useable_space()
         self.grid = self.add(MainGrid, col_titles=titles, column_width=20, max_height=3*y//4)
@@ -71,7 +74,8 @@ class MainForm(npyscreen.Form):
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
             "^I": self.ap_info,
-            "^D": self.deauth
+            "^D": self.deauth,
+            "^S": self.switch_wifi_channel
         })
         self.InfoBox = self.add(InfoBox, editable=False, name='Information')
 
@@ -80,17 +84,27 @@ class MainForm(npyscreen.Form):
         self.InfoBox.value = self.get_info_messages()
         self.InfoBox.display()
 
+    def switch_wifi_channel(self, args):
+        popup = npyscreen.Popup(name="Set WiFi channel")
+        channels = popup.add(npyscreen.TitleSelectOne, name='Channel', scroll_exit=True,
+                             values=[1, 2, 3, 5, 6, 7, 8, 9, 10, 11])
+        popup.edit()
+        if len(channels.get_selected_objects()) > 0:
+            current_wifi_channel: int = channels.get_selected_objects()[0]
+            self.wifi_channel = current_wifi_channel
+            thread_manager.add_task(wifi.set_wifi_channel, current_wifi_channel)
+
     def deauth(self, args):
         try:
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
                 popup = npyscreen.Popup(name="Choose client for deauth")
-                opt = popup.add(npyscreen.TitleMultiSelect, name='Deauth', scroll_exit=True,
-                                values=wifi.bssids[bssid]['clients'])
+                deauth_clients = popup.add(npyscreen.TitleMultiSelect, name='Deauth', scroll_exit=True,
+                                           values=wifi.bssids[bssid]['clients'])
                 popup.edit()
-                if len(opt.get_selected_objects()) > 0:
-                    for client in opt.get_selected_objects():
+                if len(deauth_clients.get_selected_objects()) > 0:
+                    for client in deauth_clients.get_selected_objects():
                         thread_manager.add_task(wifi.send_deauth, bssid, client, 50)
             else:
                 npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
@@ -184,8 +198,7 @@ class MainForm(npyscreen.Form):
         except AttributeError:
             return result
 
-    @staticmethod
-    def get_wifi_ssid_rows() -> List[List[str]]:
+    def get_wifi_ssid_rows(self) -> List[List[str]]:
         rows: List[List[str]] = list()
         for bssid in wifi.bssids.keys():
             try:
@@ -200,6 +213,8 @@ class MainForm(npyscreen.Form):
                 assert wifi.bssids[bssid]['enc'] != 'UNKNOWN', 'Bad Encryption'
                 assert wifi.bssids[bssid]['cipher'] != 'UNKNOWN', 'Bad Cipher'
                 assert wifi.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Authentication'
+                if self.wifi_channel != -1:
+                    assert wifi.bssids[bssid]['channel'] == self.wifi_channel, 'Bad WiFi channel'
 
                 rows.append([wifi.bssids[bssid]['essid'], bssid,
                              wifi.bssids[bssid]['signal'],
