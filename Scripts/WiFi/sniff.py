@@ -10,12 +10,14 @@ Copyright 2020, Raw-packet Project
 """
 # endregion
 
-# region Add project root path
+# region Import
 from sys import path
 from os.path import dirname, abspath
 from typing import List
 from argparse import ArgumentParser
 from curses import ascii
+from typing import Dict
+from collections import OrderedDict
 import npyscreen
 # endregion
 
@@ -132,28 +134,43 @@ class MainForm(npyscreen.Form):
     @staticmethod
     def get_info_messages() -> str:
         result: str = ''
+        results: Dict[float, str] = dict()
+
         try:
+
+            # region WPA Handshakes
             if len(wifi.wpa_handshakes) > 0:
                 for bssid in wifi.wpa_handshakes.keys():
                     for client in wifi.wpa_handshakes[bssid].keys():
                         if isinstance(wifi.wpa_handshakes[bssid][client], dict):
-                            assert 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys(), \
-                                'Not full WPA handhake'
-                            result += '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
-                                      ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
-                                      ' BSSID: ' + bssid + ' Client: ' + client + '\n'
-                            # result += '[+] Handshake in PCAP format save to file: ' + \
-                            #           wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
-                            # result += '[+] Handshake in HCCAPX format save to file: ' + \
-                            #           wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
-                            # result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
-                            #           wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
+                            if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
+                                results[wifi.wpa_handshakes[bssid][client]['timestamp']] = \
+                                    '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
+                                    ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
+                                    ' BSSID: ' + bssid + ' Client: ' + client + '\n'
+                                # result += '[+] Handshake in PCAP format save to file: ' + \
+                                #           wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
+                                # result += '[+] Handshake in HCCAPX format save to file: ' + \
+                                #           wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
+                                # result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
+                                #           wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
+            # endregion
+
+            # region Deauth Packets
             if len(wifi.deauth_packets) > 0:
                 for deauth_dictioanry in wifi.deauth_packets:
-                    result += '[*] Send ' + str(deauth_dictioanry['packets']) + \
-                              ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
-                              ' Client: ' + str(deauth_dictioanry['client']) + '\n'
+                    results[deauth_dictioanry['timestamp']] = \
+                        '[*] Send ' + str(deauth_dictioanry['packets']) + \
+                        ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
+                        ' Client: ' + str(deauth_dictioanry['client']) + '\n'
+            # endregion
+
+            # region Return result string sorted by Timestamp
+            ordered_results = OrderedDict(reversed(sorted(results.items())))
+            for timestamp, info_message in ordered_results.items():
+                result += info_message
             return result
+            # endregion
 
         except AssertionError:
             return result
