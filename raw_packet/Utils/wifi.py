@@ -37,6 +37,7 @@ class WiFi:
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
+    channels: List[Dict[str, Union[int, float]]] = list()
     # endregion
 
     # region Private variables
@@ -200,6 +201,7 @@ class WiFi:
     # region Switch WiFi channel on interface
     def _switch_wifi_channel(self, channel: int = 1) -> None:
         assert self.validate_wifi_channel(wifi_channel=channel)
+        self.channels.append({'channel': channel, 'timestamp': datetime.utcnow().timestamp()})
 
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
@@ -273,6 +275,9 @@ class WiFi:
             # region 802.11 Beacon
             if packet.haslayer(Dot11Beacon) and \
                     packet.haslayer(Dot11Elt) and \
+                    packet[Dot11FCS].type == 0 and \
+                    packet[Dot11FCS].subtype == 8 and \
+                    packet[Dot11FCS].FCfield.value == 0 and \
                     packet[Dot11FCS].addr1 == 'ff:ff:ff:ff:ff:ff' and \
                     packet[Dot11FCS].addr2 != '' and \
                     packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3 and \
@@ -382,8 +387,31 @@ class WiFi:
 
             # endregion
 
+            # region 802.11 Null function
+            if packet[Dot11FCS].type == 2 and \
+                    packet[Dot11FCS].subtype == 4 and \
+                    packet[Dot11FCS].FCfield.value % 2 != 0 and \
+                    packet[Dot11FCS].addr1 == packet[Dot11FCS].addr3 and \
+                    packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
+                    packet[Dot11FCS].payload.name == 'NoPayload':
+                try:
+                    if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
+                        self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
+                except KeyError:
+                    self.bssids[packet[Dot11FCS].addr1]: \
+                        Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
+                    self.bssids[packet[Dot11FCS].addr1]['clients']: List[str] = list([packet[Dot11FCS].addr2])
+            # endregion
+
             # region 802.11 CCMP and Direction: Client -> AP (from Client to AP)
-            if packet.haslayer(Dot11CCMP) and packet[Dot11FCS].FCfield.value % 2 != 0:
+            test = packet
+            test = 1
+            if packet.haslayer(Dot11CCMP) and \
+                    packet[Dot11FCS].type == 2 and \
+                    packet[Dot11FCS].subtype == 8 and \
+                    packet[Dot11FCS].FCfield.value % 2 != 0 and \
+                    packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
+                    packet[Dot11CCMP].payload.name == 'NoPayload':
                 try:
                     if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
                         self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
@@ -394,9 +422,13 @@ class WiFi:
             # endregion
 
             # region EAPOL Message 1 of 4
-            if packet[Dot11FCS].type == 2 and packet[Dot11FCS].subtype == 8 and \
-                    packet[Dot11FCS].SC == 0 and (packet[Dot11FCS].FCfield.value % 2 == 0) and \
-                    packet.haslayer(EAPOL):
+            if packet.haslayer(EAPOL) and \
+                    packet[Dot11FCS].type == 2 and \
+                    packet[Dot11FCS].subtype == 8 and \
+                    packet[Dot11FCS].SC == 0 and \
+                    packet[Dot11FCS].FCfield.value % 2 == 0 and \
+                    packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
+                    packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3:
 
                 eapol: Union[None, Dict[str, Union[int, bytes]]] = self._parse_eapol(packet[EAPOL].original)
                 bssid: str = packet[Dot11FCS].addr2
@@ -424,9 +456,14 @@ class WiFi:
             # endregion
 
             # region EAPOL Message 2 of 4
-            if packet[Dot11FCS].type == 2 and packet[Dot11FCS].subtype == 8 and \
-                    packet[Dot11FCS].SC == 0 and (packet[Dot11FCS].FCfield.value % 2 != 0) and \
-                    packet.haslayer(EAPOL):
+            if packet.haslayer(EAPOL) and \
+                    packet[Dot11FCS].type == 2 and \
+                    packet[Dot11FCS].subtype == 8 and \
+                    packet[Dot11FCS].SC == 0 and \
+                    packet[Dot11FCS].FCfield.value % 2 != 0 and \
+                    packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
+                    packet[Dot11FCS].addr1 == packet[Dot11FCS].addr3:
+
                 eapol: Union[None, Dict[str, Union[int, bytes]]] = self._parse_eapol(packet[EAPOL].original)
                 bssid: str = packet[Dot11FCS].addr1
                 client: str = packet[Dot11FCS].addr2
@@ -686,7 +723,7 @@ class WiFi:
             if self._switch_between_channels and len(self._wifi_channels['2,4 GHz']) > 1:
                 for channel in self._wifi_channels['2,4 GHz']:
                     self._switch_wifi_channel(channel=int(channel))
-                    sleep(2)
+                    sleep(5)
             else:
                 sleep(2)
 
