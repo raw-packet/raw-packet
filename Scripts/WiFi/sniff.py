@@ -162,12 +162,6 @@ class MainForm(npyscreen.Form):
                                     '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
                                     ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
                                     ' BSSID: ' + bssid + ' Client: ' + client + '\n'
-                                # result += '[+] Handshake in PCAP format save to file: ' + \
-                                #           wifi.wpa_handshakes[bssid][client]['pcap file'] + '\n'
-                                # result += '[+] Handshake in HCCAPX format save to file: ' + \
-                                #           wifi.wpa_handshakes[bssid][client]['hccapx file'] + '\n'
-                                # result += '[+] Handshake in Hashcat 22000 format save to file: ' + \
-                                #           wifi.wpa_handshakes[bssid][client]['hashcat 22000 file'] + '\n'
             # endregion
 
             # region Deauth Packets
@@ -177,6 +171,13 @@ class MainForm(npyscreen.Form):
                         '[*] Send ' + str(deauth_dictioanry['packets']) + \
                         ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
                         ' Client: ' + str(deauth_dictioanry['client']) + '\n'
+            # endregion
+
+            # region WiFi channels
+            if len(wifi.channels) > 0:
+                for channel_dictionary in wifi.channels:
+                    results[channel_dictionary['timestamp']] = \
+                        '[*] Set WiFi channel: ' + str(channel_dictionary['channel']) + '\n'
             # endregion
 
             # region Return result string sorted by Timestamp
