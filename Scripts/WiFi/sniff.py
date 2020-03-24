@@ -253,6 +253,7 @@ if __name__ == "__main__":
     # region Parse script arguments
     parser: ArgumentParser = ArgumentParser(description='Sniffing 802.11x authentication packets')
     parser.add_argument('-i', '--interface', help='Set wireless interface name for sniff packets', default=None)
+    parser.add_argument('-b', '--bssid', help='Set AP BSSID', default=None)
     parser.add_argument('-c', '--channel', type=int, help='Set WiFi channel', default=None)
     parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
     args = parser.parse_args()
@@ -271,10 +272,14 @@ if __name__ == "__main__":
         # endregion
 
         # region Init Raw-packet WiFi class
-        if args.channel is None:
-            wifi: WiFi = WiFi(wireless_interface)
+        if args.channel is None and args.bssid is None:
+            wifi: WiFi = WiFi(wireless_interface=wireless_interface)
+        elif args.channel is not None and args.bssid is None:
+            wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel)
+        elif args.channel is None and args.bssid is not None:
+            assert False, 'Please set WiFi channel for BSSID: ' + base.info_text(args.bssid)
         else:
-            wifi: WiFi = WiFi(wireless_interface, args.channel)
+            wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel, ap_bssid=args.bssid)
         # endregion
 
         wifi_sniffer: WiFiSniffer = WiFiSniffer()
@@ -282,5 +287,9 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         base.print_info('Exit ....')
+
+    except AssertionError as Error:
+        base.print_error(Error.args[0])
+        exit(1)
 
 # endregion
