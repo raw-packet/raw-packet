@@ -16,6 +16,7 @@ from scapy.all import Dot11EltVendorSpecific, Dot11AssoReq, AKMSuite, Dot11Auth
 from scapy.all import Dot11Beacon, Dot11CCMP, Dot11Deauth, EAPOL
 from typing import Dict, Union, List
 from struct import pack, unpack
+from struct import error as struct_error
 from time import strftime
 from binascii import unhexlify, hexlify
 from subprocess import CompletedProcess, run, PIPE, Popen
@@ -232,6 +233,165 @@ class WiFi:
         return unhexlify(mac_address.lower().replace(':', ''))
     # endregion
 
+    # region Parse Beacon tags
+    @staticmethod
+    def _parse_beacon_tags(tags: bytes) -> Union[None, Dict[int, bytes]]:
+        try:
+            parsed_tags: Dict[int, bytes] = dict()
+            position: int = 0
+            while position < len(tags) - 1:
+                tag_number = int(unpack('B', tags[position:position + 1])[0])
+                tag_length = int(unpack('B', tags[position + 1:position + 2])[0])
+                tag_value = bytes(tags[position + 2:position + 2 + tag_length])
+                if tag_number in parsed_tags:
+                    tag_number += 1000
+                parsed_tags[tag_number] = tag_value
+                position += 2 + tag_length
+            return parsed_tags
+
+        except IndexError:
+            return None
+
+        except AssertionError:
+            return None
+    # endregion
+
+    # region Parse RSN Information beacon tag
+    def _parse_rsn_information(self, rsn_information: bytes) -> \
+            Union[None, Dict[str, Union[int, bytes, str, List]]]:
+        try:
+            parsed_rsn_information: Dict[str, Union[int, bytes, str, List]] = dict()
+            position: int = 0
+
+            parsed_rsn_information['rsn version']: int = \
+                int(unpack('H', rsn_information[position:position + 2])[0])
+            position += 2
+
+            parsed_rsn_information['group cipher suite oui']: bytes = \
+                rsn_information[position:position + 3]
+            position += 3
+
+            parsed_rsn_information['group cipher suite type']: str = \
+                self._cipher_types[int(unpack('B', rsn_information[position:position + 1])[0])]
+            position += 1
+
+            parsed_rsn_information['pairwise cipher suite count']: int = \
+                int(unpack('H', rsn_information[position:position + 2])[0])
+            position += 2
+
+            parsed_rsn_information['pairwise cipher suites']: List = list()
+            parsed_rsn_information['pairwise cipher suite types']: List = list()
+            for _ in range(parsed_rsn_information['pairwise cipher suite count']):
+                parsed_rsn_information['pairwise cipher suites'].append({
+                    'oui': rsn_information[position:position + 3],
+                    'type': self._cipher_types[int(unpack('B', rsn_information[position + 3:position + 4])[0])]
+                })
+                parsed_rsn_information['pairwise cipher suite types'].\
+                    append(self._cipher_types[int(unpack('B', rsn_information[position + 3:position + 4])[0])])
+                position += 4
+
+            parsed_rsn_information['auth key management suite count']: int = \
+                int(unpack('H', rsn_information[position:position + 2])[0])
+            position += 2
+
+            parsed_rsn_information['auth key management suites']: List = list()
+            parsed_rsn_information['auth key management suite types']: List = list()
+            for _ in range(parsed_rsn_information['auth key management suite count']):
+                parsed_rsn_information['auth key management suites'].append({
+                    'oui': rsn_information[position:position + 3],
+                    'type': self._akmsuite_types[int(unpack('B', rsn_information[position + 3:position + 4])[0])]
+                })
+                parsed_rsn_information['auth key management suite types'].\
+                    append(self._akmsuite_types[int(unpack('B', rsn_information[position + 3:position + 4])[0])])
+                position += 4
+
+            parsed_rsn_information['rsn capabilities']: int = \
+                int(unpack('H', rsn_information[position:position + 2])[0])
+            position += 2
+
+            assert position == len(rsn_information), 'Bad RSN Information length'
+            return parsed_rsn_information
+
+        except IndexError:
+            return None
+
+        except AssertionError:
+            return None
+
+        except struct_error:
+            return None
+    # endregion
+
+    # region Parse WPA Information beacon tag
+    def _parse_wpa_information(self, wpa_information: bytes) -> \
+            Union[None, Dict[str, Union[int, bytes, str, List]]]:
+        try:
+            parsed_wpa_information: Dict[str, Union[int, bytes, str, List]] = dict()
+            position: int = 0
+
+            parsed_wpa_information['oui']: bytes = \
+                wpa_information[position:position + 3]
+            position += 3
+
+            parsed_wpa_information['oui type']: int = \
+                int(unpack('B', wpa_information[position:position + 1])[0])
+            position += 1
+
+            parsed_wpa_information['wpa version']: int = \
+                int(unpack('H', wpa_information[position:position + 2])[0])
+            position += 2
+
+            parsed_wpa_information['multicast cipher suite oui']: bytes = \
+                wpa_information[position:position + 3]
+            position += 3
+
+            parsed_wpa_information['multicast cipher suite type']: str = \
+                self._cipher_types[int(unpack('B', wpa_information[position:position + 1])[0])]
+            position += 1
+
+            parsed_wpa_information['unicast cipher suite count']: int = \
+                int(unpack('H', wpa_information[position:position + 2])[0])
+            position += 2
+
+            parsed_wpa_information['unicast cipher suites']: List = list()
+            parsed_wpa_information['unicast cipher suite types']: List = list()
+            for _ in range(parsed_wpa_information['unicast cipher suite count']):
+                parsed_wpa_information['unicast cipher suites'].append({
+                    'oui': wpa_information[position:position + 3],
+                    'type': self._cipher_types[int(unpack('B', wpa_information[position + 3:position + 4])[0])]
+                })
+                parsed_wpa_information['unicast cipher suite types'].\
+                    append(self._cipher_types[int(unpack('B', wpa_information[position + 3:position + 4])[0])])
+                position += 4
+
+            parsed_wpa_information['auth key management suite count']: int = \
+                int(unpack('H', wpa_information[position:position + 2])[0])
+            position += 2
+
+            parsed_wpa_information['auth key management types']: List = list()
+            parsed_wpa_information['auth key management list']: List = list()
+            for _ in range(parsed_wpa_information['auth key management suite count']):
+                parsed_wpa_information['auth key management list'].append({
+                    'oui': wpa_information[position:position + 3],
+                    'type': self._akmsuite_types[int(unpack('B', wpa_information[position + 3:position + 4])[0])]
+                })
+                parsed_wpa_information['auth key management types'].\
+                    append(self._akmsuite_types[int(unpack('B', wpa_information[position + 3:position + 4])[0])])
+                position += 4
+
+            assert position == len(wpa_information), 'Bad WPA Information length'
+            return parsed_wpa_information
+
+        except IndexError:
+            return None
+
+        except AssertionError:
+            return None
+
+        except struct_error:
+            return None
+    # endregion
+
     # region Parse EAPOL payload
     @staticmethod
     def _parse_eapol(packet: bytes) -> Union[None, Dict[str, Union[int, bytes]]]:
@@ -294,109 +454,187 @@ class WiFi:
                     packet[Dot11FCS].FCfield.value == 0 and \
                     packet[Dot11FCS].addr1 == 'ff:ff:ff:ff:ff:ff' and \
                     packet[Dot11FCS].addr2 != '' and \
-                    packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3 and \
-                    packet[RadioTap].dBm_AntSignal > -95:
+                    packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3:
 
-                # First Beacon frame
-                if packet[Dot11FCS].addr2 not in self.bssids.keys():
-                    self.bssids[packet[Dot11FCS].addr2]: \
+                # Get AP BSSID
+                bssid = packet[Dot11FCS].addr2
+
+                # region First Beacon frame
+                if bssid not in self.bssids.keys():
+                    self.bssids[bssid]: \
                         Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
-                    if packet[Dot11EltRates].payload.ID == 3:
-                        self.bssids[packet[Dot11FCS].addr2]['channel']: int = \
-                            int.from_bytes(packet[Dot11EltRates].payload.info, 'little')
-                    else:
-                        self.bssids[packet[Dot11FCS].addr2]['channel']: int = \
-                            self._wifi_channel_frequencies[packet[RadioTap].ChannelFrequency]
-                    self.bssids[packet[Dot11FCS].addr2]['packets']: int = 0
-                    self.bssids[packet[Dot11FCS].addr2]['clients']: List[str] = list()
-                    self.bssids[packet[Dot11FCS].addr2]['signals']: List[int] = list()
-                    self.bssids[packet[Dot11FCS].addr2]['essids']: List[str] = list()
-                    self.bssids[packet[Dot11FCS].addr2]['enc list']: List[str] = list()
-                    self.bssids[packet[Dot11FCS].addr2]['auth list']: List[str] = list()
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list']: List[str] = list()
+                    self.bssids[bssid]['packets']: int = 0
+                    self.bssids[bssid]['clients']: List[str] = list()
+                    self.bssids[bssid]['essids']: List[str] = list()
+                    self.bssids[bssid]['channels']: List[str] = list()
+                    self.bssids[bssid]['signals']: List[int] = list()
+                    self.bssids[bssid]['enc list']: List[str] = list()
+                    self.bssids[bssid]['auth list']: List[str] = list()
+                    self.bssids[bssid]['cipher list']: List[str] = list()
+                # endregion
 
-                # Next Beacon frame
-                elif self.bssids[packet[Dot11FCS].addr2]['packets'] > 5:
-
-                    # Choose the average value of the Signal
-                    self.bssids[packet[Dot11FCS].addr2]['signal']: int = \
-                        max(self.bssids[packet[Dot11FCS].addr2]['signals'],
-                            key=self.bssids[packet[Dot11FCS].addr2]['signals'].count)
+                # region Next Beacon frame
+                elif self.bssids[bssid]['packets'] > 5:
 
                     # Choose the average value of the ESSID
-                    self.bssids[packet[Dot11FCS].addr2]['essid']: str = \
-                        max(self.bssids[packet[Dot11FCS].addr2]['essids'],
-                            key=self.bssids[packet[Dot11FCS].addr2]['essids'].count)
+                    self.bssids[bssid]['essid']: str = \
+                        max(self.bssids[bssid]['essids'], key=self.bssids[bssid]['essids'].count)
+
+                    # Choose the average value of the Channel
+                    self.bssids[bssid]['channel']: str = \
+                        max(self.bssids[bssid]['channels'], key=self.bssids[bssid]['channels'].count)
+
+                    # Choose the average value of the Signal
+                    self.bssids[bssid]['signal']: int = \
+                        max(self.bssids[bssid]['signals'], key=self.bssids[bssid]['signals'].count)
 
                     # Choose the average value of the Encryption
-                    self.bssids[packet[Dot11FCS].addr2]['enc']: str = \
-                        max(self.bssids[packet[Dot11FCS].addr2]['enc list'],
-                            key=self.bssids[packet[Dot11FCS].addr2]['enc list'].count)
+                    self.bssids[bssid]['enc']: str = \
+                        max(self.bssids[bssid]['enc list'], key=self.bssids[bssid]['enc list'].count)
 
                     # Choose the average value of the Athentication
-                    self.bssids[packet[Dot11FCS].addr2]['auth']: str = \
-                        max(self.bssids[packet[Dot11FCS].addr2]['auth list'],
-                            key=self.bssids[packet[Dot11FCS].addr2]['auth list'].count)
+                    self.bssids[bssid]['auth']: str = \
+                        max(self.bssids[bssid]['auth list'], key=self.bssids[bssid]['auth list'].count)
 
                     # Choose the average value of the Cipher
-                    self.bssids[packet[Dot11FCS].addr2]['cipher']: str = \
-                        max(self.bssids[packet[Dot11FCS].addr2]['cipher list'],
-                            key=self.bssids[packet[Dot11FCS].addr2]['cipher list'].count)
+                    self.bssids[bssid]['cipher']: str = \
+                        max(self.bssids[bssid]['cipher list'], key=self.bssids[bssid]['cipher list'].count)
 
                     # Delete first value from lists
-                    self.bssids[packet[Dot11FCS].addr2]['signals'].pop(0)
-                    self.bssids[packet[Dot11FCS].addr2]['essids'].pop(0)
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].pop(0)
-                    self.bssids[packet[Dot11FCS].addr2]['auth list'].pop(0)
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].pop(0)
+                    self.bssids[bssid]['essids'].pop(0)
+                    self.bssids[bssid]['channels'].pop(0)
+                    self.bssids[bssid]['signals'].pop(0)
+                    self.bssids[bssid]['enc list'].pop(0)
+                    self.bssids[bssid]['auth list'].pop(0)
+                    self.bssids[bssid]['cipher list'].pop(0)
 
                     # Decrement number of packets
-                    self.bssids[packet[Dot11FCS].addr2]['packets'] -= 1
+                    self.bssids[bssid]['packets'] -= 1
 
                     # Wait 1 seconds
-                    assert (datetime.utcnow().timestamp() - self.bssids[packet[Dot11FCS].addr2]['timestamp']) > 1, \
+                    assert (datetime.utcnow().timestamp() - self.bssids[bssid]['timestamp']) > 1, \
                         'Less than 1 seconds have passed'
+                # endregion
+
+                # region Parse beacon tags, set: Timestamp, ESSID, Channel and Signal
+
+                # Parse Beacon tags
+                parsed_beacon_tags: Union[None, Dict[int, bytes]] = \
+                    self._parse_beacon_tags(packet[Dot11Beacon].payload.original)
+                assert parsed_beacon_tags is not None, 'Bad Beacon packet'
 
                 # Increment number of packets
-                self.bssids[packet[Dot11FCS].addr2]['packets'] += 1
+                self.bssids[bssid]['packets'] += 1
+
                 # Update timestamp
-                self.bssids[packet[Dot11FCS].addr2]['timestamp']: datetime = datetime.utcnow().timestamp()
+                self.bssids[bssid]['timestamp']: datetime = datetime.utcnow().timestamp()
+
+                # Tag number 0 - ESSID
+                if 0 in parsed_beacon_tags.keys():
+                    self.bssids[bssid]['essids'].append(parsed_beacon_tags[0].decode('utf-8'))
+                else:
+                    self.bssids[bssid]['essids'].append('Unknown')
+
+                # Tag number 3 - Current WiFi channel
+                if 3 in parsed_beacon_tags.keys():
+                    self.bssids[bssid]['channels'].\
+                        append(int.from_bytes(parsed_beacon_tags[3], 'little'))
+                else:
+                    self.bssids[bssid]['channels'].\
+                        append(self._wifi_channel_frequencies[packet[RadioTap].ChannelFrequency])
 
                 # Append signal and ESSID in lists
-                self.bssids[packet[Dot11FCS].addr2]['signals'].append(packet[RadioTap].dBm_AntSignal)
-                self.bssids[packet[Dot11FCS].addr2]['essids'].append(packet[Dot11Elt].info.decode('utf-8'))
+                self.bssids[bssid]['signals'].append(packet[RadioTap].dBm_AntSignal)
+
+                # endregion
 
                 # region Encryption info in beacon
-                if packet.haslayer(Dot11EltRSN) and packet.haslayer(Dot11EltMicrosoftWPA):
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA/WPA2')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list']. \
-                        append(self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite])
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list']. \
-                        append(self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher])
 
-                elif packet.haslayer(Dot11EltRSN):
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA2')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list']. \
-                        append(self._akmsuite_types[packet[Dot11EltRSN].akm_suites[0].suite])
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list']. \
-                        append(self._cipher_types[packet[Dot11EltRSN].group_cipher_suite[0].cipher])
+                # region Mixed WPA and WPA2
+                if 221 in parsed_beacon_tags.keys() and 48 in parsed_beacon_tags.keys():
 
-                elif packet.haslayer(Dot11EltMicrosoftWPA):
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WPA')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list']. \
-                        append(self._akmsuite_types[packet[Dot11EltMicrosoftWPA].akm_suites[0].suite])
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list']. \
-                        append(self._cipher_types[packet[Dot11EltMicrosoftWPA].group_cipher_suite[0].cipher])
+                    # Vendor specific oui type 1 - WPA Information element
+                    if parsed_beacon_tags[221][3:4] == b'\x01':
+                        self.bssids[bssid]['enc list'].append('WPA/WPA2')
+                        parsed_wpa_information = self._parse_wpa_information(parsed_beacon_tags[221])
+                        if parsed_wpa_information is not None:
+                            self.bssids[bssid]['auth list']. \
+                                append('/'.join(parsed_wpa_information['auth key management types']))
+                            self.bssids[bssid]['cipher list']. \
+                                append('/'.join(parsed_wpa_information['unicast cipher suite types']))
+                        else:
+                            self.bssids[bssid]['auth list'].append('UNKNOWN')
+                            self.bssids[bssid]['cipher list'].append('UNKNOWN')
 
-                elif packet.haslayer(Dot11EltVendorSpecific):
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WEP')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('WEP')
+                    # Parse RSN Information tag
+                    else:
+                        self.bssids[bssid]['enc list'].append('WPA2')
+                        parsed_rsn_information = self._parse_rsn_information(parsed_beacon_tags[48])
+                        if parsed_rsn_information is not None:
+                            self.bssids[bssid]['auth list']. \
+                                append('/'.join(parsed_rsn_information['auth key management suite types']))
+                            self.bssids[bssid]['cipher list']. \
+                                append('/'.join(parsed_rsn_information['pairwise cipher suite types']))
+                        else:
+                            self.bssids[bssid]['auth list'].append('UNKNOWN')
+                            self.bssids[bssid]['cipher list'].append('UNKNOWN')
+                # endregion
 
+                # region WPA2 (Tag number 48 - RSN Information)
+                elif 48 in parsed_beacon_tags.keys():
+                    self.bssids[bssid]['enc list'].append('WPA2')
+                    parsed_rsn_information = self._parse_rsn_information(parsed_beacon_tags[48])
+                    if parsed_rsn_information is not None:
+                        self.bssids[bssid]['auth list'].\
+                            append('/'.join(parsed_rsn_information['auth key management suite types']))
+                        self.bssids[bssid]['cipher list'].\
+                            append('/'.join(parsed_rsn_information['pairwise cipher suite types']))
+                    else:
+                        self.bssids[bssid]['auth list'].append('UNKNOWN')
+                        self.bssids[bssid]['cipher list'].append('UNKNOWN')
+                # endregion
+
+                # region WPA or WEP (Tag number 221 - Vendor specific tag)
+                elif 221 in parsed_beacon_tags.keys():
+
+                    # Vendor specific oui type 1 - WPA Information element
+                    if parsed_beacon_tags[221][3:4] == b'\x01':
+                        self.bssids[bssid]['enc list'].append('WPA')
+                        parsed_wpa_information = self._parse_wpa_information(parsed_beacon_tags[221])
+                        if parsed_wpa_information is not None:
+                            self.bssids[bssid]['auth list']. \
+                                append('/'.join(parsed_wpa_information['auth key management types']))
+                            self.bssids[bssid]['cipher list']. \
+                                append('/'.join(parsed_wpa_information['unicast cipher suite types']))
+                        else:
+                            self.bssids[bssid]['auth list'].append('UNKNOWN')
+                            self.bssids[bssid]['cipher list'].append('UNKNOWN')
+
+                    # Vendor specific oui type 2 - WMM/WME
+                    elif parsed_beacon_tags[221][3:4] == b'\x02':
+                        if 45 in parsed_beacon_tags.keys() and 61 in parsed_beacon_tags.keys():
+                            self.bssids[packet[Dot11FCS].addr2]['enc list'].append('OPEN')
+                            self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
+                            self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('OPEN')
+                        else:
+                            self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WEP')
+                            self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
+                            self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('WEP')
+
+                    # Unknown vendor specific oui type
+                    else:
+                        self.bssids[bssid]['enc list'].append('UNKNOWN')
+                        self.bssids[bssid]['auth list'].append('UNKNOWN')
+                        self.bssids[bssid]['cipher list'].append('UNKNOWN')
+                # endregion
+
+                # region No encryption
                 else:
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('UNKNOWN')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('UNKNOWN')
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('UNKNOWN')
+                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('OPEN')
+                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
+                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('OPEN')
+                # endregion
+
                 # endregion
 
             # endregion
@@ -741,12 +979,23 @@ class WiFi:
 
                 # Get oldest pcap file
                 pcap_file = min(pcap_files, key=getctime)
+                clean_pcap_file = path_join(pcap_files_directory, 'clean.pcap')
+
+                # Delete malformed packets
+                if self._base.get_platform().startswith('Windows'):
+                    tshark_path: str = '"C:\\Program Files\\Wireshark\\tshark.exe"'
+                    Popen(tshark_path + ' -r ' + pcap_file + ' -Y "not _ws.malformed" -w ' + clean_pcap_file,
+                          shell=True, stdout=PIPE, stderr=PIPE)
+                else:
+                    run(['tshark -r ' + pcap_file + ' -Y "not _ws.malformed" -w ' + clean_pcap_file],
+                        shell=True, stdout=PIPE, stderr=PIPE)
 
                 # Get packets from oldest pcap file
-                packets = rdpcap(pcap_file)
+                packets = rdpcap(clean_pcap_file)
 
                 # Delete oldest pcap file
                 remove(pcap_file)
+                remove(clean_pcap_file)
 
                 # Analyze packets
                 for packet in packets:
