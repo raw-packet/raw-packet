@@ -16,7 +16,7 @@ from os.path import dirname, abspath
 from typing import List
 from argparse import ArgumentParser
 from curses import ascii
-from typing import Dict
+from typing import Dict, Union
 from collections import OrderedDict
 from time import sleep
 import npyscreen
@@ -239,6 +239,7 @@ class MainForm(npyscreen.Form):
 
     def get_wifi_ssid_rows(self) -> List[List[str]]:
         rows: List[List[str]] = list()
+        results: List[Dict[str, Union[int, str]]] = list()
         for bssid in wifi.bssids.keys():
             try:
                 assert 'essid' in wifi.bssids[bssid].keys() and \
@@ -255,16 +256,28 @@ class MainForm(npyscreen.Form):
                 if self.wifi_channel != -1:
                     assert wifi.bssids[bssid]['channel'] == self.wifi_channel, 'Bad WiFi channel'
 
-                rows.append([wifi.bssids[bssid]['essid'], bssid,
-                             wifi.bssids[bssid]['signal'],
-                             wifi.bssids[bssid]['channel'],
-                             wifi.bssids[bssid]['enc'] + ' ' +
-                             wifi.bssids[bssid]['auth'] + ' ' +
-                             wifi.bssids[bssid]['cipher'],
-                             len(wifi.bssids[bssid]['clients'])])
+                results.append({
+                    'essid': wifi.bssids[bssid]['essid'],
+                    'bssid': bssid,
+                    'signal': wifi.bssids[bssid]['signal'],
+                    'channel': wifi.bssids[bssid]['channel'],
+                    'encryption': wifi.bssids[bssid]['enc'] + ' ' +
+                                  wifi.bssids[bssid]['auth'] + ' ' +
+                                  wifi.bssids[bssid]['cipher'],
+                    'clients': len(wifi.bssids[bssid]['clients'])})
 
             except AssertionError:
                 pass
+
+        sorted_results: List[Dict[str, Union[int, str]]] = sorted(results, key=lambda k: k['signal'], reverse=True)
+        for sorted_result in sorted_results:
+            rows.append([sorted_result['essid'],
+                         sorted_result['bssid'],
+                         sorted_result['signal'],
+                         sorted_result['channel'],
+                         sorted_result['encryption'],
+                         sorted_result['clients']])
+
         return rows
 
 # endregion
