@@ -75,7 +75,8 @@ class MainForm(npyscreen.Form):
             ascii.NL: self.ap_info,
             "^I": self.ap_info,
             "^D": self.deauth,
-            "^S": self.switch_wifi_channel
+            "^S": self.switch_wifi_channel,
+            "^A": self.association
         })
         self.InfoBox = self.add(InfoBox, editable=False, name='Information')
 
@@ -110,6 +111,22 @@ class MainForm(npyscreen.Form):
                 npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
                                          ' (' + bssid + ')', title="Deauth Error")
                 self.parentApp.switchFormPrevious()
+
+        except AssertionError as Error:
+            npyscreen.notify_confirm(Error.args[0], title="Assertion Error")
+            self.parentApp.switchFormPrevious()
+
+        except IndexError:
+            pass
+
+        except TypeError:
+            pass
+
+    def association(self, args):
+        try:
+            bssid = self.grid.selected_row()[1]
+            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            thread_manager.add_task(wifi.send_association_request, bssid, wifi.bssids[bssid]['essid'])
 
         except AssertionError as Error:
             npyscreen.notify_confirm(Error.args[0], title="Assertion Error")
@@ -164,6 +181,17 @@ class MainForm(npyscreen.Form):
                                     ' BSSID: ' + bssid + ' Client: ' + client + '\n'
             # endregion
 
+            # region RSN PMKID
+            if len(wifi.pmkid_authentications) > 0:
+                for bssid in wifi.pmkid_authentications.keys():
+                    if 'file' in wifi.pmkid_authentications[bssid].keys():
+                        results[wifi.pmkid_authentications[bssid]['timestamp']] = \
+                            '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
+                            ' RSN PMKID for ESSID: ' + wifi.pmkid_authentications[bssid]['essid'] + \
+                            ' BSSID: ' + bssid + \
+                            ' Client: ' + wifi.pmkid_authentications[bssid]['client'] + '\n'
+            # endregion
+
             # region Deauth Packets
             if len(wifi.deauth_packets) > 0:
                 for deauth_dictioanry in wifi.deauth_packets:
@@ -171,6 +199,16 @@ class MainForm(npyscreen.Form):
                         '[*] Send ' + str(deauth_dictioanry['packets']) + \
                         ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
                         ' Client: ' + str(deauth_dictioanry['client']) + '\n'
+            # endregion
+
+            # region Association Packets
+            if len(wifi.association_packets) > 0:
+                for association_dictioanry in wifi.association_packets:
+                    results[association_dictioanry['timestamp']] = \
+                        '[*] Send association request packets' \
+                        ' ESSID: ' + association_dictioanry['essid'] + \
+                        ' BSSID: ' + str(association_dictioanry['bssid']) + \
+                        ' Client: ' + str(association_dictioanry['client']) + '\n'
             # endregion
 
             # region WiFi channels
@@ -228,6 +266,7 @@ class MainForm(npyscreen.Form):
             except AssertionError:
                 pass
         return rows
+
 # endregion
 
 
@@ -283,8 +322,10 @@ if __name__ == "__main__":
             wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel, ap_bssid=args.bssid)
         # endregion
 
+        # region Start WiFi Sniffer
         wifi_sniffer: WiFiSniffer = WiFiSniffer()
         wifi_sniffer.run()
+        # endregion
 
     except KeyboardInterrupt:
         base.print_info('Exit ....')
