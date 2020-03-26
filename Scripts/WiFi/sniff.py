@@ -69,7 +69,7 @@ class MainForm(npyscreen.Form):
 
     def create(self):
         y, x = self.useable_space()
-        self.grid = self.add(MainGrid, col_titles=titles, column_width=20, max_height=3*y//4)
+        self.grid = self.add(MainGrid, col_titles=titles, column_width=21, max_height=3*y//4)
         self.grid.add_handlers({
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
