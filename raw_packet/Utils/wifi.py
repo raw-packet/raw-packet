@@ -451,8 +451,9 @@ class WiFi:
                     packet[Dot11FCS].addr2 != '' and \
                     packet[Dot11FCS].addr2 == packet[Dot11FCS].addr3:
 
-                # Get AP BSSID
+                # region Get AP BSSID
                 bssid = packet[Dot11FCS].addr2
+                # endregion
 
                 # region First Beacon frame
                 if bssid not in self.bssids.keys():
@@ -629,6 +630,29 @@ class WiFi:
                     self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
                     self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('OPEN')
                 # endregion
+
+                # endregion
+
+                # region First parsed Beacon frame
+                if self.bssids[bssid]['packets'] == 1:
+
+                    # Set ESSID
+                    self.bssids[bssid]['essid']: str = self.bssids[bssid]['essids'][0]
+
+                    # Set Channel
+                    self.bssids[bssid]['channel']: str = self.bssids[bssid]['channels'][0]
+
+                    # Set Signal
+                    self.bssids[bssid]['signal']: int = self.bssids[bssid]['signals'][0]
+
+                    # Set Encryption
+                    self.bssids[bssid]['enc']: str = self.bssids[bssid]['enc list'][0]
+
+                    # Set Athentication
+                    self.bssids[bssid]['auth']: str = self.bssids[bssid]['auth list'][0]
+
+                    # Set Cipher
+                    self.bssids[bssid]['cipher']: str = self.bssids[bssid]['cipher list'][0]
 
                 # endregion
 
@@ -918,8 +942,7 @@ class WiFi:
     # endregion
 
     # region Read pcap files from directory
-    def _read_pcap_files(self,
-                         pcap_files_directory: Union[None, str] = None) -> None:
+    def _read_pcap_files(self, pcap_files_directory: Union[None, str] = None) -> None:
         # Set directory with pcap files
         if pcap_files_directory is None:
             pcap_files_directory = self._pcap_directory
