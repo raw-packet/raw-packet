@@ -88,7 +88,7 @@ class MainForm(npyscreen.Form):
     def switch_wifi_channel(self, args):
         popup = npyscreen.Popup(name="Set WiFi channel")
         channels = popup.add(npyscreen.TitleSelectOne, name='Channel', scroll_exit=True,
-                             values=[1, 2, 3, 5, 6, 7, 8, 9, 10, 11])
+                             values=wifi.available_wifi_channels)
         popup.edit()
         if len(channels.get_selected_objects()) > 0:
             current_wifi_channel: int = channels.get_selected_objects()[0]
@@ -296,9 +296,11 @@ if __name__ == "__main__":
 
     # region Import Raw-packet modules
     path.append(dirname(dirname(dirname(abspath(__file__)))))
+
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.wifi import WiFi
     from raw_packet.Utils.tm import ThreadManager
+
     base: Base = Base()
     thread_manager: ThreadManager = ThreadManager(10)
     # endregion
