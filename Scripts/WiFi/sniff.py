@@ -100,13 +100,17 @@ class MainForm(npyscreen.Form):
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
+                clients_list: List[str] = list()
+                for client_mac_address in wifi.bssids[bssid]['clients']:
+                    clients_list.append(client_mac_address + ' (' +
+                                        base.get_vendor_by_mac_address(client_mac_address) + ')')
                 popup = npyscreen.Popup(name="Choose client for deauth")
-                deauth_clients = popup.add(npyscreen.TitleMultiSelect, name='Deauth', scroll_exit=True,
-                                           values=wifi.bssids[bssid]['clients'])
+                deauth_clients = popup.add(npyscreen.TitleMultiSelect, name='Deauth',
+                                           scroll_exit=True, values=clients_list)
                 popup.edit()
                 if len(deauth_clients.get_selected_objects()) > 0:
                     for client in deauth_clients.get_selected_objects():
-                        thread_manager.add_task(wifi.send_deauth, bssid, client, 50)
+                        thread_manager.add_task(wifi.send_deauth, bssid, client[0:17], 50)
             else:
                 npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
                                          ' (' + bssid + ')', title="Deauth Error")
