@@ -10,13 +10,22 @@ Copyright 2020, Raw-packet Project
 # region Import
 from platform import system, release
 from sys import exit, stdout
-from os import getuid
-from os import name as os_name
+try:
+    from os import getuid
+except ImportError:
+    from ctypes import windll
 from os.path import dirname, abspath, isfile, join
-from pwd import getpwuid
+try:
+    from pwd import getpwuid
+except ModuleNotFoundError:
+    pass
 from random import choice, randint
-from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
-from netifaces import gateways
+try:
+    from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
+    from netifaces import gateways
+except ModuleNotFoundError:
+    from socket import AF_INET, AF_INET6, gethostname, gethostbyname
+    from getmac import get_mac_address
 from netaddr import IPNetwork, IPAddress
 from netaddr.core import AddrFormatError
 from struct import pack, error
@@ -59,11 +68,18 @@ class Base:
         Init string variables
         """
 
-        self.cINFO: str = '\033[1;34m'
-        self.cERROR: str = '\033[1;31m'
-        self.cSUCCESS: str = '\033[1;32m'
-        self.cWARNING: str = '\033[1;33m'
-        self.cEND: str = '\033[0m'
+        if self.get_platform().startswith('Windows'):
+            self.cINFO: str = ''
+            self.cERROR: str = ''
+            self.cSUCCESS: str = ''
+            self.cWARNING: str = ''
+            self.cEND: str = ''
+        else:
+            self.cINFO: str = '\033[1;34m'
+            self.cERROR: str = '\033[1;31m'
+            self.cSUCCESS: str = '\033[1;32m'
+            self.cWARNING: str = '\033[1;33m'
+            self.cEND: str = '\033[0m'
 
         self.c_info: str = self.cINFO + '[*]' + self.cEND + ' '
         self.c_error: str = self.cERROR + '[-]' + self.cEND + ' '
@@ -76,8 +92,7 @@ class Base:
     # endregion
 
     # region Output functions
-    @staticmethod
-    def print_banner() -> None:
+    def print_banner(self) -> None:
         """
         Print colored banner in console
         :return: None
@@ -86,9 +101,14 @@ class Base:
         with open(dirname(abspath(__file__)) + '/version.txt', 'r') as version_file:
             current_version = version_file.read()
 
-        green_color: str = '\033[1;32m'
-        yellow_color: str = '\033[1;33m'
-        end_color: str = '\033[0m'
+        if self.get_platform().startswith('Windows'):
+            green_color: str = ''
+            yellow_color: str = ''
+            end_color: str = ''
+        else:
+            green_color: str = '\033[1;32m'
+            yellow_color: str = '\033[1;33m'
+            end_color: str = '\033[0m'
 
         print(green_color + "                                          _        _   " + end_color)
         print(green_color + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + end_color)
@@ -250,13 +270,21 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if user is root or False if not
         """
-        if getuid() != 0:
-            if not quiet:
-                print('Only root can run this script!')
-                print('User: ' + str(getpwuid(getuid())[0]) + ' can not run this script!')
-            if exit_on_failure:
-                exit(exit_code)
-            return False
+        try:
+            if getuid() != 0:
+                if not quiet:
+                    print('Only root can run this script!')
+                    print('User: ' + str(getpwuid(getuid())[0]) + ' can not run this script!')
+                if exit_on_failure:
+                    exit(exit_code)
+                return False
+        except NameError:
+            if windll.shell32.IsUserAnAdmin() == 0:
+                if not quiet:
+                    print('Only Administartor can run this script!')
+                if exit_on_failure:
+                    exit(exit_code)
+                return False
         return True
     # endregion
 
@@ -381,14 +409,28 @@ class Base:
                             wireless_network_interfaces.append(search_result.group('interface_name'))
 
             # Linux
-            if current_platform.startswith('Linux'):
+            elif current_platform.startswith('Linux'):
                 interfaces_info: sub.CompletedProcess = \
                     sub.run(['iwconfig'], shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
                 interfaces_info: str = interfaces_info.stdout.decode('utf-8')
                 interfaces_info: List[str] = interfaces_info.splitlines()
                 for output_line in interfaces_info:
                     if 'IEEE 802.11' in output_line:
-                        search_result = search(r'^(?P<interface_name>[a-zA-Z0-9]{2,16}) +IEEE', output_line)
+                        search_result = search(r'^(?P<interface_name>[a-zA-Z0-9]{2,32}) +IEEE', output_line)
+                        if search_result is not None:
+                            wireless_network_interfaces.append(search_result.group('interface_name'))
+
+            # Windows
+            elif current_platform.startswith('Windows'):
+                netsh_command: sub.Popen = \
+                    sub.Popen('netsh wlan show interfaces', shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+                netsh_command_output, netsh_command_error = netsh_command.communicate()
+                interfaces_info: str = netsh_command_output.decode('utf-8') + \
+                                       netsh_command_error.decode('utf-8')
+                interfaces_info: List[str] = interfaces_info.splitlines()
+                for output_line in interfaces_info:
+                    if 'Name' in output_line:
+                        search_result = search(r'^ +Name +: (?P<interface_name>.*)$', output_line)
                         if search_result is not None:
                             wireless_network_interfaces.append(search_result.group('interface_name'))
 
@@ -531,12 +573,22 @@ class Base:
                 return True
 
             # Linux
-            if current_platform.startswith('Linux'):
+            elif current_platform.startswith('Linux'):
                 interface_info: sub.CompletedProcess = \
                     sub.run(['iwconfig ' + interface_name],
                             shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
                 interface_info: str = interface_info.stdout.decode('utf-8')
                 assert 'no wireless extensions' not in interface_info, 'Is not wireless interface!'
+                return True
+
+            # Windows
+            elif current_platform.startswith('Windows'):
+                netsh_command: sub.Popen = \
+                    sub.Popen('netsh wlan show interfaces', shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+                netsh_command_output, netsh_command_error = netsh_command.communicate()
+                interfaces_info: str = netsh_command_output.decode('utf-8') + \
+                                       netsh_command_error.decode('utf-8')
+                assert 'no wireless extensions' not in interfaces_info, 'Is not wireless interface!'
                 return True
 
             # Other
@@ -633,6 +685,9 @@ class Base:
         try:
             return str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
 
+        except NameError:
+            return get_mac_address(interface=interface_name)
+
         except ValueError:
             pass
 
@@ -660,6 +715,10 @@ class Base:
         """
         try:
             return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
+
+        except NameError:
+            host_name = gethostname()
+            return gethostbyname(host_name)
 
         except ValueError:
             pass
@@ -691,6 +750,9 @@ class Base:
         try:
             ipv6_address = str(ifaddresses(interface_name)[AF_INET6][address_index]['addr'])
             ipv6_address = ipv6_address.replace('%' + interface_name, '', 1)
+
+        except NameError:
+            ipv6_address = '::1'
 
         except IndexError:
             ipv6_address = None
