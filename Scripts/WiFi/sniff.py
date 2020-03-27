@@ -76,7 +76,8 @@ class MainForm(npyscreen.Form):
             "^I": self.ap_info,
             "^D": self.deauth,
             "^S": self.switch_wifi_channel,
-            "^A": self.association
+            "^A": self.association,
+            "^R": self.resume_scanner
         })
         self.InfoBox = self.add(InfoBox, editable=False, name='Information')
 
@@ -84,6 +85,10 @@ class MainForm(npyscreen.Form):
         self.grid.values = self.get_wifi_ssid_rows()
         self.InfoBox.value = self.get_info_messages()
         self.InfoBox.display()
+
+    def resume_scanner(self, args):
+        self.wifi_channel = -1
+        wifi.resume_scan_ssids()
 
     def switch_wifi_channel(self, args):
         popup = npyscreen.Popup(name="Set WiFi channel")
@@ -100,6 +105,7 @@ class MainForm(npyscreen.Form):
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
+                wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
                 clients_list: List[str] = list()
                 for client_mac_address in wifi.bssids[bssid]['clients']:
                     clients_list.append(client_mac_address + ' (' +
