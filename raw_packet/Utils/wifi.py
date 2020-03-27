@@ -19,7 +19,7 @@ from struct import pack, unpack
 from struct import error as struct_error
 from time import strftime
 from binascii import unhexlify, hexlify
-from subprocess import CompletedProcess, run, PIPE, Popen
+from subprocess import CompletedProcess, run, PIPE, Popen, STDOUT
 from os import mkdir, listdir, remove
 from os.path import getctime, isdir
 from os.path import join as path_join
@@ -41,6 +41,7 @@ class WiFi:
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     association_packets: List[Dict[str, Union[bool, float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
+    available_wifi_channels: List[int] = list()
     # endregion
 
     # region Private variables
@@ -52,8 +53,8 @@ class WiFi:
     _airport_path: str = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport'
     _set_wifi_channel: int = -1
     _wifi_channels: Dict[str, List[int]] = {
-        '2,4 GHz': [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12],
-        '5 Ghz': [36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144]
+        '2,4 GHz': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        '5 GHz': [36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144]
     }
     _wifi_channel_frequencies: Dict[int, int] = {
         2412: 1,
@@ -66,7 +67,9 @@ class WiFi:
         2447: 8,
         2452: 9,
         2457: 10,
-        2462: 11
+        2462: 11,
+        2467: 12,
+        2472: 13
     }
     _pcap_directory: str = '/tmp/raw-packet/'
     _akmsuite_types: Dict[int, str] = {
@@ -108,6 +111,11 @@ class WiFi:
             assert self._base.check_network_interface_is_wireless(interface_name=wireless_interface), \
                 'Network interface: ' + self._base.error_text(wireless_interface) + ' is not wireless!'
             self._interface = wireless_interface
+
+            # Check network interface support 5 GHz
+            self.available_wifi_channels += self._wifi_channels['2,4 GHz']
+            if self._support_5ghz():
+                self.available_wifi_channels += self._wifi_channels['5 GHz']
 
             # Checking the ability to enable monitoring mode
             assert self._enable_monitor_mode(), \
@@ -190,6 +198,45 @@ class WiFi:
         # Other
         else:
             self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
+            return False
+    # endregion
+
+    # region Enable monitor mode on interface
+    def _support_5ghz(self,
+                      wireless_interface: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        # Mac OS
+        if self._base.get_platform().startswith('Darwin'):
+            run([self._airport_path + ' ' + wireless_interface + ' --channel=' +
+                 str(self._wifi_channels['5 GHz'][0])], shell=True)
+            current_channel: CompletedProcess = \
+                run([self._airport_path + ' ' + wireless_interface + ' --channel'],
+                    shell=True, stdout=PIPE, stderr=STDOUT)
+            current_channel: str = current_channel.stdout.decode('utf-8')
+            if 'channel: ' + str(self._wifi_channels['5 GHz'][0]) in current_channel:
+                return True
+            else:
+                return False
+
+        # Linux
+        elif self._base.get_platform().startswith('Linux'):
+            available_channels: CompletedProcess = \
+                run(['iwlist ' + wireless_interface + ' freq'], shell=True, stdout=PIPE, stderr=STDOUT)
+            available_channels: str = available_channels.stdout.decode('utf-8')
+            if 'Channel ' + str(self._wifi_channels['5 GHz'][0]) in available_channels:
+                return True
+            else:
+                return False
+
+        # Windows
+        elif self._base.get_platform().startswith('Windows'):
+            return False
+
+        # Other
+        else:
             return False
     # endregion
 
@@ -1005,10 +1052,10 @@ class WiFi:
     # region Scan WiFi channels and search AP ssids
     def _scan_ssids(self):
         while True:
-            for channel in self._wifi_channels['2,4 GHz']:
+            for channel in self.available_wifi_channels:
                 if self._set_wifi_channel == -1:
                     self._switch_wifi_channel(channel=int(channel))
-                    sleep(5)
+                    sleep(3)
                 else:
                     sleep(1)
     # endregion
@@ -1020,12 +1067,7 @@ class WiFi:
     # region Validate WiFi channel
     def validate_wifi_channel(self, wifi_channel: int) -> bool:
         try:
-            if wifi_channel in self._wifi_channels['2,4 GHz']:
-                return True
-            elif wifi_channel in self._wifi_channels['5 GHz']:
-                return True
-            else:
-                return False
+            return True if wifi_channel in self.available_wifi_channels else False
         except IndexError:
             return False
 
