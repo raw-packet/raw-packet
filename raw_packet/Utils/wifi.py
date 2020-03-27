@@ -48,11 +48,11 @@ class WiFi:
     _thread_manager: ThreadManager = ThreadManager(25)
 
     _interface: Union[None, str] = None
-    _switch_between_channels: bool = True
     _prefix: str = '    '
     _airport_path: str = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport'
+    _set_wifi_channel: int = -1
     _wifi_channels: Dict[str, List[int]] = {
-        '2,4 GHz': [1, 2, 3, 5, 6, 7, 8, 9, 10, 11],
+        '2,4 GHz': [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12],
         '5 Ghz': [36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144]
     }
     _wifi_channel_frequencies: Dict[int, int] = {
@@ -118,12 +118,7 @@ class WiFi:
             if wifi_channel is not None:
                 assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
                     'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
-                if wifi_channel in self._wifi_channels['2,4 GHz']:
-                    self._wifi_channels['2,4 GHz'] = [wifi_channel]
-                    self._wifi_channels['5 Ghz'] = list()
-                else:
-                    self._wifi_channels['2,4 GHz'] = list()
-                    self._wifi_channels['5 Ghz'] = [wifi_channel]
+                self._set_wifi_channel = wifi_channel
                 self._switch_wifi_channel(channel=wifi_channel)
 
             # Check tshark start
@@ -155,6 +150,7 @@ class WiFi:
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
+            self._base.kill_process_by_name(process_name='wpa_supplicant')
             interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
@@ -1018,7 +1014,7 @@ class WiFi:
     # region Scan WiFi channels and search AP ssids
     def _scan_ssids(self):
         while True:
-            if self._switch_between_channels and len(self._wifi_channels['2,4 GHz']) > 1:
+            if self._set_wifi_channel == -1:
                 for channel in self._wifi_channels['2,4 GHz']:
                     self._switch_wifi_channel(channel=int(channel))
                     sleep(5)
@@ -1040,7 +1036,9 @@ class WiFi:
 
     # region Set WiFi chanel and prohibit switching between channels
     def set_wifi_channel(self, channel: int = 1) -> None:
-        self._switch_between_channels = False
+        assert self.validate_wifi_channel(wifi_channel=channel), \
+            'Bad WiFi channel: ' + self._base.error_text(str(channel))
+        self._set_wifi_channel = channel
         self._switch_wifi_channel(channel=channel)
 
     # endregion
