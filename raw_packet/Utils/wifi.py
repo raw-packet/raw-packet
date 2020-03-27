@@ -1073,13 +1073,17 @@ class WiFi:
 
     # endregion
 
+    # region Resume scan WiFi channels and search AP ssids
+    def resume_scan_ssids(self) -> None:
+        self._set_wifi_channel = -1
+    # endregion
+
     # region Set WiFi chanel and prohibit switching between channels
     def set_wifi_channel(self, channel: int = 1) -> None:
         assert self.validate_wifi_channel(wifi_channel=channel), \
             'Bad WiFi channel: ' + self._base.error_text(str(channel))
         self._set_wifi_channel = channel
         self._switch_wifi_channel(channel=channel)
-
     # endregion
 
     # region Sending deauth packets
