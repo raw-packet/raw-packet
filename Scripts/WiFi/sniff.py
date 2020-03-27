@@ -126,7 +126,7 @@ class MainForm(npyscreen.Form):
         try:
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
-            thread_manager.add_task(wifi.send_association_request, bssid, wifi.bssids[bssid]['essid'])
+            thread_manager.add_task(wifi.send_association_request, bssid, wifi.bssids[bssid]['essid'], True)
 
         except AssertionError as Error:
             npyscreen.notify_confirm(Error.args[0], title="Assertion Error")
@@ -204,11 +204,12 @@ class MainForm(npyscreen.Form):
             # region Association Packets
             if len(wifi.association_packets) > 0:
                 for association_dictioanry in wifi.association_packets:
-                    results[association_dictioanry['timestamp']] = \
-                        '[*] Send association request packets' \
-                        ' ESSID: ' + association_dictioanry['essid'] + \
-                        ' BSSID: ' + str(association_dictioanry['bssid']) + \
-                        ' Client: ' + str(association_dictioanry['client']) + '\n'
+                    if association_dictioanry['verbose']:
+                        results[association_dictioanry['timestamp']] = \
+                            '[*] Send association request packets' \
+                            ' ESSID: ' + association_dictioanry['essid'] + \
+                            ' BSSID: ' + str(association_dictioanry['bssid']) + \
+                            ' Client: ' + str(association_dictioanry['client']) + '\n'
             # endregion
 
             # region WiFi channels
@@ -277,7 +278,10 @@ class MainForm(npyscreen.Form):
                          sorted_result['channel'],
                          sorted_result['encryption'],
                          sorted_result['clients']])
-
+            thread_manager.add_task(wifi.send_association_request,
+                                    sorted_result['bssid'],
+                                    sorted_result['essid'],
+                                    False)
         return rows
 
 # endregion

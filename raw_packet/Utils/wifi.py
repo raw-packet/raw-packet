@@ -39,7 +39,7 @@ class WiFi:
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
     pmkid_authentications: Dict[str, Dict[str, Union[float, int, str, bytes]]] = dict()
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
-    association_packets: List[Dict[str, Union[float, str]]] = list()
+    association_packets: List[Dict[str, Union[bool, float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
     # endregion
 
@@ -708,7 +708,7 @@ class WiFi:
                     pmkid_content: bytes = hexlify(rsn_pmkid) + b'*'
                     pmkid_content += hexlify(self._convert_mac(bssid)) + b'*'
                     pmkid_content += hexlify(self._convert_mac(client)) + b'*'
-                    essid: str = 'Imladris'
+                    essid: str = 'Unknown'
                     if bssid in self.bssids.keys():
                         if 'essid' in self.bssids[bssid].keys():
                             essid = self.bssids[bssid]['essid']
@@ -1083,13 +1083,15 @@ class WiFi:
     def send_association_request(self,
                                  bssid: str = '01:23:45:67:89:0a',
                                  essid: str = 'AP_NAME',
+                                 verbose: bool = True,
                                  number_of_association_packets: Union[None, int] = None,
                                  wireless_interface: Union[None, str] = None) -> None:
         """
         Sending 802.11 Association request
         :param bssid: BSSID (example: '01:23:45:67:89:0a')
         :param essid: ESSID (example: 'AP_NAME')
-        :param number_of_association_packets: The number of association packets for one iteration (default: 3)
+        :param verbose: Verbose bool (default: True)
+        :param number_of_association_packets: The number of association packets for one iteration (default: 1)
         :param wireless_interface: Wireless interface name (example: 'wlan0')
         :return:
         """
@@ -1097,31 +1099,48 @@ class WiFi:
             wireless_interface = self._interface
 
         if number_of_association_packets is None:
-            number_of_association_packets = 3
+            number_of_association_packets = 1
 
-        client = self._base.get_interface_mac_address(interface_name=wireless_interface)
+        send_packets: bool = False
+        already_send_packets: bool = False
 
-        auth_request_packet: bytes = \
-            RadioTap() / \
-            Dot11(addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
-            Dot11Auth(algo=0, seqnum=0x0001, status=0x0000)
+        if verbose:
+            send_packets = True
+        else:
+            for association_index in range(len(self.association_packets) - 1, -1, -1):
+                if bssid == self.association_packets[association_index]['bssid']:
+                    already_send_packets = True
+                    if (datetime.utcnow().timestamp() - self.association_packets[association_index]['timestamp']) > 15:
+                        send_packets = True
+                    else:
+                        break
+            if not already_send_packets:
+                send_packets = True
 
-        assoc_request_packet: bytes = \
-            RadioTap() / \
-            Dot11(type=0, subtype=0, addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
-            Dot11AssoReq(cap=0x1104, listen_interval=0x0003) / \
-            Dot11Elt(ID=0, info=essid) / \
-            Dot11EltRates(rates=[0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c]) / \
-            Dot11EltRSN(akm_suites=AKMSuite(oui=0x000fac, suite=0x02), mfp_capable=1, ptksa_replay_counter=3)
+        if send_packets:
+            client = self._base.get_interface_mac_address(interface_name=wireless_interface)
 
-        sendp(auth_request_packet, iface=wireless_interface, monitor=True, verbose=False)
-        sleep(0.5)
-        for _ in range(number_of_association_packets):
-            sendp(assoc_request_packet, iface=wireless_interface, monitor=True, verbose=False)
-            sleep(0.1)
+            auth_request_packet: bytes = \
+                RadioTap() / \
+                Dot11(addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
+                Dot11Auth(algo=0, seqnum=0x0001, status=0x0000)
 
-        self.association_packets.append({'bssid': bssid, 'essid': essid, 'client': client,
-                                         'timestamp': datetime.utcnow().timestamp()})
+            assoc_request_packet: bytes = \
+                RadioTap() / \
+                Dot11(type=0, subtype=0, addr1=bssid, addr2=client, addr3=bssid, SC=16, ID=0x3a01) / \
+                Dot11AssoReq(cap=0x1104, listen_interval=0x0003) / \
+                Dot11Elt(ID=0, info=essid) / \
+                Dot11EltRates(rates=[0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c]) / \
+                Dot11EltRSN(akm_suites=AKMSuite(oui=0x000fac, suite=0x02), mfp_capable=1, ptksa_replay_counter=3)
+
+            sendp(auth_request_packet, iface=wireless_interface, monitor=True, verbose=False)
+            sleep(0.5)
+            for _ in range(number_of_association_packets):
+                sendp(assoc_request_packet, iface=wireless_interface, monitor=True, verbose=False)
+                sleep(0.1)
+
+            self.association_packets.append({'verbose': verbose, 'bssid': bssid, 'essid': essid,
+                                             'client': client, 'timestamp': datetime.utcnow().timestamp()})
     # endregion
 
     # endregion
