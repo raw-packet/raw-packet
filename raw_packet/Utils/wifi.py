@@ -10,7 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.tm import ThreadManager
-from scapy.all import rdpcap, wrpcap, sendp, Ether, RadioTap
+from scapy.all import rdpcap, wrpcap, sendp, Ether, RadioTap, Scapy_Exception
 from scapy.all import Dot11, Dot11FCS, Dot11Elt, Dot11EltRSN, Dot11EltRates, Dot11EltMicrosoftWPA
 from scapy.all import Dot11EltVendorSpecific, Dot11AssoReq, AKMSuite, Dot11Auth
 from scapy.all import Dot11Beacon, Dot11CCMP, Dot11Deauth, EAPOL
@@ -91,8 +91,7 @@ class WiFi:
     # region Constructor
     def __init__(self,
                  wireless_interface,
-                 wifi_channel: Union[None, int] = None,
-                 ap_bssid: Union[None, str] = None) -> None:
+                 wifi_channel: Union[None, int] = None) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
@@ -114,6 +113,9 @@ class WiFi:
             assert self._enable_monitor_mode(), \
                 'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
 
+            # Create thread for reading pcap files
+            self._thread_manager.add_task(self._read_pcap_files)
+
             # Set WiFi channel
             if wifi_channel is not None:
                 assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
@@ -121,15 +123,12 @@ class WiFi:
                 self._set_wifi_channel = wifi_channel
                 self._switch_wifi_channel(channel=wifi_channel)
 
-            # Check tshark start
-            assert self._start_tshark(bssid=ap_bssid), 'Failed to start tshark!'
-
-            # Create thread for reading pcap files
-            self._thread_manager.add_task(self._read_pcap_files)
-
             # Switching between WiFi channels
             if wifi_channel is None:
                 self._thread_manager.add_task(self._scan_ssids)
+
+            # Check sniffer start
+            assert self._start_sniffer(), 'Failed to start sniffer!'
 
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
@@ -643,12 +642,11 @@ class WiFi:
                     packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
                     packet[Dot11FCS].payload.name == 'NoPayload':
                 try:
-                    if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
-                        self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
+                    if packet[Dot11FCS].addr1 in self.bssids.keys():
+                        if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
+                            self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
                 except KeyError:
-                    self.bssids[packet[Dot11FCS].addr1]: \
-                        Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
-                    self.bssids[packet[Dot11FCS].addr1]['clients']: List[str] = list([packet[Dot11FCS].addr2])
+                    pass
             # endregion
 
             # region 802.11 CCMP and Direction: Client -> AP (from Client to AP)
@@ -659,12 +657,11 @@ class WiFi:
                     packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
                     packet[Dot11CCMP].payload.name == 'NoPayload':
                 try:
-                    if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
-                        self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
+                    if packet[Dot11FCS].addr1 in self.bssids.keys():
+                        if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
+                            self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
                 except KeyError:
-                    self.bssids[packet[Dot11FCS].addr1]: \
-                        Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]] = dict()
-                    self.bssids[packet[Dot11FCS].addr1]['clients']: List[str] = list([packet[Dot11FCS].addr2])
+                    pass
             # endregion
 
             # region EAPOL RSN PMKID
@@ -884,20 +881,10 @@ class WiFi:
 
     # endregion
 
-    # region Start tshark program
-    def _start_tshark(self,
-                      wireless_interface: Union[None, str] = None,
-                      pcap_files_directory: Union[None, str] = None,
-                      bssid: Union[None, str] = None,
-                      sniff_eapol: bool = False) -> bool:
-        # Check BSSID
-        first_4_bytes_of_bssid: str = ''
-        last_2_bytes_of_bssid: str = ''
-        if bssid is not None:
-            assert self._base.mac_address_validation(mac_address=bssid), 'Bad BSSID: ' + self._base.error_text(bssid)
-            first_4_bytes_of_bssid += '0x' + bssid[0:11].replace(':', '')
-            last_2_bytes_of_bssid += '0x' + bssid[12:17].replace(':', '')
-
+    # region Start sniffer
+    def _start_sniffer(self,
+                       wireless_interface: Union[None, str] = None,
+                       pcap_files_directory: Union[None, str] = None) -> bool:
         # Set wireless interface
         if wireless_interface is None:
             wireless_interface = self._interface
@@ -906,48 +893,26 @@ class WiFi:
         if pcap_files_directory is None:
             pcap_files_directory = self._pcap_directory
 
-        # Kill all tshark processes
-        self._base.kill_process_by_name(process_name='tshark')
+        # Kill sniffer processes
+        self._base.kill_process_by_name(process_name='dumpcap')
 
-        # Set path for tshark
+        # Set path for sniffer
         if self._base.get_platform().startswith('Windows'):
-            tshark_path: str = '"C:\\Program Files\\Wireshark\\tshark.exe"'
+            sniffer_path: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
         else:
-            tshark_path: str = 'tshark'
+            sniffer_path: str = 'dumpcap'
 
-        # Set tshark command
-        if sniff_eapol:
-            if bssid is None:
-                tshark_command: str = \
-                    tshark_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
-                    '" -b duration:1 -w ' + pcap_files_directory + \
-                    'sniff.pcap -f "wlan[0:2] == 0x8801 or wlan[0:2] == 0x8802"'
-            else:
-                tshark_command: str = \
-                    tshark_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
-                    '" -b duration:1 -w ' + pcap_files_directory + \
-                    'sniff.pcap -f "(wlan[0:2] == 0x8801 or wlan[0:2] == 0x8802)' \
-                    ' and wlan[16:4] == ' + first_4_bytes_of_bssid + \
-                    ' and wlan[20:2] == ' + last_2_bytes_of_bssid + '"'
-        else:
-            if bssid is None:
-                tshark_command: str = \
-                    tshark_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
-                    '" -b duration:1 -w ' + pcap_files_directory + \
-                    'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'
-            else:
-                tshark_command: str = \
-                    tshark_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
-                    '" -b duration:1 -w ' + pcap_files_directory + \
-                    'sniff.pcap -f "((wlan type data) or (wlan type mgt subtype beacon))' \
-                    ' and wlan[16:4] == ' + first_4_bytes_of_bssid + \
-                    ' and wlan[20:2] == ' + last_2_bytes_of_bssid + '"'
+        # Set sniffer command
+        sniffer_command: str = \
+            sniffer_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
+            '" -b duration:1 -w ' + pcap_files_directory + \
+            'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'
 
-        # Run tshark process
+        # Run sniffer process
         if self._base.get_platform().startswith('Windows'):
-            Popen(tshark_command, shell=True, stdout=PIPE, stderr=PIPE)
+            Popen(sniffer_command, shell=True, stdout=PIPE, stderr=PIPE)
         else:
-            Popen([tshark_command], shell=True, stdout=PIPE, stderr=PIPE)
+            Popen([sniffer_command], shell=True, stdout=PIPE, stderr=PIPE)
 
         return True
     # endregion
@@ -987,7 +952,10 @@ class WiFi:
                         shell=True, stdout=PIPE, stderr=PIPE)
 
                 # Get packets from oldest pcap file
-                packets = rdpcap(clean_pcap_file)
+                try:
+                    packets = rdpcap(clean_pcap_file)
+                except Scapy_Exception:
+                    packets = list()
 
                 # Delete oldest pcap file
                 remove(pcap_file)
@@ -1014,12 +982,12 @@ class WiFi:
     # region Scan WiFi channels and search AP ssids
     def _scan_ssids(self):
         while True:
-            if self._set_wifi_channel == -1:
-                for channel in self._wifi_channels['2,4 GHz']:
+            for channel in self._wifi_channels['2,4 GHz']:
+                if self._set_wifi_channel == -1:
                     self._switch_wifi_channel(channel=int(channel))
                     sleep(5)
-            else:
-                sleep(2)
+                else:
+                    sleep(1)
     # endregion
 
     # endregion
@@ -1027,10 +995,16 @@ class WiFi:
     # region Public methods
 
     # region Validate WiFi channel
-    @staticmethod
-    def validate_wifi_channel(wifi_channel: int) -> bool:
-        return True if wifi_channel in \
-                       [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 36, 40, 44, 48, 52, 56, 60, 64, 132, 136, 140, 144] else False
+    def validate_wifi_channel(self, wifi_channel: int) -> bool:
+        try:
+            if wifi_channel in self._wifi_channels['2,4 GHz']:
+                return True
+            elif wifi_channel in self._wifi_channels['5 GHz']:
+                return True
+            else:
+                return False
+        except IndexError:
+            return False
 
     # endregion
 
