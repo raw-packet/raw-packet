@@ -65,6 +65,8 @@ class InfoBox(npyscreen.BoxTitle):
 # region Main Form
 class MainForm(npyscreen.Form):
 
+    # region Variables
+    titles: List[str] = ['ESSID', 'BSSID', 'Signal', 'Channel', 'Encryption', 'Clients']
     wifi_channel: int = -1
     x: int = 0
     y: int = 0
@@ -72,10 +74,11 @@ class MainForm(npyscreen.Form):
     deauth_multi_select_name: str = 'Deauth'
     channel_popup_name: str = 'Set WiFi channel'
     channel_one_select_name: str = 'Channel'
+    # endregion
 
     def create(self):
         self.y, self.x = self.useable_space()
-        self.grid = self.add(MainGrid, col_titles=titles, column_width=21, max_height=3*self.y//4)
+        self.grid = self.add(MainGrid, col_titles=self.titles, column_width=21, max_height=3*self.y//4)
         self.grid.add_handlers({
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
@@ -118,17 +121,17 @@ class MainForm(npyscreen.Form):
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
-                if self.wifi_channel != wifi.bssids[bssid]['channel']:
-                    self.wifi_channel = wifi.bssids[bssid]['channel']
-                    wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
                 clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
 
                 popup_columns: int = len(max(clients_list, key=len)) + len(self.deauth_multi_select_name) + 22
                 popup_lines: int = len(clients_list) + 4
+
                 if popup_columns > int(3 * self.x // 4):
                     popup_columns = int(3 * self.x // 4)
                 if popup_lines > int(3 * self.y // 4):
                     popup_lines = int(3 * self.y // 4)
+                if popup_lines < 6:
+                    popup_lines = 6
 
                 popup = npyscreen.Popup(name=self.deauth_popup_name,
                                         columns=popup_columns,
@@ -137,6 +140,9 @@ class MainForm(npyscreen.Form):
                                            scroll_exit=True, values=clients_list)
                 popup.edit()
                 if len(deauth_clients.get_selected_objects()) > 0:
+                    if self.wifi_channel != wifi.bssids[bssid]['channel']:
+                        self.wifi_channel = wifi.bssids[bssid]['channel']
+                        wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
                     for client in deauth_clients.get_selected_objects():
                         thread_manager.add_task(wifi.send_deauth, bssid, client[0:17], 50)
             else:
@@ -223,8 +229,8 @@ class MainForm(npyscreen.Form):
                             if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
                                 results[wifi.wpa_handshakes[bssid][client]['timestamp']] = \
                                     '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
-                                    ' handshake for ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + \
-                                    ' BSSID: ' + bssid + ' Client: ' + client + '\n'
+                                    ' handshake for STATION: ' + client + ' BSSID: ' + bssid + \
+                                    ' ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + '\n'
             # endregion
 
             # region RSN PMKID
@@ -233,9 +239,9 @@ class MainForm(npyscreen.Form):
                     if 'file' in wifi.pmkid_authentications[bssid].keys():
                         results[wifi.pmkid_authentications[bssid]['timestamp']] = \
                             '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
-                            ' RSN PMKID for ESSID: ' + wifi.pmkid_authentications[bssid]['essid'] + \
+                            ' RSN PMKID for STATION: ' + wifi.pmkid_authentications[bssid]['client'] + \
                             ' BSSID: ' + bssid + \
-                            ' Client: ' + wifi.pmkid_authentications[bssid]['client'] + '\n'
+                            ' ESSID: ' + wifi.pmkid_authentications[bssid]['essid'] + '\n'
             # endregion
 
             # region Deauth Packets
@@ -243,8 +249,8 @@ class MainForm(npyscreen.Form):
                 for deauth_dictioanry in wifi.deauth_packets:
                     results[deauth_dictioanry['timestamp']] = \
                         '[*] Send ' + str(deauth_dictioanry['packets']) + \
-                        ' deauth packets BSSID: ' + str(deauth_dictioanry['bssid']) + \
-                        ' Client: ' + str(deauth_dictioanry['client']) + '\n'
+                        ' deauth packets for STATION: ' + str(deauth_dictioanry['client']) + \
+                        ' BSSID: ' + str(deauth_dictioanry['bssid']) + '\n'
             # endregion
 
             # region Association Packets
@@ -253,9 +259,9 @@ class MainForm(npyscreen.Form):
                     if association_dictioanry['verbose']:
                         results[association_dictioanry['timestamp']] = \
                             '[*] Send association request packets' \
-                            ' ESSID: ' + association_dictioanry['essid'] + \
+                            ' STATION: ' + str(association_dictioanry['client']) + \
                             ' BSSID: ' + str(association_dictioanry['bssid']) + \
-                            ' Client: ' + str(association_dictioanry['client']) + '\n'
+                            ' ESSID: ' + association_dictioanry['essid'] + '\n'
             # endregion
 
             # region WiFi channels
@@ -347,10 +353,6 @@ if __name__ == "__main__":
 
     base: Base = Base()
     thread_manager: ThreadManager = ThreadManager(10)
-    # endregion
-
-    # region Variables
-    titles = ['ESSID', 'BSSID', 'Signal', 'Channel', 'Encryption', 'Clients']
     # endregion
 
     # region Check user and platform
