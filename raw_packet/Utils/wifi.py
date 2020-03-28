@@ -157,14 +157,17 @@ class WiFi:
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
+            run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
             self._base.kill_process_by_name(process_name='wpa_supplicant')
             interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
                 self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
+                sleep(0.5)
                 run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
                 run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
                 run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
+                sleep(0.5)
                 interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
                 interface_mode: str = interface_mode.stdout.decode('utf-8')
                 if 'Mode:Monitor' not in interface_mode:
