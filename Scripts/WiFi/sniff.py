@@ -119,6 +119,7 @@ class MainForm(npyscreen.Form):
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
                 if self.wifi_channel != wifi.bssids[bssid]['channel']:
+                    self.wifi_channel = wifi.bssids[bssid]['channel']
                     wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
                 clients_list: List[str] = list()
                 for client_mac_address in wifi.bssids[bssid]['clients']:
@@ -315,10 +316,12 @@ class MainForm(npyscreen.Form):
                          sorted_result['channel'],
                          sorted_result['encryption'],
                          sorted_result['clients']])
-            thread_manager.add_task(wifi.send_association_request,
-                                    sorted_result['bssid'],
-                                    sorted_result['essid'],
-                                    False)
+            if 'WPA' in sorted_result['encryption'] and \
+                    sorted_result['bssid'] not in wifi.pmkid_authentications.keys():
+                thread_manager.add_task(wifi.send_association_request,
+                                        sorted_result['bssid'],
+                                        sorted_result['essid'],
+                                        False)
         return rows
 
 # endregion
