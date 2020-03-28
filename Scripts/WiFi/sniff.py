@@ -121,13 +121,7 @@ class MainForm(npyscreen.Form):
                 if self.wifi_channel != wifi.bssids[bssid]['channel']:
                     self.wifi_channel = wifi.bssids[bssid]['channel']
                     wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
-                clients_list: List[str] = list()
-                for client_mac_address in wifi.bssids[bssid]['clients']:
-                    vendor_list: List[str] = base.get_vendor_by_mac_address(client_mac_address).split()
-                    vendor: str = vendor_list[0]
-                    if len(vendor_list) >= 2:
-                        vendor += ' ' + vendor_list[1].replace(',', '')
-                    clients_list.append(client_mac_address + ' (' + vendor + ')')
+                clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
 
                 popup_columns: int = len(max(clients_list, key=len)) + len(self.deauth_multi_select_name) + 22
                 popup_lines: int = len(clients_list) + 4
@@ -183,10 +177,10 @@ class MainForm(npyscreen.Form):
         except IndexError:
             pass
 
-    @staticmethod
-    def get_ap_info(bssid: str = '12:34:56:78:90:ab') -> str:
+    def get_ap_info(self, bssid: str = '12:34:56:78:90:ab') -> str:
         try:
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
             ap_info: str = ''
             ap_info += 'ESSID: ' + str(wifi.bssids[bssid]['essid']) + '\n'
             ap_info += 'BSSID: ' + str(bssid) + '\n'
@@ -194,11 +188,25 @@ class MainForm(npyscreen.Form):
             ap_info += 'Encryption: ' + str(wifi.bssids[bssid]['enc']) + '\n'
             ap_info += 'Cipher: ' + str(wifi.bssids[bssid]['cipher']) + '\n'
             ap_info += 'Authentication: ' + str(wifi.bssids[bssid]['auth']) + '\n'
-            ap_info += 'Clients: ' + str(wifi.bssids[bssid]['clients']) + '\n'
+            if len(clients_list) > 0:
+                ap_info += 'Clients: ' + clients_list[0] + '\n'
+                for client_index in range(1, len(clients_list), 1):
+                    ap_info += '         ' + clients_list[client_index] + '\n'
             return ap_info
 
         except AssertionError as Error:
             return Error.args[0]
+
+    @staticmethod
+    def make_client_list(clients: List[str]) -> List[str]:
+        clients_list: List[str] = list()
+        for client_mac_address in clients:
+            vendor_list: List[str] = base.get_vendor_by_mac_address(client_mac_address).split()
+            vendor: str = vendor_list[0]
+            if len(vendor_list) >= 2:
+                vendor += ' ' + vendor_list[1].replace(',', '')
+            clients_list.append(client_mac_address + ' (' + vendor + ')')
+        return clients_list
 
     @staticmethod
     def get_info_messages() -> str:
