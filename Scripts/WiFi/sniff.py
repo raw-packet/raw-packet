@@ -70,10 +70,12 @@ class MainForm(npyscreen.Form):
     y: int = 0
     deauth_popup_name: str = 'Choose client for deauth'
     deauth_multi_select_name: str = 'Deauth'
+    channel_popup_name: str = 'Set WiFi channel'
+    channel_one_select_name: str = 'Channel'
 
     def create(self):
-        y, x = self.useable_space()
-        self.grid = self.add(MainGrid, col_titles=titles, column_width=21, max_height=3*y//4)
+        self.y, self.x = self.useable_space()
+        self.grid = self.add(MainGrid, col_titles=titles, column_width=21, max_height=3*self.y//4)
         self.grid.add_handlers({
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
@@ -95,8 +97,15 @@ class MainForm(npyscreen.Form):
         wifi.resume_scan_ssids()
 
     def switch_wifi_channel(self, args):
-        popup = npyscreen.Popup(name="Set WiFi channel")
-        channels = popup.add(npyscreen.TitleSelectOne, name='Channel', scroll_exit=True,
+        popup_columns: int = len(self.channel_one_select_name) + 25
+        popup_lines: int = len(wifi.available_wifi_channels) + 4
+        if popup_lines > int(3 * self.y // 4):
+            popup_lines = int(3 * self.y // 4)
+
+        popup = npyscreen.Popup(name=self.channel_popup_name,
+                                columns=popup_columns,
+                                lines=popup_lines)
+        channels = popup.add(npyscreen.TitleSelectOne, name=self.channel_one_select_name, scroll_exit=True,
                              values=wifi.available_wifi_channels)
         popup.edit()
         if len(channels.get_selected_objects()) > 0:
@@ -121,6 +130,10 @@ class MainForm(npyscreen.Form):
 
                 popup_columns: int = len(max(clients_list, key=len)) + len(self.deauth_multi_select_name) + 22
                 popup_lines: int = len(clients_list) + 4
+                if popup_columns > int(3 * self.x // 4):
+                    popup_columns = int(3 * self.x // 4)
+                if popup_lines > int(3 * self.y // 4):
+                    popup_lines = int(3 * self.y // 4)
 
                 popup = npyscreen.Popup(name=self.deauth_popup_name,
                                         columns=popup_columns,
