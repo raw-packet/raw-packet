@@ -66,6 +66,10 @@ class InfoBox(npyscreen.BoxTitle):
 class MainForm(npyscreen.Form):
 
     wifi_channel: int = -1
+    x: int = 0
+    y: int = 0
+    deauth_popup_name: str = 'Choose client for deauth'
+    deauth_multi_select_name: str = 'Deauth'
 
     def create(self):
         y, x = self.useable_space()
@@ -105,13 +109,23 @@ class MainForm(npyscreen.Form):
             bssid = self.grid.selected_row()[1]
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             if len(wifi.bssids[bssid]['clients']) > 0:
-                wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
+                if self.wifi_channel != wifi.bssids[bssid]['channel']:
+                    wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
                 clients_list: List[str] = list()
                 for client_mac_address in wifi.bssids[bssid]['clients']:
-                    clients_list.append(client_mac_address + ' (' +
-                                        base.get_vendor_by_mac_address(client_mac_address) + ')')
-                popup = npyscreen.Popup(name="Choose client for deauth")
-                deauth_clients = popup.add(npyscreen.TitleMultiSelect, name='Deauth',
+                    vendor_list: List[str] = base.get_vendor_by_mac_address(client_mac_address).split()
+                    vendor: str = vendor_list[0]
+                    if len(vendor_list) >= 2:
+                        vendor += ' ' + vendor_list[1].replace(',', '')
+                    clients_list.append(client_mac_address + ' (' + vendor + ')')
+
+                popup_columns: int = len(max(clients_list, key=len)) + len(self.deauth_multi_select_name) + 22
+                popup_lines: int = len(clients_list) + 4
+
+                popup = npyscreen.Popup(name=self.deauth_popup_name,
+                                        columns=popup_columns,
+                                        lines=popup_lines)
+                deauth_clients = popup.add(npyscreen.TitleMultiSelect, name=self.deauth_multi_select_name,
                                            scroll_exit=True, values=clients_list)
                 popup.edit()
                 if len(deauth_clients.get_selected_objects()) > 0:
