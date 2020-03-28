@@ -92,7 +92,7 @@ class MainForm(npyscreen.Form):
 
     def while_waiting(self):
         self.grid.values = self.get_wifi_ssid_rows()
-        self.InfoBox.value = self.get_info_messages()
+        self.InfoBox.value = '\n'.join(self.get_info_messages())
         self.InfoBox.display()
 
     def resume_scanner(self, args):
@@ -215,9 +215,9 @@ class MainForm(npyscreen.Form):
         return clients_list
 
     @staticmethod
-    def get_info_messages() -> str:
-        result: str = ''
-        results: Dict[float, str] = dict()
+    def get_info_messages() -> List[str]:
+        results_list: List[str] = list()
+        results_dict: Dict[float, str] = dict()
 
         try:
 
@@ -227,68 +227,68 @@ class MainForm(npyscreen.Form):
                     for client in wifi.wpa_handshakes[bssid].keys():
                         if isinstance(wifi.wpa_handshakes[bssid][client], dict):
                             if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
-                                results[wifi.wpa_handshakes[bssid][client]['timestamp']] = \
+                                results_dict[wifi.wpa_handshakes[bssid][client]['timestamp']] = \
                                     '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
                                     ' handshake for STATION: ' + client + ' BSSID: ' + bssid + \
-                                    ' ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid'] + '\n'
+                                    ' ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid']
             # endregion
 
             # region RSN PMKID
             if len(wifi.pmkid_authentications) > 0:
                 for bssid in wifi.pmkid_authentications.keys():
                     if 'file' in wifi.pmkid_authentications[bssid].keys():
-                        results[wifi.pmkid_authentications[bssid]['timestamp']] = \
+                        results_dict[wifi.pmkid_authentications[bssid]['timestamp']] = \
                             '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
                             ' RSN PMKID for STATION: ' + wifi.pmkid_authentications[bssid]['client'] + \
                             ' BSSID: ' + bssid + \
-                            ' ESSID: ' + wifi.pmkid_authentications[bssid]['essid'] + '\n'
+                            ' ESSID: ' + wifi.pmkid_authentications[bssid]['essid']
             # endregion
 
             # region Deauth Packets
             if len(wifi.deauth_packets) > 0:
                 for deauth_dictioanry in wifi.deauth_packets:
-                    results[deauth_dictioanry['timestamp']] = \
+                    results_dict[deauth_dictioanry['timestamp']] = \
                         '[*] Send ' + str(deauth_dictioanry['packets']) + \
                         ' deauth packets for STATION: ' + str(deauth_dictioanry['client']) + \
-                        ' BSSID: ' + str(deauth_dictioanry['bssid']) + '\n'
+                        ' BSSID: ' + str(deauth_dictioanry['bssid'])
             # endregion
 
             # region Association Packets
             if len(wifi.association_packets) > 0:
                 for association_dictioanry in wifi.association_packets:
                     if association_dictioanry['verbose']:
-                        results[association_dictioanry['timestamp']] = \
+                        results_dict[association_dictioanry['timestamp']] = \
                             '[*] Send association request packets' \
                             ' STATION: ' + str(association_dictioanry['client']) + \
                             ' BSSID: ' + str(association_dictioanry['bssid']) + \
-                            ' ESSID: ' + association_dictioanry['essid'] + '\n'
+                            ' ESSID: ' + association_dictioanry['essid']
             # endregion
 
             # region WiFi channels
             if len(wifi.channels) > 0:
                 for channel_dictionary in wifi.channels:
-                    results[channel_dictionary['timestamp']] = \
-                        '[*] Set WiFi channel: ' + str(channel_dictionary['channel']) + '\n'
+                    results_dict[channel_dictionary['timestamp']] = \
+                        '[*] Set WiFi channel: ' + str(channel_dictionary['channel'])
             # endregion
 
             # region Return result string sorted by Timestamp
-            ordered_results = OrderedDict(reversed(sorted(results.items())))
+            ordered_results = OrderedDict(reversed(sorted(results_dict.items())))
             for timestamp, info_message in ordered_results.items():
-                result += info_message
-            return result
+                results_list.append(info_message)
+            return results_list
             # endregion
 
         except AssertionError:
-            return result
+            return results_list
 
         except KeyError:
-            return result
+            return results_list
 
         except IndexError:
-            return result
+            return results_list
 
         except AttributeError:
-            return result
+            return results_list
 
     def get_wifi_ssid_rows(self) -> List[List[str]]:
         rows: List[List[str]] = list()
