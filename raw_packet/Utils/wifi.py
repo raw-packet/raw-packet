@@ -132,8 +132,7 @@ class WiFi:
                 self._switch_wifi_channel(channel=wifi_channel)
 
             # Switching between WiFi channels
-            if wifi_channel is None:
-                self._thread_manager.add_task(self._scan_ssids)
+            self._thread_manager.add_task(self._scan_ssids)
 
             # Check sniffer start
             assert self._start_sniffer(), 'Failed to start sniffer!'
@@ -1058,7 +1057,7 @@ class WiFi:
             for channel in self.available_wifi_channels:
                 if self._set_wifi_channel == -1:
                     self._switch_wifi_channel(channel=int(channel))
-                    sleep(3)
+                    sleep(5)
                 else:
                     sleep(1)
     # endregion
