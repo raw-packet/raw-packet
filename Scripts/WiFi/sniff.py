@@ -57,6 +57,7 @@ class MainGrid(npyscreen.GridColTitles):
 # endregion
 
 
+# region Set colors for information output strings
 class MultiLineColor(npyscreen.MultiLine):
 
     def _print_line(self, line, value_indexer):
@@ -64,10 +65,12 @@ class MultiLineColor(npyscreen.MultiLine):
         try:
             if line.value.startswith('[+]'):
                 line.color = 'GOOD'
+                line.show_bold = True
             if line.value.startswith('[*]'):
                 line.color = 'STANDOUT'
         except AttributeError:
             pass
+# endregion
 
 
 # region Box for information messages
