@@ -37,6 +37,7 @@ __status__ = 'Development'
 # region WiFiSniffer Application
 class WiFiSniffer(npyscreen.StandardApp):
     def onStart(self):
+        npyscreen.setTheme(npyscreen.Themes.DefaultTheme)
         self.addForm("MAIN", MainForm, name='WiFi SSID\'s', color='DEFAULT')
 
     def process_event_queues(self, max_events_per_queue=None):
@@ -56,14 +57,27 @@ class MainGrid(npyscreen.GridColTitles):
 # endregion
 
 
+class MultiLineColor(npyscreen.MultiLine):
+
+    def _print_line(self, line, value_indexer):
+        super()._print_line(line, value_indexer)
+        try:
+            if line.value.startswith('[+]'):
+                line.color = 'GOOD'
+            if line.value.startswith('[*]'):
+                line.color = 'STANDOUT'
+        except AttributeError:
+            pass
+
+
 # region Box for information messages
 class InfoBox(npyscreen.BoxTitle):
-    _contained_widget = npyscreen.MultiLineEdit
+    _contained_widget = MultiLineColor
 # endregion
 
 
 # region Main Form
-class MainForm(npyscreen.Form):
+class MainForm(npyscreen.FormBaseNew):
 
     # region Variables
     titles: List[str] = ['ESSID', 'BSSID', 'Signal', 'Channel', 'Encryption', 'Clients']
@@ -78,7 +92,8 @@ class MainForm(npyscreen.Form):
 
     def create(self):
         self.y, self.x = self.useable_space()
-        self.grid = self.add(MainGrid, col_titles=self.titles, column_width=21, max_height=3*self.y//4)
+        self.grid = self.add(MainGrid, col_titles=self.titles, column_width=21,
+                             max_height=2 * self.y // 3, select_whole_line=True)
         self.grid.add_handlers({
             ascii.CR: self.ap_info,
             ascii.NL: self.ap_info,
@@ -88,11 +103,11 @@ class MainForm(npyscreen.Form):
             "^A": self.association,
             "^R": self.resume_scanner
         })
-        self.InfoBox = self.add(InfoBox, editable=False, name='Information')
+        self.InfoBox = self.add(InfoBox, name='Information')
 
     def while_waiting(self):
         self.grid.values = self.get_wifi_ssid_rows()
-        self.InfoBox.value = '\n'.join(self.get_info_messages())
+        self.InfoBox.values = self.get_info_messages()
         self.InfoBox.display()
 
     def resume_scanner(self, args):
