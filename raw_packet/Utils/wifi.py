@@ -556,9 +556,9 @@ class WiFi:
                     # Decrement number of packets
                     self.bssids[bssid]['packets'] -= 1
 
-                    # Wait 1 seconds
-                    assert (datetime.utcnow().timestamp() - self.bssids[bssid]['timestamp']) > 1, \
-                        'Less than 1 seconds have passed'
+                    # Wait 5 seconds
+                    assert (datetime.utcnow().timestamp() - self.bssids[bssid]['timestamp']) > 5, \
+                        'Less than 5 seconds have passed'
                 # endregion
 
                 # region Parse beacon tags, set: Timestamp, ESSID, Channel and Signal
