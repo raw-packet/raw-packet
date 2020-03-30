@@ -15,11 +15,11 @@ from sys import path
 from os.path import dirname, abspath
 from typing import List
 from argparse import ArgumentParser
-from curses import ascii
 from typing import Dict, Union
 from collections import OrderedDict
 from time import sleep
 import npyscreen
+import curses
 # endregion
 
 # region Authorship information
@@ -50,10 +50,98 @@ class WiFiSniffer(npyscreen.StandardApp):
 # endregion
 
 
+# region Change method make_contained_widgets in npyscreen class SimpleGrid
+class SimpleGrid(npyscreen.SimpleGrid):
+
+    # Add custom widths for columns
+    def make_contained_widgets(self):
+        if self.column_width_requested:
+            # don't need a margin for the final column
+            self.columns = (self.width + self.col_margin) // (self.column_width_requested + self.col_margin)
+        elif self.columns_requested:
+            self.columns = self.columns_requested
+        else:
+            self.columns = self.default_column_number
+        self._my_widgets = []
+        column_width = (self.width + self.col_margin - self.additional_x_offset) // self.columns
+        column_width -= self.col_margin
+        self._column_width = column_width
+        if column_width < 1: raise Exception("Too many columns for space available")
+        for h in range((self.height - self.additional_y_offset) // self.row_height):
+            h_coord = h * self.row_height
+            row = []
+            x_offset = 0
+            if len(self.column_widths) > 0:
+                for cell in range(self.columns):
+                    if cell > 0:
+                        x_offset += self.column_widths[cell - 1] + self.col_margin
+                    if cell >= len(self.column_widths):
+                        self.column_widths.append(self._column_width)
+                    row.append(self._contained_widgets(self.parent, rely=h_coord + self.rely + self.additional_y_offset,
+                                                       relx=self.relx + x_offset + self.additional_x_offset,
+                                                       width=self.column_widths[cell], height=self.row_height))
+            else:
+                for cell in range(self.columns):
+                        x_offset = cell * (self._column_width + self.col_margin)
+                        row.append(self._contained_widgets(self.parent, rely=h_coord + self.rely + self.additional_y_offset,
+                                                           relx=self.relx + x_offset + self.additional_x_offset,
+                                                           width=column_width, height=self.row_height))
+            self._my_widgets.append(row)
+# endregion
+
+
 # region Grid for Main Form
-class MainGrid(npyscreen.GridColTitles):
-    def test(self):
-        pass
+class GridColTitles(SimpleGrid):
+    additional_y_offset = 2
+    _col_widgets = npyscreen.Textfield
+
+    def __init__(self, screen, col_titles: List[str] = None, col_widths: List[int] = None, *args, **keywords):
+        if col_titles:
+            self.col_titles = col_titles
+        else:
+            self.col_titles = []
+        if col_widths:
+            self.column_widths = col_widths
+        else:
+            self.column_widths = []
+        super(GridColTitles, self).__init__(screen, *args, **keywords)
+
+    def make_contained_widgets(self):
+        super(GridColTitles, self).make_contained_widgets()
+        self._my_col_titles = []
+
+        if len(self.column_widths) > 0:
+            x_offset = 0
+            for title_cell in range(self.columns):
+                if title_cell > 0:
+                    x_offset += self.column_widths[title_cell - 1] + self.col_margin
+                if title_cell >= len(self.column_widths):
+                    self.column_widths.append(self._column_width)
+                self._my_col_titles.append(self._col_widgets(self.parent, rely=self.rely, relx=self.relx + x_offset,
+                                                             width=self.column_widths[title_cell], height=1))
+        else:
+            for title_cell in range(self.columns):
+                x_offset = title_cell * (self._column_width+self.col_margin)
+                self._my_col_titles.append(self._col_widgets(self.parent, rely=self.rely, relx=self.relx + x_offset,
+                                                             width=self._column_width, height=1))
+
+    def update(self, clear=True):
+        super(GridColTitles, self).update(clear=True)
+
+        _title_counter = 0
+        for title_cell in self._my_col_titles:
+            try:
+                title_text = self.col_titles[self.begin_col_display_at + _title_counter]
+            except IndexError:
+                title_text = None
+            self.update_title_cell(title_cell, title_text)
+            _title_counter += 1
+
+        self.parent.curses_pad.hline(self.rely + 1, self.relx, curses.ACS_HLINE, self.width)
+
+    def update_title_cell(self, cell, cell_title):
+        cell.value = cell_title
+        cell.update()
 # endregion
 
 
@@ -95,11 +183,12 @@ class MainForm(npyscreen.FormBaseNew):
 
     def create(self):
         self.y, self.x = self.useable_space()
-        self.grid = self.add(MainGrid, col_titles=self.titles, column_width=21,
+        self.grid = self.add(GridColTitles, col_titles=self.titles,
+                             column_width=15, col_widths=[25, 18, 10, 10, 23, 10],
                              max_height=2 * self.y // 3, select_whole_line=True)
         self.grid.add_handlers({
-            ascii.CR: self.ap_info,
-            ascii.NL: self.ap_info,
+            curses.ascii.CR: self.ap_info,
+            curses.ascii.NL: self.ap_info,
             "^I": self.ap_info,
             "^D": self.deauth,
             "^S": self.switch_wifi_channel,
