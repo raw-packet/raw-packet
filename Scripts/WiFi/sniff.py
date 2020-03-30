@@ -295,16 +295,37 @@ class MainForm(npyscreen.FormBaseNew):
             assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
             clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
             ap_info: str = ''
-            ap_info += 'ESSID: ' + str(wifi.bssids[bssid]['essid']) + '\n'
-            ap_info += 'BSSID: ' + str(bssid) + '\n'
-            ap_info += 'Signal: ' + str(wifi.bssids[bssid]['signal']) + '\n'
-            ap_info += 'Encryption: ' + str(wifi.bssids[bssid]['enc']) + '\n'
-            ap_info += 'Cipher: ' + str(wifi.bssids[bssid]['cipher']) + '\n'
-            ap_info += 'Authentication: ' + str(wifi.bssids[bssid]['auth']) + '\n'
+            ap_info += '[*] ESSID: ' + str(wifi.bssids[bssid]['essid']) + '\n'
+            ap_info += '[*] BSSID: ' + str(bssid) + '\n'
+
+            # region Information about WPA handshakes
+            handshake_clients_address: List[str] = list()
+            if bssid in wifi.wpa_handshakes.keys():
+                for client in wifi.wpa_handshakes[bssid].keys():
+                    if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
+                        handshake_clients_address.append(client)
+            if len(handshake_clients_address) > 0:
+                handshake_clients_address_and_vendor: List[str] = self.make_client_list(handshake_clients_address)
+                ap_info += '[+] Sniff WPA handshake from STATIONS: \n'
+                for client in handshake_clients_address_and_vendor:
+                    ap_info += '    ' + client + '\n'
+            # endregion
+
+            # region Information about WPA handshakes
+            if bssid in wifi.pmkid_authentications.keys():
+                if 'file' in wifi.pmkid_authentications[bssid].keys():
+                    ap_info += '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
+                               ' RSN PMKID\n'
+            # endregion
+
+            ap_info += '[*] Signal: ' + str(wifi.bssids[bssid]['signal']) + '\n'
+            ap_info += '[*] Encryption: ' + str(wifi.bssids[bssid]['enc']) + '\n'
+            ap_info += '[*] Cipher: ' + str(wifi.bssids[bssid]['cipher']) + '\n'
+            ap_info += '[*] Authentication: ' + str(wifi.bssids[bssid]['auth']) + '\n'
             if len(clients_list) > 0:
-                ap_info += 'Clients: ' + clients_list[0] + '\n'
-                for client_index in range(1, len(clients_list), 1):
-                    ap_info += '         ' + clients_list[client_index] + '\n'
+                ap_info += '[*] Clients:\n'
+                for client in clients_list:
+                    ap_info += '    ' + client + '\n'
             return ap_info
 
         except AssertionError as Error:
