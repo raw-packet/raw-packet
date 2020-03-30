@@ -373,9 +373,9 @@ class MainForm(npyscreen.FormBaseNew):
 
             # region WiFi channels
             if len(wifi.channels) > 0:
-                for channel_dictionary in wifi.channels:
-                    results_dict[channel_dictionary['timestamp']] = \
-                        '[*] Set WiFi channel: ' + str(channel_dictionary['channel'])
+                channel_dictionary: Dict[str, Union[int, float]] = wifi.channels[len(wifi.channels) - 1]
+                results_dict[channel_dictionary['timestamp']] = \
+                    '[*] Current WiFi channel: ' + str(channel_dictionary['channel'])
             # endregion
 
             # region Return result string sorted by Timestamp
