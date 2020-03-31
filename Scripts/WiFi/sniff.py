@@ -399,6 +399,22 @@ class MainForm(npyscreen.FormBaseNew):
                     '[*] Current WiFi channel: ' + str(channel_dictionary['channel'])
             # endregion
 
+            # region Kr00k Packets
+            if len(wifi.kr00k_packets) > 0:
+                for source in wifi.kr00k_packets:
+                    for destination in wifi.kr00k_packets[source]:
+                        if wifi.kr00k_packets[source][destination]['direction'] == 'to-AP':
+                            results_dict[wifi.kr00k_packets[source][destination]['timestamp']] = \
+                                '[+] Sniff ' + str(wifi.kr00k_packets[source][destination]['count']) + \
+                                ' kr00k packets from STATION: ' + str(source) + \
+                                ' -> to BSSID: ' + str(destination)
+                        if wifi.kr00k_packets[source][destination]['direction'] == 'from-AP':
+                            results_dict[wifi.kr00k_packets[source][destination]['timestamp']] = \
+                                '[+] Sniff ' + str(wifi.kr00k_packets[source][destination]['count']) + \
+                                ' kr00k packets to STATION: ' + str(source) + \
+                                ' <- from BSSID: ' + str(destination)
+            # endregion
+
             # region Return result string sorted by Timestamp
             ordered_results = OrderedDict(reversed(sorted(results_dict.items())))
             for timestamp, info_message in ordered_results.items():
