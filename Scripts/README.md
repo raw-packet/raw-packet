@@ -1,6 +1,7 @@
 # Scripts
 
 This directory contains a collection of useful scripts:
+1. [WiFi](https://github.com/raw-packet/raw-packet/tree/master/Scripts/WiFi) - WiFi attack
 1. [Apple](https://github.com/raw-packet/raw-packet/tree/master/Scripts/Apple) - MiTM and DoS Apple devices
 1. [ARP](https://github.com/raw-packet/raw-packet/tree/master/Scripts/ARP) - ARP Scan and Spoof
 1. [Binary](https://github.com/raw-packet/raw-packet/tree/master/Scripts/Binary) - Exploits for dnsmasq
