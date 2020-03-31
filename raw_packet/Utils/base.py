@@ -92,31 +92,28 @@ class Base:
     # endregion
 
     # region Output functions
+    def get_banner(self) -> str:
+        """
+        Get string of colored banner
+        :return: String of colored banner
+        """
+        return \
+            self.cSUCCESS + \
+            "                                          _        _   \n" + \
+            " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ \n" + \
+            "| '__/ _` \ \ /\ / /___ | '_ \ / _` |/ __| |/ / _ \ __|\n" + \
+            "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ \n" + \
+            "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|\n" + \
+            "                        |_|                      v" + __version__ + "\n" + \
+            self.cEND + self.cWARNING + \
+            "             https://raw-packet.github.io/\r\n" + self.cEND
+
     def print_banner(self) -> None:
         """
         Print colored banner in console
         :return: None
         """
-
-        with open(dirname(abspath(__file__)) + '/version.txt', 'r') as version_file:
-            current_version = version_file.read()
-
-        if self.get_platform().startswith('Windows'):
-            green_color: str = ''
-            yellow_color: str = ''
-            end_color: str = ''
-        else:
-            green_color: str = '\033[1;32m'
-            yellow_color: str = '\033[1;33m'
-            end_color: str = '\033[0m'
-
-        print(green_color + "                                          _        _   " + end_color)
-        print(green_color + " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ " + end_color)
-        print(green_color + "| '__/ _` \ \ /\ / /___ | '_ \ / _` |/ __| |/ / _ \ __|" + end_color)
-        print(green_color + "| | | (_| |\ V  V /|___|| |_) | (_| | (__|   <  __/ |_ " + end_color)
-        print(green_color + "|_|  \__,_| \_/\_/      | .__/ \__,_|\___|_|\_\___|\__|" + end_color)
-        print(green_color + "                        |_|                      v" + current_version + end_color)
-        print(yellow_color + "\r\n             https://raw-packet.github.io/\r\n" + end_color)
+        print(self.get_banner())
 
     def _color_print(self, color: str = 'blue', *strings: str) -> None:
         """
