@@ -14,7 +14,7 @@ Copyright 2020, Raw-packet Project
 from sys import path
 from os.path import dirname, abspath
 from typing import List
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from typing import Dict, Union
 from collections import OrderedDict
 from time import sleep
@@ -187,13 +187,14 @@ class MainForm(npyscreen.FormBaseNew):
                              column_width=15, col_widths=[25, 18, 10, 10, 23, 10],
                              max_height=2 * self.y // 3, select_whole_line=True)
         self.grid.add_handlers({
-            curses.ascii.CR: self.ap_info,
-            curses.ascii.NL: self.ap_info,
-            "^I": self.ap_info,
+            curses.ascii.CR: self.help_info,
+            curses.ascii.NL: self.help_info,
+            "^E": self.ap_info,
             "^D": self.deauth,
             "^S": self.switch_wifi_channel,
             "^A": self.association,
-            "^R": self.resume_scanner
+            "^R": self.resume_scanner,
+            "^H": self.help_info
         })
         self.InfoBox = self.add(InfoBox, name='Information')
 
@@ -201,6 +202,18 @@ class MainForm(npyscreen.FormBaseNew):
         self.grid.values = self.get_wifi_ssid_rows()
         self.InfoBox.values = self.get_info_messages()
         self.InfoBox.display()
+
+    def help_info(self, args):
+        help_string: str = \
+            'Ctrl-E: Show Wireless access point information\n' + \
+            'Ctrl-D: Send IEEE 802.11 deauth packets\n' + \
+            'Ctrl-S: Switch WiFi channel\n' + \
+            'Ctrl-A: Send IEEE 802.11 association packet\n' + \
+            'Ctrl-R: Start scanner (switch between WiFi channels)\n' + \
+            'Ctrl-H: Show help information\n' + \
+            'Ctrl-C: Exit\n'
+        npyscreen.notify_confirm(help_string, title='Help')
+        self.parentApp.switchFormPrevious()
 
     def resume_scanner(self, args):
         self.wifi_channel = -1
@@ -504,16 +517,24 @@ if __name__ == "__main__":
     # endregion
 
     # region Parse script arguments
-    parser: ArgumentParser = ArgumentParser(description='Sniffing 802.11x authentication packets')
+    script_description: str = \
+        base.get_banner() + '\n' + \
+        base.success_text('Cross platform WiFi attack tool') + '\n\n' + \
+        base.info_text('Ctrl-E') + ' Show Wireless access point information\n' + \
+        base.info_text('Ctrl-D') + ' Send IEEE 802.11 deauth packets\n' + \
+        base.info_text('Ctrl-D') + ' Switch WiFi channel\n' + \
+        base.info_text('Ctrl-A') + ' Send IEEE 802.11 association packet\n' + \
+        base.info_text('Ctrl-R') + ' Start scanner (switch between WiFi channels)\n' + \
+        base.info_text('Ctrl-H') + ' Show help information\n' + \
+        base.info_text('Ctrl-C') + ' Exit\n'
+    parser: ArgumentParser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
     parser.add_argument('-i', '--interface', help='Set wireless interface name for sniff packets', default=None)
     parser.add_argument('-c', '--channel', type=int, help='Set WiFi channel', default=None)
-    parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
     args = parser.parse_args()
     # endregion
 
     # region Print banner
-    if not args.quiet:
-        base.print_banner()
+    base.print_banner()
     # endregion
 
     try:
