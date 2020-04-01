@@ -486,17 +486,15 @@ class Base:
 
                 for network_interface in available_network_interfaces:
                     network_interface_mac_address: Union[None, str] = \
-                        self.get_interface_mac_address(network_interface)
-                    if network_interface_mac_address is None:
-                        network_interface_mac_address = 'None'
+                        self.get_interface_mac_address(network_interface, exit_on_failure=True)
 
                     network_interface_ipv4_address: Union[None, str] = \
-                        self.get_interface_ip_address(network_interface)
+                        self.get_interface_ip_address(network_interface, exit_on_failure=False, quiet=True)
                     if network_interface_ipv4_address is None:
                         network_interface_ipv4_address = 'None'
 
                     network_interface_ipv6_address: Union[None, str] = \
-                        self.get_interface_ipv6_link_address(network_interface)
+                        self.get_interface_ipv6_link_address(network_interface, exit_on_failure=False, quiet=True)
                     if network_interface_ipv6_address is None:
                         network_interface_ipv6_address = 'None'
 
