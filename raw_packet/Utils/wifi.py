@@ -36,16 +36,22 @@ class WiFi:
     # region Set variables
 
     # region Public variables
+
     # Dictionaries
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
     pmkid_authentications: Dict[str, Dict[str, Union[float, int, str, bytes]]] = dict()
     kr00k_packets: Dict[str, Dict[str, Dict[str, Union[int, float, str]]]] = dict()
+
     # Lists
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     association_packets: List[Dict[str, Union[bool, float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
     available_wifi_channels: List[int] = list()
+
+    # Bool variables
+    debug_mode: bool = False
+
     # endregion
 
     # region Private variables
@@ -98,47 +104,76 @@ class WiFi:
     # region Constructor
     def __init__(self,
                  wireless_interface,
-                 wifi_channel: Union[None, int] = None) -> None:
+                 wifi_channel: Union[None, int] = None,
+                 debug: bool = False) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
         :param wifi_channel: WiFi channel number (example: 1)
-        :param ap_bssid: AP BSSID (example: '01:23:45:67:89:0a')
-        :param client_mac_address: Client MAC address (example: '01:23:45:67:89:0b')
+        :param debug: Debug mode (default: False)
         """
         try:
+            # Set debug mode
+            self.debug_mode = debug
+
             # Set directory with pcap files
             if self._base.get_platform().startswith('Windows'):
                 self._pcap_directory = 'C:\\Windows\\Temp\\raw-packet\\'
+            if self.debug_mode:
+                self._base.print_info('Temp directory for save pcap files: ', str(self._pcap_directory))
 
             # Check network interface is wireless
+            if self.debug_mode:
+                self._base.print_info('Check interface: ', str(wireless_interface), ' is wireless')
             assert self._base.check_network_interface_is_wireless(interface_name=wireless_interface), \
                 'Network interface: ' + self._base.error_text(wireless_interface) + ' is not wireless!'
             self._interface = wireless_interface
+            if self.debug_mode:
+                self._base.print_info('Wireless interface: ', str(self._interface))
 
             # Check network interface support 5 GHz
+            if self.debug_mode:
+                self._base.print_info('Check wireless interface: ', str(self._interface), ' support 5 GHz')
             self.available_wifi_channels += self._wifi_channels['2,4 GHz']
             if self._support_5ghz():
+                if self.debug_mode:
+                    self._base.print_info('Wireless interface: ', str(self._interface), ' is support 5 GHz')
                 self.available_wifi_channels += self._wifi_channels['5 GHz']
+            else:
+                if self.debug_mode:
+                    self._base.print_info('Wireless interface: ', str(self._interface), ' is not support 5 GHz')
 
             # Checking the ability to enable monitoring mode
+            if self.debug_mode:
+                self._base.print_info('Enable monitor mode on wireless interface: ', str(self._interface))
             assert self._enable_monitor_mode(), \
                 'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
 
             # Create thread for reading pcap files
+            if self.debug_mode:
+                self._base.print_info('Create thread for read pcap files')
             self._thread_manager.add_task(self._read_pcap_files)
 
             # Set WiFi channel
             if wifi_channel is not None:
+                if self.debug_mode:
+                    self._base.print_info('Validate WiFi channel: ', str(wifi_channel))
                 assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
                     'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
+                if self.debug_mode:
+                    self._base.print_info('Set WiFi channel: ', str(wifi_channel))
                 self._set_wifi_channel = wifi_channel
                 self._switch_wifi_channel(channel=wifi_channel)
 
             # Switching between WiFi channels
+            if self.debug_mode:
+                self._base.print_info('Create thread for scan WiFi SSID\'s and switch between WiFi channels:',
+                                      str(self.available_wifi_channels))
             self._thread_manager.add_task(self._scan_ssids)
 
             # Check sniffer start
+            if self.debug_mode:
+                self._base.print_info('Start sniffer')
             assert self._start_sniffer(), 'Failed to start sniffer!'
 
         except AssertionError as Error:

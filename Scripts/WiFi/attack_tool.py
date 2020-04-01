@@ -530,6 +530,7 @@ if __name__ == "__main__":
     parser: ArgumentParser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
     parser.add_argument('-i', '--interface', help='Set wireless interface name for sniff packets', default=None)
     parser.add_argument('-c', '--channel', type=int, help='Set WiFi channel', default=None)
+    parser.add_argument('-d', '--debug', action='store_true', help='Minimal output')
     args = parser.parse_args()
     # endregion
 
@@ -546,9 +547,9 @@ if __name__ == "__main__":
 
         # region Init Raw-packet WiFi class
         if args.channel is None:
-            wifi: WiFi = WiFi(wireless_interface=wireless_interface)
+            wifi: WiFi = WiFi(wireless_interface=wireless_interface, debug=args.debug)
         else:
-            wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel)
+            wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel, debug=args.debug)
         # endregion
 
         # region Start WiFi Sniffer
