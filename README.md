@@ -54,6 +54,7 @@ sudo apt update && sudo apt install -y python3 python3-pip python3-netifaces \
                                        aircrack-ng tshark wireshark git
 pip3 install npyscreen
 pip3 install scapy
+pip3 install pycryptodomex
 git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
 ```
 
