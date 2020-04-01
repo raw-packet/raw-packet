@@ -198,7 +198,7 @@ class WiFi:
         # Linux
         elif self._base.get_platform().startswith('Linux'):
             if self.debug_mode:
-                self._base.print_info('Stop service manager')
+                self._base.print_info('Stop service', 'network-manager')
             run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
             # self._base.kill_process_by_name(process_name='wpa_supplicant')
             if self.debug_mode:
