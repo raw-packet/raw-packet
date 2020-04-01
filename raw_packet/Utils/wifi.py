@@ -190,14 +190,22 @@ class WiFi:
 
         # Mac OS
         if self._base.get_platform().startswith('Darwin'):
+            if self.debug_mode:
+                self._base.print_info('Disassociate wireless interface: ', str(wireless_interface))
             run([self._airport_path + ' ' + wireless_interface + ' --disassociate'], shell=True)
             return True
 
         # Linux
         elif self._base.get_platform().startswith('Linux'):
+            if self.debug_mode:
+                self._base.print_info('Stop service manager')
             run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
-            self._base.kill_process_by_name(process_name='wpa_supplicant')
+            # self._base.kill_process_by_name(process_name='wpa_supplicant')
+            if self.debug_mode:
+                self._base.print_info('Run command: ', 'airmon-ng check kill')
             run(['airmon-ng check kill'], shell=True, stdout=PIPE, stderr=STDOUT)
+            if self.debug_mode:
+                self._base.print_info('Get current mode for wireless interface: ', str(wireless_interface))
             interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
@@ -209,6 +217,8 @@ class WiFi:
                 sleep(0.1)
                 run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
                 sleep(0.1)
+                if self.debug_mode:
+                    self._base.print_info('Check current mode for wireless interface: ', str(wireless_interface))
                 interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
                 interface_mode: str = interface_mode.stdout.decode('utf-8')
                 if 'Mode:Monitor' in interface_mode:
