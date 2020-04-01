@@ -36,11 +36,12 @@ class WiFi:
     # region Set variables
 
     # region Public variables
+    # Dictionaries
     bssids: Dict[str, Dict[str, Union[int, float, str, bytes, List[Union[int, str]]]]] = dict()
     wpa_handshakes: Dict[str, Dict[str, Dict[str, Union[int, float, str, bytes]]]] = dict()
     pmkid_authentications: Dict[str, Dict[str, Union[float, int, str, bytes]]] = dict()
     kr00k_packets: Dict[str, Dict[str, Dict[str, Union[int, float, str]]]] = dict()
-
+    # Lists
     deauth_packets: List[Dict[str, Union[int, float, str]]] = list()
     association_packets: List[Dict[str, Union[bool, float, str]]] = list()
     channels: List[Dict[str, Union[int, float]]] = list()
@@ -161,18 +162,21 @@ class WiFi:
         elif self._base.get_platform().startswith('Linux'):
             run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
             self._base.kill_process_by_name(process_name='wpa_supplicant')
+            run(['airmon-ng check kill'], shell=True, stdout=PIPE, stderr=STDOUT)
             interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
             interface_mode: str = interface_mode.stdout.decode('utf-8')
             if 'Mode:Monitor' not in interface_mode:
                 self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
-                sleep(0.5)
+                sleep(0.1)
                 run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
+                sleep(0.1)
                 run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
+                sleep(0.1)
                 run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
-                sleep(0.5)
+                sleep(0.1)
                 interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
                 interface_mode: str = interface_mode.stdout.decode('utf-8')
-                if 'Mode:Monitor' not in interface_mode:
+                if 'Mode:Monitor' in interface_mode:
                     return True
                 else:
                     return False
@@ -206,7 +210,7 @@ class WiFi:
             return False
     # endregion
 
-    # region Enable monitor mode on interface
+    # region Check interface support 5 GHz
     def _support_5ghz(self,
                       wireless_interface: Union[None, str] = None) -> bool:
         # Set wireless interface
