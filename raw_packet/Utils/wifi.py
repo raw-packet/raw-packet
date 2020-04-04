@@ -198,7 +198,7 @@ class WiFi:
         # Linux
         elif self._base.get_platform().startswith('Linux'):
             if self.debug_mode:
-                self._base.print_info('Stop service', 'network-manager')
+                self._base.print_info('Stop service: ', 'network-manager')
             run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
             # self._base.kill_process_by_name(process_name='wpa_supplicant')
             if self.debug_mode:
@@ -963,7 +963,7 @@ class WiFi:
                     '_' + bssid.replace(':', '') + \
                     '_' + client.replace(':', '') + \
                     '_' + strftime('%Y%m%d_%H%M%S') + '.pcap'
-                wrpcap(self.wpa_handshakes[bssid][client]['pcap file'], packet, append=True)
+                self.wpa_handshakes[bssid][client]['first packet']: bytes = packet
             # endregion
 
             # region 802.11 EAPOL Message 2 of 4
@@ -1067,6 +1067,8 @@ class WiFi:
                     hccapx_file.write(self.wpa_handshakes[bssid][client]['hccapx content'])
                 with open(self.wpa_handshakes[bssid][client]['hashcat 22000 file'], 'w') as hccapx_file:
                     hccapx_file.write(self.wpa_handshakes[bssid][client]['hashcat 22000 content'])
+                wrpcap(self.wpa_handshakes[bssid][client]['pcap file'],
+                       self.wpa_handshakes[bssid][client]['first packet'], append=True)
                 wrpcap(self.wpa_handshakes[bssid][client]['pcap file'], packet, append=True)
                 # endregion
 
