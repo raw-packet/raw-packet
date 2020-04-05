@@ -26,6 +26,7 @@ try:
 except ModuleNotFoundError:
     from socket import AF_INET, AF_INET6, gethostname, gethostbyname
     from getmac import get_mac_address
+    from ifaddr import get_adapters
 from netaddr import IPNetwork, IPAddress
 from netaddr.core import AddrFormatError
 from struct import pack, error
@@ -39,6 +40,7 @@ from prettytable import PrettyTable
 from typing import Dict, List, Union
 from paramiko import RSAKey, SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
+from colorama import init, Fore, Style
 # endregion
 
 # region Authorship information
@@ -60,6 +62,7 @@ class Base:
     vendor_list: List[Dict[str, str]] = list()
     os_installed_packages_list = None
     windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
+    windows_adapters = None
     # endregion
 
     # region Init
@@ -69,17 +72,14 @@ class Base:
         """
 
         if self.get_platform().startswith('Windows'):
-            self.cINFO: str = ''
-            self.cERROR: str = ''
-            self.cSUCCESS: str = ''
-            self.cWARNING: str = ''
-            self.cEND: str = ''
-        else:
-            self.cINFO: str = '\033[1;34m'
-            self.cERROR: str = '\033[1;31m'
-            self.cSUCCESS: str = '\033[1;32m'
-            self.cWARNING: str = '\033[1;33m'
-            self.cEND: str = '\033[0m'
+            self.windows_adapters = get_adapters()
+            init(convert=True)
+
+        self.cINFO: str = Style.BRIGHT + Fore.BLUE
+        self.cERROR: str = Style.BRIGHT + Fore.RED
+        self.cSUCCESS: str = Style.BRIGHT + Fore.GREEN
+        self.cWARNING: str = Style.BRIGHT + Fore.YELLOW
+        self.cEND: str = Style.RESET_ALL
 
         self.c_info: str = self.cINFO + '[*]' + self.cEND + ' '
         self.c_error: str = self.cERROR + '[-]' + self.cEND + ' '
@@ -122,30 +122,34 @@ class Base:
         :param strings: Strings for printing in console
         :return: None
         """
+        result_output_string: str = ''
         if color == 'blue':
-            stdout.write(self.c_info)
+            result_output_string += self.c_info
         elif color == 'red':
-            stdout.write(self.c_error)
+            result_output_string += self.c_error
         elif color == 'orange':
-            stdout.write(self.c_warning)
+            result_output_string += self.c_warning
         elif color == 'green':
-            stdout.write(self.c_success)
+            result_output_string += self.c_success
         else:
-            stdout.write(self.c_info)
+            result_output_string += self.c_info
         for index in range(len(strings)):
             if index % 2 == 0:
-                stdout.write(strings[index])
+                result_output_string += strings[index]
             else:
                 if color == 'blue':
-                    stdout.write(self.cINFO)
+                    result_output_string += self.cINFO
                 if color == 'red':
-                    stdout.write(self.cERROR)
+                    result_output_string += self.cERROR
                 if color == 'orange':
-                    stdout.write(self.cWARNING)
+                    result_output_string += self.cWARNING
                 if color == 'green':
-                    stdout.write(self.cSUCCESS)
-                stdout.write(strings[index] + self.cEND)
-        stdout.write('\n')
+                    result_output_string += self.cSUCCESS
+                result_output_string += strings[index] + self.cEND
+        if self.get_platform().startswith('Windows'):
+            print(result_output_string)
+        else:
+            stdout.write(result_output_string + '\n')
 
     def _color_text(self, color: str = 'blue', string: str = '') -> str:
         """
@@ -376,13 +380,20 @@ class Base:
     # endregion
 
     # region Network interface functions
-    @staticmethod
-    def list_of_network_interfaces() -> Union[None, List[str]]:
+    def list_of_network_interfaces(self) -> Union[None, List[str]]:
         """
         Get list of network interfaces
         :return: list of network interfaces (example: ['lo', 'eth0'])
         """
-        return interfaces()
+        if self.get_platform().startswith('Windows'):
+            result_list: List[str] = list()
+            for adapter in self.windows_adapters:
+                for ip in adapter.ips:
+                    if ip.nice_name not in result_list:
+                        result_list.append(ip.nice_name)
+            return result_list
+        else:
+            return interfaces()
 
     def list_of_wireless_network_interfaces(self) -> List[str]:
         """
@@ -453,7 +464,7 @@ class Base:
         """
         network_interface_index: int = 1
         if not only_wireless:
-            available_network_interfaces: List[str] = interfaces()
+            available_network_interfaces: List[str] = self.list_of_network_interfaces()
         else:
             available_network_interfaces: List[str] = self.list_of_wireless_network_interfaces()
         if exclude_interface is not None:
@@ -486,7 +497,9 @@ class Base:
 
                 for network_interface in available_network_interfaces:
                     network_interface_mac_address: Union[None, str] = \
-                        self.get_interface_mac_address(network_interface, exit_on_failure=True)
+                        self.get_interface_mac_address(network_interface, exit_on_failure=False, quiet=True)
+                    if network_interface_mac_address is None:
+                        network_interface_mac_address = 'None'
 
                     network_interface_ipv4_address: Union[None, str] = \
                         self.get_interface_ip_address(network_interface, exit_on_failure=False, quiet=True)
@@ -508,8 +521,9 @@ class Base:
                 print(interfaces_pretty_table)
 
                 network_interface_index -= 1
-                current_network_interface_index = input(self.c_warning + 'Set network interface from range (1-' +
-                                                        str(network_interface_index) + '): ')
+                print(self.c_warning + 'Set network interface from range (1-' +
+                      str(network_interface_index) + '): ', end='')
+                current_network_interface_index = input()
 
                 if not current_network_interface_index.isdigit():
                     self.print_error('Your input data: ', current_network_interface_index, ' is not digit!')
@@ -709,7 +723,14 @@ class Base:
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
         try:
-            return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
+            if self.get_platform().startswith('Windows'):
+                for adapter in self.windows_adapters:
+                    for ip in adapter.ips:
+                        if ip.nice_name == interface_name and ip.is_IPv4:
+                            return ip.ip
+                return None
+            else:
+                return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
 
         except NameError:
             host_name = gethostname()
@@ -743,8 +764,16 @@ class Base:
         :return: IPv6 address string (example: 'fd00::1') or None in case of error
         """
         try:
-            ipv6_address = str(ifaddresses(interface_name)[AF_INET6][address_index]['addr'])
-            ipv6_address = ipv6_address.replace('%' + interface_name, '', 1)
+            if self.get_platform().startswith('Windows'):
+                ipv6_addresses: List[str] = list()
+                for adapter in self.windows_adapters:
+                    for ip in adapter.ips:
+                        if ip.nice_name == interface_name and ip.is_IPv6:
+                            ipv6_addresses.append(ip.ip[0])
+                return ipv6_addresses[address_index]
+            else:
+                ipv6_address = str(ifaddresses(interface_name)[AF_INET6][address_index]['addr'])
+                ipv6_address = ipv6_address.replace('%' + interface_name, '', 1)
 
         except NameError:
             ipv6_address = '::1'
@@ -900,7 +929,14 @@ class Base:
         :return: Network interface mask string (example: '255.255.255.0') or None in case of error
         """
         try:
-            return str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
+            if self.get_platform().startswith('Windows'):
+                for adapter in self.windows_adapters:
+                    for ip in adapter.ips:
+                        if ip.nice_name == interface_name and ip.is_IPv4:
+                            return str(ip.network_prefix)
+                return None
+            else:
+                return str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
 
         except ValueError:
             pass
@@ -937,7 +973,10 @@ class Base:
                                                        exit_code=exit_code,
                                                        quiet=quiet)
             ip = IPNetwork(ip_address + '/' + netmask)
-            return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
+            if self.get_platform().startswith('Windows'):
+                return str(ip[0]) + '/' + netmask
+            else:
+                return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
 
         except KeyError:
             pass
@@ -1147,13 +1186,28 @@ class Base:
         """
         try:
             gateway_address = None
-            gws = gateways()
-            for gw in gws:
-                gateway_interface = gws[gw][network_type]
-                gateway_ip, interface = gateway_interface[0], gateway_interface[1]
-                if interface == interface_name:
-                    gateway_address = gateway_ip
-                    break
+            if self.get_platform().startswith('Windows'):
+                routes: Dict[str, str] = dict()
+                route_table: List[str] = sub.check_output('route print', shell=True).decode().splitlines()
+                if network_type == AF_INET:
+                    for output_string in route_table:
+                        if match(r'^ +[0-9.]{7,15} +[0-9.]{7,15} +[0-9.]{7,15} +[0-9.]{7,15} +\d{1,3}$', output_string):
+                            address = output_string.split()
+                            routes[address[3]] = address[2]
+                    interface_address = self.get_interface_ip_address(interface_name=interface_name,
+                                                                      exit_on_failure=exit_on_failure,
+                                                                      exit_code=exit_code,
+                                                                      quiet=quiet)
+                    if interface_address in routes.keys():
+                        return routes[interface_address]
+            else:
+                gws = gateways()
+                for gw in gws:
+                    gateway_interface = gws[gw][network_type]
+                    gateway_ip, interface = gateway_interface[0], gateway_interface[1]
+                    if interface == interface_name:
+                        gateway_address = gateway_ip
+                        break
 
         except KeyError:
             gateway_address = None
