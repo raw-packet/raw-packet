@@ -55,9 +55,7 @@ if __name__ == '__main__':
     # region Import Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
     from raw_packet.Utils.base import Base
-    from raw_packet.Utils.network import RawDHCPv6
     base: Base = Base()
-    dhcpv6: RawDHCPv6 = RawDHCPv6()
     # endregion
 
     try:
