@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
             # region Not found network interface with IP address in test network, set test host IP address for SSH conn
             else:
-                base.print_error('Please set test host IP address: ', '\'-t\', \'--test_host\'')
+                assert False, 'Please set test host IP address: ' + base.error_text('\'-t\', \'--test_host\'')
                 # if not args.quiet:
                 #     arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
                 #                                      timeout=5, retry=5, show_scan_percentage=True,
@@ -631,7 +631,7 @@ if __name__ == '__main__':
             stdout.write('\r')
             if args.listen_time - int(time() - start_time) > 1:
                 print(base.c_info + 'Wait: ' +
-                      base.info_text(str(args.listen_time - int(time() - start_time)) + ' sec.   '))
+                      base.info_text(str(args.listen_time - int(time() - start_time)) + ' sec.   '), end='')
             else:
                 stdout.write('')
             stdout.flush()
