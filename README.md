@@ -49,13 +49,10 @@ sudo apt update && sudo apt install -y python3 python3-pip python3-netifaces \
                                        python-ipaddress python3-netaddr \
                                        python3-psutil python3-prettytable \
                                        python3-distro python3-xmltodict \
-                                       python3-paramiko apache2 php lsof \
-                                       net-tools wireless-tools nmap \
-                                       aircrack-ng tshark git
-pip3 install npyscreen
-pip3 install scapy
-pip3 install pycryptodomex
-pip3 install getmac
+                                       python3-paramiko python3-colorama \
+                                       apache2 php lsof net-tools nmap \
+                                       wireless-tools aircrack-ng tshark git
+pip3 install npyscreen scapy pycryptodomex getmac
 git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
 ```
 
