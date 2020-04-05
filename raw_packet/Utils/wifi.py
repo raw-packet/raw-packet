@@ -19,7 +19,7 @@ from struct import pack, unpack
 from struct import error as struct_error
 from time import strftime
 from binascii import unhexlify, hexlify
-from subprocess import CompletedProcess, run, PIPE, Popen, STDOUT
+from subprocess import CompletedProcess, run, PIPE, Popen, STDOUT, check_output
 from os import mkdir, listdir, remove
 from os.path import getctime, isdir
 from os.path import join as path_join
@@ -1113,8 +1113,8 @@ class WiFi:
         # Set sniffer command
         sniffer_command: str = \
             sniffer_path + ' -y "IEEE802_11_RADIO" -I -i "' + wireless_interface + \
-            '" -b duration:1 -w ' + pcap_files_directory + \
-            'sniff.pcap -f "(wlan type data) or (wlan type mgt subtype beacon)"'
+            '" -b duration:1 -w "' + pcap_files_directory + \
+            'sniff.pcap" -f "(wlan type data) or (wlan type mgt subtype beacon)"'
 
         # Run sniffer process
         if self._base.get_platform().startswith('Windows'):
@@ -1152,10 +1152,10 @@ class WiFi:
                 # Delete malformed packets
                 if self._base.get_platform().startswith('Windows'):
                     tshark_path: str = '"C:\\Program Files\\Wireshark\\tshark.exe"'
-                    Popen(tshark_path + ' -r ' + pcap_file + ' -Y "not _ws.malformed" -w ' + clean_pcap_file,
-                          shell=True, stdout=PIPE, stderr=PIPE)
+                    check_output(tshark_path + ' -r "' + pcap_file + '" -Y "not _ws.malformed" -w "' +
+                                 clean_pcap_file + '"')
                 else:
-                    run(['tshark -r ' + pcap_file + ' -Y "not _ws.malformed" -w ' + clean_pcap_file],
+                    run(['tshark -r "' + pcap_file + '" -Y "not _ws.malformed" -w "' + clean_pcap_file + '"'],
                         shell=True, stdout=PIPE, stderr=PIPE)
 
                 # Get packets from oldest pcap file
@@ -1163,10 +1163,15 @@ class WiFi:
                     packets = rdpcap(clean_pcap_file)
                 except Scapy_Exception:
                     packets = list()
+                except FileNotFoundError:
+                    packets = list()
 
                 # Delete oldest pcap file
-                remove(pcap_file)
-                remove(clean_pcap_file)
+                try:
+                    remove(pcap_file)
+                    remove(clean_pcap_file)
+                except FileNotFoundError:
+                    pass
 
                 # Analyze packets
                 for packet in packets:

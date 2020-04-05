@@ -51,18 +51,19 @@ sudo apt update && sudo apt install -y python3 python3-pip python3-netifaces \
                                        python3-distro python3-xmltodict \
                                        python3-paramiko apache2 php lsof \
                                        net-tools wireless-tools nmap \
-                                       aircrack-ng tshark wireshark git
+                                       aircrack-ng tshark git
 pip3 install npyscreen
 pip3 install scapy
 pip3 install pycryptodomex
+pip3 install getmac
 git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
 ```
 
 ## Debian based OS install with pip:
 ```
 sudo apt update && sudo apt install -y python3 python3-pip apache2 php \
-                                       lsof net-tools wireless-tools nmap \
-                                       aircrack-ng tshark wireshark git
+                                       lsof net-tools wireless-tools \
+                                       nmap aircrack-ng tshark git
 git clone https://github.com/raw-packet/raw-packet && cd ./raw-packet
 pip3 install -r requirements.txt
 ```

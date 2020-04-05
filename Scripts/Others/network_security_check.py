@@ -12,24 +12,31 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from sys import path
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 from argparse import ArgumentParser
-from socket import socket, AF_PACKET, SOCK_RAW
 from typing import Union, Dict, List
 from paramiko import RSAKey
 from pathlib import Path
 from os.path import isfile
 from os import remove
-from subprocess import run, Popen
-from scapy.all import rdpcap, Ether, Dot3, LLC, STP, ARP, IP, UDP, BOOTP, DHCP, ICMP, IPv6
+from subprocess import run, Popen, check_output, PIPE, STDOUT
+from scapy.all import sendp, rdpcap, Ether, Dot3, LLC, STP, ARP, IP, UDP, BOOTP, DHCP, ICMP, IPv6
 from scapy.all import ICMPv6ND_RS, ICMPv6ND_RA, ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_Redirect
 from scapy.all import DHCP6_Solicit, DHCP6_Advertise, DHCP6_Request, DHCP6_Reply
+from scapy.layers.inet6 import ICMPv6NDOptDstLLAddr, ICMPv6NDOptSrcLLAddr, ICMPv6NDOptPrefixInfo
+from scapy.layers.inet6 import ICMPv6NDOptMTU, ICMPv6NDOptRDNSS, ICMPv6NDOptDNSSL
+from scapy.layers.inet6 import ICMPv6NDOptAdvInterval
+from scapy.layers.dhcp6 import DHCP6OptIA_NA, DHCP6OptRapidCommit, DHCP6OptElapsedTime
+from scapy.layers.dhcp6 import DHCP6OptClientId, DHCP6OptUnknown, DUID_LL, DUID_LLT
+from scapy.layers.dhcp6 import DHCP6OptServerId, DHCP6OptReconfAccept, DHCP6OptDNSServers
+from scapy.layers.dhcp6 import DHCP6OptDNSDomains, DHCP6OptIAAddress, DHCP6OptOptReq
 from time import sleep
 from random import randint
 from re import findall, MULTILINE
 from time import time
 from sys import stdout
 from json import dumps
+from getmac import get_mac_address
 # endregion
 
 # region Authorship information
@@ -48,31 +55,16 @@ if __name__ == '__main__':
 
     # region Import Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
-
     from raw_packet.Utils.base import Base
-    from raw_packet.Scanners.arp_scanner import ArpScan
-    from raw_packet.Scanners.scanner import Scanner
-    from raw_packet.Utils.network import RawARP, RawICMPv4, RawDHCPv4, RawICMPv6, RawDHCPv6
-
+    from raw_packet.Utils.network import RawDHCPv6
     base: Base = Base()
-    arp_scan: ArpScan = ArpScan()
-    scanner: Scanner = Scanner()
-    arp: RawARP = RawARP()
-    icmpv4: RawICMPv4 = RawICMPv4()
-    dhcpv4: RawDHCPv4 = RawDHCPv4()
-    icmpv6: RawICMPv6 = RawICMPv6()
     dhcpv6: RawDHCPv6 = RawDHCPv6()
-    # endregion
-
-    # region Raw socket
-    raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
     # endregion
 
     try:
 
-        # region Check user and platform
+        # region Check user
         base.check_user()
-        base.check_platform()
         # endregion
 
         # region Parse script arguments
@@ -108,12 +100,17 @@ if __name__ == '__main__':
         send_network_interface: str = base.network_interface_selection(args.send_interface)
         your_mac_address: str = base.get_interface_mac_address(send_network_interface)
         your_ip_address: str = base.get_interface_ip_address(send_network_interface)
-        your_ipv6_address: str = base.make_ipv6_link_address(your_mac_address)
+        your_ipv6_address: Union[None, str] = base.get_interface_ipv6_link_address(send_network_interface,
+                                                                                   exit_on_failure=False,
+                                                                                   quiet=True)
+        if your_ipv6_address is None:
+            your_ipv6_address = base.make_ipv6_link_address(your_mac_address)
         your_network: str = base.get_interface_network(send_network_interface)
-        raw_socket.bind((send_network_interface, 0))
         # endregion
 
         # region Variables
+        your_platform: str = base.get_platform()
+
         list_of_network_interfaces: List[str] = base.list_of_network_interfaces()
         list_of_network_interfaces.remove(send_network_interface)
 
@@ -131,8 +128,15 @@ if __name__ == '__main__':
         ssh_password: Union[None, str] = None
         ssh_private_key: Union[None, RSAKey] = None
 
-        pcap_file: str = '/tmp/spoofing.pcap'
         windows_temp_directory: Union[None, str] = None
+        if your_platform.startswith('Windows'):
+            local_temp_directory: bytes = check_output('echo %temp%', shell=True)
+            local_temp_directory: str = local_temp_directory.decode().splitlines()[0]
+            pcap_file = join(local_temp_directory, 'spoofing.pcap')
+        else:
+            pcap_file: str = '/tmp/spoofing.pcap'
+        if isfile(pcap_file):
+            remove(pcap_file)
         # endregion
 
         # region Check gateway IP and MAC address
@@ -143,9 +147,7 @@ if __name__ == '__main__':
             gateway_ip_address: str = str(args.gateway_ip)
         else:
             gateway_ip_address: str = base.get_interface_gateway(send_network_interface)
-        scan_gateway_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
-                                                                 target_ip_address=gateway_ip_address,
-                                                                 show_scan_percentage=False)
+        scan_gateway_mac_address: str = get_mac_address(ip=gateway_ip_address, network_request=True)
         if args.gateway_mac is not None:
             assert base.mac_address_validation(args.gateway_mac), \
                 'Bad gateway MAC address: ' + base.error_text(args.gateway_mac)
@@ -172,13 +174,14 @@ if __name__ == '__main__':
             # region Found network interface with IP address in test network
             if listen_network_interface is not None:
                 while test_ip_address is None:
-                    use_listen_interface = \
-                        input(base.c_info + 'Use network interface: ' +
-                              base.info_text(listen_network_interface + ' (' + test_interface_ip_address + ')') +
-                              ' for listen traffic [Yes|No]: ')
+                    print(base.c_info + 'Use network interface: ' +
+                          base.info_text(listen_network_interface + ' (' + test_interface_ip_address + ')') +
+                          ' for listen traffic [Yes|No]: ', end='')
+                    use_listen_interface = input()
                     if use_listen_interface == 'No' or use_listen_interface == 'N':
                         while True:
-                            test_ip_address = input(base.c_info + 'Please set test host IP address for SSH connect: ')
+                            print(base.c_info + 'Please set test host IP address for SSH connect: ')
+                            test_ip_address = input()
                             if base.ip_address_in_network(test_ip_address, your_network):
                                 break
                             else:
@@ -192,17 +195,18 @@ if __name__ == '__main__':
 
             # region Not found network interface with IP address in test network, set test host IP address for SSH conn
             else:
-                if not args.quiet:
-                    arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
-                                                     timeout=5, retry=5, show_scan_percentage=True,
-                                                     exclude_ip_addresses=[gateway_ip_address])
-                else:
-                    arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
-                                                     timeout=5, retry=5, show_scan_percentage=False,
-                                                     exclude_ip_addresses=[gateway_ip_address])
-                target = scanner.ipv4_device_selection(arp_scan_results)
-                test_ip_address = target['ip-address']
-                test_mac_address = target['mac-address']
+                base.print_error('Please set test host IP address: ', '\'-t\', \'--test_host\'')
+                # if not args.quiet:
+                #     arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
+                #                                      timeout=5, retry=5, show_scan_percentage=True,
+                #                                      exclude_ip_addresses=[gateway_ip_address])
+                # else:
+                #     arp_scan_results = arp_scan.scan(network_interface=send_network_interface,
+                #                                      timeout=5, retry=5, show_scan_percentage=False,
+                #                                      exclude_ip_addresses=[gateway_ip_address])
+                # target = scanner.ipv4_device_selection(arp_scan_results)
+                # test_ip_address = target['ip-address']
+                # test_mac_address = target['mac-address']
             # endregion
 
         # endregion
@@ -219,9 +223,7 @@ if __name__ == '__main__':
                         'Test host IP address: ' + base.error_text(args.test_host) + \
                         ' not in your network: ' + base.info_text(your_network)
                     test_ip_address = str(args.test_host)
-                scan_test_mac_address: str = arp_scan.get_mac_address(network_interface=send_network_interface,
-                                                                      target_ip_address=test_ip_address,
-                                                                      show_scan_percentage=False)
+                scan_test_mac_address: str = get_mac_address(ip=test_ip_address, network_request=True)
                 if args.test_mac is not None:
                     assert base.mac_address_validation(args.test_mac), \
                         'Bad test host MAC address: ' + base.error_text(args.test_mac)
@@ -239,7 +241,7 @@ if __name__ == '__main__':
             test_os = str(args.test_os).lower()
 
             if args.test_ssh_pkey is None and ssh_password is None:
-                default_ssh_private_key_file: str = str(Path.home()) + '/.ssh/id_rsa'
+                default_ssh_private_key_file: str = join(str(Path.home()), '.ssh', 'id_rsa')
                 assert isfile(default_ssh_private_key_file), \
                     'Could not found private SSH key: ' + base.error_text(default_ssh_private_key_file)
                 ssh_private_key = RSAKey.from_private_key_file(default_ssh_private_key_file)
@@ -299,7 +301,14 @@ if __name__ == '__main__':
             test_mac_address = base.get_interface_mac_address(listen_network_interface)
             test_ipv6_address = base.make_ipv6_link_address(test_mac_address)
             test_interface = listen_network_interface
-            test_os = 'linux'
+            if your_platform.startswith('Windows'):
+                test_os = 'windows'
+            elif your_platform.startswith('Linux'):
+                test_os = 'linux'
+            elif your_platform.startswith('Darwin'):
+                test_os = 'macos'
+            else:
+                assert False, 'Your platform: ' + base.info_text(your_platform) + ' is not supported!'
         # endregion
 
         # region Output
@@ -322,12 +331,11 @@ if __name__ == '__main__':
 
         # region Start tshark
         if test_os == 'linux' or test_os == 'macos':
-            start_tshark_command: str = 'rm -f /tmp/spoofing.pcap; tshark -i ' + test_interface + \
-                                        ' -w /tmp/spoofing.pcap >/dev/null 2>&1'
+            start_tshark_command: str = 'tshark -i "' + test_interface + \
+                                        '" -w /tmp/spoofing.pcap >/dev/null 2>&1'
         else:
-            start_tshark_command: str = 'cd %temp% & del /f spoofing.pcap &' \
-                                        ' "C:\\Program Files\\Wireshark\\tshark.exe" -i ' + test_interface + \
-                                        ' -w spoofing.pcap'
+            start_tshark_command: str = '"C:\\Program Files\\Wireshark\\tshark.exe" -i "' + test_interface + \
+                                        '" -w "' + pcap_file + '"'
         if ssh_user is not None:
             if not args.quiet:
                 base.print_info('Start tshark on test host: ', test_ip_address)
@@ -373,165 +381,258 @@ if __name__ == '__main__':
                 remove(pcap_file)
             if not args.quiet:
                 base.print_info('Start tshark on listen interface: ', listen_network_interface)
-            Popen([start_tshark_command], shell=True)
+            if test_os == 'linux' or test_os == 'macos':
+                Popen([start_tshark_command], shell=True, stdout=PIPE, stderr=STDOUT)
+            else:
+                Popen(start_tshark_command, shell=True, stdout=PIPE, stderr=STDOUT)
         start_time = time()
         sleep(5)
         # endregion
 
         # region Send ARP packets
         base.print_info('Send ARP packets to: ', test_ip_address + ' (' + test_mac_address + ')')
-        arp_packet: bytes = arp.make_response(ethernet_src_mac=your_mac_address,
-                                              ethernet_dst_mac=test_mac_address,
-                                              sender_mac=your_mac_address,
-                                              sender_ip=gateway_ip_address,
-                                              target_mac=test_mac_address,
-                                              target_ip=test_ip_address)
+        arp_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            ARP(op=2, hwsrc=your_mac_address, psrc=gateway_ip_address, hwdst=test_mac_address, pdst=test_ip_address)
         for _ in range(args.number_of_packets):
-            raw_socket.send(arp_packet)
+            sendp(arp_packet, iface=send_network_interface, count=1, verbose=False)
             sleep(0.5)
         # endregion
 
         # region Send ICMPv4 packets
         base.print_info('Send ICMPv4 packets to: ', test_ip_address + ' (' + test_mac_address + ')')
-        icmpv4_packet: bytes = icmpv4.make_redirect_packet(ethernet_src_mac=your_mac_address,
-                                                           ethernet_dst_mac=test_mac_address,
-                                                           ip_src=gateway_ip_address,
-                                                           ip_dst=test_ip_address,
-                                                           gateway_address=your_ip_address,
-                                                           payload_ip_src=test_ip_address,
-                                                           payload_ip_dst='8.8.8.8')
+        icmpv4_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IP(src=gateway_ip_address, dst=test_ip_address) / \
+            ICMP(type=5, code=1, gw=your_ip_address) / \
+            IP(src=test_ip_address, dst='8.8.8.8') / \
+            UDP(sport=53, dport=53)
         for _ in range(args.number_of_packets):
-            raw_socket.send(icmpv4_packet)
+            sendp(icmpv4_packet, iface=send_network_interface, count=1, verbose=False)
             sleep(0.5)
         # endregion
 
         # region Send DHCPv4 packets
         base.print_info('Send DHCPv4 packets to: ', test_ip_address + ' (' + test_mac_address + ')')
+
+        # region Make random DHCPv4 transactions
         dhcpv4_transactions: Dict[str, int] = {
             'discover': randint(0, 0xffffffff),
             'offer': randint(0, 0xffffffff),
             'request': randint(0, 0xffffffff),
             'ack': randint(0, 0xffffffff)
         }
-        discover_packet: bytes = dhcpv4.make_discover_packet(ethernet_src_mac=your_mac_address,
-                                                             client_mac=your_mac_address,
-                                                             transaction_id=dhcpv4_transactions['discover'])
-        offer_packet: bytes = dhcpv4.make_offer_packet(ethernet_src_mac=your_mac_address,
-                                                       ethernet_dst_mac=test_mac_address,
-                                                       ip_src=your_ip_address,
-                                                       ip_dst=test_ip_address,
-                                                       transaction_id=dhcpv4_transactions['offer'],
-                                                       your_client_ip=test_ip_address,
-                                                       client_mac=test_mac_address,
-                                                       dhcp_server_id=your_ip_address,
-                                                       router=your_ip_address,
-                                                       dns=your_ip_address)
-        request_packet: bytes = dhcpv4.make_request_packet(ethernet_src_mac=your_mac_address,
-                                                           client_mac=your_mac_address,
-                                                           transaction_id=dhcpv4_transactions['request'])
-        ack_packet: bytes = dhcpv4.make_ack_packet(ethernet_src_mac=your_mac_address,
-                                                   ethernet_dst_mac=test_mac_address,
-                                                   ip_src=your_ip_address,
-                                                   ip_dst=test_ip_address,
-                                                   transaction_id=dhcpv4_transactions['ack'],
-                                                   your_client_ip=test_ip_address,
-                                                   client_mac=test_mac_address,
-                                                   dhcp_server_id=your_ip_address,
-                                                   router=your_ip_address,
-                                                   dns=your_ip_address)
+        # endregion
+
+        # region Make DHCPv4 Discover packet
+        discover_packet: bytes = \
+            Ether(src=your_mac_address, dst='ff:ff:ff:ff:ff:ff') / \
+            IP(src='0.0.0.0', dst='255.255.255.255') / \
+            UDP(sport=68, dport=67) / \
+            BOOTP(op=1, ciaddr='0.0.0.0', siaddr='0.0.0.0', giaddr='0.0.0.0', yiaddr='0.0.0.0',
+                  chaddr=your_mac_address, xid=dhcpv4_transactions['discover']) / \
+            DHCP(options=[('message-type', 1), ('param_req_list', [1, 121, 3, 6, 15, 119, 252]), 'end'])
+        # endregion
+
+        # region Make DHCPv4 Offer packet
+        offer_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IP(src=your_ip_address, dst=test_ip_address) / \
+            UDP(sport=67, dport=68) / \
+            BOOTP(op=2, ciaddr='0.0.0.0', siaddr='0.0.0.0', giaddr='0.0.0.0', yiaddr=test_ip_address,
+                  chaddr=test_mac_address, xid=dhcpv4_transactions['offer']) / \
+            DHCP(options=[('message-type', 2),
+                          ('server_id', your_ip_address),
+                          ('lease_time', 600),
+                          ('subnet_mask', '255.255.255.0'),
+                          ('router', your_ip_address),
+                          ('name_server', your_ip_address),
+                          ('domain', 'test'),
+                          'end'])
+        # endregion
+
+        # region Make DHCPv4 Request packet
+        request_packet: bytes = \
+            Ether(src=your_mac_address, dst='ff:ff:ff:ff:ff:ff') / \
+            IP(src='0.0.0.0', dst='255.255.255.255') / \
+            UDP(sport=68, dport=67) / \
+            BOOTP(op=1, ciaddr='0.0.0.0', siaddr='0.0.0.0', giaddr='0.0.0.0', yiaddr='0.0.0.0',
+                  chaddr=your_mac_address, xid=dhcpv4_transactions['request']) / \
+            DHCP(options=[('message-type', 3), ('param_req_list', [1, 121, 3, 6, 15, 119, 252]), 'end'])
+        # endregion
+
+        # region Make DHCPv4 ACK packet
+        ack_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IP(src=your_ip_address, dst=test_ip_address) / \
+            UDP(sport=67, dport=68) / \
+            BOOTP(op=2, ciaddr='0.0.0.0', siaddr='0.0.0.0', giaddr='0.0.0.0', yiaddr=test_ip_address,
+                  chaddr=test_mac_address, xid=dhcpv4_transactions['ack']) / \
+            DHCP(options=[('message-type', 5),
+                          ('server_id', your_ip_address),
+                          ('lease_time', 600),
+                          ('subnet_mask', '255.255.255.0'),
+                          ('router', your_ip_address),
+                          ('name_server', your_ip_address),
+                          ('domain', 'test'),
+                          'end'])
+        # endregion
+
+        # region Send DHCPv4 packets
         for _ in range(args.number_of_packets):
-            raw_socket.send(discover_packet)
-            raw_socket.send(offer_packet)
-            raw_socket.send(request_packet)
-            raw_socket.send(ack_packet)
+            sendp(discover_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(offer_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(request_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(ack_packet, iface=send_network_interface, count=1, verbose=False)
             sleep(0.5)
+        # endregion
+
         # endregion
 
         # region Send ICMPv6 packets
         base.print_info('Send ICMPv6 packets to: ', test_ipv6_address + ' (' + test_mac_address + ')')
-        rd_packet: bytes = icmpv6.make_redirect_packet(ethernet_src_mac=your_mac_address,
-                                                       ethernet_dst_mac=test_mac_address,
-                                                       original_router_ipv6_address=gateway_ipv6_address,
-                                                       victim_address_ipv6_address=test_ipv6_address,
-                                                       new_router_ipv6_address=your_ipv6_address,
-                                                       new_router_mac_address=your_mac_address,
-                                                       redirected_ipv6_address='2001:4860:4860::8888')
-        rs_packet: bytes = icmpv6.make_router_solicit_packet(ethernet_src_mac=your_mac_address,
-                                                             ethernet_dst_mac='33:33:00:00:00:02',
-                                                             ipv6_src=gateway_ipv6_address,
-                                                             ipv6_dst='ff02::2')
-        ra_packet: bytes = icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                   ethernet_dst_mac='33:33:00:00:00:01',
-                                                                   ipv6_src=gateway_ipv6_address,
-                                                                   ipv6_dst='ff02::1',
-                                                                   dns_address=your_ipv6_address,
-                                                                   prefix='fd00::/64')
-        ns_packet: bytes = icmpv6.make_neighbor_solicitation_packet(ethernet_src_mac=your_mac_address,
-                                                                    ethernet_dst_mac=test_mac_address,
-                                                                    ipv6_src=gateway_ipv6_address,
-                                                                    ipv6_dst=test_ipv6_address,
-                                                                    icmpv6_target_ipv6_address=test_ipv6_address,
-                                                                    icmpv6_source_mac_address=your_mac_address)
-        na_packet: bytes = icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                     ethernet_dst_mac=test_mac_address,
-                                                                     ipv6_src=gateway_ipv6_address,
-                                                                     ipv6_dst=test_ipv6_address,
-                                                                     target_ipv6_address=gateway_ipv6_address)
+
+        # region Make ICMPv6 Redirect packet
+        rd_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IPv6(src=gateway_ipv6_address, dst=test_ipv6_address) / \
+            ICMPv6ND_Redirect(type=137, tgt=your_ipv6_address, dst='2001:4860:4860::8888') / \
+            ICMPv6NDOptDstLLAddr(type=2, len=1, lladdr=your_mac_address)
+        # endregion
+
+        # region Make ICMPv6 Router Solicitation packet
+        rs_packet: bytes = \
+            Ether(src=your_mac_address, dst='33:33:00:00:00:02') / \
+            IPv6(src=gateway_ipv6_address, dst='ff02::2') / \
+            ICMPv6ND_RS(type=133, code=0, res=0)
+        # endregion
+
+        # region Make ICMPv6 Router Advertisement packet
+        ra_packet: bytes = \
+            Ether(src=your_mac_address, dst='33:33:00:00:00:01') / \
+            IPv6(src=gateway_ipv6_address, dst='ff02::1') / \
+            ICMPv6ND_RA(type=134, M=1, O=1, H=0, prf=0, P=0, res=0,
+                        routerlifetime=0, reachabletime=0, retranstimer=0) / \
+            ICMPv6NDOptPrefixInfo(prefixlen=64, prefix='fd00::') / \
+            ICMPv6NDOptSrcLLAddr(lladdr=your_mac_address) / \
+            ICMPv6NDOptMTU(res=0, mtu=1500) / \
+            ICMPv6NDOptRDNSS(lifetime=6000, dns=[your_ipv6_address]) / \
+            ICMPv6NDOptDNSSL(lifetime=6000, searchlist=['test.local.']) / \
+            ICMPv6NDOptAdvInterval(advint=60000)
+        # endregion
+
+        # region Make ICMPv6 Neighbor Solicitation packet
+        ns_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IPv6(src=gateway_ipv6_address, dst=test_ipv6_address) / \
+            ICMPv6ND_NS(type=135, code=0, res=0, tgt=test_ipv6_address) / \
+            ICMPv6NDOptDstLLAddr(lladdr=your_mac_address)
+        # endregion
+
+        # region Make ICMPv6 Neighbor Advertisement packet
+        na_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IPv6(src=gateway_ipv6_address, dst=test_ipv6_address) / \
+            ICMPv6ND_NA(type=136, code=0, R=0, S=0, O=1, res=0, tgt=gateway_ipv6_address) / \
+            ICMPv6NDOptDstLLAddr(lladdr=your_mac_address)
+        # endregion
+
+        # region Send ICMPv6 packets
         for _ in range(args.number_of_packets):
-            raw_socket.send(rd_packet)
-            raw_socket.send(rs_packet)
-            raw_socket.send(ra_packet)
-            raw_socket.send(ns_packet)
-            raw_socket.send(na_packet)
+            sendp(rd_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(rs_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(ra_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(ns_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(na_packet, iface=send_network_interface, count=1, verbose=False)
             sleep(0.5)
+        # endregion
+
         # endregion
 
         # region Send DHCPv6 packets
         base.print_info('Send DHCPv6 packets to: ', test_ipv6_address + ' (' + test_mac_address + ')')
+
+        # region Make random DHCPv4 transactions
         dhcpv6_transactions: Dict[str, int] = {
             'solicit': randint(0, 0xffffff),
             'advertise': randint(0, 0xffffff),
             'request': randint(0, 0xffffff),
             'reply': randint(0, 0xffffff)
         }
-        solicit_packet: bytes = dhcpv6.make_solicit_packet(ethernet_src_mac=your_mac_address,
-                                                           ipv6_src=your_ipv6_address,
-                                                           transaction_id=dhcpv6_transactions['solicit'],
-                                                           client_mac_address=your_mac_address)
-        advertise_packet: bytes = dhcpv6.make_advertise_packet(ethernet_src_mac=your_mac_address,
-                                                               ethernet_dst_mac=test_mac_address,
-                                                               ipv6_src=your_ipv6_address,
-                                                               ipv6_dst=test_ipv6_address,
-                                                               transaction_id=dhcpv6_transactions['advertise'],
-                                                               dns_address=your_ipv6_address,
-                                                               ipv6_address='fd00::123',
-                                                               client_duid_timeval=1)
-        request_packet: bytes = dhcpv6.make_request_packet(ethernet_src_mac=your_mac_address,
-                                                           ipv6_src=your_ipv6_address,
-                                                           transaction_id=dhcpv6_transactions['request'],
-                                                           client_mac_address=your_mac_address)
-        reply_packet: bytes = dhcpv6.make_reply_packet(ethernet_src_mac=your_mac_address,
-                                                       ethernet_dst_mac=test_mac_address,
-                                                       ipv6_src=your_ipv6_address,
-                                                       ipv6_dst=test_ipv6_address,
-                                                       transaction_id=dhcpv6_transactions['reply'],
-                                                       dns_address=your_ipv6_address,
-                                                       ipv6_address='fd00::123',
-                                                       client_duid_timeval=1)
+        # endregion
+
+        # region Make DHCPv6 Solicit packet
+        solicit_packet: bytes = \
+            Ether(src=your_mac_address, dst='33:33:00:01:00:02') / \
+            IPv6(src=your_ipv6_address, dst='ff02::1:2') / \
+            UDP(sport=546, dport=547) / \
+            DHCP6_Solicit(msgtype=1, trid=dhcpv6_transactions['solicit']) / \
+            DHCP6OptIA_NA(ianaopts=[DHCP6OptUnknown(optcode=0, optlen=0, data=b'')]) / \
+            DHCP6OptRapidCommit() / \
+            DHCP6OptElapsedTime(elapsedtime=0) / \
+            DHCP6OptClientId(duid=DUID_LL(type=3, hwtype=1, lladdr=your_mac_address))
+        # endregion
+
+        # region Make DHCPv6 Advertise packet
+        advertise_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IPv6(src=your_ipv6_address, dst=test_ipv6_address) / \
+            UDP(sport=547, dport=546) / \
+            DHCP6_Advertise(msgtype=2, trid=dhcpv6_transactions['advertise']) / \
+            DHCP6OptClientId(duid=DUID_LLT(type=1, hwtype=1, timeval=1, lladdr=test_mac_address)) / \
+            DHCP6OptServerId(duid=DUID_LL(type=3, hwtype=1, lladdr=your_mac_address)) / \
+            DHCP6OptReconfAccept() / \
+            DHCP6OptDNSServers(dnsservers=[your_ipv6_address]) / \
+            DHCP6OptDNSDomains(dnsdomains=['test.local.']) / \
+            DHCP6OptIA_NA(iaid=1, T1=3000, T2=4800,
+                          ianaopts=[DHCP6OptIAAddress(addr='fd00::123', preflft=4294967295, validlft=4294967295)])
+        # endregion
+
+        # region Make DHCPv6 Request packet
+        request_packet: bytes = \
+            Ether(src=your_mac_address, dst='33:33:00:01:00:02') / \
+            IPv6(src=your_ipv6_address, dst='ff02::1:2') / \
+            UDP(sport=546, dport=547) / \
+            DHCP6_Request(msgtype=3, trid=dhcpv6_transactions['request']) / \
+            DHCP6OptIA_NA(ianaopts=[DHCP6OptUnknown(optcode=0, optlen=0, data=b'')]) / \
+            DHCP6OptRapidCommit() / \
+            DHCP6OptElapsedTime(elapsedtime=0) / \
+            DHCP6OptClientId(duid=DUID_LL(type=3, hwtype=1, lladdr=your_mac_address)) / \
+            DHCP6OptOptReq(reqopts=[23, 24])
+        # endregion
+
+        # region Make DHCPv6 Reply packet
+        reply_packet: bytes = \
+            Ether(src=your_mac_address, dst=test_mac_address) / \
+            IPv6(src=your_ipv6_address, dst=test_ipv6_address) / \
+            UDP(sport=547, dport=546) / \
+            DHCP6_Reply(msgtype=7, trid=dhcpv6_transactions['reply']) / \
+            DHCP6OptClientId(duid=DUID_LLT(type=1, hwtype=1, timeval=1, lladdr=test_mac_address)) / \
+            DHCP6OptServerId(duid=DUID_LL(type=3, hwtype=1, lladdr=your_mac_address)) / \
+            DHCP6OptReconfAccept() / \
+            DHCP6OptDNSServers(dnsservers=[your_ipv6_address]) / \
+            DHCP6OptDNSDomains(dnsdomains=['test.local.']) / \
+            DHCP6OptIA_NA(iaid=1, T1=3000, T2=4800,
+                          ianaopts=[DHCP6OptIAAddress(addr='fd00::123', preflft=4294967295, validlft=4294967295)])
+        # endregion
+
+        # region Send DHCPv6 packets
         for _ in range(args.number_of_packets):
-            raw_socket.send(solicit_packet)
-            raw_socket.send(advertise_packet)
-            raw_socket.send(request_packet)
-            raw_socket.send(reply_packet)
+            sendp(solicit_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(advertise_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(request_packet, iface=send_network_interface, count=1, verbose=False)
+            sendp(reply_packet, iface=send_network_interface, count=1, verbose=False)
             sleep(0.5)
+        # endregion
+
         # endregion
 
         # region Stop tshark
         while int(time() - start_time) < args.listen_time:
             stdout.write('\r')
             if args.listen_time - int(time() - start_time) > 1:
-                stdout.write(base.c_info + 'Wait: ' +
-                             base.info_text(str(args.listen_time - int(time() - start_time)) + ' sec.   '))
+                print(base.c_info + 'Wait: ' +
+                      base.info_text(str(args.listen_time - int(time() - start_time)) + ' sec.   '))
             else:
                 stdout.write('')
             stdout.flush()
@@ -553,13 +654,14 @@ if __name__ == '__main__':
         else:
             if not args.quiet:
                 base.print_info('Stop tshark on listen interface: ', listen_network_interface)
-            run([stop_tshark_command], shell=True)
+            if test_os == 'linux' or test_os == 'macos':
+                run([stop_tshark_command], shell=True)
+            else:
+                check_output(stop_tshark_command, shell=True)
         # endregion
 
         # region Download and analyze pcap file from test host
         if ssh_user is not None:
-            if isfile(pcap_file):
-                remove(pcap_file)
             if not args.quiet:
                 base.print_info('Download pcap file with test traffic over SSH to: ', pcap_file)
             if test_os == 'windows':
@@ -587,6 +689,7 @@ if __name__ == '__main__':
         if not args.quiet:
             base.print_info('Analyze pcap file:')
 
+        # region Variables
         sniff_stp_packets: bool = False
         sniff_stp_fields: Dict[str, Dict[str, str]] = dict()
 
@@ -611,7 +714,11 @@ if __name__ == '__main__':
         sniff_dhcpv6_reply_packets: bool = False
 
         packets = rdpcap(pcap_file)
+        # endregion
+
+        # region Analyze packets
         for packet in packets:
+
             if packet.haslayer(STP):
                 sniff_stp_fields['802.3'] = {'source': packet[Dot3].src,
                                              'destination': packet[Dot3].dst}
@@ -634,54 +741,108 @@ if __name__ == '__main__':
             if packet.haslayer(ICMP):
                 if packet[Ether].src == your_mac_address and \
                         packet[Ether].dst == test_mac_address and \
+                        packet[Ether].type == 2048 and \
                         packet[IP].src == gateway_ip_address and \
                         packet[IP].dst == test_ip_address and \
+                        packet[IP].proto == 1 and \
                         packet[ICMP].code == 1 and \
-                        packet[ICMP].gw == your_ip_address:
+                        packet[ICMP].type == 5 and \
+                        packet[ICMP].gw == your_ip_address and \
+                        packet[ICMP].payload.src == test_ip_address and \
+                        packet[ICMP].payload.dst == '8.8.8.8' and \
+                        packet[ICMP].payload.proto == 17:
                     sniff_icmpv4_redirect_packets = True
 
             if packet.haslayer(DHCP):
+
+                # region DHCPv4 Discover
                 if packet[Ether].src == your_mac_address and \
                         packet[Ether].dst == 'ff:ff:ff:ff:ff:ff' and \
+                        packet[Ether].type == 2048 and \
                         packet[IP].src == '0.0.0.0' and \
                         packet[IP].dst == '255.255.255.255' and \
+                        packet[IP].proto == 17 and \
                         packet[UDP].sport == 68 and \
                         packet[UDP].dport == 67 and \
                         packet[BOOTP].op == 1 and \
-                        packet[BOOTP].xid == dhcpv4_transactions['discover']:
+                        packet[BOOTP].ciaddr == '0.0.0.0' and \
+                        packet[BOOTP].giaddr == '0.0.0.0' and \
+                        packet[BOOTP].siaddr == '0.0.0.0' and \
+                        packet[BOOTP].yiaddr == '0.0.0.0' and \
+                        packet[BOOTP].xid == dhcpv4_transactions['discover'] and \
+                        ('message-type', 1) in packet[DHCP].options:
                     sniff_dhcpv4_discover_packets = True
+                # endregion
 
+                # region DHCPv4 Offer
                 if packet[Ether].src == your_mac_address and \
                         packet[Ether].dst == test_mac_address and \
+                        packet[Ether].type == 2048 and \
                         packet[IP].src == your_ip_address and \
                         packet[IP].dst == test_ip_address and \
+                        packet[IP].proto == 17 and \
                         packet[UDP].sport == 67 and \
                         packet[UDP].dport == 68 and \
                         packet[BOOTP].op == 2 and \
-                        packet[BOOTP].xid == dhcpv4_transactions['offer']:
+                        packet[BOOTP].ciaddr == '0.0.0.0' and \
+                        packet[BOOTP].giaddr == '0.0.0.0' and \
+                        packet[BOOTP].siaddr == '0.0.0.0' and \
+                        packet[BOOTP].yiaddr == test_ip_address and \
+                        packet[BOOTP].xid == dhcpv4_transactions['offer'] and \
+                        ('message-type', 2) in packet[DHCP].options and \
+                        ('server_id', your_ip_address) in packet[DHCP].options and \
+                        ('subnet_mask', '255.255.255.0') in packet[DHCP].options and \
+                        ('router', your_ip_address) in packet[DHCP].options and \
+                        ('lease_time', 600) in packet[DHCP].options and \
+                        ('name_server', your_ip_address) in packet[DHCP].options:
                     sniff_dhcpv4_offer_packets = True
+                # endregion
 
+                # region DHCPv4 Request
                 if packet[Ether].src == your_mac_address and \
                         packet[Ether].dst == 'ff:ff:ff:ff:ff:ff' and \
+                        packet[Ether].type == 2048 and \
                         packet[IP].src == '0.0.0.0' and \
                         packet[IP].dst == '255.255.255.255' and \
+                        packet[IP].proto == 17 and \
                         packet[UDP].sport == 68 and \
                         packet[UDP].dport == 67 and \
                         packet[BOOTP].op == 1 and \
-                        packet[BOOTP].xid == dhcpv4_transactions['request']:
+                        packet[BOOTP].ciaddr == '0.0.0.0' and \
+                        packet[BOOTP].giaddr == '0.0.0.0' and \
+                        packet[BOOTP].siaddr == '0.0.0.0' and \
+                        packet[BOOTP].yiaddr == '0.0.0.0' and \
+                        packet[BOOTP].xid == dhcpv4_transactions['request'] and \
+                        ('message-type', 3) in packet[DHCP].options:
                     sniff_dhcpv4_request_packets = True
+                # endregion
 
+                # region DHCPv4 ACK
                 if packet[Ether].src == your_mac_address and \
                         packet[Ether].dst == test_mac_address and \
+                        packet[Ether].type == 2048 and \
                         packet[IP].src == your_ip_address and \
                         packet[IP].dst == test_ip_address and \
+                        packet[IP].proto == 17 and \
                         packet[UDP].sport == 67 and \
                         packet[UDP].dport == 68 and \
                         packet[BOOTP].op == 2 and \
-                        packet[BOOTP].xid == dhcpv4_transactions['ack']:
+                        packet[BOOTP].ciaddr == '0.0.0.0' and \
+                        packet[BOOTP].giaddr == '0.0.0.0' and \
+                        packet[BOOTP].siaddr == '0.0.0.0' and \
+                        packet[BOOTP].yiaddr == test_ip_address and \
+                        packet[BOOTP].xid == dhcpv4_transactions['ack'] and \
+                        ('message-type', 5) in packet[DHCP].options and \
+                        ('server_id', your_ip_address) in packet[DHCP].options and \
+                        ('subnet_mask', '255.255.255.0') in packet[DHCP].options and \
+                        ('router', your_ip_address) in packet[DHCP].options and \
+                        ('lease_time', 600) in packet[DHCP].options and \
+                        ('name_server', your_ip_address) in packet[DHCP].options:
                     sniff_dhcpv4_ack_packets = True
+                # endregion
 
             if packet.haslayer(IPv6):
+
                 if packet.haslayer(ICMPv6ND_Redirect):
                     if packet[Ether].src == your_mac_address and \
                             packet[Ether].dst == test_mac_address and \
@@ -689,7 +850,8 @@ if __name__ == '__main__':
                             packet[IPv6].dst == test_ipv6_address and \
                             packet[ICMPv6ND_Redirect].type == 137 and \
                             packet[ICMPv6ND_Redirect].tgt == your_ipv6_address and \
-                            packet[ICMPv6ND_Redirect].dst == '2001:4860:4860::8888':
+                            packet[ICMPv6ND_Redirect].dst == '2001:4860:4860::8888' and \
+                            packet[ICMPv6NDOptDstLLAddr].lladdr == your_mac_address:
                         sniff_icmpv6_rd_packets = True
 
                 if packet.haslayer(ICMPv6ND_RS):
@@ -705,7 +867,13 @@ if __name__ == '__main__':
                             packet[Ether].dst == '33:33:00:00:00:01' and \
                             packet[IPv6].src == gateway_ipv6_address and \
                             packet[IPv6].dst == 'ff02::1' and \
-                            packet[ICMPv6ND_RA].type == 134:
+                            packet[ICMPv6ND_RA].type == 134 and \
+                            packet[ICMPv6NDOptPrefixInfo].prefix == 'fd00::' and \
+                            packet[ICMPv6NDOptPrefixInfo].prefixlen == 64 and \
+                            packet[ICMPv6NDOptSrcLLAddr].lladdr == your_mac_address and \
+                            packet[ICMPv6NDOptRDNSS].dns == [your_ipv6_address] and \
+                            packet[ICMPv6NDOptDNSSL].searchlist == ['test.local.'] and \
+                            packet[ICMPv6NDOptAdvInterval].advint == 60000:
                         sniff_icmpv6_ra_packets = True
 
                 if packet.haslayer(ICMPv6ND_NS):
@@ -714,7 +882,8 @@ if __name__ == '__main__':
                             packet[IPv6].src == gateway_ipv6_address and \
                             packet[IPv6].dst == test_ipv6_address and \
                             packet[ICMPv6ND_NS].type == 135 and \
-                            packet[ICMPv6ND_NS].tgt == test_ipv6_address:
+                            packet[ICMPv6ND_NS].tgt == test_ipv6_address and \
+                            packet[ICMPv6NDOptDstLLAddr].lladdr == your_mac_address:
                         sniff_icmpv6_ns_packets = True
 
                 if packet.haslayer(ICMPv6ND_NA):
@@ -727,6 +896,7 @@ if __name__ == '__main__':
                         sniff_icmpv6_na_packets = True
 
                 if packet.haslayer(UDP):
+
                     if packet.haslayer(DHCP6_Solicit):
                         if packet[Ether].src == your_mac_address and \
                                 packet[Ether].dst == '33:33:00:01:00:02' and \
@@ -770,6 +940,7 @@ if __name__ == '__main__':
                                 packet[DHCP6_Reply].msgtype == 7 and \
                                 packet[DHCP6_Reply].trid == dhcpv6_transactions['reply']:
                             sniff_dhcpv6_reply_packets = True
+        # endregion
 
         # endregion
 
@@ -823,11 +994,9 @@ if __name__ == '__main__':
         # endregion
 
     except KeyboardInterrupt:
-        raw_socket.close()
         base.print_info('Exit')
         exit(0)
 
     except AssertionError as Error:
-        raw_socket.close()
         base.print_error(Error.args[0])
         exit(1)
