@@ -35,7 +35,6 @@ from random import randint
 from re import findall, MULTILINE
 from time import time
 from sys import stdout
-from json import dumps
 from getmac import get_mac_address
 # endregion
 
