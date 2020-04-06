@@ -10,6 +10,7 @@
 1. Check ICMPv6 Redirect 
 1. Check ICMPv6 Router Advertisement Spoofing
 1. Check ICMPv6 Neighbor Advertisement Spoofing
+1. Check Rogue DHCPv6
 1. Check STP spoofing
 
 ```
