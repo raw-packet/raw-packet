@@ -182,6 +182,9 @@ optional arguments:
 ### Sample script output:
 ![attack_tool.py output](https://raw-packet.github.io/static/images/screenshots/attack_tool.py_screenshot.png)
 
+### Video demo:
+[![attack_tool.py demo video](https://raw-packet.github.io/static/images/gifs/attack_tool.gif)](https://youtu.be/IcZVmDHQvLE)
+
 ---
 
 # Apple attacks
@@ -245,9 +248,6 @@ optional arguments:
 
 ### Sample script output:
 ![apple_mitm.py output](https://raw-packet.github.io/static/images/screenshots/apple_mitm.py_screenshot.png)
-
-### Video demo:
-[![attack_tool.py demo video](https://raw-packet.github.io/static/images/gifs/attack_tool.gif)](https://youtu.be/IcZVmDHQvLE)
 
 ---
 
