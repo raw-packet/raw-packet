@@ -2,15 +2,16 @@
 
 ## Script: [attack_tool.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/WiFi/attack_tool.py)
 
-### Cross platform WiFi attack tool
-1. Work on MacOS and Linux
-1. Collect information about wireless AP
-1. Send deauth and association packets
+### Cross-platform WiFi attack tool
+1. Works on MacOS and Linux
+1. Collects wireless AP information
+1. Sends association packets
+1. Sends deauthentication packets
 1. Switch between WiFi channels
-1. Save WPA handshakes in formats: pcap, hccapx, 22000
-1. Support PMKID (attack AP without clients)
-1. Save WPA RSN PMKID in format for hashcat brute
-1. Support CVE-2019-15126 kr00k vulnerability (Decrypt CCMP packet with NULL 128 bits – Temporal Key)
+1. Saves WPA handshakes in formats: pcap, hccapx, 22000
+1. Supports PMKID (AP clientless attack)
+1. Saves WPA RSN PMKID in format for hashcat brute
+1. Supports vulnerability CVE-2019-15126 kr00k (decryption of CCMP packet with NULL 128 bits - temporary key)
 
 ```
 root@kali:~/raw-packet# python3 Scripts/WiFi/attack_tool.py -h
