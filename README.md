@@ -246,6 +246,9 @@ optional arguments:
 ### Sample script output:
 ![apple_mitm.py output](https://raw-packet.github.io/static/images/screenshots/apple_mitm.py_screenshot.png)
 
+### Video demo:
+[![attack_tool.py demo video](https://raw-packet.github.io/static/images/gifs/attack_tool.gif)](https://youtu.be/IcZVmDHQvLE)
+
 ---
 
 ## Script: [apple_arp_dos.py](https://github.com/raw-packet/raw-packet/blob/master/Scripts/Apple/apple_arp_dos.py)
