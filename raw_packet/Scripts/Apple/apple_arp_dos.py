@@ -111,10 +111,9 @@ def _sniffer() -> None:
 
 
 # region Main function
-if __name__ == '__main__':
 
+def main():
     # region Import Raw-packet classes
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
     from raw_packet.Utils.base import Base
     from raw_packet.Scanners.scanner import Scanner
     from raw_packet.Scanners.arp_scanner import ArpScan
@@ -251,3 +250,6 @@ if __name__ == '__main__':
         exit(1)
 
 # endregion
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,7 @@
+include raw_packet/Utils/mac-prefixes.txt
+include raw_packet/Utils/version.txt
+include raw_packet/Utils/redirect.php
+include raw_packet/Utils/wpad.dat
+recursive-include raw_packet/Utils/Phishing_domains/ *
+
+prune raw_packet/Tes*

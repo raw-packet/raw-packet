@@ -203,10 +203,9 @@ def reply(request: Dict[str, Dict[Union[int, str], Union[int, str]]]):
 
 
 # region Main function
-if __name__ == '__main__':
 
+def main():
     # region Raw-packet modules
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
     from raw_packet.Utils.base import Base
     from raw_packet.Utils.network import RawEthernet, RawARP, RawIPv4, RawUDP, RawDHCPv4
     from raw_packet.Utils.tm import ThreadManager
@@ -389,3 +388,6 @@ if __name__ == '__main__':
         exit(1)
 
 # endregion
+
+if __name__ == '__main__':
+    main()
