@@ -3,7 +3,7 @@
 
 # region Description
 """
-sniff.py: Script for sniffing 802.11x authentication packets
+wat.py: Cross platform WiFi attack tool (wat)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -11,13 +11,13 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.wifi import WiFi
+from raw_packet.Utils.tm import ThreadManager
 from typing import List
 from argparse import ArgumentParser, RawTextHelpFormatter
 from typing import Dict, Union
 from collections import OrderedDict
-from time import sleep
 import npyscreen
 import curses
 # endregion
@@ -36,6 +36,13 @@ __status__ = 'Development'
 
 # region WiFiSniffer Application
 class WiFiSniffer(npyscreen.StandardApp):
+
+    def __init__(self, wifi_instance: WiFi, base_instance: Base, tm_instance: ThreadManager):
+        super().__init__()
+        self.wifi_instance: WiFi = wifi_instance
+        self.base_instance: Base = base_instance
+        self.tm_instance: ThreadManager = tm_instance
+
     def onStart(self):
         npyscreen.setTheme(npyscreen.Themes.DefaultTheme)
         self.addForm("MAIN", MainForm, name='WiFi SSID\'s', color='DEFAULT')
@@ -181,6 +188,12 @@ class MainForm(npyscreen.FormBaseNew):
     channel_one_select_name: str = 'Channel'
     # endregion
 
+    def __init__(self, *args, **keywords):
+        super().__init__(*args, **keywords)
+        self.wifi_instance: WiFi = self.parentApp.wifi_instance
+        self.base_instance: Base = self.parentApp.base_instance
+        self.tm_instance: ThreadManager = self.parentApp.tm_instance
+
     def create(self):
         self.y, self.x = self.useable_space()
         self.grid = self.add(GridColTitles, col_titles=self.titles,
@@ -217,11 +230,11 @@ class MainForm(npyscreen.FormBaseNew):
 
     def resume_scanner(self, args):
         self.wifi_channel = -1
-        wifi.resume_scan_ssids()
+        self.wifi_instance.resume_scan_ssids()
 
     def switch_wifi_channel(self, args):
         popup_columns: int = len(self.channel_one_select_name) + 25
-        popup_lines: int = len(wifi.available_wifi_channels) + 4
+        popup_lines: int = len(self.wifi_instance.available_wifi_channels) + 4
         if popup_lines > int(3 * self.y // 4):
             popup_lines = int(3 * self.y // 4)
 
@@ -229,19 +242,19 @@ class MainForm(npyscreen.FormBaseNew):
                                 columns=popup_columns,
                                 lines=popup_lines)
         channels = popup.add(npyscreen.TitleSelectOne, name=self.channel_one_select_name, scroll_exit=True,
-                             values=wifi.available_wifi_channels)
+                             values=self.wifi_instance.available_wifi_channels)
         popup.edit()
         if len(channels.get_selected_objects()) > 0:
             current_wifi_channel: int = channels.get_selected_objects()[0]
             self.wifi_channel = current_wifi_channel
-            thread_manager.add_task(wifi.set_wifi_channel, current_wifi_channel)
+            self.tm_instance.add_task(self.wifi_instance.set_wifi_channel, current_wifi_channel)
 
     def deauth(self, args):
         try:
             bssid = self.grid.selected_row()[1]
-            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
-            if len(wifi.bssids[bssid]['clients']) > 0:
-                clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
+            assert bssid in self.wifi_instance.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            if len(self.wifi_instance.bssids[bssid]['clients']) > 0:
+                clients_list: List[str] = self.make_client_list(self.wifi_instance.bssids[bssid]['clients'])
 
                 popup_columns: int = len(max(clients_list, key=len)) + len(self.deauth_multi_select_name) + 22
                 popup_lines: int = len(clients_list) + 4
@@ -260,13 +273,13 @@ class MainForm(npyscreen.FormBaseNew):
                                            scroll_exit=True, values=clients_list)
                 popup.edit()
                 if len(deauth_clients.get_selected_objects()) > 0:
-                    if self.wifi_channel != wifi.bssids[bssid]['channel']:
-                        self.wifi_channel = wifi.bssids[bssid]['channel']
-                        wifi.set_wifi_channel(channel=wifi.bssids[bssid]['channel'])
+                    if self.wifi_channel != self.wifi_instance.bssids[bssid]['channel']:
+                        self.wifi_channel = self.wifi_instance.bssids[bssid]['channel']
+                        self.wifi_instance.set_wifi_channel(channel=self.wifi_instance.bssids[bssid]['channel'])
                     for client in deauth_clients.get_selected_objects():
-                        thread_manager.add_task(wifi.send_deauth, bssid, client[0:17], 50)
+                        self.tm_instance.add_task(self.wifi_instance.send_deauth, bssid, client[0:17], 50)
             else:
-                npyscreen.notify_confirm('Not found clients for AP: ' + wifi.bssids[bssid]['essid'] +
+                npyscreen.notify_confirm('Not found clients for AP: ' + self.wifi_instance.bssids[bssid]['essid'] +
                                          ' (' + bssid + ')', title="Deauth Error")
                 self.parentApp.switchFormPrevious()
 
@@ -283,8 +296,9 @@ class MainForm(npyscreen.FormBaseNew):
     def association(self, args):
         try:
             bssid = self.grid.selected_row()[1]
-            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
-            thread_manager.add_task(wifi.send_association_request, bssid, wifi.bssids[bssid]['essid'], True)
+            assert bssid in self.wifi_instance.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            self.tm_instance.add_task(self.wifi_instance.send_association_request, bssid,
+                                      self.wifi_instance.bssids[bssid]['essid'], True)
 
         except AssertionError as Error:
             npyscreen.notify_confirm(Error.args[0], title="Assertion Error")
@@ -305,17 +319,17 @@ class MainForm(npyscreen.FormBaseNew):
 
     def get_ap_info(self, bssid: str = '12:34:56:78:90:ab') -> str:
         try:
-            assert bssid in wifi.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
-            clients_list: List[str] = self.make_client_list(wifi.bssids[bssid]['clients'])
+            assert bssid in self.wifi_instance.bssids.keys(), 'Could not find AP with BSSID: ' + bssid
+            clients_list: List[str] = self.make_client_list(self.wifi_instance.bssids[bssid]['clients'])
             ap_info: str = ''
-            ap_info += '[*] ESSID: ' + str(wifi.bssids[bssid]['essid']) + '\n'
+            ap_info += '[*] ESSID: ' + str(self.wifi_instance.bssids[bssid]['essid']) + '\n'
             ap_info += '[*] BSSID: ' + str(bssid) + '\n'
 
             # region Information about WPA handshakes
             handshake_clients_address: List[str] = list()
-            if bssid in wifi.wpa_handshakes.keys():
-                for client in wifi.wpa_handshakes[bssid].keys():
-                    if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
+            if bssid in self.wifi_instance.wpa_handshakes.keys():
+                for client in self.wifi_instance.wpa_handshakes[bssid].keys():
+                    if 'hashcat 22000 file' in self.wifi_instance.wpa_handshakes[bssid][client].keys():
                         handshake_clients_address.append(client)
             if len(handshake_clients_address) > 0:
                 handshake_clients_address_and_vendor: List[str] = self.make_client_list(handshake_clients_address)
@@ -325,16 +339,16 @@ class MainForm(npyscreen.FormBaseNew):
             # endregion
 
             # region Information about WPA handshakes
-            if bssid in wifi.pmkid_authentications.keys():
-                if 'file' in wifi.pmkid_authentications[bssid].keys():
-                    ap_info += '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
+            if bssid in self.wifi_instance.pmkid_authentications.keys():
+                if 'file' in self.wifi_instance.pmkid_authentications[bssid].keys():
+                    ap_info += '[+] Sniff WPA' + str(self.wifi_instance.pmkid_authentications[bssid]['key version']) + \
                                ' RSN PMKID\n'
             # endregion
 
-            ap_info += '[*] Signal: ' + str(wifi.bssids[bssid]['signal']) + '\n'
-            ap_info += '[*] Encryption: ' + str(wifi.bssids[bssid]['enc']) + '\n'
-            ap_info += '[*] Cipher: ' + str(wifi.bssids[bssid]['cipher']) + '\n'
-            ap_info += '[*] Authentication: ' + str(wifi.bssids[bssid]['auth']) + '\n'
+            ap_info += '[*] Signal: ' + str(self.wifi_instance.bssids[bssid]['signal']) + '\n'
+            ap_info += '[*] Encryption: ' + str(self.wifi_instance.bssids[bssid]['enc']) + '\n'
+            ap_info += '[*] Cipher: ' + str(self.wifi_instance.bssids[bssid]['cipher']) + '\n'
+            ap_info += '[*] Authentication: ' + str(self.wifi_instance.bssids[bssid]['auth']) + '\n'
             if len(clients_list) > 0:
                 ap_info += '[*] Clients:\n'
                 for client in clients_list:
@@ -344,50 +358,48 @@ class MainForm(npyscreen.FormBaseNew):
         except AssertionError as Error:
             return Error.args[0]
 
-    @staticmethod
-    def make_client_list(clients: List[str]) -> List[str]:
+    def make_client_list(self, clients: List[str]) -> List[str]:
         clients_list: List[str] = list()
         for client_mac_address in clients:
-            vendor_list: List[str] = base.get_vendor_by_mac_address(client_mac_address).split()
+            vendor_list: List[str] = self.base_instance.get_vendor_by_mac_address(client_mac_address).split()
             vendor: str = vendor_list[0]
             if len(vendor_list) >= 2:
                 vendor += ' ' + vendor_list[1].replace(',', '')
             clients_list.append(client_mac_address + ' (' + vendor + ')')
         return clients_list
 
-    @staticmethod
-    def get_info_messages() -> List[str]:
+    def get_info_messages(self) -> List[str]:
         results_list: List[str] = list()
         results_dict: Dict[float, str] = dict()
 
         try:
 
             # region WPA Handshakes
-            if len(wifi.wpa_handshakes) > 0:
-                for bssid in wifi.wpa_handshakes.keys():
-                    for client in wifi.wpa_handshakes[bssid].keys():
-                        if isinstance(wifi.wpa_handshakes[bssid][client], dict):
-                            if 'hashcat 22000 file' in wifi.wpa_handshakes[bssid][client].keys():
-                                results_dict[wifi.wpa_handshakes[bssid][client]['timestamp']] = \
-                                    '[+] Sniff WPA' + str(wifi.wpa_handshakes[bssid][client]['key version']) + \
+            if len(self.wifi_instance.wpa_handshakes) > 0:
+                for bssid in self.wifi_instance.wpa_handshakes.keys():
+                    for client in self.wifi_instance.wpa_handshakes[bssid].keys():
+                        if isinstance(self.wifi_instance.wpa_handshakes[bssid][client], dict):
+                            if 'hashcat 22000 file' in self.wifi_instance.wpa_handshakes[bssid][client].keys():
+                                results_dict[self.wifi_instance.wpa_handshakes[bssid][client]['timestamp']] = \
+                                    '[+] Sniff WPA' + str(self.wifi_instance.wpa_handshakes[bssid][client]['key version']) + \
                                     ' handshake for STATION: ' + client + ' BSSID: ' + bssid + \
-                                    ' ESSID: ' + wifi.wpa_handshakes[bssid][client]['essid']
+                                    ' ESSID: ' + self.wifi_instance.wpa_handshakes[bssid][client]['essid']
             # endregion
 
             # region RSN PMKID
-            if len(wifi.pmkid_authentications) > 0:
-                for bssid in wifi.pmkid_authentications.keys():
-                    if 'file' in wifi.pmkid_authentications[bssid].keys():
-                        results_dict[wifi.pmkid_authentications[bssid]['timestamp']] = \
-                            '[+] Sniff WPA' + str(wifi.pmkid_authentications[bssid]['key version']) + \
-                            ' RSN PMKID for STATION: ' + wifi.pmkid_authentications[bssid]['client'] + \
+            if len(self.wifi_instance.pmkid_authentications) > 0:
+                for bssid in self.wifi_instance.pmkid_authentications.keys():
+                    if 'file' in self.wifi_instance.pmkid_authentications[bssid].keys():
+                        results_dict[self.wifi_instance.pmkid_authentications[bssid]['timestamp']] = \
+                            '[+] Sniff WPA' + str(self.wifi_instance.pmkid_authentications[bssid]['key version']) + \
+                            ' RSN PMKID for STATION: ' + self.wifi_instance.pmkid_authentications[bssid]['client'] + \
                             ' BSSID: ' + bssid + \
-                            ' ESSID: ' + wifi.pmkid_authentications[bssid]['essid']
+                            ' ESSID: ' + self.wifi_instance.pmkid_authentications[bssid]['essid']
             # endregion
 
             # region Deauth Packets
-            if len(wifi.deauth_packets) > 0:
-                for deauth_dictioanry in wifi.deauth_packets:
+            if len(self.wifi_instance.deauth_packets) > 0:
+                for deauth_dictioanry in self.wifi_instance.deauth_packets:
                     results_dict[deauth_dictioanry['timestamp']] = \
                         '[*] Send ' + str(deauth_dictioanry['packets']) + \
                         ' deauth packets for STATION: ' + str(deauth_dictioanry['client']) + \
@@ -395,8 +407,8 @@ class MainForm(npyscreen.FormBaseNew):
             # endregion
 
             # region Association Packets
-            if len(wifi.association_packets) > 0:
-                for association_dictioanry in wifi.association_packets:
+            if len(self.wifi_instance.association_packets) > 0:
+                for association_dictioanry in self.wifi_instance.association_packets:
                     if association_dictioanry['verbose']:
                         results_dict[association_dictioanry['timestamp']] = \
                             '[*] Send association request packets' \
@@ -406,24 +418,25 @@ class MainForm(npyscreen.FormBaseNew):
             # endregion
 
             # region WiFi channels
-            if len(wifi.channels) > 0:
-                channel_dictionary: Dict[str, Union[int, float]] = wifi.channels[len(wifi.channels) - 1]
+            if len(self.wifi_instance.channels) > 0:
+                channel_dictionary: Dict[str, Union[int, float]] = \
+                    self.wifi_instance.channels[len(self.wifi_instance.channels) - 1]
                 results_dict[channel_dictionary['timestamp']] = \
                     '[*] Current WiFi channel: ' + str(channel_dictionary['channel'])
             # endregion
 
             # region Kr00k Packets
-            if len(wifi.kr00k_packets) > 0:
-                for source in wifi.kr00k_packets:
-                    for destination in wifi.kr00k_packets[source]:
-                        if wifi.kr00k_packets[source][destination]['direction'] == 'to-AP':
-                            results_dict[wifi.kr00k_packets[source][destination]['timestamp']] = \
-                                '[+] Sniff ' + str(wifi.kr00k_packets[source][destination]['count']) + \
+            if len(self.wifi_instance.kr00k_packets) > 0:
+                for source in self.wifi_instance.kr00k_packets:
+                    for destination in self.wifi_instance.kr00k_packets[source]:
+                        if self.wifi_instance.kr00k_packets[source][destination]['direction'] == 'to-AP':
+                            results_dict[self.wifi_instance.kr00k_packets[source][destination]['timestamp']] = \
+                                '[+] Sniff ' + str(self.wifi_instance.kr00k_packets[source][destination]['count']) + \
                                 ' kr00k packets from STATION: ' + str(source) + \
                                 ' -> to BSSID: ' + str(destination)
-                        if wifi.kr00k_packets[source][destination]['direction'] == 'from-AP':
-                            results_dict[wifi.kr00k_packets[source][destination]['timestamp']] = \
-                                '[+] Sniff ' + str(wifi.kr00k_packets[source][destination]['count']) + \
+                        if self.wifi_instance.kr00k_packets[source][destination]['direction'] == 'from-AP':
+                            results_dict[self.wifi_instance.kr00k_packets[source][destination]['timestamp']] = \
+                                '[+] Sniff ' + str(self.wifi_instance.kr00k_packets[source][destination]['count']) + \
                                 ' kr00k packets to STATION: ' + str(source) + \
                                 ' <- from BSSID: ' + str(destination)
             # endregion
@@ -450,31 +463,31 @@ class MainForm(npyscreen.FormBaseNew):
     def get_wifi_ssid_rows(self) -> List[List[str]]:
         rows: List[List[str]] = list()
         results: List[Dict[str, Union[int, str]]] = list()
-        for bssid in wifi.bssids.keys():
+        for bssid in self.wifi_instance.bssids.keys():
             try:
-                assert 'essid' in wifi.bssids[bssid].keys() and \
-                       'signal' in wifi.bssids[bssid].keys() and \
-                       'channel' in wifi.bssids[bssid].keys() and \
-                       'enc' in wifi.bssids[bssid].keys() and \
-                       'cipher' in wifi.bssids[bssid].keys() and \
-                       'auth' in wifi.bssids[bssid].keys() and \
-                       'clients' in wifi.bssids[bssid].keys(), 'Bad AP'
+                assert 'essid' in self.wifi_instance.bssids[bssid].keys() and \
+                       'signal' in self.wifi_instance.bssids[bssid].keys() and \
+                       'channel' in self.wifi_instance.bssids[bssid].keys() and \
+                       'enc' in self.wifi_instance.bssids[bssid].keys() and \
+                       'cipher' in self.wifi_instance.bssids[bssid].keys() and \
+                       'auth' in self.wifi_instance.bssids[bssid].keys() and \
+                       'clients' in self.wifi_instance.bssids[bssid].keys(), 'Bad AP'
 
-                assert wifi.bssids[bssid]['enc'] != 'UNKNOWN', 'Bad Encryption'
-                assert wifi.bssids[bssid]['cipher'] != 'UNKNOWN', 'Bad Cipher'
-                assert wifi.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Authentication'
+                assert self.wifi_instance.bssids[bssid]['enc'] != 'UNKNOWN', 'Bad Encryption'
+                assert self.wifi_instance.bssids[bssid]['cipher'] != 'UNKNOWN', 'Bad Cipher'
+                assert self.wifi_instance.bssids[bssid]['auth'] != 'UNKNOWN', 'Bad Authentication'
                 if self.wifi_channel != -1:
-                    assert wifi.bssids[bssid]['channel'] == self.wifi_channel, 'Bad WiFi channel'
+                    assert self.wifi_instance.bssids[bssid]['channel'] == self.wifi_channel, 'Bad WiFi channel'
 
                 results.append({
-                    'essid': wifi.bssids[bssid]['essid'],
+                    'essid': self.wifi_instance.bssids[bssid]['essid'],
                     'bssid': bssid,
-                    'signal': wifi.bssids[bssid]['signal'],
-                    'channel': wifi.bssids[bssid]['channel'],
-                    'encryption': wifi.bssids[bssid]['enc'] + ' ' +
-                                  wifi.bssids[bssid]['auth'] + ' ' +
-                                  wifi.bssids[bssid]['cipher'],
-                    'clients': len(wifi.bssids[bssid]['clients'])})
+                    'signal': self.wifi_instance.bssids[bssid]['signal'],
+                    'channel': self.wifi_instance.bssids[bssid]['channel'],
+                    'encryption': self.wifi_instance.bssids[bssid]['enc'] + ' ' +
+                                  self.wifi_instance.bssids[bssid]['auth'] + ' ' +
+                                  self.wifi_instance.bssids[bssid]['cipher'],
+                    'clients': len(self.wifi_instance.bssids[bssid]['clients'])})
 
             except AssertionError:
                 pass
@@ -488,38 +501,32 @@ class MainForm(npyscreen.FormBaseNew):
                          sorted_result['encryption'],
                          sorted_result['clients']])
             if 'WPA' in sorted_result['encryption'] and \
-                    sorted_result['bssid'] not in wifi.pmkid_authentications.keys():
-                thread_manager.add_task(wifi.send_association_request,
-                                        sorted_result['bssid'],
-                                        sorted_result['essid'],
-                                        False)
+                    sorted_result['bssid'] not in self.wifi_instance.pmkid_authentications.keys():
+                self.tm_instance.add_task(self.wifi_instance.send_association_request,
+                                          sorted_result['bssid'],
+                                          sorted_result['essid'],
+                                          False)
         return rows
 
 # endregion
 
 
 # region Main function
-if __name__ == "__main__":
+def main():
 
-    # region Import Raw-packet modules
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
-
-    from raw_packet.Utils.base import Base
-    from raw_packet.Utils.wifi import WiFi
-    from raw_packet.Utils.tm import ThreadManager
-
+    # region Init Raw-packet modules
     base: Base = Base()
     thread_manager: ThreadManager = ThreadManager(10)
     # endregion
 
-    # region Check user and platform
+    # region Check user
     base.check_user()
     # endregion
 
     # region Parse script arguments
     script_description: str = \
         base.get_banner() + '\n' + \
-        base.success_text('Cross platform WiFi attack tool') + '\n\n' + \
+        base.info_text('Cross platform WiFi attack tool (wat)') + '\n\n' + \
         base.info_text('Ctrl-E') + ' Show Wireless access point information\n' + \
         base.info_text('Ctrl-D') + ' Send IEEE 802.11 deauth packets\n' + \
         base.info_text('Ctrl-D') + ' Switch WiFi channel\n' + \
@@ -553,7 +560,7 @@ if __name__ == "__main__":
         # endregion
 
         # region Start WiFi Sniffer
-        wifi_sniffer: WiFiSniffer = WiFiSniffer()
+        wifi_sniffer: WiFiSniffer = WiFiSniffer(wifi_instance=wifi, base_instance=base, tm_instance=thread_manager)
         wifi_sniffer.run()
         # endregion
 
@@ -564,4 +571,10 @@ if __name__ == "__main__":
         base.print_error(Error.args[0])
         exit(1)
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

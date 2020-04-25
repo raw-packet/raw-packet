@@ -27,9 +27,6 @@ Raw-packet project
 ***This project is created only for educational purposes and can not be used for 
 law violation or personal gain.<br/>The author of this project is not responsible for any possible harm caused by the materials of this project.***
 
-# Важная информация:
-***Данный проект создан исключительно в образовательных целях, и не может быть использован в целях нарушающих законодательство, в корыстных целях или для получения какой-либо выгоды как для самого автора так и лиц его использующих.<br/>Автор данного проекта не несет ответственности за любой возможный вред, причиненный материалами данного проекта.***
-
 # Info
 Author: [Vladimir Ivanov](https://github.com/Vladimir-Ivanov-Git)<br/>
 SubAuthors: [Ilja Bulatov](https://github.com/barrracud4)<br/>
@@ -256,9 +253,9 @@ optional arguments:
 Disconnect Apple device from the local network using ARP packets
 
 ```
-root@kali:~/raw-packet# python3 Scripts/Apple/apple_arp_dos.py --help
-usage: apple_arp_dos.py [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC]
-                        [-n] [-q]
+root@kali:~# apple_arp_dos -h
+usage: apple_arp_dos [-h] [-i INTERFACE] [-t TARGET_IP] [-m TARGET_MAC] [-n]
+                     [-q]
 
 Disconnect Apple device in local network with ARP packets
 

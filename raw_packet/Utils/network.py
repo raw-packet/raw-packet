@@ -5751,7 +5751,7 @@ class RawSniff:
     # endregion
 
     # region Start sniffer
-    def start(self, protocols, prn, filters={}, network_interface: Union[None, str] = None):
+    def start(self, protocols, prn, filters={}, network_interface: Union[None, str] = None, *args, **kwargs):
 
         # region Create RAW socket for sniffing
         self.raw_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
@@ -5828,10 +5828,7 @@ class RawSniff:
                         # endregion
 
                         # region Call function with full IEEE 802.11 packet
-                        prn({
-                            'Radiotap': radiotap_header_dict,
-                            '802.11': iee80211_packet_dict
-                        })
+                        prn(packet={'Radiotap': radiotap_header_dict, '802.11': iee80211_packet_dict}, *args, *kwargs)
                         # endregion
 
                     # endregion
@@ -5895,10 +5892,10 @@ class RawSniff:
                         # endregion
 
                         # region Call function with full ARP packet
-                        prn({
+                        prn(packet={
                             'Ethernet': ethernet_header_dict,
                             'ARP': arp_packet_dict
-                        })
+                        }, *args, *kwargs)
                         # endregion
 
                     # endregion

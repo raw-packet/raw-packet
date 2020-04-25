@@ -27,7 +27,7 @@ classifiers = [
 
 
 setuptools.setup(
-    name="raw_packet", # Replace with your own username
+    name="raw_packet",
     version=raw_packet.__version__,
     author=raw_packet.__author__,
     author_email=raw_packet.__email__,
@@ -42,10 +42,11 @@ setuptools.setup(
         "psutil", "prettytable", "distro", "xmltodict",
         "paramiko", "npyscreen", "pycryptodomex", "getmac", "colorama" 
     ],
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'apple_arp_dos=raw_packet.Scripts.Apple.apple_arp_dos:main',
-            'apple_rogue_dhcp=raw_packet.Scripts.Apple.apple_rogue_dhcp:main'
+            'apple_rogue_dhcp=raw_packet.Scripts.Apple.apple_rogue_dhcp:main',
+            'wat=raw_packet.Scripts.WiFi.wat:main'
         ],
     },
     python_requires='>=3.7',
