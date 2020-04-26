@@ -3,7 +3,7 @@
 
 # region Description
 """
-icmpv6_na_spoof.py: ICMPv6 NA (Neighbor Advertisement) spoofing
+icmpv6_spoof.py: ICMPv6 NA (Neighbor Advertisement) and NA (Neighbor Advertisement) spoofing
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -11,8 +11,10 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
+from raw_packet.Utils.base import Base
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+from raw_packet.Utils.network import RawICMPv6
 from argparse import ArgumentParser, RawTextHelpFormatter
 from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
@@ -31,17 +33,11 @@ __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
 # endregion
 
+
 # region Main function
-if __name__ == '__main__':
+def main():
 
     # region Import Raw-packet classes
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
-
-    from raw_packet.Utils.base import Base
-    from raw_packet.Scanners.scanner import Scanner
-    from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
-    from raw_packet.Utils.network import RawICMPv6
-
     base: Base = Base()
     icmpv6: RawICMPv6 = RawICMPv6()
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
@@ -344,4 +340,10 @@ if __name__ == '__main__':
         exit(1)
     # endregion
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

@@ -11,8 +11,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
+from raw_packet.Utils.base import Base
+from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser
 from prettytable import PrettyTable
 from typing import List, Dict
@@ -31,14 +31,9 @@ __status__ = 'Production'
 
 
 # region Main function
-if __name__ == '__main__':
+def main():
 
-    # region Import Raw-packet classes
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
-
-    from raw_packet.Utils.base import Base
-    from raw_packet.Scanners.arp_scanner import ArpScan
-
+    # region Init Raw-packet classes
     base: Base = Base()
     arp_scan: ArpScan = ArpScan()
     # endregion
@@ -119,4 +114,10 @@ if __name__ == '__main__':
         base.print_error(Error.args[0])
         exit(1)
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

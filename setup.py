@@ -46,6 +46,12 @@ setuptools.setup(
         'console_scripts': [
             'apple_arp_dos=raw_packet.Scripts.Apple.apple_arp_dos:main',
             'apple_rogue_dhcp=raw_packet.Scripts.Apple.apple_rogue_dhcp:main',
+            'arp_scan=raw_packet.Scripts.ARP.arp_scan:main',
+            'arp_spoof=raw_packet.Scripts.ARP.arp_spoof:main',
+            'dns_server=raw_packet.Scripts.DNS.dns_server:main',
+            'icmpv4_redirect=raw_packet.Scripts.ICMPv4.icmpv4_redirect:main',
+            'ipv6_scan=raw_packet.Scripts.IPv6.ipv6_scan:main',
+            'ipv6_spoof=raw_packet.Scripts.IPv6.ipv6_spoof:main',
             'wat=raw_packet.Scripts.WiFi.wat:main'
         ],
     },

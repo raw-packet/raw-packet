@@ -11,8 +11,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
+from raw_packet.Utils.base import Base
+from raw_packet.Servers.dns_server import RawDnsServer
 from argparse import ArgumentParser
 from typing import List
 # endregion
@@ -30,12 +30,9 @@ __status__ = 'Development'
 
 
 # region Main function
-if __name__ == '__main__':
+def main():
 
-    # region Raw-packet modules
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
-    from raw_packet.Utils.base import Base
-    from raw_packet.Servers.dns_server import RawDnsServer
+    # region Init Raw-packet classes
     base: Base = Base()
     dns_server: RawDnsServer = RawDnsServer()
     # endregion
@@ -198,4 +195,10 @@ if __name__ == '__main__':
         base.print_error(Error.args[0])
         exit(1)
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

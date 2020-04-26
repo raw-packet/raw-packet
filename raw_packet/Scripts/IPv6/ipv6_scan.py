@@ -11,8 +11,8 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
+from raw_packet.Utils.base import Base
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from argparse import ArgumentParser
 from prettytable import PrettyTable
 from typing import Union, Dict, List
@@ -31,17 +31,10 @@ __status__ = 'Development'
 
 
 # region Main function
-if __name__ == "__main__":
+def main():
 
-    # region Import Raw-packet classes
-    path.append(dirname(dirname(dirname(abspath(__file__)))))
-
-    from raw_packet.Utils.base import Base
-    from raw_packet.Utils.network import RawEthernet
-    from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
-
+    # region Init Raw-packet classes
     base: Base = Base()
-    eth: RawEthernet = RawEthernet()
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
     # endregion
 
@@ -122,4 +115,10 @@ if __name__ == "__main__":
         print(pretty_table)
     # endregion
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

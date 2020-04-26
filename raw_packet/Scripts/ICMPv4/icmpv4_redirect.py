@@ -30,8 +30,9 @@ __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
 # endregion
 
+
 # region Main function
-if __name__ == '__main__':
+def main():
 
     # region Import Raw-packet classes
     path.append(dirname(dirname(dirname(abspath(__file__)))))
@@ -184,4 +185,10 @@ if __name__ == '__main__':
         base.print_error(Error.args[0])
         exit(1)
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion
