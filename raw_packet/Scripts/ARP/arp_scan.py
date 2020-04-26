@@ -35,13 +35,12 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    arp_scan: ArpScan = ArpScan()
     # endregion
 
     try:
         # region Check user, platform and print banner
         base.check_user()
-        base.check_platform()
+        base.check_platform(available_platforms=['Linux', 'Darwin'])
         base.print_banner()
         # endregion
 
@@ -62,6 +61,7 @@ def main():
         your_ip_address: str = base.get_interface_ip_address(current_network_interface)
         first_ip_address: str = base.get_first_ip_on_interface(current_network_interface)
         last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
+        arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
         # endregion
 
         # region Target IP is set
@@ -87,7 +87,7 @@ def main():
         # endregion
 
         # region Start scanner
-        results: List[Dict[str, str]] = arp_scan.scan(network_interface=current_network_interface, timeout=args.timeout,
+        results: List[Dict[str, str]] = arp_scan.scan(timeout=args.timeout,
                                                       retry=args.retry, target_ip_address=args.target_ip,
                                                       check_vendor=True, exclude_ip_addresses=None,
                                                       exit_on_failure=False, show_scan_percentage=True)
@@ -98,11 +98,14 @@ def main():
             'Could not find devices in local network on interface: ' + base.error_text(current_network_interface)
 
         base.print_success('Found ', str(len(results)), ' alive hosts on interface: ', current_network_interface)
-        pretty_table = PrettyTable([base.cINFO + 'IP address' + base.cEND,
+        pretty_table = PrettyTable([base.cINFO + 'Index' + base.cEND,
+                                    base.cINFO + 'IP address' + base.cEND,
                                     base.cINFO + 'MAC address' + base.cEND,
                                     base.cINFO + 'Vendor' + base.cEND])
+        index: int = 1
         for result in results:
-            pretty_table.add_row([result['ip-address'], result['mac-address'], result['vendor']])
+            pretty_table.add_row([index, result['ip-address'], result['mac-address'], result['vendor']])
+            index += 1
         print(pretty_table)
         # endregion
 

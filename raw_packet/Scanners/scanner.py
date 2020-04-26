@@ -44,16 +44,16 @@ class Scanner:
 
     # region Variables
     base: Base = Base()
-    arp_scan: ArpScan = ArpScan()
-    icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
     nmap_scan_result: str = current_path + '/nmap_scan.xml'
     # endregion
 
     # region Init
-    def __init__(self):
-        if not self.base.check_installed_software('nmap'):
-            self.base.print_error('Could not find program: ', 'nmap')
-            exit(1)
+    def __init__(self, network_interface: str):
+        self.arp_scan: ArpScan = ArpScan(network_interface=network_interface)
+        self.icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=network_interface)
+        # if not self.base.check_installed_software('nmap'):
+        #     self.base.print_error('Could not find program: ', 'nmap')
+        #     exit(1)
     # endregion
 
     # region Apple device selection
@@ -293,9 +293,8 @@ class Scanner:
                                  exit_on_failure: bool = True) -> Union[None, List[str]]:
         try:
             local_network_ip_addresses: List[str] = list()
-            arp_scan_results = self.arp_scan.scan(network_interface=network_interface,  timeout=timeout,
-                                                  retry=retry, exit_on_failure=False, check_vendor=True,
-                                                  show_scan_percentage=show_scan_percentage)
+            arp_scan_results = self.arp_scan.scan(timeout=timeout, retry=retry, exit_on_failure=False,
+                                                  check_vendor=True, show_scan_percentage=show_scan_percentage)
             assert len(arp_scan_results) != 0, \
                 'Could not find network devices on interface: ' + self.base.error_text(network_interface)
             for device in arp_scan_results:
@@ -321,9 +320,8 @@ class Scanner:
                                   exit_on_failure: bool = True) -> Union[None, List[List[str]]]:
         try:
             apple_devices: List[List[str]] = list()
-            arp_scan_results = self.arp_scan.scan(network_interface=network_interface, timeout=timeout,
-                                                  retry=retry, exit_on_failure=False, check_vendor=True,
-                                                  show_scan_percentage=show_scan_percentage)
+            arp_scan_results = self.arp_scan.scan(timeout=timeout, retry=retry, exit_on_failure=False,
+                                                  check_vendor=True, show_scan_percentage=show_scan_percentage)
             assert len(arp_scan_results) != 0, \
                 'Could not find network devices on interface: ' + self.base.error_text(network_interface)
             for device in arp_scan_results:
@@ -379,8 +377,8 @@ class Scanner:
                           exit_on_failure: bool = True) -> Union[None, List[Dict[str, str]]]:
         try:
             ipv6_devices: List[Dict[str, str]] = list()
-            ipv6_scan_results = self.icmpv6_scan.scan(network_interface=network_interface, timeout=timeout, retry=retry,
-                                                      target_mac_address=None, check_vendor=True, exit_on_failure=False)
+            ipv6_scan_results = self.icmpv6_scan.scan(timeout=timeout, retry=retry, target_mac_address=None,
+                                                      check_vendor=True, exit_on_failure=False)
             assert len(ipv6_scan_results) != 0, \
                 'Could not find IPv6 network devices on interface: ' + self.base.error_text(network_interface)
             for device in ipv6_scan_results:

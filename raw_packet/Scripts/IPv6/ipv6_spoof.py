@@ -14,9 +14,8 @@ Copyright 2020, Raw-packet Project
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.scanner import Scanner
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
-from raw_packet.Utils.network import RawICMPv6
+from raw_packet.Utils.network import RawICMPv6, RawSend
 from argparse import ArgumentParser, RawTextHelpFormatter
-from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from prettytable import PrettyTable
 from typing import Union, Dict, List
@@ -40,14 +39,11 @@ def main():
     # region Import Raw-packet classes
     base: Base = Base()
     icmpv6: RawICMPv6 = RawICMPv6()
-    icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
-    scanner: Scanner = Scanner()
-    raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
     # endregion
 
     # region Check user, platform and create threads
     base.check_user()
-    base.check_platform()
+    base.check_platform(available_platforms=['Linux', 'Darwin'])
     # endregion
 
     try:
@@ -82,6 +78,9 @@ def main():
         current_network_interface: str = base.network_interface_selection(args.interface)
         your_mac_address: str = base.get_interface_mac_address(current_network_interface)
         your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
+        icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=current_network_interface)
+        scanner: Scanner = Scanner(network_interface=current_network_interface)
+        raw_send: RawSend = RawSend(network_interface=current_network_interface)
         # endregion
 
         # region Local variables
@@ -186,10 +185,6 @@ def main():
             technique_index = int(args.technique)
         # endregion
 
-        # region Bind raw socket
-        raw_socket.bind((current_network_interface, 0))
-        # endregion
-
         # region General output
         if not args.quiet:
             base.print_info('Network interface: ', current_network_interface)
@@ -204,8 +199,7 @@ def main():
         if args.gateway_ip is None and args.dns_ip is None:
             base.print_info('Search IPv6 Gateway and DNS server ....')
             router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = \
-                icmpv6_scan.search_router(network_interface=current_network_interface,
-                                          timeout=5, retry=3, exit_on_failure=False)
+                icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
             # region Find IPv6 router
             if router_advertisement_data is not None:
                 gateway_ipv6_address = router_advertisement_data['router_ipv6_address']
@@ -324,19 +318,16 @@ def main():
                                                                                target_ipv6_address=dns_ipv6_address))
         while True:
             for spoof_packet in spoof_packets:
-                raw_socket.send(spoof_packet)
+                raw_send.send(spoof_packet)
                 sleep(0.25)
         # endregion
 
     except KeyboardInterrupt:
-        raw_socket.close()
         base.print_info('Exit')
         exit(0)
 
     except AssertionError as Error:
-        raw_socket.close()
-        error_text = Error.args[0]
-        base.print_error(error_text)
+        base.print_error(Error.args[0])
         exit(1)
     # endregion
 

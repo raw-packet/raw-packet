@@ -241,19 +241,21 @@ class Base:
         return str(system()) + ' ' + str(release())
 
     @staticmethod
-    def check_platform(exit_on_failure: bool = True,
+    def check_platform(available_platforms: List[str] = ['Linux'],
+                       exit_on_failure: bool = True,
                        exit_code: int = 1,
                        quiet: bool = False) -> bool:
         """
         Check Python version and OS
+        :param available_platforms: Available Platforms list (example: ['Linux', 'Darwin'])
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 1)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if OS is Linux or False if not
         """
-        if system() != 'Linux':
+        if system() not in available_platforms:
             if not quiet:
-                print('This script can run only in Linux platform!')
+                print('This script can run only in: ' + ' and '.join(available_platforms))
                 print('Your platform: ' + str(system()) + ' ' + str(release()) + ' not supported!')
             if exit_on_failure:
                 exit(exit_code)

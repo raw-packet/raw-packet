@@ -35,13 +35,11 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
     # endregion
 
     # region Check user, platform and print banner
     base.check_user()
-    base.check_platform()
-    base.print_banner()
+    base.check_platform(available_platforms=['Linux', 'Darwin'])
     # endregion
 
     # region Parse script arguments
@@ -52,6 +50,7 @@ def main():
     parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
     parser.add_argument('-s', '--router_search', action='store_true', help='Search router IPv6 link local address')
     args = parser.parse_args()
+    base.print_banner()
     # endregion
 
     # region Get your network settings
@@ -60,6 +59,7 @@ def main():
     current_network_interface: str = base.network_interface_selection(args.interface)
     your_mac_address: str = base.get_interface_mac_address(current_network_interface)
     your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
+    icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=current_network_interface)
     # endregion
 
     # region Set Target MAC address
@@ -81,8 +81,7 @@ def main():
 
     # region Search IPv6 router
     if args.router_search:
-        router_info: Dict[str, Union[int, str]] = icmpv6_scan.search_router(network_interface=current_network_interface,
-                                                                            timeout=args.timeout, retry=args.retry,
+        router_info: Dict[str, Union[int, str]] = icmpv6_scan.search_router(timeout=args.timeout, retry=args.retry,
                                                                             exit_on_failure=True)
         base.print_success("Found IPv6 router:")
         base.print_info("Router IPv6 link local address: ", router_info['router_ipv6_address'])
@@ -102,16 +101,18 @@ def main():
 
     # region Scan IPv6 hosts
     else:
-        results: List[Dict[str, str]] = icmpv6_scan.scan(network_interface=current_network_interface,
-                                                         timeout=args.timeout, retry=args.retry,
+        results: List[Dict[str, str]] = icmpv6_scan.scan(timeout=args.timeout, retry=args.retry,
                                                          target_mac_address=target_mac_address, check_vendor=True,
                                                          exit_on_failure=True)
         base.print_success('Found ', str(len(results)), ' alive hosts on interface: ', current_network_interface)
-        pretty_table = PrettyTable([base.cINFO + 'IPv6 address' + base.cEND,
+        pretty_table = PrettyTable([base.cINFO + 'Index' + base.cEND,
+                                    base.cINFO + 'IPv6 address' + base.cEND,
                                     base.cINFO + 'MAC address' + base.cEND,
                                     base.cINFO + 'Vendor' + base.cEND])
+        index: int = 1
         for result in results:
-            pretty_table.add_row([result['ip-address'], result['mac-address'], result['vendor']])
+            pretty_table.add_row([index, result['ip-address'], result['mac-address'], result['vendor']])
+            index += 1
         print(pretty_table)
     # endregion
 

@@ -12,10 +12,9 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawARP
+from raw_packet.Utils.network import RawARP, RawSend
 from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser
-from socket import socket, AF_PACKET, SOCK_RAW
 from time import sleep
 from prettytable import PrettyTable
 from typing import Union, List, Dict
@@ -36,20 +35,15 @@ __status__ = 'Production'
 # region Main function
 def main():
 
-    # region Import Raw-packet classes
+    # region Init Raw-packet classes
     base: Base = Base()
     arp: RawARP = RawARP()
-    arp_scan: ArpScan = ArpScan()
-    # endregion
-
-    # region Raw socket
-    raw_socket: socket = socket(AF_PACKET, SOCK_RAW)
     # endregion
 
     try:
         # region Check user and platform
         base.check_user()
-        base.check_platform()
+        base.check_platform(available_platforms=['Linux', 'Darwin'])
         # endregion
 
         # region Parse script arguments
@@ -85,6 +79,11 @@ def main():
         last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
         # endregion
 
+        # region Init RawSend
+        arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
+        raw_send: RawSend = RawSend(network_interface=current_network_interface)
+        # endregion
+
         # region Set gateway IP address
         if args.gateway_ip is None:
             gateway_ip_address: str = base.get_interface_gateway(current_network_interface)
@@ -94,10 +93,6 @@ def main():
                 '; Gateway IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
             gateway_ip_address: str = args.gateway_ip
         base.print_info('Gateway IP address: ', gateway_ip_address)
-        # endregion
-
-        # region Bind raw socket
-        raw_socket.bind((current_network_interface, 0))
         # endregion
 
         # region General output
@@ -133,8 +128,7 @@ def main():
                     sender_ip=gateway_ip_address,
                     target_mac='00:00:00:00:00:00',
                     target_ip=your_ip_address)
-                for _ in range(5):
-                    raw_socket.send(arp_request)
+                raw_send.send(packet=arp_request, count=5)
                 sleep(1)
         # endregion
 
@@ -144,8 +138,7 @@ def main():
         # region Target IP address is not set
         if args.target_ip is None:
             base.print_info('Start ARP scan ...')
-            results: List[Dict[str, str]] = arp_scan.scan(network_interface=current_network_interface,
-                                                          timeout=3, retry=3,
+            results: List[Dict[str, str]] = arp_scan.scan(timeout=3, retry=3,
                                                           target_ip_address=None, check_vendor=True,
                                                           exclude_ip_addresses=[gateway_ip_address],
                                                           exit_on_failure=True,
@@ -200,8 +193,7 @@ def main():
                 target_mac_address: str = args.target_mac
             else:
                 base.print_info('Get MAC address of IP: ', target_ip_address)
-                target_mac_address: str = arp_scan.get_mac_address(network_interface=current_network_interface,
-                                                                   target_ip_address=target_ip_address,
+                target_mac_address: str = arp_scan.get_mac_address(target_ip_address=target_ip_address,
                                                                    timeout=3, retry=3,
                                                                    exit_on_failure=True,
                                                                    show_scan_percentage=False)
@@ -228,7 +220,7 @@ def main():
                                                       target_mac='00:00:00:00:00:00',
                                                       target_ip=base.get_random_ip_on_interface(
                                                           current_network_interface))
-                raw_socket.send(arp_request)
+                raw_send.send(arp_request)
                 sleep(1)
         # endregion
 
@@ -243,19 +235,17 @@ def main():
                                                     target_mac=target_mac_address,
                                                     target_ip=target_ip_address)
             while True:
-                raw_socket.send(arp_response)
+                raw_send.send(arp_response)
                 sleep(1)
         # endregion
 
         # endregion
 
     except KeyboardInterrupt:
-        raw_socket.close()
         base.print_info('Exit')
         exit(0)
 
     except AssertionError as Error:
-        raw_socket.close()
         base.print_error(Error.args[0])
         exit(1)
 

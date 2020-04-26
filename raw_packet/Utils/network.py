@@ -14,12 +14,16 @@ from struct import pack, unpack, error as struct_error
 from binascii import unhexlify, hexlify
 from array import array
 from socket import error as sock_error, inet_aton, inet_ntoa, inet_pton, htons, IPPROTO_TCP, IPPROTO_UDP, AF_INET6
-from socket import socket, AF_PACKET, SOCK_RAW, inet_ntop, IPPROTO_ICMPV6
+from socket import socket, inet_ntop, IPPROTO_ICMPV6
+try:
+    from socket import AF_PACKET, SOCK_RAW
+except ImportError:
+    from scapy.all import sendp, sniff
 from re import search
 from time import time
 from typing import Dict, List, Union, Tuple, Any
 from traceback import format_tb
-from enum import Enum
+from time import sleep
 # endregion
 
 # region Authorship information
@@ -5726,11 +5730,56 @@ class RawICMPv6:
 # # endregion
 
 
+# region Raw Send
+class RawSend:
+
+    # region Init
+    def __init__(self, network_interface: str):
+        self.network_interface: str = network_interface
+        self.send_socket: Union[None, socket] = None
+        try:
+            self.send_socket: socket = socket(AF_PACKET, SOCK_RAW)
+            self.send_socket.bind((self.network_interface, 0))
+        except NameError:
+            pass
+    # endregion
+
+    # region Send packet
+    def send(self, packet: bytes, count: int = 1, delay: float = 0):
+        if self.send_socket is not None:
+            if delay != 0:
+                for _ in range(count):
+                    self.send_socket.send(packet)
+                    sleep(delay)
+            else:
+                for _ in range(count):
+                    self.send_socket.send(packet)
+        else:
+            if delay != 0:
+                for _ in range(count):
+                    sendp(packet, iface=self.network_interface, verbose=False)
+                    sleep(delay)
+            else:
+                sendp(packet, iface=self.network_interface, verbose=False, count=count)
+    # endregion
+
+    # region Destructor
+    def __del__(self):
+        if self.send_socket is not None:
+            self.send_socket.close()
+    # endregion
+
+# endregion
+
+
 # region Raw Sniffer
 class RawSniff:
 
     # region variables
-    raw_socket = None
+    sniff_socket: Union[None, socket] = None
+    protocols: Union[None, List[str]] = None
+    prn: Union[None, Any] = None
+    filters: Union[None, Dict[str, Union[str, Dict[str, str]]]] = None
     # endregion
 
     # region Init
@@ -5751,514 +5800,560 @@ class RawSniff:
     # endregion
 
     # region Start sniffer
-    def start(self, protocols, prn, filters={}, network_interface: Union[None, str] = None, *args, **kwargs):
+    def start(self,
+              protocols: List[str],
+              prn: Any,
+              filters: Dict[str, Union[str, Dict[str, str]]],
+              network_interface: str,
+              scapy_filter: Union[None, str] = None,
+              scapy_lfilter: Union[None, Any] = None) -> None:
 
-        # region Create RAW socket for sniffing
-        self.raw_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+        # region Set variables
+        self.protocols = protocols
+        self.prn = prn
+        self.filters = filters
         # endregion
 
-        # region Start sniffing
+        # region Create RAW socket for sniffing
+        try:
+            self.sniff_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+        except NameError:
+            sniff(iface=network_interface, store=False, prn=self._scapy_prn,
+                  filter=scapy_filter, lfilter=scapy_lfilter)
+        # endregion
+
+        # region Start sniffing from RAW socket
         while True:
-
-            # region Sniff packets from RAW socket
-            packets: Tuple[bytes, Any] = self.raw_socket.recvfrom(65535)
-
-            # region Try
             try:
-                if network_interface is not None:
-                    assert packets[1][0] == network_interface, 'Bad network interface!'
+                packets: Tuple[bytes, Any] = self.sniff_socket.recvfrom(65535)
+                assert packets[1][0] == network_interface, 'Bad network interface!'
                 packet = packets[0]
-
-                # region Radio
-                if 'Radiotap' in protocols:
-
-                    # region Parse Radiotap header
-                    radiotap_header: Union[bytes, Any] = packet[0:self.radio.header_length]
-                    radiotap_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                        self.radio.parse_header(packet=radiotap_header, exit_on_failure=False, quiet=True)
-                    # endregion
-
-                    # region Could not parse Radiotap header - break
-                    assert radiotap_header_dict is not None, 'Bad Radiotap header!'
-                    # endregion
-
-                    # region IEEE 802.11 packet
-                    if '802.11' in protocols:
-
-                        # region Parse IEEE 802.11 packet
-                        iee80211_packet: Union[bytes, Any] = \
-                            packet[radiotap_header_dict['length']:len(packet)]
-                        iee80211_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
-                            self.iee.parse_packet(packet=iee80211_packet, exit_on_failure=False, quiet=True)
-                        # endregion
-
-                        # region Could not parse IEEE 802.11 packet - break
-                        assert iee80211_packet_dict is not None, 'Bad IEEE 802.11 packet!'
-                        # endregion
-
-                        # region IEEE 802.11 filter
-                        if '802.11' in filters.keys():
-                            if 'type' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['type'] == filters['802.11']['type'], \
-                                    'Bad IEEE 802.11 type!'
-                            if 'types' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['type'] in filters['802.11']['types'], \
-                                    'Bad IEEE 802.11 type!'
-                            if 'flags' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['flags'] == filters['802.11']['flags'], \
-                                    'Bad IEEE 802.11 flags!'
-                            if 'source' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['source'] == filters['802.11']['source'], \
-                                    'Bad IEEE 802.11 source!'
-                            if 'destination' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['destination'] == filters['802.11']['destination'], \
-                                    'Bad IEEE 802.11 destination!'
-                            if 'bss id' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['bss id'] == filters['802.11']['bss id'], \
-                                    'Bad IEEE 802.11 bss id!'
-                            if 'not source' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['source'] != filters['802.11']['not source'], \
-                                    'Bad IEEE 802.11 source!'
-                            if 'not destination' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['destination'] != filters['802.11']['not destination'], \
-                                    'Bad IEEE 802.11 destination!'
-                            if 'not bss id' in filters['802.11'].keys():
-                                assert iee80211_packet_dict['bss id'] != filters['802.11']['not bss id'], \
-                                    'Bad IEEE 802.11 bss id!'
-                        # endregion
-
-                        # region Call function with full IEEE 802.11 packet
-                        prn(packet={'Radiotap': radiotap_header_dict, '802.11': iee80211_packet_dict}, *args, *kwargs)
-                        # endregion
-
-                    # endregion
-
-                # endregion
-
-                # region Ethernet
-                else:
-
-                    # region Parse Ethernet header
-                    ethernet_header: Union[bytes, Any] = packet[0:self.eth.header_length]
-                    ethernet_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                        self.eth.parse_header(packet=ethernet_header, exit_on_failure=False, quiet=True)
-                    # endregion
-
-                    # region Could not parse Ethernet header - break
-                    assert ethernet_header_dict is not None, 'Bad Ethernet header!'
-                    # endregion
-
-                    # region Ethernet filter
-                    if 'Ethernet' in filters.keys():
-
-                        if 'source' in filters['Ethernet'].keys():
-                            assert ethernet_header_dict['source'] == filters['Ethernet']['source'], \
-                                'Bad Ethernet source MAC address!'
-
-                        if 'destination' in filters['Ethernet'].keys():
-                            assert ethernet_header_dict['destination'] == filters['Ethernet']['destination'], \
-                                'Bad Ethernet destination MAC address!'
-
-                        if 'not-source' in filters['Ethernet'].keys():
-                            assert ethernet_header_dict['source'] != filters['Ethernet']['not-source'], \
-                                'Bad Ethernet source MAC address!'
-
-                        if 'not-destination' in filters['Ethernet'].keys():
-                            assert ethernet_header_dict['destination'] != filters['Ethernet']['not-destination'], \
-                                'Bad Ethernet destination MAC address!'
-                    # endregion
-
-                    # region ARP packet
-
-                    # 2054 - Type of ARP packet (0x0806)
-                    if 'ARP' in protocols and ethernet_header_dict['type'] == self.arp.packet_type:
-
-                        # region Parse ARP packet
-                        arp_header: Union[bytes, Any] = \
-                            packet[self.eth.header_length:self.eth.header_length + self.arp.packet_length]
-                        arp_packet_dict: Union[None, Dict[str, Union[int, str]]] = \
-                            self.arp.parse_packet(packet=arp_header, exit_on_failure=False, quiet=True)
-                        # endregion
-
-                        # region Could not parse ARP packet - break
-                        assert arp_packet_dict is not None, 'Bad ARP packet!'
-                        # endregion
-
-                        # region ARP filter
-                        if 'ARP' in filters.keys():
-                            if 'opcode' in filters['ARP'].keys():
-                                assert arp_packet_dict['opcode'] == filters['ARP']['opcode'], \
-                                    'Bad ARP opcode!'
-                        # endregion
-
-                        # region Call function with full ARP packet
-                        prn(packet={
-                            'Ethernet': ethernet_header_dict,
-                            'ARP': arp_packet_dict
-                        }, *args, *kwargs)
-                        # endregion
-
-                    # endregion
-
-                    # region IPv4 packet
-
-                    # 2048 - Type of IPv4 packet (0x0800)
-                    if 'IPv4' in protocols and ethernet_header_dict['type'] == self.ipv4.header_type:
-
-                        # region Parse IPv4 header
-                        ipv4_header: Union[bytes, Any] = packet[self.eth.header_length:]
-                        ipv4_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                            self.ipv4.parse_header(packet=ipv4_header, exit_on_failure=False, quiet=True)
-                        # endregion
-
-                        # region Could not parse IPv4 header - break
-                        assert ipv4_header_dict is not None, 'Bad IPv4 packet!'
-                        # endregion
-
-                        # region IPv4 filter
-                        if 'IPv4' in filters.keys():
-
-                            if 'source-ip' in filters['IPv4'].keys():
-                                assert ipv4_header_dict['source-ip'] == filters['IPv4']['source-ip'], \
-                                    'Bad source IPv4 address'
-
-                            if 'destination-ip' in filters['IPv4'].keys():
-                                assert ipv4_header_dict['destination-ip'] == filters['IPv4']['destination-ip'], \
-                                    'Bad destination IPv4 address'
-
-                            if 'not-source-ip' in filters['IPv4'].keys():
-                                assert ipv4_header_dict['source-ip'] != filters['IPv4']['not-source-ip'], \
-                                    'Bad source IPv4 address'
-
-                            if 'not-destination-ip' in filters['IPv4'].keys():
-                                assert ipv4_header_dict['destination-ip'] != filters['IPv4']['not-destination-ip'], \
-                                    'Bad destination IPv4 address'
-                        # endregion
-
-                        # region UDP
-                        if 'UDP' in protocols and ipv4_header_dict['protocol'] == self.udp.header_type:
-
-                            # region Parse UDP header
-                            udp_header_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
-                            udp_header: Union[bytes, Any] = \
-                                packet[udp_header_offset:udp_header_offset + self.udp.header_length]
-                            udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                                self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
-                            # endregion
-
-                            # region Could not parse UDP header - break
-                            assert udp_header_dict is not None, 'Bad UDP packet!'
-                            # endregion
-
-                            # region UDP filter
-                            if 'UDP' in filters.keys():
-
-                                if 'source-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['source-port'] == filters['UDP']['source-port'], \
-                                        'Bad UDP source port!'
-
-                                if 'not-source-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
-                                        'Bad UDP source port!'
-
-                                if 'destination-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['destination-port'] == filters['UDP']['destination-port'], \
-                                        'Bad UDP destination port!'
-
-                                if 'not-destination-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['destination-port'] != filters['UDP']['destination-port'], \
-                                        'Bad UDP destination port!'
-                            # endregion
-
-                            # region DHCPv4 packet
-                            if 'DHCPv4' in protocols:
-                                # region Parse DHCPv4 packet
-                                dhcpv4_packet_offset: int = udp_header_offset + self.udp.header_length
-                                dhcpv4_packet: Union[bytes, Any] = packet[dhcpv4_packet_offset:]
-                                dhcpv4_packet_dict = self.dhcpv4.parse_packet(dhcpv4_packet)
-                                # endregion
-
-                                # region Could not parse DHCPv4 packet - break
-                                assert dhcpv4_packet_dict is not None, 'Bad DHCPv4 packet!'
-                                # endregion
-
-                                # region Call function with full DHCPv4 packet
-                                full_dhcpv4_packet = {
-                                    'Ethernet': ethernet_header_dict,
-                                    'IPv4': ipv4_header_dict,
-                                    'UDP': udp_header_dict
-                                }
-                                full_dhcpv4_packet.update(dhcpv4_packet_dict)
-
-                                prn(full_dhcpv4_packet)
-                                # endregion
-
-                            # endregion
-
-                            # region DNS packet
-                            if 'DNS' in protocols:
-                                # region Parse DNS packet
-                                dns_packet_offset: int = udp_header_offset + self.udp.header_length
-                                dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
-                                dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
-                                    self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
-                                # endregion
-
-                                # region Could not parse DNS packet - break
-                                assert dns_packet_dict is not None, 'Bad DNS packet!'
-                                # endregion
-
-                                # region Call function with full DNS packet
-                                prn({
-                                    'Ethernet': ethernet_header_dict,
-                                    'IPv4': ipv4_header_dict,
-                                    'UDP': udp_header_dict,
-                                    'DNS': dns_packet_dict
-                                })
-                                # endregion
-
-                            # endregion
-
-                            # # region MDNS packet
-                            #
-                            # if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
-                            #
-                            #     # region Parse DNS request packet
-                            #     mdns_packet_offset = udp_header_offset + self.udp.header_length
-                            #     mdns_packet = packet[mdns_packet_offset:]
-                            #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
-                            #     # endregion
-                            #
-                            #     # region Could not parse DNS request packet - break
-                            #     if mdns_packet_dict is None:
-                            #         break
-                            #     # endregion
-                            #
-                            #     # region Call function with full DNS packet
-                            #     prn({
-                            #         'Ethernet': ethernet_header_dict,
-                            #         'IP': ip_header_dict,
-                            #         'UDP': udp_header_dict,
-                            #         'MDNS': mdns_packet_dict
-                            #     })
-                            #     # endregion
-                            #
-                            # # endregion
-
-                        # endregion
-
-                        # region ICMPv4
-                        if 'ICMPv4' in protocols and ipv4_header_dict['protocol'] == self.icmpv4.packet_type:
-                            # region Parse ICMPv4 packet
-                            icmpv4_packet_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
-                            icmpv4_packet: Union[bytes, Any] = \
-                                packet[icmpv4_packet_offset:]
-                            icmpv4_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
-                                self.icmpv4.parse_packet(packet=icmpv4_packet, exit_on_failure=False, quiet=True)
-                            # endregion
-
-                            # region Could not parse ICMPv4 packet - break
-                            assert icmpv4_packet_dict is not None, 'Bad ICMPv4 packet!'
-                            # endregion
-
-                            # region Call function with full ICMPv4 packet
-                            prn({
-                                'Ethernet': ethernet_header_dict,
-                                'IPv4': ipv4_header_dict,
-                                'ICMPv4': icmpv4_packet_dict
-                            })
-                            # endregion
-
-                        # endregion
-
-                    # endregion
-
-                    # region IPv6 packet
-
-                    # 34525 - Type of IP packet (0x86dd)
-                    if 'IPv6' in protocols and ethernet_header_dict['type'] == self.ipv6.header_type:
-
-                        # region Parse IPv6 header
-                        ipv6_header: Union[bytes, Any] = \
-                            packet[self.eth.header_length:self.eth.header_length + self.ipv6.header_length]
-                        ipv6_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                            self.ipv6.parse_header(packet=ipv6_header, exit_on_failure=False, quiet=True)
-                        # endregion
-
-                        # region Could not parse IPv6 header - break
-                        assert ipv6_header_dict is not None, 'Bad IPv6 packet!'
-                        # endregion
-
-                        # region IPv6 filter
-                        if 'IPv6' in filters.keys():
-
-                            if 'source-ip' in filters['IPv6'].keys():
-                                assert ipv6_header_dict['source-ip'] == filters['IPv6']['source-ip'], \
-                                    'Bad source IPv6 address!'
-
-                            if 'destination-ip' in filters['IPv6'].keys():
-                                assert ipv6_header_dict['destination-ip'] == filters['IPv6']['destination-ip'], \
-                                    'Bad destination IPv6 address!'
-
-                            if 'not-source-ip' in filters['IPv6'].keys():
-                                assert ipv6_header_dict['source-ip'] != filters['IPv6']['not-source-ip'], \
-                                    'Bad source IPv6 address!'
-
-                            if 'not-destination-ip' in filters['IPv6'].keys():
-                                assert ipv6_header_dict['destination-ip'] != filters['IPv6']['not-destination-ip'], \
-                                    'Bad destination IPv6 address!'
-
-                        # endregion
-
-                        # region UDP
-                        if 'UDP' in protocols and ipv6_header_dict['next-header'] == self.udp.header_type:
-
-                            # region Parse UDP header
-                            udp_header_offset: int = self.eth.header_length + self.ipv6.header_length
-                            udp_header: Union[bytes, Any] = \
-                                packet[udp_header_offset:udp_header_offset + self.udp.header_length]
-                            udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
-                                self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
-                            # endregion
-
-                            # region Could not parse UDP header - break
-                            assert udp_header is not None, 'Bad UDP packet!'
-                            # endregion
-
-                            # region UDP filter
-                            if 'UDP' in filters.keys():
-
-                                if 'source-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['source-port'] != filters['UDP']['source-port'], \
-                                        'Bad UDP source port!'
-
-                                if 'destination-port' in filters['UDP'].keys():
-                                    assert udp_header_dict['destination-port'] == filters['UDP']['destination-port'], \
-                                        'Bad UDP destination port!'
-                            # endregion
-
-                            # region DNS packet
-                            if 'DNS' in protocols:
-                                # region Parse DNS request packet
-                                dns_packet_offset: int = udp_header_offset + self.udp.header_length
-                                dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
-                                dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
-                                    self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
-                                # endregion
-
-                                # region Could not parse DNS request packet - break
-                                assert dns_packet_dict is not None, 'Bad DNS packet!'
-                                # endregion
-
-                                # region Call function with full DNS packet
-                                prn({
-                                    'Ethernet': ethernet_header_dict,
-                                    'IPv6': ipv6_header_dict,
-                                    'UDP': udp_header_dict,
-                                    'DNS': dns_packet_dict
-                                })
-                                # endregion
-
-                            # endregion
-
-                            # # region MDNS packet
-                            #
-                            # if 'MDNS' in protocols and udp_header_dict['destination-port'] == 5353:
-                            #
-                            #     # region Parse DNS request packet
-                            #     mdns_packet_offset = udp_header_offset + self.udp.header_length
-                            #     mdns_packet = packet[mdns_packet_offset:]
-                            #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
-                            #     # endregion
-                            #
-                            #     # region Could not parse DNS request packet - break
-                            #     if mdns_packet_dict is None:
-                            #         break
-                            #     # endregion
-                            #
-                            #     # region Call function with full DNS packet
-                            #     prn({
-                            #         'Ethernet': ethernet_header_dict,
-                            #         'IPv6': ipv6_header_dict,
-                            #         'UDP': udp_header_dict,
-                            #         'MDNS': mdns_packet_dict
-                            #     })
-                            #     # endregion
-                            #
-                            # # endregion
-
-                            # region DHCPv6 packet
-                            if 'DHCPv6' in protocols:
-
-                                # region Parse DHCPv6 request packet
-                                dhcpv6_packet_offset = udp_header_offset + self.udp.header_length
-                                dhcpv6_packet = packet[dhcpv6_packet_offset:]
-                                dhcpv6_packet_dict = self.dhcpv6.parse_packet(dhcpv6_packet)
-                                # endregion
-
-                                # region Could not parse DHCPv6 request packet - break
-                                if dhcpv6_packet_dict is None:
-                                    break
-                                # endregion
-
-                                # region Call function with full DHCPv6 packet
-                                prn({
-                                    'Ethernet': ethernet_header_dict,
-                                    'IPv6': ipv6_header_dict,
-                                    'UDP': udp_header_dict,
-                                    'DHCPv6': dhcpv6_packet_dict
-                                })
-                                # endregion
-
-                            # endregion
-
-                        # endregion
-
-                        # region ICMPv6
-                        if 'ICMPv6' in protocols and ipv6_header_dict['next-header'] == self.icmpv6.packet_type:
-
-                            # region Parse ICMPv6 packet
-                            icmpv6_packet_offset = self.eth.header_length + self.ipv6.header_length
-                            icmpv6_packet = packet[icmpv6_packet_offset:]
-                            icmpv6_packet_dict = self.icmpv6.parse_packet(icmpv6_packet)
-                            # endregion
-
-                            # region Could not parse ICMPv6 packet - break
-                            if icmpv6_packet_dict is None:
-                                break
-                            # endregion
-
-                            # region Call function with full ICMPv6 packet
-                            prn({
-                                'Ethernet': ethernet_header_dict,
-                                'IPv6': ipv6_header_dict,
-                                'ICMPv6': icmpv6_packet_dict
-                            })
-                            # endregion
-
-                        # endregion
-
-                    # endregion
-
-                # endregion
-
-            # endregion
-
-            # region Exception - KeyboardInterrupt
+                self._analyze_packet(packet=packet)
             except KeyboardInterrupt:
                 self.Base.print_info('Exit')
                 exit(0)
-            # endregion
-
-            # region Exception - AssertionError
             except AssertionError:
                 pass
+        # endregion
+
+    # endregion
+
+    # region Get raw packet from scapy
+    def _scapy_prn(self, packet):
+        self._analyze_packet(packet=packet.original)
+    # endregion
+
+    # region Analyze packet
+    def _analyze_packet(self, packet: bytes):
+
+        # region Analyze
+        try:
+
+            # region Radio
+            if 'Radiotap' in self.protocols:
+
+                # region Parse Radiotap header
+                radiotap_header: Union[bytes, Any] = packet[0:self.radio.header_length]
+                radiotap_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                    self.radio.parse_header(packet=radiotap_header, exit_on_failure=False, quiet=True)
+                # endregion
+
+                # region Could not parse Radiotap header - break
+                assert radiotap_header_dict is not None, 'Bad Radiotap header!'
+                # endregion
+
+                # region IEEE 802.11 packet
+                if '802.11' in self.protocols:
+
+                    # region Parse IEEE 802.11 packet
+                    iee80211_packet: Union[bytes, Any] = \
+                        packet[radiotap_header_dict['length']:len(packet)]
+                    iee80211_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
+                        self.iee.parse_packet(packet=iee80211_packet, exit_on_failure=False, quiet=True)
+                    # endregion
+
+                    # region Could not parse IEEE 802.11 packet - break
+                    assert iee80211_packet_dict is not None, 'Bad IEEE 802.11 packet!'
+                    # endregion
+
+                    # region IEEE 802.11 filter
+                    if '802.11' in self.filters.keys():
+                        if 'type' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['type'] == self.filters['802.11']['type'], \
+                                'Bad IEEE 802.11 type!'
+                        if 'types' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['type'] in self.filters['802.11']['types'], \
+                                'Bad IEEE 802.11 type!'
+                        if 'flags' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['flags'] == self.filters['802.11']['flags'], \
+                                'Bad IEEE 802.11 flags!'
+                        if 'source' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['source'] == self.filters['802.11']['source'], \
+                                'Bad IEEE 802.11 source!'
+                        if 'destination' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['destination'] == self.filters['802.11']['destination'], \
+                                'Bad IEEE 802.11 destination!'
+                        if 'bss id' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['bss id'] == self.filters['802.11']['bss id'], \
+                                'Bad IEEE 802.11 bss id!'
+                        if 'not source' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['source'] != self.filters['802.11']['not source'], \
+                                'Bad IEEE 802.11 source!'
+                        if 'not destination' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['destination'] != self.filters['802.11']['not destination'], \
+                                'Bad IEEE 802.11 destination!'
+                        if 'not bss id' in self.filters['802.11'].keys():
+                            assert iee80211_packet_dict['bss id'] != self.filters['802.11']['not bss id'], \
+                                'Bad IEEE 802.11 bss id!'
+                    # endregion
+
+                    # region Call function with full IEEE 802.11 packet
+                    self.prn({'Radiotap': radiotap_header_dict, '802.11': iee80211_packet_dict})
+                    # endregion
+
+                # endregion
+
             # endregion
+
+            # region Ethernet
+            else:
+
+                # region Parse Ethernet header
+                ethernet_header: Union[bytes, Any] = packet[0:self.eth.header_length]
+                ethernet_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                    self.eth.parse_header(packet=ethernet_header, exit_on_failure=False, quiet=True)
+                # endregion
+
+                # region Could not parse Ethernet header - break
+                assert ethernet_header_dict is not None, 'Bad Ethernet header!'
+                # endregion
+
+                # region Ethernet filter
+                if 'Ethernet' in self.filters.keys():
+
+                    if 'source' in self.filters['Ethernet'].keys():
+                        assert ethernet_header_dict['source'] == self.filters['Ethernet']['source'], \
+                            'Bad Ethernet source MAC address!'
+
+                    if 'destination' in self.filters['Ethernet'].keys():
+                        assert ethernet_header_dict['destination'] == self.filters['Ethernet']['destination'], \
+                            'Bad Ethernet destination MAC address!'
+
+                    if 'not-source' in self.filters['Ethernet'].keys():
+                        assert ethernet_header_dict['source'] != self.filters['Ethernet']['not-source'], \
+                            'Bad Ethernet source MAC address!'
+
+                    if 'not-destination' in self.filters['Ethernet'].keys():
+                        assert ethernet_header_dict['destination'] != self.filters['Ethernet']['not-destination'], \
+                            'Bad Ethernet destination MAC address!'
+                # endregion
+
+                # region ARP packet
+
+                # 2054 - Type of ARP packet (0x0806)
+                if 'ARP' in self.protocols and ethernet_header_dict['type'] == self.arp.packet_type:
+
+                    # region Parse ARP packet
+                    arp_header: Union[bytes, Any] = \
+                        packet[self.eth.header_length:self.eth.header_length + self.arp.packet_length]
+                    arp_packet_dict: Union[None, Dict[str, Union[int, str]]] = \
+                        self.arp.parse_packet(packet=arp_header, exit_on_failure=False, quiet=True)
+                    # endregion
+
+                    # region Could not parse ARP packet - break
+                    assert arp_packet_dict is not None, 'Bad ARP packet!'
+                    # endregion
+
+                    # region ARP filter
+                    if 'ARP' in self.filters.keys():
+                        if 'opcode' in self.filters['ARP'].keys():
+                            assert arp_packet_dict['opcode'] == self.filters['ARP']['opcode'], \
+                                'Bad ARP opcode!'
+                        if 'sender-mac' in self.filters['ARP'].keys():
+                            assert arp_packet_dict['sender-mac'] == self.filters['ARP']['sender-mac'], \
+                                'Bad ARP sender-mac!'
+                        if 'sender-ip' in self.filters['ARP'].keys():
+                            assert arp_packet_dict['sender-ip'] == self.filters['ARP']['sender-ip'], \
+                                'Bad ARP sender-ip!'
+                        if 'target-mac' in self.filters['ARP'].keys():
+                            assert arp_packet_dict['target-mac'] == self.filters['ARP']['target-mac'], \
+                                'Bad ARP target-mac!'
+                        if 'target-ip' in self.filters['ARP'].keys():
+                            assert arp_packet_dict['target-ip'] == self.filters['ARP']['target-ip'], \
+                                'Bad ARP target-ip!'
+                    # endregion
+
+                    # region Call function with full ARP packet
+                    self.prn({'Ethernet': ethernet_header_dict, 'ARP': arp_packet_dict})
+                    # endregion
+
+                # endregion
+
+                # region IPv4 packet
+
+                # 2048 - Type of IPv4 packet (0x0800)
+                if 'IPv4' in self.protocols and ethernet_header_dict['type'] == self.ipv4.header_type:
+
+                    # region Parse IPv4 header
+                    ipv4_header: Union[bytes, Any] = packet[self.eth.header_length:]
+                    ipv4_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                        self.ipv4.parse_header(packet=ipv4_header, exit_on_failure=False, quiet=True)
+                    # endregion
+
+                    # region Could not parse IPv4 header - break
+                    assert ipv4_header_dict is not None, 'Bad IPv4 packet!'
+                    # endregion
+
+                    # region IPv4 filter
+                    if 'IPv4' in self.filters.keys():
+
+                        if 'source-ip' in self.filters['IPv4'].keys():
+                            assert ipv4_header_dict['source-ip'] == self.filters['IPv4']['source-ip'], \
+                                'Bad source IPv4 address'
+
+                        if 'destination-ip' in self.filters['IPv4'].keys():
+                            assert ipv4_header_dict['destination-ip'] == self.filters['IPv4']['destination-ip'], \
+                                'Bad destination IPv4 address'
+
+                        if 'not-source-ip' in self.filters['IPv4'].keys():
+                            assert ipv4_header_dict['source-ip'] != self.filters['IPv4']['not-source-ip'], \
+                                'Bad source IPv4 address'
+
+                        if 'not-destination-ip' in self.filters['IPv4'].keys():
+                            assert ipv4_header_dict['destination-ip'] != self.filters['IPv4']['not-destination-ip'], \
+                                'Bad destination IPv4 address'
+                    # endregion
+
+                    # region UDP
+                    if 'UDP' in self.protocols and ipv4_header_dict['protocol'] == self.udp.header_type:
+
+                        # region Parse UDP header
+                        udp_header_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
+                        udp_header: Union[bytes, Any] = \
+                            packet[udp_header_offset:udp_header_offset + self.udp.header_length]
+                        udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                            self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
+                        # endregion
+
+                        # region Could not parse UDP header - break
+                        assert udp_header_dict is not None, 'Bad UDP packet!'
+                        # endregion
+
+                        # region UDP filter
+                        if 'UDP' in self.filters.keys():
+
+                            if 'source-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['source-port'] == self.filters['UDP']['source-port'], \
+                                    'Bad UDP source port!'
+
+                            if 'not-source-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['source-port'] != self.filters['UDP']['source-port'], \
+                                    'Bad UDP source port!'
+
+                            if 'destination-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['destination-port'] == self.filters['UDP']['destination-port'], \
+                                    'Bad UDP destination port!'
+
+                            if 'not-destination-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['destination-port'] != self.filters['UDP']['destination-port'], \
+                                    'Bad UDP destination port!'
+                        # endregion
+
+                        # region DHCPv4 packet
+                        if 'DHCPv4' in self.protocols:
+                            # region Parse DHCPv4 packet
+                            dhcpv4_packet_offset: int = udp_header_offset + self.udp.header_length
+                            dhcpv4_packet: Union[bytes, Any] = packet[dhcpv4_packet_offset:]
+                            dhcpv4_packet_dict = self.dhcpv4.parse_packet(dhcpv4_packet)
+                            # endregion
+
+                            # region Could not parse DHCPv4 packet - break
+                            assert dhcpv4_packet_dict is not None, 'Bad DHCPv4 packet!'
+                            # endregion
+
+                            # region Call function with full DHCPv4 packet
+                            full_dhcpv4_packet = {
+                                'Ethernet': ethernet_header_dict,
+                                'IPv4': ipv4_header_dict,
+                                'UDP': udp_header_dict
+                            }
+                            full_dhcpv4_packet.update(dhcpv4_packet_dict)
+
+                            self.prn(full_dhcpv4_packet)
+                            # endregion
+
+                        # endregion
+
+                        # region DNS packet
+                        if 'DNS' in self.protocols:
+                            # region Parse DNS packet
+                            dns_packet_offset: int = udp_header_offset + self.udp.header_length
+                            dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
+                            dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
+                                self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
+                            # endregion
+
+                            # region Could not parse DNS packet - break
+                            assert dns_packet_dict is not None, 'Bad DNS packet!'
+                            # endregion
+
+                            # region Call function with full DNS packet
+                            self.prn({
+                                'Ethernet': ethernet_header_dict,
+                                'IPv4': ipv4_header_dict,
+                                'UDP': udp_header_dict,
+                                'DNS': dns_packet_dict
+                            })
+                            # endregion
+
+                        # endregion
+
+                        # # region MDNS packet
+                        #
+                        # if 'MDNS' in self.protocols and udp_header_dict['destination-port'] == 5353:
+                        #
+                        #     # region Parse DNS request packet
+                        #     mdns_packet_offset = udp_header_offset + self.udp.header_length
+                        #     mdns_packet = packet[mdns_packet_offset:]
+                        #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
+                        #     # endregion
+                        #
+                        #     # region Could not parse DNS request packet - break
+                        #     if mdns_packet_dict is None:
+                        #         break
+                        #     # endregion
+                        #
+                        #     # region Call function with full DNS packet
+                        #     self.prn({
+                        #         'Ethernet': ethernet_header_dict,
+                        #         'IP': ip_header_dict,
+                        #         'UDP': udp_header_dict,
+                        #         'MDNS': mdns_packet_dict
+                        #     })
+                        #     # endregion
+                        #
+                        # # endregion
+
+                    # endregion
+
+                    # region ICMPv4
+                    if 'ICMPv4' in self.protocols and ipv4_header_dict['protocol'] == self.icmpv4.packet_type:
+                        # region Parse ICMPv4 packet
+                        icmpv4_packet_offset: int = self.eth.header_length + (ipv4_header_dict['length'] * 4)
+                        icmpv4_packet: Union[bytes, Any] = \
+                            packet[icmpv4_packet_offset:]
+                        icmpv4_packet_dict: Union[None, Dict[str, Union[int, str, bytes]]] = \
+                            self.icmpv4.parse_packet(packet=icmpv4_packet, exit_on_failure=False, quiet=True)
+                        # endregion
+
+                        # region Could not parse ICMPv4 packet - break
+                        assert icmpv4_packet_dict is not None, 'Bad ICMPv4 packet!'
+                        # endregion
+
+                        # region Call function with full ICMPv4 packet
+                        self.prn({
+                            'Ethernet': ethernet_header_dict,
+                            'IPv4': ipv4_header_dict,
+                            'ICMPv4': icmpv4_packet_dict
+                        })
+                        # endregion
+
+                    # endregion
+
+                # endregion
+
+                # region IPv6 packet
+
+                # 34525 - Type of IP packet (0x86dd)
+                if 'IPv6' in self.protocols and ethernet_header_dict['type'] == self.ipv6.header_type:
+
+                    # region Parse IPv6 header
+                    ipv6_header: Union[bytes, Any] = \
+                        packet[self.eth.header_length:self.eth.header_length + self.ipv6.header_length]
+                    ipv6_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                        self.ipv6.parse_header(packet=ipv6_header, exit_on_failure=False, quiet=True)
+                    # endregion
+
+                    # region Could not parse IPv6 header - break
+                    assert ipv6_header_dict is not None, 'Bad IPv6 packet!'
+                    # endregion
+
+                    # region IPv6 filter
+                    if 'IPv6' in self.filters.keys():
+
+                        if 'source-ip' in self.filters['IPv6'].keys():
+                            assert ipv6_header_dict['source-ip'] == self.filters['IPv6']['source-ip'], \
+                                'Bad source IPv6 address!'
+
+                        if 'destination-ip' in self.filters['IPv6'].keys():
+                            assert ipv6_header_dict['destination-ip'] == self.filters['IPv6']['destination-ip'], \
+                                'Bad destination IPv6 address!'
+
+                        if 'not-source-ip' in self.filters['IPv6'].keys():
+                            assert ipv6_header_dict['source-ip'] != self.filters['IPv6']['not-source-ip'], \
+                                'Bad source IPv6 address!'
+
+                        if 'not-destination-ip' in self.filters['IPv6'].keys():
+                            assert ipv6_header_dict['destination-ip'] != self.filters['IPv6']['not-destination-ip'], \
+                                'Bad destination IPv6 address!'
+
+                    # endregion
+
+                    # region UDP
+                    if 'UDP' in self.protocols and ipv6_header_dict['next-header'] == self.udp.header_type:
+
+                        # region Parse UDP header
+                        udp_header_offset: int = self.eth.header_length + self.ipv6.header_length
+                        udp_header: Union[bytes, Any] = \
+                            packet[udp_header_offset:udp_header_offset + self.udp.header_length]
+                        udp_header_dict: Union[None, Dict[str, Union[int, str]]] = \
+                            self.udp.parse_header(packet=udp_header, exit_on_failure=False, quiet=True)
+                        # endregion
+
+                        # region Could not parse UDP header - break
+                        assert udp_header is not None, 'Bad UDP packet!'
+                        # endregion
+
+                        # region UDP filter
+                        if 'UDP' in self.filters.keys():
+
+                            if 'source-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['source-port'] != self.filters['UDP']['source-port'], \
+                                    'Bad UDP source port!'
+
+                            if 'destination-port' in self.filters['UDP'].keys():
+                                assert udp_header_dict['destination-port'] == self.filters['UDP']['destination-port'], \
+                                    'Bad UDP destination port!'
+                        # endregion
+
+                        # region DNS packet
+                        if 'DNS' in self.protocols:
+                            # region Parse DNS request packet
+                            dns_packet_offset: int = udp_header_offset + self.udp.header_length
+                            dns_packet: Union[bytes, Any] = packet[dns_packet_offset:]
+                            dns_packet_dict: Union[None, Dict[str, Union[int, str, Dict[str, Union[int, str]]]]] = \
+                                self.dns.parse_packet(packet=dns_packet, exit_on_failure=False, quiet=True)
+                            # endregion
+
+                            # region Could not parse DNS request packet - break
+                            assert dns_packet_dict is not None, 'Bad DNS packet!'
+                            # endregion
+
+                            # region Call function with full DNS packet
+                            self.prn({
+                                'Ethernet': ethernet_header_dict,
+                                'IPv6': ipv6_header_dict,
+                                'UDP': udp_header_dict,
+                                'DNS': dns_packet_dict
+                            })
+                            # endregion
+
+                        # endregion
+
+                        # # region MDNS packet
+                        #
+                        # if 'MDNS' in self.protocols and udp_header_dict['destination-port'] == 5353:
+                        #
+                        #     # region Parse DNS request packet
+                        #     mdns_packet_offset = udp_header_offset + self.udp.header_length
+                        #     mdns_packet = packet[mdns_packet_offset:]
+                        #     mdns_packet_dict = self.mdns.parse_packet(mdns_packet)
+                        #     # endregion
+                        #
+                        #     # region Could not parse DNS request packet - break
+                        #     if mdns_packet_dict is None:
+                        #         break
+                        #     # endregion
+                        #
+                        #     # region Call function with full DNS packet
+                        #     self.prn({
+                        #         'Ethernet': ethernet_header_dict,
+                        #         'IPv6': ipv6_header_dict,
+                        #         'UDP': udp_header_dict,
+                        #         'MDNS': mdns_packet_dict
+                        #     })
+                        #     # endregion
+                        #
+                        # # endregion
+
+                        # region DHCPv6 packet
+                        if 'DHCPv6' in self.protocols:
+
+                            # region Parse DHCPv6 request packet
+                            dhcpv6_packet_offset = udp_header_offset + self.udp.header_length
+                            dhcpv6_packet = packet[dhcpv6_packet_offset:]
+                            dhcpv6_packet_dict = self.dhcpv6.parse_packet(dhcpv6_packet)
+                            # endregion
+
+                            # region Could not parse DHCPv6 request packet - break
+                            assert dhcpv6_packet_dict is not None, 'Bad DHCPv6 packet!'
+                            # endregion
+
+                            # region Call function with full DHCPv6 packet
+                            self.prn({
+                                'Ethernet': ethernet_header_dict,
+                                'IPv6': ipv6_header_dict,
+                                'UDP': udp_header_dict,
+                                'DHCPv6': dhcpv6_packet_dict
+                            })
+                            # endregion
+
+                        # endregion
+
+                    # endregion
+
+                    # region ICMPv6
+                    if 'ICMPv6' in self.protocols and ipv6_header_dict['next-header'] == self.icmpv6.packet_type:
+
+                        # region Parse ICMPv6 packet
+                        icmpv6_packet_offset = self.eth.header_length + self.ipv6.header_length
+                        icmpv6_packet = packet[icmpv6_packet_offset:]
+                        icmpv6_packet_dict = self.icmpv6.parse_packet(icmpv6_packet)
+                        # endregion
+
+                        # region Could not parse ICMPv6 packet - break
+                        assert icmpv6_packet_dict is not None, 'Bad ICMPv6 packet!'
+                        # endregion
+
+                        # region ICMPv6 filter
+                        if 'ICMPv6' in self.filters.keys():
+                            if 'type' in self.filters['ICMPv6'].keys():
+                                assert icmpv6_packet_dict['type'] == self.filters['ICMPv6']['type'], 'Bad ICMPv6 type!'
+                        # endregion
+
+                        # region Call function with full ICMPv6 packet
+                        self.prn({
+                            'Ethernet': ethernet_header_dict,
+                            'IPv6': ipv6_header_dict,
+                            'ICMPv6': icmpv6_packet_dict
+                        })
+                        # endregion
+
+                    # endregion
+
+                # endregion
 
             # endregion
 
         # endregion
 
+        # region Exception - KeyboardInterrupt
+        except KeyboardInterrupt:
+            self.Base.print_info('Exit')
+            exit(0)
+        # endregion
+
+        # region Exception - AssertionError
+        except AssertionError:
+            pass
+        # endregion
+
+    # endregion
+
+    # region Destructor
+    def __del__(self):
+        if self.sniff_socket is not None:
+            self.sniff_socket.close()
     # endregion
 
 # endregion
