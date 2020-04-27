@@ -12,6 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser
 from prettytable import PrettyTable
@@ -35,12 +36,13 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
+    utils: Utils = Utils()
     # endregion
 
     try:
         # region Check user, platform and print banner
         base.check_user()
-        base.check_platform(available_platforms=['Linux', 'Darwin'])
+        base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
         base.print_banner()
         # endregion
 

@@ -63,6 +63,7 @@ class Base:
     os_installed_packages_list = None
     windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
     windows_adapters = None
+    network_interfaces_settings: Dict[str, Dict[str, Union[None, str, List[str]]]] = dict()
     # endregion
 
     # region Init
@@ -629,56 +630,68 @@ class Base:
 
     def get_interface_settings(self,
                                interface_name: str = 'eth0',
-                               exit_on_failure: bool = False,
-                               quiet: bool = False) -> Dict[str, Union[None, str, List[str]]]:
+                               required_parameters: List[str] = ['mac-address'],
+                               quiet: bool = True) -> Dict[str, Union[None, str, List[str]]]:
         """
         Get network interface settings
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: False)
-        :param quiet: Quiet mode, if True no console output (default: False)
+        :param required_parameters: Required Network interface parameters list (default: ['mac-address'])
+        :param quiet: Quiet mode, if True no console output (default: True)
         :return: Network interface settings (example: {})
         """
-        return {
-            'Interface name': interface_name,
-            'MAC address': self.get_interface_mac_address(interface_name=interface_name,
-                                                          exit_on_failure=exit_on_failure,
-                                                          quiet=quiet),
-            'IPv4 address': self.get_interface_ip_address(interface_name=interface_name,
-                                                          exit_on_failure=exit_on_failure,
-                                                          quiet=quiet),
-            'IPv6 link local address': self.get_interface_ipv6_link_address(interface_name=interface_name,
-                                                                            exit_on_failure=exit_on_failure,
-                                                                            quiet=quiet),
-            'IPv6 global address': self.get_interface_ipv6_glob_address(interface_name=interface_name),
-            'IPv6 global addresses': self.get_interface_ipv6_glob_addresses(interface_name=interface_name),
-            'IPv4 netmask': self.get_interface_netmask(interface_name=interface_name,
-                                                       exit_on_failure=exit_on_failure,
-                                                       quiet=quiet),
-            'IPv4 network': self.get_interface_network(interface_name=interface_name,
-                                                       exit_on_failure=exit_on_failure,
-                                                       quiet=quiet),
-            'First IPv4 address': self.get_first_ip_on_interface(interface_name=interface_name,
-                                                                 exit_on_failure=exit_on_failure,
-                                                                 quiet=quiet),
-            'Second IPv4 address': self.get_second_ip_on_interface(interface_name=interface_name,
-                                                                   exit_on_failure=exit_on_failure,
-                                                                   quiet=quiet),
-            'Penultimate IPv4 address': self.get_penultimate_ip_on_interface(interface_name=interface_name,
-                                                                             exit_on_failure=exit_on_failure,
-                                                                             quiet=quiet),
-            'Last IPv4 address': self.get_last_ip_on_interface(interface_name=interface_name,
-                                                               exit_on_failure=exit_on_failure,
-                                                               quiet=quiet),
-            'IPv4 broadcast': self.get_interface_broadcast(interface_name=interface_name,
-                                                           exit_on_failure=exit_on_failure,
-                                                           quiet=quiet),
-            'IPv4 gateway': self.get_interface_ipv4_gateway(interface_name=interface_name,
-                                                            exit_on_failure=exit_on_failure,
-                                                            quiet=quiet),
-            'IPv6 gateway': self.get_interface_ipv6_gateway(interface_name=interface_name,
-                                                            exit_on_failure=exit_on_failure,
-                                                            quiet=quiet)
-        }
+        if interface_name not in self.network_interfaces_settings.keys():
+            self.network_interfaces_settings[interface_name]: Dict[str, Union[None, str, List[str]]] = {
+                'network-interface': interface_name,
+                'mac-address': self.get_interface_mac_address(interface_name=interface_name,
+                                                              exit_on_failure=False,
+                                                              quiet=True),
+                'ipv4-address': self.get_interface_ip_address(interface_name=interface_name,
+                                                              exit_on_failure=False,
+                                                              quiet=True),
+                'ipv6-link-address': self.get_interface_ipv6_link_address(interface_name=interface_name,
+                                                                          exit_on_failure=False,
+                                                                          quiet=True),
+                'ipv6-global-address': self.get_interface_ipv6_glob_address(interface_name=interface_name),
+                'ipv6-global-addresses': self.get_interface_ipv6_glob_addresses(interface_name=interface_name),
+                'ipv4-netmask': self.get_interface_netmask(interface_name=interface_name,
+                                                           exit_on_failure=False,
+                                                           quiet=True),
+                'ipv4-network': self.get_interface_network(interface_name=interface_name,
+                                                           exit_on_failure=False,
+                                                           quiet=True),
+                'first-ipv4-address': self.get_first_ip_on_interface(interface_name=interface_name,
+                                                                     exit_on_failure=False,
+                                                                     quiet=True),
+                'second-ipv4-address': self.get_second_ip_on_interface(interface_name=interface_name,
+                                                                       exit_on_failure=False,
+                                                                       quiet=True),
+                'penultimate-ipv4-address': self.get_penultimate_ip_on_interface(interface_name=interface_name,
+                                                                                 exit_on_failure=False,
+                                                                                 quiet=True),
+                'last-ipv4-address': self.get_last_ip_on_interface(interface_name=interface_name,
+                                                                   exit_on_failure=False,
+                                                                   quiet=True),
+                'ipv4-broadcast': self.get_interface_broadcast(interface_name=interface_name,
+                                                               exit_on_failure=False,
+                                                               quiet=True),
+                'ipv4-gateway': self.get_interface_ipv4_gateway(interface_name=interface_name,
+                                                                exit_on_failure=False,
+                                                                quiet=True),
+                'ipv6-gateway': self.get_interface_ipv6_gateway(interface_name=interface_name,
+                                                                exit_on_failure=False,
+                                                                quiet=True)}
+        try:
+            for required_parameter in required_parameters:
+                if required_parameter in self.network_interfaces_settings[interface_name].keys():
+                    assert self.network_interfaces_settings[interface_name][required_parameter] is not None, \
+                        'Network interface: ' + self.error_text(interface_name) + \
+                        ' does not have: ' + self.error_text(required_parameter)
+            return self.network_interfaces_settings[interface_name]
+
+        except AssertionError as Error:
+            if not quiet:
+                self.print_error(Error.args[0])
+            exit(1)
 
     def get_interface_mac_address(self,
                                   interface_name: str = 'eth0',

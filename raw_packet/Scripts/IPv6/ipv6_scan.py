@@ -39,7 +39,7 @@ def main():
 
     # region Check user, platform and print banner
     base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin'])
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments

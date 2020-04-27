@@ -5803,7 +5803,7 @@ class RawSniff:
     def start(self,
               protocols: List[str],
               prn: Any,
-              filters: Dict[str, Union[str, Dict[str, str]]],
+              filters: Dict[str, Union[str, Dict[str, Union[int, str]]]],
               network_interface: str,
               scapy_filter: Union[None, str] = None,
               scapy_lfilter: Union[None, Any] = None) -> None:
@@ -5814,27 +5814,36 @@ class RawSniff:
         self.filters = filters
         # endregion
 
-        # region Create RAW socket for sniffing
         try:
-            self.sniff_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
-        except NameError:
-            sniff(iface=network_interface, store=False, prn=self._scapy_prn,
-                  filter=scapy_filter, lfilter=scapy_lfilter)
-        # endregion
-
-        # region Start sniffing from RAW socket
-        while True:
+            # region Create RAW socket for sniffing
             try:
-                packets: Tuple[bytes, Any] = self.sniff_socket.recvfrom(65535)
-                assert packets[1][0] == network_interface, 'Bad network interface!'
-                packet = packets[0]
-                self._analyze_packet(packet=packet)
+                self.sniff_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+            except NameError:
+                sniff(iface=network_interface, store=False, prn=self._scapy_prn,
+                      filter=scapy_filter, lfilter=scapy_lfilter)
             except KeyboardInterrupt:
                 self.Base.print_info('Exit')
                 exit(0)
-            except AssertionError:
-                pass
-        # endregion
+            # endregion
+
+            # region Start sniffing from RAW socket
+            if self.sniff_socket is not None:
+                while True:
+                    try:
+                        packets: Tuple[bytes, Any] = self.sniff_socket.recvfrom(65535)
+                        assert packets[1][0] == network_interface, 'Bad network interface!'
+                        packet = packets[0]
+                        self._analyze_packet(packet=packet)
+                    except AssertionError:
+                        pass
+                    except KeyboardInterrupt:
+                        self.Base.print_info('Exit')
+                        exit(0)
+            # endregion
+
+        except KeyboardInterrupt:
+            self.Base.print_info('Exit')
+            exit(0)
 
     # endregion
 

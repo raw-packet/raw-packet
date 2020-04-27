@@ -11,11 +11,11 @@ Copyright 2020, Raw-packet Project
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.network import RawSniff, RawDNS
+from raw_packet.Utils.network import RawSniff, RawSend, RawDNS
 # endregion
 
 # region Import libraries
-from socket import socket, AF_PACKET, SOCK_RAW, getaddrinfo, AF_INET, AF_INET6, gaierror
+from socket import getaddrinfo, AF_INET, AF_INET6, gaierror
 from subprocess import run
 from typing import List, Union, Dict
 from re import match
@@ -46,7 +46,6 @@ class RawDnsServer:
     sniff: RawSniff = RawSniff()
     dns: RawDNS = RawDNS()
 
-    rawSocket: socket = socket(AF_PACKET, SOCK_RAW)
     your_ipv4_address: Union[None, str] = None
     your_ipv6_address: Union[None, str] = None
     config: Dict[str, Dict[str, Union[bool, str, List[str]]]] = dict()
@@ -283,7 +282,7 @@ class RawDnsServer:
 
                 # region Send DNS answer packet
                 if dns_answer_packet is not None:
-                    self.rawSocket.send(dns_answer_packet)
+                    self.raw_send.send(dns_answer_packet)
                 # endregion
 
                 # region Print info message
@@ -350,7 +349,7 @@ class RawDnsServer:
             # endregion
 
             # region Bind raw socket
-            self.rawSocket.bind((listen_network_interface, 0))
+            self.raw_send: RawSend = RawSend(network_interface=listen_network_interface)
             # endregion
 
             # region Check config file
@@ -461,11 +460,23 @@ class RawDnsServer:
             # region Start sniffer
             if listen_ipv6:
                 if disable_ipv4:
-                    self.sniff.start(protocols=['IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                    self.sniff.start(protocols=['IPv6', 'UDP', 'DNS'],
+                                     prn=self._reply,
+                                     filters=network_filters,
+                                     network_interface=listen_network_interface,
+                                     scapy_filter='ip6 and udp port ' + str(listen_port))
                 else:
-                    self.sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                    self.sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'],
+                                     prn=self._reply,
+                                     filters=network_filters,
+                                     network_interface=listen_network_interface,
+                                     scapy_filter='udp port ' + str(listen_port))
             else:
-                self.sniff.start(protocols=['IPv4', 'UDP', 'DNS'], prn=self._reply, filters=network_filters)
+                self.sniff.start(protocols=['IPv4', 'UDP', 'DNS'],
+                                 prn=self._reply,
+                                 filters=network_filters,
+                                 network_interface=listen_network_interface,
+                                 scapy_filter='udp port ' + str(listen_port))
             # endregion
 
             # endregion
@@ -477,6 +488,10 @@ class RawDnsServer:
         except JSONDecodeError:
             self.base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
             exit(1)
+
+        except KeyboardInterrupt:
+            self.base.print_info('Exit ....')
+            exit(0)
 
     # endregion
 

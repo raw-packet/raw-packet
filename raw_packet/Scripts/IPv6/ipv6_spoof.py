@@ -43,7 +43,7 @@ def main():
 
     # region Check user, platform and create threads
     base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin'])
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     try:

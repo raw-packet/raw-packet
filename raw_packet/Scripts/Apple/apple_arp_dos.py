@@ -3,7 +3,7 @@
 
 # region Description
 """
-apple_arp_dos.py: Disconnect Apple devices in local network with ARP packets
+apple_arp_dos.py: Disconnect Apple device in local network with ARP packets (apple_arp_dos)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -30,6 +30,7 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
+__script_name__ = 'Disconnect Apple device in local network with ARP packets (apple_arp_dos)'
 # endregion
 
 
@@ -171,14 +172,15 @@ def main():
 
     # region Check user and platform
     base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin'])
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     try:
         # region Parse script arguments
         script_description: str = \
             base.get_banner() + '\n' + \
-            base.info_text('Disconnect Apple device in local network with ARP packets (apple_arp_dos)') + '\n\n'
+            ' ' * (int((55 - len(__script_name__)) / 2)) + \
+            base.info_text(__script_name__) + '\n\n'
         parser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
         parser.add_argument('-i', '--interface', type=str, help='Set interface name for send ARP packets', default=None)
         parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
@@ -199,23 +201,10 @@ def main():
         if args.interface is None:
             base.print_warning('Please set a network interface for sniffing ARP and DHCP requests ...')
         listen_network_interface: str = base.network_interface_selection(args.interface)
-        network_interface_settings = base.get_interface_settings(interface_name=listen_network_interface)
-        your_mac_address: Union[None, str] = network_interface_settings['MAC address']
-        your_ip_address: Union[None, str] = network_interface_settings['IPv4 address']
-        first_ip_address: Union[None, str] = network_interface_settings['First IPv4 address']
-        last_ip_address: Union[None, str] = network_interface_settings['Last IPv4 address']
-        assert your_mac_address is not None, \
-            'Network interface: ' + base.error_text(str(listen_network_interface)) + \
-            ' has not MAC address!'
-        assert your_ip_address is not None, \
-            'Network interface: ' + base.error_text(str(listen_network_interface)) + \
-            ' has not IPv4 address!'
-        assert first_ip_address is not None, \
-            'Network interface: ' + base.error_text(str(listen_network_interface)) + \
-            ' has not IPv4 address or network mask!'
-        assert last_ip_address is not None, \
-            'Network interface: ' + base.error_text(str(listen_network_interface)) + \
-            ' has not IPv4 address or network mask!'
+        your_mac_address: str = base.get_interface_mac_address(listen_network_interface)
+        your_ip_address: str = base.get_interface_ip_address(listen_network_interface)
+        first_ip_address: str = base.get_first_ip_on_interface(listen_network_interface)
+        last_ip_address: str = base.get_last_ip_on_interface(listen_network_interface)
         arp_scan: ArpScan = ArpScan(network_interface=listen_network_interface)
         scanner: Scanner = Scanner(network_interface=listen_network_interface)
         # endregion
