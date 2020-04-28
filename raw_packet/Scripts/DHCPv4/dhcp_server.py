@@ -3,7 +3,7 @@
 
 # region Description
 """
-dhcp_rogue_server.py: Rogue DHCP server
+dhcp_server.py: DHCPv4 server (dhcp_server)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -182,17 +182,6 @@ def discover_sender(number_of_packets=999999) -> None:
 
 # region Reply to DHCP and ARP requests
 def reply(request):
-
-    # region Define global variables
-    # global raw_socket
-    # global clients
-    # global target_ip_address
-    # global router_ip_address
-    # global payload
-    # global shellshock_payload
-    # global args
-    # global discover_sender_is_work
-    # endregion
 
     # region DHCP
     if 'DHCPv4' in request.keys():

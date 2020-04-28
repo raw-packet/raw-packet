@@ -45,7 +45,7 @@ class ArpSpoof:
     # endregion
 
     # region Init
-    def __init__(self, network_interface: Union[None, str] = None) -> None:
+    def __init__(self, network_interface: str) -> None:
         """
         Init
         :param network_interface: Network interface name

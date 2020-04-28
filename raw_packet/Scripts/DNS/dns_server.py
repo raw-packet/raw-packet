@@ -12,7 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
-from raw_packet.Servers.dns_server import RawDnsServer
+from raw_packet.Servers.dns_server import DnsServer
 from argparse import ArgumentParser
 from typing import List
 # endregion
@@ -34,7 +34,6 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    dns_server: RawDnsServer = RawDnsServer()
     # endregion
 
     # region Check user and platform
@@ -170,8 +169,8 @@ def main():
         # endregion
 
         # region Start DNS server
-        dns_server.listen(listen_network_interface=current_network_interface,
-                          listen_port=args.port,
+        dns_server: DnsServer = DnsServer(network_interface=current_network_interface)
+        dns_server.listen(listen_port=args.port,
                           target_mac_address=args.target_mac,
                           target_ipv4_address=args.T4,
                           target_ipv6_address=args.T6,

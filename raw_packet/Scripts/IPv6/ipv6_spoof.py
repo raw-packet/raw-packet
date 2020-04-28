@@ -50,7 +50,7 @@ class IPv6Spoof:
     # endregion
 
     # region Init
-    def __init__(self, network_interface: Union[None, str] = None) -> None:
+    def __init__(self, network_interface: str) -> None:
         """
         Init
         :param network_interface: Network interface name
@@ -110,11 +110,12 @@ class IPv6Spoof:
             advertisement_interval: int = 2000
             # endregion
             
-            # region Check gateway_ip and dns_ip
+            # region Check gateway_ipv6_address and dns_ipv6_address
 
-            # region Search Gateway and DNS servers
+            # region Gateway IPv6 address not Set
             router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = None
-            if gateway_ipv6_address is None and dns_ipv6_address is None:
+
+            if gateway_ipv6_address is None:
                 self._base.print_info('Search IPv6 Gateway and DNS server ....')
                 router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = \
                     self._icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
@@ -145,18 +146,19 @@ class IPv6Spoof:
 
             # endregion
 
-            # region Check arguments: gateway_ip and dns_ip
-            else:
-                # region Check argument: gateway_ip
-                if gateway_ipv6_address is not None:
-                    gateway_ipv6_address = self._check_ipv6_address(gateway_ipv6_address, 'Gateway IPv6 address')
-                # endregion
+            # region Gateway IPv6 address is Set
+            if gateway_ipv6_address is not None:
+                gateway_ipv6_address = self._check_ipv6_address(gateway_ipv6_address, 'Gateway IPv6 address')
+            # endregion
 
-                # region Check argument: dns_ip
-                if dns_ipv6_address is not None:
-                    dns_ipv6_address = self._check_ipv6_address(dns_ipv6_address, 'DNS server IPv6 address')
-                # endregion
+            # region DNS IPv6 address not Set
+            if dns_ipv6_address is None:
+                dns_ipv6_address = self._your['ipv6-link-address']
+            # endregion
 
+            # region DNS IPv6 address is Set
+            if dns_ipv6_address is not None:
+                dns_ipv6_address = self._check_ipv6_address(dns_ipv6_address, 'DNS server IPv6 address')
             # endregion
 
             # region Print Gateway and DNS server information
