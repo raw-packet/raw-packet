@@ -41,7 +41,7 @@ class ArpSpoof:
     _arp: RawARP = RawARP()
     
     _your: Dict[str, Union[None, str]] = {'network-interface': None, 'mac-address': None}
-    _target: Dict[str, Union[None, str]] = {'ipv4-address': None, 'mac-address': None}
+    _target: Dict[str, Union[None, str]] = {'ipv4-address': None, 'mac-address': None, 'vendor': None}
     # endregion
 
     # region Init
@@ -194,11 +194,13 @@ class ArpSpoof:
             # endregion
 
         except KeyboardInterrupt:
-            self._base.print_info('Exit')
+            if not quit:
+                self._base.print_info('Exit')
             exit(0)
 
         except AssertionError as Error:
-            self._base.print_error(Error.args[0])
+            if not quit:
+                self._base.print_error(Error.args[0])
             exit(1)
     # endregion
 

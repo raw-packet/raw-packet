@@ -300,8 +300,9 @@ class ArpScan:
         """
 
         # region Set result MAC address value
-        result_mac_address = 'ff:ff:ff:ff:ff:ff'
+        result_mac_address: str = 'ff:ff:ff:ff:ff:ff'
         # endregion
+
         try:
             # region Clear lists with scan results
             self._results.clear()

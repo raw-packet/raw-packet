@@ -10,6 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.arp_scanner import ArpScan
+from raw_packet.Scanners.scanner import Scanner
 from typing import List, Dict, Union
 from prettytable import PrettyTable
 from re import search, IGNORECASE
@@ -42,11 +43,15 @@ class Utils:
                         target_vendor: Union[None, str] = None,
                         target_ipv4_address_required: bool = False,
                         exclude_ipv4_addresses: List[str] = []) -> Dict[str, str]:
-        
+
         # region Variables
-        target: Dict[str, str] = dict()
+        target: Dict[str, str] = {'mac-address': None, 'ipv6-address': None, 'vendor': None}
         arp_scan: ArpScan = ArpScan(network_interface=network_interface)
-        network_interface_settings = self._base.get_interface_settings(interface_name=network_interface)
+        network_interface_settings = \
+            self._base.get_interface_settings(interface_name=network_interface,
+                                              required_parameters=['mac-address',
+                                                                   'first-ipv4-address',
+                                                                   'last-ipv4-address'])
         first_ip_address: str = network_interface_settings['first-ipv4-address']
         last_ip_address: str = network_interface_settings['last-ipv4-address']
         # endregion
@@ -70,7 +75,7 @@ class Utils:
                                                           exclude_ip_addresses=exclude_ipv4_addresses,
                                                           exit_on_failure=True,
                                                           show_scan_percentage=True)
-            
+
             if target_vendor is not None:
                 results_with_vendor: List[Dict[str, str]] = list()
                 for result in results:
@@ -137,10 +142,100 @@ class Utils:
             assert self._base.mac_address_validation(target_mac_address), \
                 'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
                 '; example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
-            target['mac-address'] = target_mac_address
+            target['mac-address'] = target_mac_address.lower()
         # endregion
 
+        # region Return target
         return target
+        # endregion
+
+    # endregion
+
+    # region Set Target MAC- and IPv6-address
+    def set_ipv6_target(self,
+                        network_interface: str,
+                        target_ipv6_address: Union[None, str] = None,
+                        target_mac_address: Union[None, str] = None,
+                        target_vendor: Union[None, str] = None,
+                        target_ipv6_address_is_local: bool = True,
+                        exclude_ipv6_addresses: List[str] = []) -> Dict[str, str]:
+
+        # region Variables
+        target: Dict[str, str] = {'mac-address': None, 'ipv6-address': None, 'vendor': None}
+        scanner: Scanner = Scanner(network_interface=network_interface)
+        network_interface_settings = \
+            self._base.get_interface_settings(interface_name=network_interface,
+                                              required_parameters=['mac-address',
+                                                                   'ipv6-link-address'])
+        # endregion
+
+        # region Target MAC address is Set
+        if target_mac_address is not None:
+            assert self._base.mac_address_validation(target_mac_address), \
+                'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
+                '; Example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
+            target['mac-address'] = str(target_mac_address).lower()
+        # endregion
+
+        # region Target IPv6 address not Set
+        if target_ipv6_address is None:
+            self._base.print_info('Search IPv6 alive hosts ....')
+            ipv6_devices = scanner.find_ipv6_devices(network_interface=network_interface, timeout=3, retry=3,
+                                                     exclude_ipv6_addresses=exclude_ipv6_addresses)
+            # Target IPv6 and MAC address is not set
+            if target['mac-address'] is None:
+                target = scanner.ipv6_device_selection(ipv6_devices)
+                target['ipv6-address'] = target['ip-address']
+                target['mac-address'] = target['mac-address']
+                return target
+
+            # Target MAC address is set but target IPv6 is not set
+            else:
+                for ipv6_device in ipv6_devices:
+                    if ipv6_device['mac-address'] == target['mac-address']:
+                        target['ipv6-address'] = ipv6_device['ip-address']
+                assert target['ipv6-address'] is not None, \
+                    'Could not found IPv6 device with MAC address: ' + \
+                    self._base.error_text(target['mac-address'])
+                return target
+        # endregion
+
+        # region Target IPv6 address is Set
+        else:
+            assert target['mac-address'] is not None, \
+                'Target IPv6 address is set: ' + \
+                self._base.info_text(target_ipv6_address) + \
+                '; Please set target MAC address'
+
+            assert self._base.ipv6_address_validation(target_ipv6_address), \
+                'Bad target IPv6 address: ' + \
+                self._base.error_text(target_ipv6_address) + \
+                '; Failed to validate IPv6 address!'
+
+            if target_ipv6_address_is_local:
+                assert str(target_ipv6_address).startswith('fe80::'), \
+                    'Bad target IPv6 address: ' + \
+                    self._base.error_text(target_ipv6_address) + \
+                    '; Target link local ipv6 address must be starts with: ' + \
+                    self._base.info_text('fe80::')
+
+            assert target_ipv6_address != network_interface_settings['ipv6-link-address'], \
+                'Bad target IPv6 address: ' + \
+                self._base.error_text(target_ipv6_address) + \
+                '; Target IPv6 address is your link local IPv6 address!'
+
+            assert target_ipv6_address not in network_interface_settings['ipv6-global-addresses'], \
+                'Bad target IPv6 address: ' + \
+                self._base.error_text(target_ipv6_address) + \
+                '; Target IPv6 address is your global IPv6 address!'
+
+            target['ipv6-address'] = target_ipv6_address
+        # endregion
+
+        # region Return target
+        return target
+        # endregion
+
     # endregion
 
 # endregion
