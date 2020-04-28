@@ -3,7 +3,7 @@
 
 # region Description
 """
-arp_scan.py: ARP scan script
+arp_scan.py: ARP Scan (arp_scan)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -12,11 +12,10 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.arp_scanner import ArpScan
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from prettytable import PrettyTable
-from typing import List, Dict
+from typing import List, Dict, Union
 # endregion
 
 # region Authorship information
@@ -28,6 +27,7 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
+__script_name__ = 'ARP Scan (arp_scan)'
 # endregion
 
 
@@ -36,33 +36,43 @@ def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
-    utils: Utils = Utils()
+    # endregion
+
+    # region Check user and platform and print banner
+    base.check_user()
+    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # endregion
+
+    # region Parse script arguments
+    script_description: str = \
+        base.get_banner() + '\n' + \
+        ' ' * (int((55 - len(__script_name__)) / 2)) + \
+        base.info_text(__script_name__) + '\n\n'
+    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
+    parser.add_argument('-T', '--target_ip', type=str, help='Set target IP address', default=None)
+    parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=3)
+    parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
+    args = parser.parse_args()
+    # endregion
+
+    # region Print banner
+    base.print_banner()
     # endregion
 
     try:
-        # region Check user, platform and print banner
-        base.check_user()
-        base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
-        base.print_banner()
-        # endregion
-
-        # region Parse script arguments
-        parser = ArgumentParser(description='ARP scan script')
-        parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
-        parser.add_argument('-T', '--target_ip', type=str, help='Set target IP address', default=None)
-        parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=3)
-        parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
-        args = parser.parse_args()
-        # endregion
-
         # region Get your network settings
         if args.interface is None:
             base.print_warning('Please set a network interface for sniffing ARP responses ...')
         current_network_interface: str = base.network_interface_selection(args.interface)
-        your_mac_address: str = base.get_interface_mac_address(current_network_interface)
-        your_ip_address: str = base.get_interface_ip_address(current_network_interface)
-        first_ip_address: str = base.get_first_ip_on_interface(current_network_interface)
-        last_ip_address: str = base.get_last_ip_on_interface(current_network_interface)
+        current_network_interface_settings: Dict[str, Union[None, str, List[str]]] = \
+            base.get_interface_settings(interface_name=current_network_interface,
+                                        required_parameters=['mac-address', 'ipv4-address',
+                                                             'first-ipv4-address', 'last-ipv4-address'])
+        your_mac_address: str = current_network_interface_settings['mac-address']
+        your_ip_address: str = current_network_interface_settings['ipv4-address']
+        first_ip_address: str = current_network_interface_settings['first-ipv4-address']
+        last_ip_address: str = current_network_interface_settings['last-ipv4-address']
         arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
         # endregion
 
@@ -118,7 +128,6 @@ def main():
     except AssertionError as Error:
         base.print_error(Error.args[0])
         exit(1)
-
 # endregion
 
 
