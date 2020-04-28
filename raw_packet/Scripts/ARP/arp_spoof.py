@@ -16,7 +16,7 @@ from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawARP, RawSend
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from time import sleep
-from typing import Union, List, Dict
+from typing import Union, Dict
 # endregion
 
 # region Authorship information
@@ -32,24 +32,33 @@ __script_name__ = 'ARP Spoofing (arp_spoof)'
 # endregion
 
 
-# region class NetworkConflictCreator
+# region class ArpSpoof
 class ArpSpoof:
-    
+
+    # region Variables
     _base: Base = Base()
     _utils: Utils = Utils()
     _arp: RawARP = RawARP()
     
     _your: Dict[str, Union[None, str]] = {'network-interface': None, 'mac-address': None}
     _target: Dict[str, Union[None, str]] = {'ipv4-address': None, 'mac-address': None}
+    # endregion
 
+    # region Init
     def __init__(self, network_interface: Union[None, str] = None) -> None:
+        """
+        Init
+        :param network_interface: Network interface name
+        """
         self._your = self._base.get_interface_settings(interface_name=network_interface, 
                                                        required_parameters=['mac-address', 
                                                                             'ipv4-address',
                                                                             'first-ipv4-address',
                                                                             'last-ipv4-address'])
         self._raw_send: RawSend = RawSend(network_interface=network_interface)
+    # endregion
 
+    # region Start ARP Spoofing
     def start(self, 
               gateway_ip_address: Union[None, str] = None,
               target_ip_address: Union[None, str] = None,
@@ -59,7 +68,18 @@ class ArpSpoof:
               broadcast_requests: bool = False,
               requests: bool = False,
               quit: bool = False) -> None:
-
+        """
+        Start ARP Spoofing
+        :param gateway_ip_address:
+        :param target_ip_address:
+        :param target_mac_address:
+        :param ipv4_multicast_requests:
+        :param ipv6_multicast_requests:
+        :param broadcast_requests:
+        :param requests:
+        :param quit:
+        :return: None
+        """
         try:
 
             # region Set gateway IP address
@@ -155,7 +175,9 @@ class ArpSpoof:
     
             # region ARP spoofing with ARP responses
             else:
-                self._base.print_info('Send ARP responses to: ', self._target['ipv4-address'] + ' (' + self._target['mac-address'] + ')')
+                self._base.print_info('Send ARP responses to: ',
+                                      self._target['ipv4-address'] + ' (' +
+                                      self._target['mac-address'] + ')')
                 self._base.print_info('Start ARP spoofing ...')
                 arp_response: bytes = \
                     self._arp.make_response(ethernet_src_mac=self._your['mac-address'],
@@ -178,6 +200,7 @@ class ArpSpoof:
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
             exit(1)
+    # endregion
 
 # endregion
 

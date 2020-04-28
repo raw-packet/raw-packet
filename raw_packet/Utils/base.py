@@ -524,7 +524,7 @@ class Base:
                 print(interfaces_pretty_table)
 
                 network_interface_index -= 1
-                print(self.c_warning + 'Set network interface from range (1-' +
+                print(self.c_warning + 'Select network interface from range (1-' +
                       str(network_interface_index) + '): ', end='')
                 current_network_interface_index = input()
 

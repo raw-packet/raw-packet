@@ -12,6 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
+from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from sys import path as sys_path
 from os.path import dirname, abspath
 from prettytable import PrettyTable
@@ -73,10 +74,12 @@ def make_arp_spoof(network_interface: str = 'eth0',
                    ip_address: str = '129.168.0.1',
                    gateway_ip_address: str = '129.168.0.254'):
 
-    # Start ARP spoofing script
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/ARP/arp_spoof.py --interface ' + network_interface +
-               ' --target_ip ' + ip_address + ' --target_mac ' + mac_address +
-               ' --gateway_ip ' + gateway_ip_address + ' --quiet'], shell=True)
+    # Start ARP Spoofing (arp_spoof)
+    arp_spoof: ArpSpoof = ArpSpoof(network_interface=network_interface)
+    arp_spoof.start(gateway_ip_address=gateway_ip_address,
+                    target_ip_address=ip_address,
+                    target_mac_address=mac_address,
+                    quit=True)
 
     # Wait 3 seconds
     sleep(3)

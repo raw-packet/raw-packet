@@ -3,7 +3,7 @@
 
 # region Description
 """
-arp_scan.py: ARP Scan (arp_scan)
+arp_scan.py: ARP Scanner (arp_scan)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -27,7 +27,7 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Production'
-__script_name__ = 'ARP Scan (arp_scan)'
+__script_name__ = 'ARP Scanner (arp_scan)'
 # endregion
 
 
