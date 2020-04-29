@@ -68,6 +68,189 @@ class DnsServer:
         run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
     # endregion
 
+    # region Start DNS Server
+    def start(self,
+              listen_port: int = 53,
+              target_mac_address: Union[None, str] = None,
+              target_ipv4_address: Union[None, str] = None,
+              target_ipv6_address: Union[None, str] = None,
+              fake_answers: bool = False,
+              fake_ipv4_addresses: List[str] = [],
+              fake_ipv6_addresses: List[str] = [],
+              fake_domains_regexp: List[str] = [],
+              no_such_domains: List[str] = [],
+              listen_ipv6: bool = False,
+              disable_ipv4: bool = False,
+              success_domains: List[str] = [],
+              config_file: Union[None, str] = None,
+              log_file_name: str = 'dns_server_log',
+              log_file_format: str = 'csv') -> None:
+        try:
+            # region Set log file name and format
+            self._log_file_name = log_file_name
+            self._log_file_format = log_file_format
+            # endregion
+
+            # region Set listen UDP port
+            if listen_port != 53:
+                assert 0 < listen_port < 65536, \
+                    'Bad value in "listen_port": ' + self._base.error_text(str(listen_port)) + \
+                    ' listen UDP port must be in range: ' + self._base.info_text('1 - 65535')
+            # endregion
+
+            # region Check your IPv6 address
+            if self._your['ipv6-link-address'] is None:
+                self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac-address'])
+            # endregion
+
+            # region Check config file
+            if config_file is not None:
+                assert isfile(config_file), 'Not found config file: ' + self._base.error_text(str(config_file))
+                with open(config_file, 'r') as config_file_descriptor:
+                    self._config = load(config_file_descriptor)
+            # endregion
+
+            # region Set fake ipv4 addresses
+            if len(fake_ipv4_addresses) == 0:
+                fake_ipv4_addresses = [self._your['ipv4-address']]
+            else:
+                for fake_ipv4_address in fake_ipv4_addresses:
+                    assert self._base.ip_address_validation(fake_ipv4_address), \
+                        'Bad fake IPv4 address: ' + self._base.error_text(fake_ipv4_address) + \
+                        ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
+            # endregion
+
+            # region Set fake ipv6 addresses
+            if len(fake_ipv6_addresses) == 0:
+                fake_ipv6_addresses = [self._your['ipv6-link-address']]
+            else:
+                for fake_ipv6_address in fake_ipv6_addresses:
+                    assert self._base.ipv6_address_validation(fake_ipv6_address), \
+                        'Bad fake IPv6 address: ' + self._base.error_text(fake_ipv6_address) + \
+                        ' example IPv6 address: ' + self._base.info_text('fd00::1')
+            # endregion
+
+            # region Set success domains
+            for success_domain in success_domains:
+                try:
+                    self._config[success_domain].update({'success': True})
+                except KeyError:
+                    self._config[success_domain] = {'success': True}
+            # endregion
+
+            # region Set no such domains
+            for no_such_domain in no_such_domains:
+                try:
+                    self._config[no_such_domain].update({'no such domain': True})
+                except KeyError:
+                    self._config[no_such_domain] = {'no such domain': True}
+            # endregion
+
+            # region Set fake domains regexp
+            for fake_domain_regexp in fake_domains_regexp:
+                try:
+                    self._config[fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self._config[fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+            # endregion
+
+            # region Set fake answers
+            if fake_answers:
+                try:
+                    self._config['.*'].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                except KeyError:
+                    self._config['.*'] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+            # endregion
+
+            # region Check target MAC address
+            if target_mac_address is not None:
+                assert self._base.mac_address_validation(target_mac_address), \
+                    'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
+                    ' example MAC address: ' + self._base.info_text('01:23:45:67:89:0a')
+                self._target['mac-address'] = target_mac_address
+            # endregion
+
+            # region Check target IPv4 address
+            if target_ipv4_address is not None:
+                assert self._base.ip_address_validation(target_ipv4_address), \
+                    'Bad target IPv4 address: ' + self._base.error_text(target_ipv4_address) + \
+                    ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
+                self._target['ipv4-address'] = target_ipv4_address
+            # endregion
+
+            # region Check target IPv6 address
+            if target_ipv6_address is not None:
+                assert self._base.ipv6_address_validation(target_ipv6_address), \
+                    'Bad target IPv6 address: ' + self._base.error_text(target_ipv6_address) + \
+                    ' example IPv6 address: ' + self._base.info_text('fd00::1')
+                self._target['ipv6-address'] = target_ipv6_address
+            # endregion
+
+            # region Sniffing DNS requests
+
+            # region Set network filter
+            network_filters = dict()
+
+            if self._your['network-interface'] != 'lo':
+                if self._target['mac-address'] is not None:
+                    network_filters['Ethernet'] = {'source': self._target['mac-address']}
+                else:
+                    network_filters['Ethernet'] = {'not-source': self._your['mac-address']}
+
+                if self._target['ipv4-address'] is not None:
+                    network_filters['IPv4'] = {'source-ip': self._target['ipv4-address']}
+
+                if self._target['ipv6-address'] is not None:
+                    network_filters['IPv6'] = {'source-ip': self._target['ipv6-address']}
+
+                network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
+                network_filters['IPv6'] = {'not-source-ip': '::1'}
+                network_filters['UDP'] = {'destination-port': listen_port}
+            else:
+                network_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
+                network_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
+                network_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
+                network_filters['UDP'] = {'destination-port': listen_port}
+            # endregion
+
+            # region Start _sniffer
+            if listen_ipv6:
+                if disable_ipv4:
+                    self._sniff.start(protocols=['IPv6', 'UDP', 'DNS'],
+                                      prn=self._reply,
+                                      filters=network_filters,
+                                      network_interface=self._your['network-interface'],
+                                      scapy_filter='ip6 and udp port ' + str(listen_port))
+                else:
+                    self._sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'],
+                                      prn=self._reply,
+                                      filters=network_filters,
+                                      network_interface=self._your['network-interface'],
+                                      scapy_filter='udp port ' + str(listen_port))
+            else:
+                self._sniff.start(protocols=['IPv4', 'UDP', 'DNS'],
+                                  prn=self._reply,
+                                  filters=network_filters,
+                                  network_interface=self._your['network-interface'],
+                                  scapy_filter='udp port ' + str(listen_port))
+            # endregion
+
+            # endregion
+
+        except AssertionError as Error:
+            self._base.print_error(Error.args[0])
+            exit(1)
+
+        except JSONDecodeError:
+            self._base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
+            exit(1)
+
+        except KeyboardInterrupt:
+            self._base.print_info('Exit ....')
+            exit(0)
+
+    # endregion
+
     # region Write log file
     def _write_to_log(self, from_ip_address: str, to_ip_address: str,
                       query_type: str, query_name: str, answer_address: str):
@@ -309,189 +492,6 @@ class DnsServer:
 
         except AssertionError:
             pass
-    # endregion
-
-    # region Start DNS listener
-    def listen(self,
-               listen_port: int = 53,
-               target_mac_address: Union[None, str] = None,
-               target_ipv4_address: Union[None, str] = None,
-               target_ipv6_address: Union[None, str] = None,
-               fake_answers: bool = False,
-               fake_ipv4_addresses: List[str] = [],
-               fake_ipv6_addresses: List[str] = [],
-               fake_domains_regexp: List[str] = [],
-               no_such_domains: List[str] = [],
-               listen_ipv6: bool = False,
-               disable_ipv4: bool = False,
-               success_domains: List[str] = [],
-               config_file: Union[None, str] = None,
-               log_file_name: str = 'dns_server_log',
-               log_file_format: str = 'csv') -> None:
-        try:
-            # region Set log file name and format
-            self._log_file_name = log_file_name
-            self._log_file_format = log_file_format
-            # endregion
-
-            # region Set listen UDP port
-            if listen_port != 53:
-                assert 0 < listen_port < 65536, \
-                    'Bad value in "listen_port": ' + self._base.error_text(str(listen_port)) + \
-                    ' listen UDP port must be in range: ' + self._base.info_text('1 - 65535')
-            # endregion
-
-            # region Check your IPv6 address
-            if self._your['ipv6-link-address'] is None:
-                self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac-address'])
-            # endregion
-
-            # region Check config file
-            if config_file is not None:
-                assert isfile(config_file), 'Not found config file: ' + self._base.error_text(str(config_file))
-                with open(config_file, 'r') as config_file_descriptor:
-                    self._config = load(config_file_descriptor)
-            # endregion
-
-            # region Set fake ipv4 addresses
-            if len(fake_ipv4_addresses) == 0:
-                fake_ipv4_addresses = [self._your['ipv4-address']]
-            else:
-                for fake_ipv4_address in fake_ipv4_addresses:
-                    assert self._base.ip_address_validation(fake_ipv4_address), \
-                        'Bad fake IPv4 address: ' + self._base.error_text(fake_ipv4_address) + \
-                        ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
-            # endregion
-
-            # region Set fake ipv6 addresses
-            if len(fake_ipv6_addresses) == 0:
-                fake_ipv6_addresses = [self._your['ipv6-link-address']]
-            else:
-                for fake_ipv6_address in fake_ipv6_addresses:
-                    assert self._base.ipv6_address_validation(fake_ipv6_address), \
-                        'Bad fake IPv6 address: ' + self._base.error_text(fake_ipv6_address) + \
-                        ' example IPv6 address: ' + self._base.info_text('fd00::1')
-            # endregion
-
-            # region Set success domains
-            for success_domain in success_domains:
-                try:
-                    self._config[success_domain].update({'success': True})
-                except KeyError:
-                    self._config[success_domain] = {'success': True}
-            # endregion
-
-            # region Set no such domains
-            for no_such_domain in no_such_domains:
-                try:
-                    self._config[no_such_domain].update({'no such domain': True})
-                except KeyError:
-                    self._config[no_such_domain] = {'no such domain': True}
-            # endregion
-
-            # region Set fake domains regexp
-            for fake_domain_regexp in fake_domains_regexp:
-                try:
-                    self._config[fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
-                except KeyError:
-                    self._config[fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
-            # endregion
-
-            # region Set fake answers
-            if fake_answers:
-                try:
-                    self._config['.*'].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
-                except KeyError:
-                    self._config['.*'] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
-            # endregion
-
-            # region Check target MAC address
-            if target_mac_address is not None:
-                assert self._base.mac_address_validation(target_mac_address), \
-                    'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
-                    ' example MAC address: ' + self._base.info_text('01:23:45:67:89:0a')
-                self._target['mac-address'] = target_mac_address
-            # endregion
-
-            # region Check target IPv4 address
-            if target_ipv4_address is not None:
-                assert self._base.ip_address_validation(target_ipv4_address), \
-                    'Bad target IPv4 address: ' + self._base.error_text(target_ipv4_address) + \
-                    ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
-                self._target['ipv4-address'] = target_ipv4_address
-            # endregion
-
-            # region Check target IPv6 address
-            if target_ipv6_address is not None:
-                assert self._base.ipv6_address_validation(target_ipv6_address), \
-                    'Bad target IPv6 address: ' + self._base.error_text(target_ipv6_address) + \
-                    ' example IPv6 address: ' + self._base.info_text('fd00::1')
-                self._target['ipv6-address'] = target_ipv6_address
-            # endregion
-
-            # region Sniffing DNS requests
-
-            # region Set network filter
-            network_filters = dict()
-
-            if self._your['network-interface'] != 'lo':
-                if self._target['mac-address'] is not None:
-                    network_filters['Ethernet'] = {'source': self._target['mac-address']}
-                else:
-                    network_filters['Ethernet'] = {'not-source': self._your['mac-address']}
-
-                if self._target['ipv4-address'] is not None:
-                    network_filters['IPv4'] = {'source-ip': self._target['ipv4-address']}
-
-                if self._target['ipv6-address'] is not None:
-                    network_filters['IPv6'] = {'source-ip': self._target['ipv6-address']}
-
-                network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
-                network_filters['IPv6'] = {'not-source-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': listen_port}
-            else:
-                network_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
-                network_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
-                network_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': listen_port}
-            # endregion
-
-            # region Start _sniffer
-            if listen_ipv6:
-                if disable_ipv4:
-                    self._sniff.start(protocols=['IPv6', 'UDP', 'DNS'],
-                                      prn=self._reply,
-                                      filters=network_filters,
-                                      network_interface=self._your['network-interface'],
-                                      scapy_filter='ip6 and udp port ' + str(listen_port))
-                else:
-                    self._sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'],
-                                      prn=self._reply,
-                                      filters=network_filters,
-                                      network_interface=self._your['network-interface'],
-                                      scapy_filter='udp port ' + str(listen_port))
-            else:
-                self._sniff.start(protocols=['IPv4', 'UDP', 'DNS'],
-                                  prn=self._reply,
-                                  filters=network_filters,
-                                  network_interface=self._your['network-interface'],
-                                  scapy_filter='udp port ' + str(listen_port))
-            # endregion
-
-            # endregion
-
-        except AssertionError as Error:
-            self._base.print_error(Error.args[0])
-            exit(1)
-
-        except JSONDecodeError:
-            self._base.print_error('Could not parse config file: ', config_file, ' invalid json syntax')
-            exit(1)
-
-        except KeyboardInterrupt:
-            self._base.print_info('Exit ....')
-            exit(0)
-
     # endregion
 
 # endregion
