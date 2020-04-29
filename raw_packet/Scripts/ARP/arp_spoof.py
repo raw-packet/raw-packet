@@ -89,12 +89,10 @@ class ArpSpoof:
                     'Network interface: ' + self._base.error_text(self._your['network-interface']) + \
                     ' does not have IPv4 gateway! Please set IPv4 gateway address!'
             else:
-                assert self._base.ip_address_in_range(gateway_ip_address, 
-                                                      self._your['first-ipv4-address'], 
-                                                      self._your['last-ipv4-address']), \
-                    'Bad IPv4 gateway address: ' + self._base.error_text(gateway_ip_address) + \
-                    '; Gateway IP address must be in range: ' + \
-                    self._base.info_text(self._your['first-ipv4-address'] + ' - ' + self._your['last-ipv4-address'])
+                gateway_ip_address: str = \
+                    self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
+                                                         ipv4_address=gateway_ip_address,
+                                                         parameter_name='gateway IPv4 address')
             # endregion
     
             # region General output
