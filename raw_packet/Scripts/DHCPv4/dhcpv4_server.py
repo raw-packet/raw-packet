@@ -3,7 +3,7 @@
 
 # region Description
 """
-dhcp_server.py: DHCPv4 server (dhcp_server)
+dhcpv4_server.py: DHCPv4 server (dhcpv4_server)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -13,7 +13,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Servers.dhcpv4_server import DHCPv4Server
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 # endregion
 
 # region Authorship information
@@ -25,11 +25,12 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
+__script_name__ = 'DHCPv4 server (dhcpv4_server)'
 # endregion
 
 
 # region Main function
-if __name__ == '__main__':
+def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
@@ -41,7 +42,11 @@ if __name__ == '__main__':
     # endregion
 
     # region Parse script arguments
-    parser = ArgumentParser(description='Rogue DHCPv4 server')
+    script_description: str = \
+        base.get_banner() + '\n' + \
+        ' ' * (int((55 - len(__script_name__)) / 2)) + \
+        base.info_text(__script_name__) + '\n\n'
+    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
 
     parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
 
@@ -139,4 +144,10 @@ if __name__ == '__main__':
         base.print_error(Error.args[0])
         exit(1)
 
+# endregion
+
+
+# region Call Main function
+if __name__ == "__main__":
+    main()
 # endregion

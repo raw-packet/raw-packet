@@ -201,7 +201,6 @@ def start_dns_server(network_interface: str = 'eth0',
                          fake_answers=True,
                          fake_ipv4_addresses=[fake_ip_address],
                          success_domains=['captive.apple.com', mitm_success_domain])
-
     if technique_index in [4, 5, 6]:
         dns_server.start(target_mac_address=mac_address,
                          fake_answers=True,

@@ -49,6 +49,7 @@ setuptools.setup(
             'arp_scan=raw_packet.Scripts.ARP.arp_scan:main',
             'arp_spoof=raw_packet.Scripts.ARP.arp_spoof:main',
             'dns_server=raw_packet.Scripts.DNS.dns_server:main',
+            'dhcpv4_server=raw_packet.Scripts.DHCPv4.dhcpv4_server:main',
             'icmpv4_redirect=raw_packet.Scripts.ICMPv4.icmpv4_redirect:main',
             'ipv6_scan=raw_packet.Scripts.IPv6.ipv6_scan:main',
             'ipv6_spoof=raw_packet.Scripts.IPv6.ipv6_spoof:main',
