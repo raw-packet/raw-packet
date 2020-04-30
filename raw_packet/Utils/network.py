@@ -5779,7 +5779,7 @@ class RawSniff:
     sniff_socket: Union[None, socket] = None
     protocols: Union[None, List[str]] = None
     prn: Union[None, Any] = None
-    filters: Union[None, Dict[str, Union[str, Dict[str, str]]]] = None
+    filters: Union[None, Dict[str, Union[str, Dict[str, Union[int, str, List[int]]]]]] = None
     # endregion
 
     # region Init
@@ -5803,7 +5803,7 @@ class RawSniff:
     def start(self,
               protocols: List[str],
               prn: Any,
-              filters: Dict[str, Union[str, Dict[str, Union[int, str]]]],
+              filters: Dict[str, Union[str, Dict[str, Union[int, str, List[int]]]]],
               network_interface: str,
               scapy_filter: Union[None, str] = None,
               scapy_lfilter: Union[None, Any] = None) -> None:
@@ -6227,7 +6227,7 @@ class RawSniff:
                         if 'UDP' in self.filters.keys():
 
                             if 'source-port' in self.filters['UDP'].keys():
-                                assert udp_header_dict['source-port'] != self.filters['UDP']['source-port'], \
+                                assert udp_header_dict['source-port'] == self.filters['UDP']['source-port'], \
                                     'Bad UDP source port!'
 
                             if 'destination-port' in self.filters['UDP'].keys():
@@ -6328,6 +6328,8 @@ class RawSniff:
                         if 'ICMPv6' in self.filters.keys():
                             if 'type' in self.filters['ICMPv6'].keys():
                                 assert icmpv6_packet_dict['type'] == self.filters['ICMPv6']['type'], 'Bad ICMPv6 type!'
+                            if 'types' in self.filters['ICMPv6'].keys():
+                                assert icmpv6_packet_dict['type'] in self.filters['ICMPv6']['types'], 'Bad ICMPv6 type!'
                         # endregion
 
                         # region Call function with full ICMPv6 packet

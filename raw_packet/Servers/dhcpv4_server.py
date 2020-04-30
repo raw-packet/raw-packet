@@ -575,9 +575,9 @@ class DHCPv4Server:
                                                         client_already_in_dictionary)
 
                     # Delete ARP mitm success keys in dictionary for this client
-                    self._clients[client_mac_address].pop('client packet his ip', None)
-                    self._clients[client_mac_address].pop('client packet router ip', None)
-                    self._clients[client_mac_address].pop('client packet dns ip', None)
+                    self._clients[client_mac_address].pop('client request his ip', None)
+                    self._clients[client_mac_address].pop('client request router ip', None)
+                    self._clients[client_mac_address].pop('client request dns ip', None)
 
                     # endregion
 
@@ -819,32 +819,31 @@ class DHCPv4Server:
                 if mitm_status.startswith('success'):
     
                     if arp_target_ip_address == requested_ip:
-                        self._clients[arp_sender_mac_address].update({'client packet his ip': True})
+                        self._clients[arp_sender_mac_address].update({'client request his ip': True})
     
                     if arp_target_ip_address == self._router_ipv4_address:
-                        self._clients[arp_sender_mac_address].update({'client packet router ip': True})
+                        self._clients[arp_sender_mac_address].update({'client request router ip': True})
     
                     if arp_target_ip_address == self._dns_server_ipv4_address:
-                        self._clients[arp_sender_mac_address].update({'client packet dns ip': True})
+                        self._clients[arp_sender_mac_address].update({'client request dns ip': True})
     
                     try:
-                        test = self._clients[arp_sender_mac_address]['client packet his ip']
-                        test = self._clients[arp_sender_mac_address]['client packet router ip']
-                        test = self._clients[arp_sender_mac_address]['client packet dns ip']
+                        assert self._clients[arp_sender_mac_address]['client request his ip']
+                        assert self._clients[arp_sender_mac_address]['client request router ip']
+                        assert self._clients[arp_sender_mac_address]['client request dns ip']
     
-                        try:
-                            test = self._clients[arp_sender_mac_address]['success message']
-                        except KeyError:
-                            self._base.print_success('MITM success: ',
-                                                     requested_ip + ' (' +
-                                                     arp_sender_mac_address + ')')
-                            if self._exit_on_success:
-                                sleep(2)
-                                exit(0)
-                            else:
-                                self._clients[arp_sender_mac_address].update({'success message': True})
+                        assert 'success message' not in self._clients[arp_sender_mac_address].keys()
+                        self._base.print_success('MITM success: ', requested_ip + ' (' + arp_sender_mac_address + ')')
+                        if self._exit_on_success:
+                            sleep(3)
+                            exit(0)
+                        else:
+                            self._clients[arp_sender_mac_address].update({'success message': True})
     
                     except KeyError:
+                        pass
+
+                    except AssertionError:
                         pass
     
                 # endregion

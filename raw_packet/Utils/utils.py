@@ -153,18 +153,12 @@ class Utils:
         # region Variables
         target: Dict[str, str] = {'mac-address': None, 'ipv6-address': None, 'vendor': None}
         scanner: Scanner = Scanner(network_interface=network_interface)
-        network_interface_settings = \
-            self._base.get_interface_settings(interface_name=network_interface,
-                                              required_parameters=['mac-address',
-                                                                   'ipv6-link-address'])
         # endregion
 
         # region Target MAC address is Set
         if target_mac_address is not None:
-            assert self._base.mac_address_validation(target_mac_address), \
-                'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
-                '; Example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
-            target['mac-address'] = str(target_mac_address).lower()
+            target['mac-address'] = self.check_mac_address(mac_address=target_mac_address,
+                                                           parameter_name='target MAC address')
         # endregion
 
         # region Target IPv6 address not Set
@@ -197,29 +191,10 @@ class Utils:
                 self._base.info_text(target_ipv6_address) + \
                 '; Please set target MAC address'
 
-            assert self._base.ipv6_address_validation(target_ipv6_address), \
-                'Bad target IPv6 address: ' + \
-                self._base.error_text(target_ipv6_address) + \
-                '; Failed to validate IPv6 address!'
-
-            if target_ipv6_address_is_local:
-                assert str(target_ipv6_address).startswith('fe80::'), \
-                    'Bad target IPv6 address: ' + \
-                    self._base.error_text(target_ipv6_address) + \
-                    '; Target link local ipv6 address must be starts with: ' + \
-                    self._base.info_text('fe80::')
-
-            assert target_ipv6_address != network_interface_settings['ipv6-link-address'], \
-                'Bad target IPv6 address: ' + \
-                self._base.error_text(target_ipv6_address) + \
-                '; Target IPv6 address is your link local IPv6 address!'
-
-            assert target_ipv6_address not in network_interface_settings['ipv6-global-addresses'], \
-                'Bad target IPv6 address: ' + \
-                self._base.error_text(target_ipv6_address) + \
-                '; Target IPv6 address is your global IPv6 address!'
-
-            target['ipv6-address'] = target_ipv6_address
+            target['ipv6-address'] = self.check_ipv6_address(network_interface=network_interface,
+                                                             ipv6_address=target_ipv6_address,
+                                                             is_local_ipv6_address=target_ipv6_address_is_local,
+                                                             parameter_name='target IPv6 address')
         # endregion
 
         # region Return target
@@ -246,6 +221,45 @@ class Utils:
         return ipv4_address
     # endregion
 
+    # region Check IPv6 address
+    def check_ipv6_address(self,
+                           network_interface: str,
+                           ipv6_address: str,
+                           is_local_ipv6_address: bool = True,
+                           parameter_name: str = 'target IPv6 address') -> str:
+
+        example_ipv6_address: str = '2001:4860:4860::8888'
+        if is_local_ipv6_address:
+            example_ipv6_address = 'fe80::1234:5678:90ab:cdef'
+
+        network_interface_settings = \
+            self._base.get_interface_settings(interface_name=network_interface,
+                                              required_parameters=['mac-address'])
+
+        if network_interface_settings['ipv6-link-address'] is None:
+            network_interface_settings['ipv6-link-address'] = \
+                self._base.make_ipv6_link_address(mac_address=network_interface_settings['mac-address'])
+
+        assert ipv6_address != network_interface_settings['ipv6-link-address'], \
+            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+            '; ' + parameter_name.capitalize() + ' is your link local IPv6 address!'
+
+        assert ipv6_address not in network_interface_settings['ipv6-global-addresses'], \
+            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+            '; ' + parameter_name.capitalize() + ' is your global IPv6 address!'
+
+        assert self._base.ipv6_address_validation(ipv6_address), \
+            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+            '; example IPv6 link local address: ' + self._base.info_text(example_ipv6_address)
+
+        if is_local_ipv6_address:
+            assert not str(ipv6_address).startswith('fe80::'), \
+                'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+                '; example IPv6 link local address: ' + self._base.info_text(example_ipv6_address)
+
+        return ipv6_address
+    # endregion
+
     # region Check MAC address
     def check_mac_address(self,
                           mac_address: str,
@@ -254,6 +268,18 @@ class Utils:
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(mac_address) + \
             '; example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
         return str(mac_address).lower()
+    # endregion
+
+    # region Check value in range
+    def check_value_in_range(self, value: int,
+                             first_value: int = 1,
+                             last_value: int = 65535,
+                             parameter_name: str = 'destination port') -> int:
+        assert first_value < value < last_value, \
+            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(str(value)) + \
+            ' ' + parameter_name.capitalize() + ' must be in range: ' + \
+            self._base.info_text(str(first_value) + ' - ' + str(last_value))
+        return value
     # endregion
 
 # endregion
