@@ -51,9 +51,10 @@ class Utils:
 
         # region Target IPv4 address is Set
         if target_ipv4_address is not None:
-            target['ipv4-address'] = self.check_local_ipv4_address(network_interface=network_interface,
-                                                                   ipv4_address=target_ipv4_address,
-                                                                   parameter_name='target IPv4 address')
+            target['ipv4-address'] = self.check_ipv4_address(network_interface=network_interface,
+                                                             ipv4_address=target_ipv4_address,
+                                                             parameter_name='target IPv4 address',
+                                                             is_local_ipv4_address=True)
         # endregion
 
         # region Target IPv4 address not Set
@@ -129,10 +130,8 @@ class Utils:
 
         # region Target MAC address is Set
         else:
-            assert self._base.mac_address_validation(target_mac_address), \
-                'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
-                '; example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
-            target['mac-address'] = target_mac_address.lower()
+            target['mac-address'] = self.check_mac_address(mac_address=target_mac_address,
+                                                           parameter_name='target MAC address')
         # endregion
 
         # region Return target
@@ -204,20 +203,34 @@ class Utils:
     # endregion
 
     # region Check IPv4 address in local network
-    def check_local_ipv4_address(self,
-                                 network_interface: str,
-                                 ipv4_address: str,
-                                 parameter_name: str = 'target IPv4 address') -> str:
+    def check_ipv4_address(self,
+                           network_interface: str,
+                           ipv4_address: str,
+                           is_local_ipv4_address: bool = True,
+                           parameter_name: str = 'target IPv4 address') -> str:
+
         network_interface_settings = \
             self._base.get_interface_settings(interface_name=network_interface,
                                               required_parameters=['first-ipv4-address',
                                                                    'last-ipv4-address'])
-        first_ip_address: str = network_interface_settings['first-ipv4-address']
-        last_ip_address: str = network_interface_settings['last-ipv4-address']
-        assert self._base.ip_address_in_range(ipv4_address, first_ip_address, last_ip_address), \
+
+        example_ipv4_address: str = '8.8.8.8'
+        if is_local_ipv4_address:
+            example_ipv4_address = self._base.get_random_ip_on_interface(interface_name=network_interface)
+
+        assert self._base.ip_address_validation(ipv4_address), \
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv4_address) + \
-            '; ' + parameter_name.capitalize() + ' must be in range: ' + \
-            self._base.info_text(first_ip_address + ' - ' + last_ip_address)
+            '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv4_address)
+
+        if is_local_ipv4_address:
+            assert self._base.ip_address_in_range(ipv4_address,
+                                                  network_interface_settings['first-ipv4-address'],
+                                                  network_interface_settings['last-ipv4-address']), \
+                'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv4_address) + \
+                '; ' + parameter_name.capitalize() + ' must be in range: ' + \
+                self._base.info_text(network_interface_settings['first-ipv4-address'] + ' - ' +
+                                     network_interface_settings['last-ipv4-address']) + \
+                '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv4_address)
         return ipv4_address
     # endregion
 
@@ -250,12 +263,12 @@ class Utils:
 
         assert self._base.ipv6_address_validation(ipv6_address), \
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
-            '; example IPv6 link local address: ' + self._base.info_text(example_ipv6_address)
+            '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv6_address)
 
         if is_local_ipv6_address:
             assert not str(ipv6_address).startswith('fe80::'), \
                 'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
-                '; example IPv6 link local address: ' + self._base.info_text(example_ipv6_address)
+                '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv6_address)
 
         return ipv6_address
     # endregion
@@ -266,7 +279,7 @@ class Utils:
                           parameter_name: str = 'target MAC address') -> str:
         assert self._base.mac_address_validation(mac_address), \
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(mac_address) + \
-            '; example MAC address: ' + self._base.info_text('12:34:56:78:90:ab')
+            '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text('12:34:56:78:90:ab')
         return str(mac_address).lower()
     # endregion
 

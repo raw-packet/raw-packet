@@ -215,7 +215,7 @@ def main():
     # endregion
 
     # region Get listen network interface, your IP and MAC address, first and last IP in local network
-    message: str = 'Please select a network interface for DoS Apple devices: '
+    message: str = 'Please select a network interface for DoS Apple devices from table: '
     current_network_interface: str = base.network_interface_selection(interface_name=args.interface,
                                                                       message=message)
     # endregion

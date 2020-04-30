@@ -90,9 +90,10 @@ class ArpSpoof:
                     ' does not have IPv4 gateway! Please set IPv4 gateway address!'
             else:
                 gateway_ip_address: str = \
-                    self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                         ipv4_address=gateway_ip_address,
-                                                         parameter_name='gateway IPv4 address')
+                    self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                                   ipv4_address=gateway_ip_address,
+                                                   parameter_name='gateway IPv4 address',
+                                                   is_local_ipv4_address=True)
             # endregion
     
             # region General output
@@ -208,21 +209,13 @@ class ArpSpoof:
 # region Main function
 def main():
 
-    # region Init Raw-packet classes
-    base: Base = Base()
-    # endregion
-
-    # region Check user and platform
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # region Init Raw-packet Base class
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments
-    script_description: str = \
-        base.get_banner() + '\n' + \
-        ' ' * (int((55 - len(__script_name__)) / 2)) + \
-        base.info_text(__script_name__) + '\n\n'
-    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
     parser.add_argument('-t', '--target_ip', help='Set target IP address', default=None)
     parser.add_argument('-m', '--target_mac', help='Set target MAC address', default=None)
@@ -235,15 +228,17 @@ def main():
     args = parser.parse_args()
     # endregion
 
-    # region Print banner if argument quit is not set
+    # region Print banner
     if not args.quiet:
-        base.print_banner()
+        base.print_banner(__script_name__)
     # endregion
 
     # region Get listen network interface, your IP and MAC address, first and last IP in local network
-    if args.interface is None:
-        base.print_warning('Please set a network interface for send ARP spoofing packets ...')
-    current_network_interface: str = base.network_interface_selection(args.interface)
+    current_network_interface: str = \
+        base.network_interface_selection(interface_name=args.interface,
+                                         message='Please select a network interface for ' +
+                                                 __script_name__ + ' from table: ')
+
     # endregion
     
     # region Start Arp Spoof

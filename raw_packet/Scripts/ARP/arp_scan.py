@@ -12,6 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from prettytable import PrettyTable
@@ -34,73 +35,66 @@ __script_name__ = 'ARP Scanner (arp_scan)'
 # region Main function
 def main():
 
-    # region Init Raw-packet classes
-    base: Base = Base()
-    # endregion
-
-    # region Check user and platform and print banner
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # region Init Raw-packet Base class
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments
-    script_description: str = \
-        base.get_banner() + '\n' + \
-        ' ' * (int((55 - len(__script_name__)) / 2)) + \
-        base.info_text(__script_name__) + '\n\n'
-    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
-    parser.add_argument('-T', '--target_ip', type=str, help='Set target IP address', default=None)
-    parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=3)
-    parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
+    parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
+    parser.add_argument('--timeout', type=int, help='Set timeout (default=5)', default=5)
+    parser.add_argument('--retry', type=int, help='Set number of retry (default=5)', default=5)
     args = parser.parse_args()
     # endregion
 
     # region Print banner
-    base.print_banner()
+    base.print_banner(__script_name__)
     # endregion
 
     try:
-        # region Get your network settings
-        if args.interface is None:
-            base.print_warning('Please set a network interface for sniffing ARP responses ...')
-        current_network_interface: str = base.network_interface_selection(args.interface)
+        # region Get your network interface settings
+        current_network_interface: str = \
+            base.network_interface_selection(interface_name=args.interface,
+                                             message='Please select a network interface for ' +
+                                                     __script_name__ + ' from table: ')
         current_network_interface_settings: Dict[str, Union[None, str, List[str]]] = \
             base.get_interface_settings(interface_name=current_network_interface,
-                                        required_parameters=['mac-address', 'ipv4-address',
-                                                             'first-ipv4-address', 'last-ipv4-address'])
-        your_mac_address: str = current_network_interface_settings['mac-address']
-        your_ip_address: str = current_network_interface_settings['ipv4-address']
-        first_ip_address: str = current_network_interface_settings['first-ipv4-address']
-        last_ip_address: str = current_network_interface_settings['last-ipv4-address']
-        arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
+                                        required_parameters=['mac-address',
+                                                             'ipv4-address',
+                                                             'first-ipv4-address',
+                                                             'last-ipv4-address'])
         # endregion
 
         # region Target IP is set
         if args.target_ip is not None:
-            assert base.ip_address_in_range(args.target_ip, first_ip_address, last_ip_address), \
-                'Bad value `-T, --target_ip`: ' + base.error_text(args.target_ip) + \
-                '; target IP address must be in range: ' + base.info_text(first_ip_address + ' - ' + last_ip_address)
+            utils: Utils = Utils()
+            utils.check_ipv4_address(network_interface=current_network_interface,
+                                     ipv4_address=args.target_ip,
+                                     is_local_ipv4_address=True,
+                                     parameter_name='target IPv4 address')
         # endregion
 
         # region General output
-        base.print_info('Network interface: ', current_network_interface)
-        base.print_info('Your IP address: ', your_ip_address)
-        base.print_info('Your MAC address: ', your_mac_address)
+        base.print_info('Network interface: ', current_network_interface_settings['network-interface'])
+        base.print_info('Your IP address: ', current_network_interface_settings['ipv4-address'])
+        base.print_info('Your MAC address: ', current_network_interface_settings['mac-address'])
 
         # If target IP address is set print target IP, else print first and last IP
         if args.target_ip is not None:
             base.print_info('Target IP: ', args.target_ip)
         else:
-            base.print_info('First IP: ', first_ip_address)
-            base.print_info('Last IP: ', last_ip_address)
+            base.print_info('First IP: ', current_network_interface_settings['first-ipv4-address'])
+            base.print_info('Last IP: ', current_network_interface_settings['last-ipv4-address'])
         base.print_info('Timeout: ', str(args.timeout) + ' sec.')
         base.print_info('Retry: ', str(args.retry))
         # endregion
 
         # region Start scanner
-        results: List[Dict[str, str]] = arp_scan.scan(timeout=args.timeout,
-                                                      retry=args.retry, target_ip_address=args.target_ip,
+        arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
+        results: List[Dict[str, str]] = arp_scan.scan(timeout=args.timeout, retry=args.retry,
+                                                      target_ip_address=args.target_ip,
                                                       check_vendor=True, exclude_ip_addresses=None,
                                                       exit_on_failure=False, show_scan_percentage=True)
         # endregion

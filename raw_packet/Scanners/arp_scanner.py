@@ -47,7 +47,7 @@ class ArpScan:
     _unique_results: List[Dict[str, str]] = list()
     _sorted_results: List[Dict[str, str]] = list()
 
-    _retry_number: int = 3
+    _retry_number: int = 5
     _timeout: int = 5
     _quit: bool = False
     # endregion
@@ -67,138 +67,8 @@ class ArpScan:
 
     # endregion
 
-    # region Analyze packet
-    def _analyze_packet(self, packet: Dict[str, Dict[str, str]]) -> None:
-        """
-        Analyze ARP reply
-        :param packet: Parsed ARP reply
-        :return: None
-        """
-
-        try:
-
-            # region Asserts
-            assert 'ARP' in packet.keys()
-            assert 'sender-mac' in packet['ARP'].keys()
-            assert 'sender-ip' in packet['ARP'].keys()
-            assert 'target-mac' in packet['ARP'].keys()
-            assert 'target-ip' in packet['ARP'].keys()
-            assert packet['ARP']['target-mac'] == self._your['mac-address']
-            assert packet['ARP']['target-ip'] == self._your['ipv4-address']
-            # endregion
-
-            # region Parameter Target IPv4 address is None
-            if self._target['ipv4-address'] is None:
-                self._results.append({
-                    'mac-address': packet['ARP']['sender-mac'],
-                    'ip-address': packet['ARP']['sender-ip']
-                })
-            # endregion
-
-            # region Parameter Target IPv4 address is Set
-            else:
-                if packet['ARP']['sender-ip'] == self._target['ipv4-address']:
-                    self._results.append({
-                        'mac-address': packet['ARP']['sender-mac'],
-                        'ip-address': packet['ARP']['sender-ip']
-                    })
-            # endregion
-
-        except AssertionError:
-            pass
-
-    # endregion
-
-    # region Sniffer
-    def _sniff(self) -> None:
-        """
-        Sniff ARP replies
-        :return: None
-        """
-        self._raw_sniff.start(protocols=['Ethernet', 'ARP'],
-                              prn=self._analyze_packet,
-                              filters={'Ethernet': {'destination': self._your['mac-address']},
-                                       'ARP': {'opcode': 2,
-                                               'target-mac': self._your['mac-address'],
-                                               'target-ip': self._your['ipv4-address']}},
-                              network_interface=self._your['network-interface'],
-                              scapy_filter='arp',
-                              scapy_lfilter=lambda eth: eth.dst == self._your['mac-address'])
-    # endregion
-
-    # region Sender
-    def _send(self) -> None:
-        """
-        Send ARP requests
-        :return: None
-        """
-        arp_requests: List[bytes] = list()
-
-        if self._target['ipv4-address'] is not None:
-            first_ip_address = self._target['ipv4-address']
-            last_ip_address = self._target['ipv4-address']
-        else:
-            first_ip_address = self._your['first-ipv4-address']
-            last_ip_address = self._your['last-ipv4-address']
-
-        index: int = 0
-        while True:
-            current_ip_address: str = str(IPv4Address(first_ip_address) + index)
-            index += 1
-            if IPv4Address(current_ip_address) > IPv4Address(last_ip_address):
-                break
-
-            arp_request: bytes = self._arp.make_request(ethernet_src_mac=self._your['mac-address'],
-                                                        ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
-                                                        sender_mac=self._your['mac-address'],
-                                                        sender_ip=self._your['ipv4-address'],
-                                                        target_mac='00:00:00:00:00:00',
-                                                        target_ip=current_ip_address)
-            arp_requests.append(arp_request)
-
-        number_of_requests: int = len(arp_requests) * int(self._retry_number)
-        index_of_request: int = 0
-        percent_complete: int = 0
-
-        for _ in range(int(self._retry_number)):
-            for arp_request in arp_requests:
-                self._raw_send.send(arp_request)
-                if not self._quit:
-                    index_of_request += 1
-                    new_percent_complete = int(float(index_of_request) / float(number_of_requests) * 100)
-                    if new_percent_complete > percent_complete:
-                        stdout.write('\r')
-                        stdout.write(self._base.c_info + 'Interface: ' +
-                                     self._base.info_text(self._your['network-interface']) + ' ARP scan percentage: ' +
-                                     self._base.info_text(str(new_percent_complete) + '%'))
-                        stdout.flush()
-                        sleep(0.01)
-                        percent_complete = new_percent_complete
-        if not self._quit:
-            stdout.write('\n')
-    # endregion
-
-    # region Check target IPv4 address
-    def _check_target_ip_address(self, target_ip_address: Union[None, str]) -> Union[None, str]:
-        try:
-            if target_ip_address is not None:
-                assert self._base.ip_address_in_range(target_ip_address,
-                                                      self._your['first-ipv4-address'],
-                                                      self._your['last-ipv4-address']), \
-                    'Bad target IPv4 address: ' + \
-                    self._base.error_text(target_ip_address) + \
-                    '; target IPv4 address must be in range: ' + \
-                    self._base.info_text(self._your['first-ipv4-address'] + ' - ' + self._your['last-ipv4-address'])
-                return target_ip_address
-            else:
-                return None
-        except AssertionError as Error:
-            self._base.print_error(Error.args[0])
-            exit(1)
-    # endregion
-
     # region Scanner
-    def scan(self, timeout: int = 3, retry: int = 3,
+    def scan(self, timeout: int = 5, retry: int = 5,
              target_ip_address: Union[None, str] = None,
              check_vendor: bool = True,
              exclude_ip_addresses: Union[None, List[str]] = None,
@@ -206,8 +76,8 @@ class ArpScan:
              show_scan_percentage: bool = True) -> List[Dict[str, str]]:
         """
         ARP scan on network interface
-        :param timeout: Timeout in seconds (default: 3)
-        :param retry: Retry number (default: 3)
+        :param timeout: Timeout in seconds (default: 5)
+        :param retry: Retry number (default: 5)
         :param target_ip_address: Target IPv4 address (example: 192.168.0.1)
         :param check_vendor: Check vendor of hosts (default: True)
         :param exclude_ip_addresses: Exclude IPv4 address list (example: ['192.168.0.1','192.168.0.2'])
@@ -285,10 +155,11 @@ class ArpScan:
 
     # endregion
 
-    # region Get MAC address
+    # region Get MAC address by IP address
     def get_mac_address(self, target_ip_address: str = '192.168.0.1',
-                        timeout: int = 5, retry: int = 5, exit_on_failure: bool = True,
-                        show_scan_percentage: bool = True) -> str:
+                        timeout: int = 5, retry: int = 5,
+                        exit_on_failure: bool = True,
+                        show_scan_percentage: bool = False) -> str:
         """
         Get MAC address of IP address on network interface
         :param timeout: Timeout in seconds (default: 3)
@@ -347,6 +218,141 @@ class ArpScan:
                 exit(1)
 
         return result_mac_address
+
+    # endregion
+
+    # region Analyze packet
+    def _analyze_packet(self, packet: Dict[str, Dict[str, str]]) -> None:
+        """
+        Analyze ARP reply
+        :param packet: Parsed ARP reply
+        :return: None
+        """
+
+        try:
+
+            # region Asserts
+            assert 'ARP' in packet.keys()
+            assert 'sender-mac' in packet['ARP'].keys()
+            assert 'sender-ip' in packet['ARP'].keys()
+            assert 'target-mac' in packet['ARP'].keys()
+            assert 'target-ip' in packet['ARP'].keys()
+            assert packet['ARP']['target-mac'] == self._your['mac-address']
+            assert packet['ARP']['target-ip'] == self._your['ipv4-address']
+            # endregion
+
+            # region Parameter Target IPv4 address is None
+            if self._target['ipv4-address'] is None:
+                self._results.append({
+                    'mac-address': packet['ARP']['sender-mac'],
+                    'ip-address': packet['ARP']['sender-ip']
+                })
+            # endregion
+
+            # region Parameter Target IPv4 address is Set
+            else:
+                if packet['ARP']['sender-ip'] == self._target['ipv4-address']:
+                    self._results.append({
+                        'mac-address': packet['ARP']['sender-mac'],
+                        'ip-address': packet['ARP']['sender-ip']
+                    })
+            # endregion
+
+        except AssertionError:
+            pass
+
+    # endregion
+
+    # region Sniffer
+    def _sniff(self) -> None:
+        """
+        Sniff ARP replies
+        :return: None
+        """
+        self._raw_sniff.start(protocols=['Ethernet', 'ARP'],
+                              prn=self._analyze_packet,
+                              filters={'Ethernet': {'destination': self._your['mac-address']},
+                                       'ARP': {'opcode': 2,
+                                               'target-mac': self._your['mac-address'],
+                                               'target-ip': self._your['ipv4-address']}},
+                              network_interface=self._your['network-interface'],
+                              scapy_filter='arp',
+                              scapy_lfilter=lambda eth: eth.dst == self._your['mac-address'])
+
+    # endregion
+
+    # region Sender
+    def _send(self) -> None:
+        """
+        Send ARP requests
+        :return: None
+        """
+        arp_requests: List[bytes] = list()
+
+        if self._target['ipv4-address'] is not None:
+            first_ip_address: str = self._target['ipv4-address']
+            last_ip_address: str = self._target['ipv4-address']
+        else:
+            first_ip_address: str = self._your['first-ipv4-address']
+            last_ip_address: str = self._your['last-ipv4-address']
+
+        index: int = 0
+        while True:
+            current_ip_address: str = str(IPv4Address(first_ip_address) + index)
+            index += 1
+            if IPv4Address(current_ip_address) > IPv4Address(last_ip_address):
+                break
+
+            arp_request: bytes = self._arp.make_request(ethernet_src_mac=self._your['mac-address'],
+                                                        ethernet_dst_mac='ff:ff:ff:ff:ff:ff',
+                                                        sender_mac=self._your['mac-address'],
+                                                        sender_ip=self._your['ipv4-address'],
+                                                        target_mac='00:00:00:00:00:00',
+                                                        target_ip=current_ip_address)
+            arp_requests.append(arp_request)
+
+        number_of_requests: int = len(arp_requests) * int(self._retry_number)
+        index_of_request: int = 0
+        percent_complete: int = 0
+
+        for _ in range(int(self._retry_number)):
+            for arp_request in arp_requests:
+                self._raw_send.send(arp_request)
+                if not self._quit:
+                    index_of_request += 1
+                    new_percent_complete = int(float(index_of_request) / float(number_of_requests) * 100)
+                    if new_percent_complete > percent_complete:
+                        stdout.write('\r')
+                        stdout.write(self._base.c_info + 'Interface: ' +
+                                     self._base.info_text(self._your['network-interface']) + ' ARP scan percentage: ' +
+                                     self._base.info_text(str(new_percent_complete) + '%'))
+                        stdout.flush()
+                        sleep(0.01)
+                        percent_complete = new_percent_complete
+        if not self._quit:
+            stdout.write('\n')
+
+    # endregion
+
+    # region Check target IPv4 address
+    def _check_target_ip_address(self, target_ip_address: Union[None, str]) -> Union[None, str]:
+        try:
+            if target_ip_address is not None:
+                assert self._base.ip_address_in_range(target_ip_address,
+                                                      self._your['first-ipv4-address'],
+                                                      self._your['last-ipv4-address']), \
+                    'Bad Target IPv4 address: ' + \
+                    self._base.error_text(target_ip_address) + \
+                    '; Target IPv4 address must be in range: ' + \
+                    self._base.info_text(self._your['first-ipv4-address'] + ' - ' + self._your['last-ipv4-address']) + \
+                    '; example Target IPv4 address: ' + \
+                    self._base.info_text(self._base.get_random_ip_on_interface(self._your['network-interface']))
+                return target_ip_address
+            else:
+                return None
+        except AssertionError as Error:
+            self._base.print_error(Error.args[0])
+            exit(1)
     # endregion
 
 # endregion

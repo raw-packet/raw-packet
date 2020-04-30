@@ -125,12 +125,12 @@ class Base:
     # endregion
 
     # region Output functions
-    def get_banner(self) -> str:
+    def get_banner(self, script_name: Union[None, str] = None) -> str:
         """
         Get string of colored banner
         :return: String of colored banner
         """
-        return \
+        banner: str = \
             self.cSUCCESS + \
             "                                          _        _   \n" + \
             " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ \n" + \
@@ -140,13 +140,16 @@ class Base:
             "                        |_|                      v" + __version__ + "\n" + \
             self.cEND + self.cWARNING + \
             "             https://raw-packet.github.io/\r\n" + self.cEND
+        if script_name is not None:
+            banner += '\n' + ' ' * (int((55 - len(script_name)) / 2)) + self.cINFO + script_name + self.cEND + '\n'
+        return banner
 
-    def print_banner(self) -> None:
+    def print_banner(self, script_name: Union[None, str] = None) -> None:
         """
         Print colored banner in console
         :return: None
         """
-        print(self.get_banner())
+        print(self.get_banner(script_name))
 
     def _color_print(self, color: str = 'blue', *strings: str) -> None:
         """
