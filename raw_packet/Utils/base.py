@@ -496,7 +496,7 @@ class Base:
 
         if interface_name is not None:
             if interface_name in available_network_interfaces:
-                self.get_interface_settings(interface_name, [])
+                self.get_interface_settings(interface_name=interface_name, required_parameters=[], quiet=True)
                 return interface_name
             else:
                 if not only_wireless:
@@ -521,7 +521,8 @@ class Base:
                                                        self.info_text('IPv6 link address')])
 
                 for network_interface in available_network_interfaces:
-                    network_interface_settings = self.get_interface_settings(network_interface, [])
+                    network_interface_settings = self.get_interface_settings(interface_name=network_interface,
+                                                                             required_parameters=[], quiet=True)
 
                     network_interface_mac_address: Union[None, str] = \
                         network_interface_settings['mac-address']
@@ -577,7 +578,8 @@ class Base:
                 return current_network_interface
 
             if len(available_network_interfaces) == 1:
-                self.get_interface_settings(available_network_interfaces[0], [])
+                self.get_interface_settings(interface_name=available_network_interfaces[0],
+                                            required_parameters=[], quiet=True)
                 if not only_wireless:
                     self.print_info('You have only one network interface: ', available_network_interfaces[0])
                 else:
@@ -656,7 +658,7 @@ class Base:
     def get_interface_settings(self,
                                interface_name: str = 'eth0',
                                required_parameters: List[str] = ['mac-address'],
-                               quiet: bool = False) -> Dict[str, Union[None, str, List[str]]]:
+                               quiet: bool = True) -> Dict[str, Union[None, str, List[str]]]:
         """
         Get network interface settings
         :param interface_name: Network interface name (default: 'eth0')
