@@ -1398,7 +1398,8 @@ class Base:
 
             # region MacOS
             elif self.get_platform().startswith('Darwin'):
-                pass
+                self.network_interfaces_multicast_macs[interface_name].append(multicast_mac_address)
+                return True
             # endregion
 
             # region Linux
@@ -1431,7 +1432,8 @@ class Base:
                 self.print_error(Error.args[0])
             if exit_on_failure:
                 exit(exit_code)
-            return False
+
+        return False
     # endregion
 
     # region Check installed software
