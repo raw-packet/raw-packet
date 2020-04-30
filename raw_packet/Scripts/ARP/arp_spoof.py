@@ -70,14 +70,17 @@ class ArpSpoof:
               quit: bool = False) -> None:
         """
         Start ARP Spoofing
-        :param gateway_ip_address:
-        :param target_ip_address:
-        :param target_mac_address:
-        :param ipv4_multicast_requests:
-        :param ipv6_multicast_requests:
-        :param broadcast_requests:
-        :param requests:
-        :param quit:
+        :param gateway_ip_address: Gateway IPv4 address (example: '192.168.0.254')
+        :param target_ip_address: Target IPv4 address (example: '192.168.0.1')
+        :param target_mac_address: Target MAC address (example: '12:34:56:78:90:ab')
+        :param ipv4_multicast_requests: Send only ARP requests to IPv4 multicast MAC address
+                                        to spoof ARP table in all hosts in local network (default: False)
+        :param ipv6_multicast_requests: Send only ARP requests to IPv6 multicast MAC address
+                                        to spoof ARP table in all hosts in local network (default: False)
+        :param broadcast_requests: Send only ARP requests to broadcast MAC address
+                                   to spoof ARP table in all hosts in local network (default: False)
+        :param requests: Send only ARP requests to spoof ARP table in target host (default: False)
+        :param quit: Quit mode (default: False)
         :return: None
         """
         try:
@@ -133,7 +136,7 @@ class ArpSpoof:
                         sender_ip=gateway_ip_address,
                         target_mac='00:00:00:00:00:00',
                         target_ip=self._your['ipv4-address'])
-                    self._raw_send.send(packet=arp_request, count=5)
+                    self._raw_send.send(packet=arp_request)
                     sleep(1)
             # endregion
     
@@ -207,7 +210,11 @@ class ArpSpoof:
 
 
 # region Main function
-def main():
+def main() -> None:
+    """
+    Start ARP Spoofing (arp_spoof)
+    :return: None
+    """
 
     # region Init Raw-packet Base class
     base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
@@ -242,15 +249,26 @@ def main():
     # endregion
     
     # region Start Arp Spoof
-    arp_spoof: ArpSpoof = ArpSpoof(network_interface=current_network_interface)
-    arp_spoof.start(gateway_ip_address=args.gateway_ip,
-                    target_ip_address=args.target_ip,
-                    target_mac_address=args.target_mac,
-                    ipv4_multicast_requests=args.ipv4_multicast_requests,
-                    ipv6_multicast_requests=args.ipv6_multicast_requests,
-                    broadcast_requests=args.broadcast_requests,
-                    requests=args.requests,
-                    quit=args.quiet)
+    try:
+        arp_spoof: ArpSpoof = ArpSpoof(network_interface=current_network_interface)
+        arp_spoof.start(gateway_ip_address=args.gateway_ip,
+                        target_ip_address=args.target_ip,
+                        target_mac_address=args.target_mac,
+                        ipv4_multicast_requests=args.ipv4_multicast_requests,
+                        ipv6_multicast_requests=args.ipv6_multicast_requests,
+                        broadcast_requests=args.broadcast_requests,
+                        requests=args.requests,
+                        quit=args.quiet)
+
+    except KeyboardInterrupt:
+        if not args.quiet:
+            base.print_info('Exit')
+        exit(0)
+
+    except AssertionError as Error:
+        if not args.quiet:
+            base.print_error(Error.args[0])
+        exit(1)
     # endregion
 
 # endregion

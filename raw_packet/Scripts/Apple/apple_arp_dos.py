@@ -207,7 +207,11 @@ class AppleArpDos:
 
 
 # region Main function
-def main():
+def main() -> None:
+    """
+    Start Disconnect Apple device in local network with ARP packets (apple_arp_dos)
+    :return: None
+    """
 
     # region Init Raw-packet Base class
     base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])

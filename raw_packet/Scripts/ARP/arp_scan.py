@@ -33,7 +33,11 @@ __script_name__ = 'ARP Scanner (arp_scan)'
 
 
 # region Main function
-def main():
+def main() -> None:
+    """
+    Start ARP Scanner (arp_scan)
+    :return: None
+    """
 
     # region Init Raw-packet Base class
     base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
