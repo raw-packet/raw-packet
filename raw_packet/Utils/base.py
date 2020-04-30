@@ -1,6 +1,6 @@
 # region Description
 """
-test_base.py: Base class for Raw-packet project
+base.py: Base class for Raw-packet project
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -63,6 +63,8 @@ class Base:
     os_installed_packages_list = None
     windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
     windows_adapters = None
+
+    _current_platform: Union[None, str] = None
 
     network_interfaces_multicast_macs: Dict[str, List[str]] = \
         {'example-network-interface': ['33:33:00:00:00:02']}
@@ -258,12 +260,13 @@ class Base:
     # endregion
 
     # region Check platform and user functions
-    @staticmethod
-    def get_platform() -> str:
-        return str(system()) + ' ' + str(release())
+    def get_platform(self) -> str:
+        if self._current_platform is None:
+            self._current_platform = str(system()) + ' ' + str(release())
+        return self._current_platform
 
-    @staticmethod
-    def check_platform(available_platforms: List[str] = ['Linux'],
+    def check_platform(self,
+                       available_platforms: List[str] = ['Linux'],
                        exit_on_failure: bool = True,
                        exit_code: int = 1,
                        quiet: bool = False) -> bool:
@@ -275,14 +278,15 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if OS is Linux or False if not
         """
-        if system() not in available_platforms:
-            if not quiet:
-                print('This script can run only in: ' + ' and '.join(available_platforms))
-                print('Your platform: ' + str(system()) + ' ' + str(release()) + ' not supported!')
-            if exit_on_failure:
-                exit(exit_code)
-            return False
-        return True
+        for available_platform in available_platforms:
+            if available_platform in self.get_platform():
+                return True
+        if not quiet:
+            print('This script can run only on: ' + ' and '.join(available_platforms))
+            print('Your platform: ' + self.get_platform() + ' not supported!')
+        if exit_on_failure:
+            exit(exit_code)
+        return False
 
     @staticmethod
     def check_user(exit_on_failure: bool = True,
@@ -1243,20 +1247,11 @@ class Base:
             if self.network_interfaces_settings[interface_name]['ipv4-broadcast'] is not None:
                 return self.network_interfaces_settings[interface_name]['ipv4-broadcast']
 
-        try:
-            return str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
-
-        except KeyError:
-            pass
-
-        except ValueError:
-            pass
-
-        if not quiet:
-            self.print_error('Network interface: ', interface_name, ' does not have broadcast address!')
-        if exit_on_failure:
-            exit(exit_code)
-        return None
+        return self.get_ip_on_interface_by_index(interface_name=interface_name,
+                                                 index=-1,
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_interface_gateway(self,
                               interface_name: str = 'eth0',
