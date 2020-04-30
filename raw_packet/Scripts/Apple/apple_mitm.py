@@ -21,6 +21,7 @@ from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 
 from raw_packet.Servers.dns_server import DnsServer
 from raw_packet.Servers.dhcpv4_server import DHCPv4Server
+from raw_packet.Servers.dhcpv6_server import DHCPv6Server
 
 from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
 from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
@@ -180,9 +181,12 @@ def rogue_dhcpv6_server(network_interface: str = 'eth0',
                         global_ipv6_address: str = 'fe80::123'):
 
     # Start DHCPv6 rogue server
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/DHCPv6/dhcpv6_rogue_server.py --interface ' +
-               network_interface + ' --prefix ' + prefix + ' --target_ip ' + global_ipv6_address +
-               ' --target_mac ' + mac_address + ' --quiet &'], shell=True)
+    dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=network_interface)
+    dhcpv6_server.start(target_mac_address=mac_address,
+                        target_ipv6_address=global_ipv6_address,
+                        ipv6_prefix=prefix,
+                        exit_on_success=True,
+                        quit=True)
 
     # Wait 3 seconds
     sleep(3)
