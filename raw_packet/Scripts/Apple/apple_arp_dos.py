@@ -197,34 +197,42 @@ def main():
     # endregion
 
     # region Parse script arguments
-    script_description: str = \
-        base.get_banner() + '\n' + \
-        ' ' * (int((55 - len(__script_name__)) / 2)) + \
-        base.info_text(__script_name__) + '\n\n'
-    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('-i', '--interface', type=str, help='Set interface name for send ARP packets', default=None)
-    parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('-i', '--interface', type=str, help='Set network interface name', default=None)
+    parser.add_argument('-t', '--target_ip', type=str, help='Set target IPv4 address', default=None)
     parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
-    parser.add_argument('-q', '--quit', action='store_true', help='Minimal output')
+    parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
     args = parser.parse_args()
     # endregion
 
     # region Print banner
-    if not args.quit:
-        base.print_banner()
+    if not args.quiet:
+        base.print_banner(__script_name__)
     # endregion
 
     # region Get listen network interface, your IP and MAC address, first and last IP in local network
-    message: str = 'Please select a network interface for DoS Apple devices from table: '
-    current_network_interface: str = base.network_interface_selection(interface_name=args.interface,
-                                                                      message=message)
+    current_network_interface: str = \
+        base.network_interface_selection(interface_name=args.interface,
+                                         message='Please select a network interface for DoS Apple devices from table: ')
     # endregion
 
     # region Start ARP DOS
-    apple_arp_dos: AppleArpDos = AppleArpDos(network_interface=current_network_interface)
-    apple_arp_dos.start(target_ip_address=args.target_ip,
-                        target_mac_address=args.target_mac,
-                        quit=args.quit)
+    try:
+        apple_arp_dos: AppleArpDos = AppleArpDos(network_interface=current_network_interface)
+        apple_arp_dos.start(target_ip_address=args.target_ip,
+                            target_mac_address=args.target_mac,
+                            quit=args.quiet)
+
+    except KeyboardInterrupt:
+        if not args.quiet:
+            base.print_info('Exit')
+        exit(0)
+
+    except AssertionError as Error:
+        if not args.quiet:
+            base.print_error(Error.args[0])
+        exit(1)
     # endregion
 
 # endregion
