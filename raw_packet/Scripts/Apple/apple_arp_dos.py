@@ -232,7 +232,7 @@ def main() -> None:
         base.print_banner(__script_name__)
     # endregion
 
-    # region Get listen network interface, your IP and MAC address, first and last IP in local network
+    # region Get listen network interface
     current_network_interface: str = \
         base.network_interface_selection(interface_name=args.interface,
                                          message='Please select a network interface for DoS Apple devices from table: ')
