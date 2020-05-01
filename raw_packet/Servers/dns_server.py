@@ -9,6 +9,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawSniff, RawSend, RawDNS
 from socket import getaddrinfo, AF_INET, AF_INET6, gaierror
 from subprocess import run
@@ -36,6 +37,7 @@ class DnsServer:
 
     # region Set properties
     _base: Base = Base()
+    _utils: Utils = Utils()
     _sniff: RawSniff = RawSniff()
     _dns: RawDNS = RawDNS()
 
@@ -55,6 +57,7 @@ class DnsServer:
 
     _log_file_name: Union[None, str] = None
     _log_file_format: Union[None, str] = None
+    _quit: bool = False
     # endregion
 
     # region Init
@@ -63,9 +66,11 @@ class DnsServer:
                                                        required_parameters=['mac-address',
                                                                             'ipv4-address'])
         self._raw_send: RawSend = RawSend(network_interface=network_interface)
-        # Iptables drop output ICMP and ICMPv6 destination-unreachable packets
-        run('iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP', shell=True)
-        run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
+
+        if self._base.get_platform().startswith('Linux') or self._base.get_platform().startswith('Darwin'):
+            # Iptables drop output ICMP and ICMPv6 destination-unreachable packets
+            run('iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP', shell=True)
+            run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
     # endregion
 
     # region Start DNS Server
@@ -84,18 +89,22 @@ class DnsServer:
               success_domains: List[str] = [],
               config_file: Union[None, str] = None,
               log_file_name: str = 'dns_server_log',
-              log_file_format: str = 'csv') -> None:
+              log_file_format: str = 'csv',
+              quiet: bool = False) -> None:
         try:
-            # region Set log file name and format
+
+            # region Variables
             self._log_file_name = log_file_name
             self._log_file_format = log_file_format
+            self._quit = quiet
             # endregion
 
             # region Set listen UDP port
             if listen_port != 53:
-                assert 0 < listen_port < 65536, \
-                    'Bad value in "listen_port": ' + self._base.error_text(str(listen_port)) + \
-                    ' listen UDP port must be in range: ' + self._base.info_text('1 - 65535')
+                self._utils.check_value_in_range(value=listen_port,
+                                                 first_value=0,
+                                                 last_value=65536,
+                                                 parameter_name='listen UDP port')
             # endregion
 
             # region Check your IPv6 address
@@ -114,20 +123,22 @@ class DnsServer:
             if len(fake_ipv4_addresses) == 0:
                 fake_ipv4_addresses = [self._your['ipv4-address']]
             else:
-                for fake_ipv4_address in fake_ipv4_addresses:
-                    assert self._base.ip_address_validation(fake_ipv4_address), \
-                        'Bad fake IPv4 address: ' + self._base.error_text(fake_ipv4_address) + \
-                        ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
+                for _fake_ipv4_address in fake_ipv4_addresses:
+                    self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                                   ipv4_address=_fake_ipv4_address,
+                                                   is_local_ipv4_address=False,
+                                                   parameter_name='fake IPv4 address')
             # endregion
 
             # region Set fake ipv6 addresses
             if len(fake_ipv6_addresses) == 0:
                 fake_ipv6_addresses = [self._your['ipv6-link-address']]
             else:
-                for fake_ipv6_address in fake_ipv6_addresses:
-                    assert self._base.ipv6_address_validation(fake_ipv6_address), \
-                        'Bad fake IPv6 address: ' + self._base.error_text(fake_ipv6_address) + \
-                        ' example IPv6 address: ' + self._base.info_text('fd00::1')
+                for _fake_ipv6_address in fake_ipv6_addresses:
+                    self._utils.check_ipv6_address(network_interface=self._your['network-interface'],
+                                                   ipv6_address=_fake_ipv6_address,
+                                                   is_local_ipv6_address=False,
+                                                   parameter_name='fake IPv6 address')
             # endregion
 
             # region Set success domains
@@ -147,11 +158,11 @@ class DnsServer:
             # endregion
 
             # region Set fake domains regexp
-            for fake_domain_regexp in fake_domains_regexp:
+            for _fake_domain_regexp in fake_domains_regexp:
                 try:
-                    self._config[fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
+                    self._config[_fake_domain_regexp].update({'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses})
                 except KeyError:
-                    self._config[fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
+                    self._config[_fake_domain_regexp] = {'A': fake_ipv4_addresses, 'AAAA': fake_ipv6_addresses}
             # endregion
 
             # region Set fake answers
@@ -164,73 +175,114 @@ class DnsServer:
 
             # region Check target MAC address
             if target_mac_address is not None:
-                assert self._base.mac_address_validation(target_mac_address), \
-                    'Bad target MAC address: ' + self._base.error_text(target_mac_address) + \
-                    ' example MAC address: ' + self._base.info_text('01:23:45:67:89:0a')
-                self._target['mac-address'] = target_mac_address
+                self._target['mac-address'] = self._utils.check_mac_address(mac_address=target_mac_address,
+                                                                            parameter_name='target MAC address')
             # endregion
 
             # region Check target IPv4 address
             if target_ipv4_address is not None:
-                assert self._base.ip_address_validation(target_ipv4_address), \
-                    'Bad target IPv4 address: ' + self._base.error_text(target_ipv4_address) + \
-                    ' example IPv4 address: ' + self._base.info_text('192.168.1.1')
-                self._target['ipv4-address'] = target_ipv4_address
+                self._target['ipv4-address'] = \
+                    self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                                   ipv4_address=target_ipv4_address,
+                                                   is_local_ipv4_address=False,
+                                                   parameter_name='target IPv4 address')
             # endregion
 
             # region Check target IPv6 address
             if target_ipv6_address is not None:
-                assert self._base.ipv6_address_validation(target_ipv6_address), \
-                    'Bad target IPv6 address: ' + self._base.error_text(target_ipv6_address) + \
-                    ' example IPv6 address: ' + self._base.info_text('fd00::1')
-                self._target['ipv6-address'] = target_ipv6_address
+                self._target['ipv6-address'] = \
+                    self._utils.check_ipv6_address(network_interface=self._your['network-interface'],
+                                                   ipv6_address=target_ipv6_address,
+                                                   is_local_ipv6_address=False,
+                                                   parameter_name='target IPv6 address')
+            # endregion
+
+            # region Script arguments condition check and print info message
+            if not self._quit:
+
+                # region Argument fake_answer is set
+                if fake_answers:
+                    if not disable_ipv4:
+                        self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
+                                              ' for all DNS queries')
+                    if len(fake_ipv6_addresses) > 0:
+                        self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
+                                              ' for all DNS queries')
+                # endregion
+
+                # region Argument fake_answer is NOT set
+                else:
+                    # region Fake domains list is set
+                    if len(fake_domains_regexp) > 0:
+                        if len(fake_ipv4_addresses) > 0:
+                            self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
+                                                  ' for domain: ', (', '.join(fake_domains_regexp)))
+                        if len(fake_ipv6_addresses) > 0:
+                            self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
+                                                  ' for domain: ', (', '.join(fake_domains_regexp)))
+                    # endregion
+
+                    # region Fake domains list is NOT set
+                    else:
+                        if len(fake_ipv4_addresses) > 0:
+                            self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
+                                                  ' for all DNS queries')
+                        if len(fake_ipv6_addresses) > 0:
+                            self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
+                                                  ' for all DNS queries')
+                    # endregion
+
+                # endregion
+
+                # region Print info message
+                self._base.print_info('Waiting for a DNS requests ...')
+                # endregion
+
             # endregion
 
             # region Sniffing DNS requests
 
             # region Set network filter
-            network_filters = dict()
+            sniff_filters: Dict = {'UDP': {'destination-port': listen_port}}
 
             if self._your['network-interface'] != 'lo':
                 if self._target['mac-address'] is not None:
-                    network_filters['Ethernet'] = {'source': self._target['mac-address']}
+                    sniff_filters['Ethernet'] = {'source': self._target['mac-address']}
                 else:
-                    network_filters['Ethernet'] = {'not-source': self._your['mac-address']}
+                    sniff_filters['Ethernet'] = {'not-source': self._your['mac-address']}
 
                 if self._target['ipv4-address'] is not None:
-                    network_filters['IPv4'] = {'source-ip': self._target['ipv4-address']}
+                    sniff_filters['IPv4'] = {'source-ip': self._target['ipv4-address']}
 
                 if self._target['ipv6-address'] is not None:
-                    network_filters['IPv6'] = {'source-ip': self._target['ipv6-address']}
+                    sniff_filters['IPv6'] = {'source-ip': self._target['ipv6-address']}
 
-                network_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
-                network_filters['IPv6'] = {'not-source-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': listen_port}
+                sniff_filters['IPv4'] = {'not-source-ip': '127.0.0.1'}
+                sniff_filters['IPv6'] = {'not-source-ip': '::1'}
             else:
-                network_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
-                network_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
-                network_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
-                network_filters['UDP'] = {'destination-port': listen_port}
+                sniff_filters['Ethernet'] = {'source': '00:00:00:00:00:00', 'destination': '00:00:00:00:00:00'}
+                sniff_filters['IPv4'] = {'source-ip': '127.0.0.1', 'destination-ip': '127.0.0.1'}
+                sniff_filters['IPv6'] = {'source-ip': '::1', 'destination-ip': '::1'}
             # endregion
 
-            # region Start _sniffer
+            # region Start sniffer
             if listen_ipv6:
                 if disable_ipv4:
                     self._sniff.start(protocols=['IPv6', 'UDP', 'DNS'],
                                       prn=self._reply,
-                                      filters=network_filters,
+                                      filters=sniff_filters,
                                       network_interface=self._your['network-interface'],
                                       scapy_filter='ip6 and udp port ' + str(listen_port))
                 else:
                     self._sniff.start(protocols=['IPv4', 'IPv6', 'UDP', 'DNS'],
                                       prn=self._reply,
-                                      filters=network_filters,
+                                      filters=sniff_filters,
                                       network_interface=self._your['network-interface'],
                                       scapy_filter='udp port ' + str(listen_port))
             else:
                 self._sniff.start(protocols=['IPv4', 'UDP', 'DNS'],
                                   prn=self._reply,
-                                  filters=network_filters,
+                                  filters=sniff_filters,
                                   network_interface=self._your['network-interface'],
                                   scapy_filter='udp port ' + str(listen_port))
             # endregion
