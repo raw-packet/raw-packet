@@ -24,6 +24,7 @@ from raw_packet.Servers.dhcpv4_server import DHCPv4Server
 from raw_packet.Servers.dhcpv6_server import DHCPv6Server
 
 from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
+from raw_packet.Scripts.Apple.apple_dhcp_server import AppleDHCPServer
 from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof
 
@@ -165,8 +166,10 @@ def rogue_dhcp_server_predict_trid(network_interface: str = 'eth0',
                                    new_ip_address: str = '129.168.0.111'):
 
     # Start DHCP rogue server with predict next transaction ID
-    sub.Popen(['python3 ' + project_root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' + network_interface +
-               ' --target_new_ip ' + new_ip_address + ' --target_mac ' + mac_address + ' --quiet'], shell=True)
+    apple_dhcp_server: AppleDHCPServer = AppleDHCPServer(network_interface=network_interface)
+    apple_dhcp_server.start(target_ip_address=new_ip_address,
+                            target_mac_address=mac_address,
+                            quit=True)
 
     # Wait 3 seconds
     sleep(3)
@@ -321,10 +324,10 @@ def kill_processes(quit: bool = False) -> None:
     base.kill_process_by_name('icmpv6_spoof.py')
 
     if not quit:
-        base.print_info('Kill rogue servers: ', 'dhcp_rogue_server.py, dhcpv6_rogue_server.py, apple_rogue_dhcp.py')
+        base.print_info('Kill rogue servers: ', 'dhcp_rogue_server.py, dhcpv6_rogue_server.py, apple_dhcp_server.py')
     base.kill_process_by_name('dhcp_rogue_server.py')
     base.kill_process_by_name('dhcpv6_rogue_server.py')
-    base.kill_process_by_name('apple_rogue_dhcp.py')
+    base.kill_process_by_name('apple_dhcp_server.py')
 
     if not quit:
         base.print_info('Kill ', 'aireplay-ng')
