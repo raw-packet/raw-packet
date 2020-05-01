@@ -680,7 +680,22 @@ class Base:
         :param interface_name: Network interface name (default: 'eth0')
         :param required_parameters: Required Network interface parameters list (default: ['mac-address'])
         :param quiet: Quiet mode, if True no console output (default: True)
-        :return: Network interface settings (example: {})
+        :return: Network interface settings dictionary
+                 (example: {'network-interface': 'example-network-interface',
+                            'mac-address': '12:34:56:78:90:ab',
+                            'ipv4-address': '192.168.0.1',
+                            'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
+                            'ipv6-global-address': '2001:4860:4860::8888',
+                            'ipv6-global-addresses': ['2001:4860:4860::8888', '2001:4860:4860::8844'],
+                            'ipv4-netmask': '255.255.255.0',
+                            'ipv4-network': '192.168.0.0/24',
+                            'first-ipv4-address': '192.168.0.1',
+                            'second-ipv4-address': '192.168.0.2',
+                            'penultimate-ipv4-address': '192.168.0.253',
+                            'last-ipv4-address': '192.168.0.254',
+                            'ipv4-broadcast': '192.168.0.255',
+                            'ipv4-gateway': '192.168.0.254',
+                            'ipv6-gateway': 'fe80::1234:5678:8765:4321'})
         """
         if interface_name not in self._network_interfaces_settings.keys():
             self._network_interfaces_settings[interface_name]: Dict[str, Union[None, str, List[str]]] = {
@@ -978,9 +993,23 @@ class Base:
             parts.insert(4, 'fe')
             parts[0] = '%x' % (int(parts[0], 16) ^ 2)
             ipv6_parts: List[str] = list()
+            ipv6_parts_clear: List[str] = list()
+
             for index in range(0, len(parts), 2):
                 ipv6_parts.append(''.join(parts[index:index + 2]))
-            return 'fe80::%s' % (':'.join(ipv6_parts))
+
+            for ipv6_part in ipv6_parts:
+                if ipv6_part.startswith('0'):
+                    ipv6_part = ipv6_part[1:]
+                    if ipv6_part.startswith('0'):
+                        ipv6_part = ipv6_part[1:]
+                        if ipv6_part.startswith('0'):
+                            ipv6_part = ipv6_part[1:]
+                            if ipv6_part.startswith('0'):
+                                ipv6_part = ':'
+                ipv6_parts_clear.append(ipv6_part)
+
+            return 'fe80::%s' % (':'.join(ipv6_parts_clear))
 
         except AssertionError as Error:
             error_text = Error.args[0]

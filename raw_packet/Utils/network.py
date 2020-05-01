@@ -5745,7 +5745,7 @@ class RawSend:
     # endregion
 
     # region Send packet
-    def send(self, packet: bytes, count: int = 1, delay: float = 0):
+    def send_packet(self, packet: bytes, count: int = 1, delay: float = 0):
         if self.send_socket is not None:
             if delay != 0:
                 for _ in range(count):
@@ -5761,6 +5761,20 @@ class RawSend:
                     sleep(delay)
             else:
                 sendp(packet, iface=self.network_interface, verbose=False, count=count)
+    # endregion
+
+    # region Send packets
+    def send_packets(self, packets: List[bytes], count: int = 1, delay: float = 0):
+        if self.send_socket is not None:
+            for _ in range(count):
+                for packet in packets:
+                    self.send_socket.send(packet)
+                    sleep(delay)
+        else:
+            for _ in range(count):
+                for packet in packets:
+                    sendp(packet, iface=self.network_interface, verbose=False)
+                    sleep(delay)
     # endregion
 
     # region Destructor
