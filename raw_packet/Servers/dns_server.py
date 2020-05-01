@@ -203,11 +203,11 @@ class DnsServer:
                 # region Argument fake_answer is set
                 if fake_answers:
                     if not disable_ipv4:
-                        self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
-                                              ' for all DNS queries')
+                        self._base.print_info('DNS answer fake IPv4 addresses: [', (', '.join(fake_ipv4_addresses)),
+                                              '] for all DNS queries')
                     if len(fake_ipv6_addresses) > 0:
-                        self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
-                                              ' for all DNS queries')
+                        self._base.print_info('DNS answer fake IPv6 addresses: [', (', '.join(fake_ipv6_addresses)),
+                                              '] for all DNS queries')
                 # endregion
 
                 # region Argument fake_answer is NOT set
@@ -215,21 +215,21 @@ class DnsServer:
                     # region Fake domains list is set
                     if len(fake_domains_regexp) > 0:
                         if len(fake_ipv4_addresses) > 0:
-                            self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
-                                                  ' for domain: ', (', '.join(fake_domains_regexp)))
+                            self._base.print_info('DNS answer fake IPv4 addresses: [', (', '.join(fake_ipv4_addresses)),
+                                                  '] for domains: [', (', '.join(fake_domains_regexp)), ']')
                         if len(fake_ipv6_addresses) > 0:
-                            self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
-                                                  ' for domain: ', (', '.join(fake_domains_regexp)))
+                            self._base.print_info('DNS answer fake IPv6 addresses: [', (', '.join(fake_ipv6_addresses)),
+                                                  '] for domains: [', (', '.join(fake_domains_regexp)), ']')
                     # endregion
 
                     # region Fake domains list is NOT set
                     else:
-                        if len(fake_ipv4_addresses) > 0:
-                            self._base.print_info('DNS answer fake IPv4 address: ', (', '.join(fake_ipv4_addresses)),
-                                                  ' for all DNS queries')
-                        if len(fake_ipv6_addresses) > 0:
-                            self._base.print_info('DNS answer fake IPv6 address: ', (', '.join(fake_ipv6_addresses)),
-                                                  ' for all DNS queries')
+                        if fake_ipv4_addresses != [self._your['ipv4-address']]:
+                            self._base.print_info('DNS answer fake IPv4 addresses: [', (', '.join(fake_ipv4_addresses)),
+                                                  '] for all DNS queries')
+                        if fake_ipv6_addresses != [self._your['ipv6-link-address']]:
+                            self._base.print_info('DNS answer fake IPv6 addresses: [', (', '.join(fake_ipv6_addresses)),
+                                                  '] for all DNS queries')
                     # endregion
 
                 # endregion
