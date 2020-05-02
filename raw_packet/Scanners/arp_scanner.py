@@ -317,7 +317,7 @@ class ArpScan:
 
         for _ in range(int(self._retry_number)):
             for arp_request in arp_requests:
-                self._raw_send.send(arp_request)
+                self._raw_send.send_packet(arp_request)
                 if not self._quit:
                     index_of_request += 1
                     new_percent_complete = int(float(index_of_request) / float(number_of_requests) * 100)

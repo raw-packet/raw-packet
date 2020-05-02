@@ -231,7 +231,7 @@ class DHCPv6Server:
                                                             ipv6_src=self._your['ipv6-link-address'],
                                                             need_source_link_layer_address=True,
                                                             source_link_layer_address=self._eth.make_random_mac())
-                self._raw_send.send(icmpv6_solicit_packet)
+                self._raw_send.send_packet(icmpv6_solicit_packet)
                 sleep(self._solicit_packets_delay)
         except KeyboardInterrupt:
             self._base.print_info('Exit')
@@ -249,7 +249,7 @@ class DHCPv6Server:
                                                      transaction_id=randint(1, 16777215),
                                                      client_mac_address=self._eth.make_random_mac(),
                                                      option_request_list=request_options)
-                self._raw_send.send(dhcpv6_solicit_packet)
+                self._raw_send.send_packet(dhcpv6_solicit_packet)
                 sleep(self._solicit_packets_delay)
         except KeyboardInterrupt:
             self._base.print_info('Exit ....')
@@ -271,7 +271,7 @@ class DHCPv6Server:
                                                           int(self._solicit_packets_delay * 1000))
         try:
             while True:
-                self._raw_send.send(icmpv6_ra_packet)
+                self._raw_send.send_packet(icmpv6_ra_packet)
                 sleep(self._solicit_packets_delay)
         except KeyboardInterrupt:
             self._base.print_info('Exit')
@@ -311,7 +311,7 @@ class DHCPv6Server:
                                                                   domain_search=self._domain_search,
                                                                   prefix=self._ipv6_prefix,
                                                                   router_lifetime=5000)
-                self._raw_send.send(icmpv6_ra_packet)
+                self._raw_send.send_packet(icmpv6_ra_packet)
 
                 # Print info messages
                 self._base.print_info('ICMPv6 Router Solicitation request from: ', 
@@ -366,7 +366,7 @@ class DHCPv6Server:
                 # region Neighbor Solicitation target address not in your ipv6 prefix
                 if not target_address.startswith(self._ipv6_prefix_address) and na_packet is not None:
                     for _ in range(10):
-                        self._raw_send.send(na_packet)
+                        self._raw_send.send_packet(na_packet)
                 # endregion
 
                 # region Neighbor Solicitation target address in your ipv6 prefix
@@ -395,7 +395,7 @@ class DHCPv6Server:
                         # ICMPv6 Neighbor Solicitation target address is not DHCPv6 advertise IPv6 address
                         elif na_packet is not None:
                             for _ in range(10):
-                                self._raw_send.send(na_packet)
+                                self._raw_send.send_packet(na_packet)
                 # endregion
 
             # endregion
@@ -450,7 +450,7 @@ class DHCPv6Server:
                                                        domain_search=self._domain_search,
                                                        ipv6_address=ipv6_address,
                                                        cid=cid, iaid=iaid, preference=255)
-                self._raw_send.send(dhcpv6_advertise)
+                self._raw_send.send_packet(dhcpv6_advertise)
 
                 # Print info messages
                 self._base.print_info('DHCPv6 Solicit from: ',
@@ -512,7 +512,7 @@ class DHCPv6Server:
                                                                    domain_search=self._domain_search,
                                                                    ipv6_address=client_ipv6_address,
                                                                    cid=cid)
-                                self._raw_send.send(dhcpv6_reply)
+                                self._raw_send.send_packet(dhcpv6_reply)
                             else:
                                 self._add_client_info_in_dictionary(
                                     client_mac_address,
@@ -596,7 +596,7 @@ class DHCPv6Server:
                                                    domain_search=self._domain_search,
                                                    ipv6_address=client_ipv6_address,
                                                    cid=cid)
-                self._raw_send.send(dhcpv6_reply)
+                self._raw_send.send_packet(dhcpv6_reply)
                 # endregion
 
                 # region Add Client info in global self._clients dictionary and print info message

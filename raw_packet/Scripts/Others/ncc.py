@@ -131,7 +131,7 @@ class NetworkConflictCreator:
                     self._base.print_info('Send only ARP reply packets to: ',
                                           str(self._target['ipv4-address']) + ' (' +
                                           str(self._target['mac-address']) + ')')
-                    self._raw_send.send(packet=self._conflict_packet['response'], count=number_of_packets, delay=0.5)
+                    self._raw_send.send_packet(packet=self._conflict_packet['response'], count=number_of_packets, delay=0.5)
                 # endregion
 
                 # region Send ARP request packets
@@ -139,7 +139,7 @@ class NetworkConflictCreator:
                     self._base.print_info('Send only Multicast ARP request packets to: ',
                                           str(self._target['ipv4-address']) + ' (' +
                                           str(self._target['mac-address']) + ')')
-                    self._raw_send.send(packet=self._conflict_packet['request'], count=number_of_packets, delay=0.5)
+                    self._raw_send.send_packet(packet=self._conflict_packet['request'], count=number_of_packets, delay=0.5)
                 # endregion
 
                 # region Send Multicast ARP request packets
@@ -152,7 +152,7 @@ class NetworkConflictCreator:
                             self._base.print_info('Send Multicast ARP request to: ',
                                                   str(self._target['ipv4-address']) + ' (' +
                                                   str(self._target['mac-address']) + ')')
-                            self._raw_send.send(packet=self._conflict_packet['request'])
+                            self._raw_send.send_packet(packet=self._conflict_packet['request'])
                             sleep(3)
                             current_number_of_packets += 1
                 # endregion
@@ -181,7 +181,7 @@ class NetworkConflictCreator:
                                                   self._target['ipv4-address'] + ' (' +
                                                   self._target['mac-address'] + ')')
                             self.make_conflict = False
-                            self._raw_send.send(self._conflict_packet['response'])
+                            self._raw_send.send_packet(self._conflict_packet['response'])
                     else:
                         if packet['Ethernet']['destination'] == 'ff:ff:ff:ff:ff:ff' and \
                                 packet['ARP']['opcode'] == 1 and \
@@ -192,7 +192,7 @@ class NetworkConflictCreator:
                             self._base.print_info('Send Gratuitous ARP reply for ',
                                                   packet['ARP']['sender-ip'] + ' (' +
                                                   packet['Ethernet']['source'] + ')')
-                            self._raw_send.send(self._arp.make_response(ethernet_src_mac=self._your['mac-address'],
+                            self._raw_send.send_packet(self._arp.make_response(ethernet_src_mac=self._your['mac-address'],
                                                                         ethernet_dst_mac=packet['Ethernet']['source'],
                                                                         sender_mac=self._your['mac-address'],
                                                                         sender_ip=packet['ARP']['sender-ip'],

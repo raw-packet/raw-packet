@@ -154,13 +154,13 @@ class AppleDHCPServer:
 
         if self._base.get_platform().startswith('Linux'):
             while (datetime.now() - start_time).seconds <= 15:
-                self._raw_send.send(offer_packet)
-                self._raw_send.send(ack_packet)
+                self._raw_send.send_packet(offer_packet)
+                self._raw_send.send_packet(ack_packet)
                 sleep(0.00001)
         else:
             while (datetime.now() - start_time).seconds <= 15:
-                self._raw_send.send(offer_packet)
-                self._raw_send.send(ack_packet)
+                self._raw_send.send_packet(offer_packet)
+                self._raw_send.send_packet(ack_packet)
     # endregion
     
     # region Reply to DHCP and ARP requests
@@ -253,7 +253,7 @@ class AppleDHCPServer:
                                                                 target_mac=arp_sender_mac_address,
                                                                 target_ip=arp_sender_ip_address)
                             for _ in range(5):
-                                self._raw_send.send(arp_reply)
+                                self._raw_send.send_packet(arp_reply)
                             self._base.print_info('ARP response to:  ', arp_sender_mac_address, ' "',
                                                   arp_target_ip_address + ' is at ' + self._your['mac-address'],
                                                   '" (IPv4 address conflict)')

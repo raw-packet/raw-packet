@@ -396,7 +396,7 @@ class DHCPv4Server:
         self._discover_sender_is_work = True
         while packet_index < number_of_packets:
             try:
-                self._raw_send.send(self._dhcpv4.make_discover_packet(ethernet_src_mac=self._your['mac-address'],
+                self._raw_send.send_packet(self._dhcpv4.make_discover_packet(ethernet_src_mac=self._your['mac-address'],
                                                                       client_mac=self._eth.make_random_mac(),
                                                                       host_name=self._base.make_random_string(),
                                                                       relay_agent_ip=self._your['ipv4-address']))
@@ -462,7 +462,7 @@ class DHCPv4Server:
                             self._make_dhcp_offer_packet(transaction_id, offer_ip_address, client_mac_address,
                                                          client_mac_address, offer_ip_address)
 
-                    self._raw_send.send(offer_packet)
+                    self._raw_send.send_packet(offer_packet)
 
                     # Add client info in global self._clients dictionary
                     self._add_client_info_in_dictionary(client_mac_address,
@@ -597,7 +597,7 @@ class DHCPv4Server:
                         # Create and send DHCP nak packet
                         nak_packet = \
                             self._make_dhcp_nak_packet(transaction_id, client_mac_address, offer_ip, requested_ip)
-                        self._raw_send.send(nak_packet)
+                        self._raw_send.send_packet(nak_packet)
                         self._base.print_info('DHCP NAK to: ', client_mac_address, ' requested ip: ', requested_ip)
 
                         # Add client info in global self._clients dictionary
@@ -621,7 +621,7 @@ class DHCPv4Server:
                             # Create and send DHCP nak packet
                             nak_packet = self._make_dhcp_nak_packet(transaction_id, client_mac_address,
                                                                     self._target['ipv4-address'], requested_ip)
-                            self._raw_send.send(nak_packet)
+                            self._raw_send.send_packet(nak_packet)
                             self._base.print_info('DHCP NAK to: ', client_mac_address, ' requested ip: ', requested_ip)
 
                             # Add client info in global self._clients dictionary
@@ -723,10 +723,10 @@ class DHCPv4Server:
                                 self._base.print_info('DHCP ACK to: ', client_mac_address,
                                                       ' requested ip: ', requested_ip)
                                 for _ in range(3):
-                                    self._raw_send.send(ack_packet)
+                                    self._raw_send.send_packet(ack_packet)
                                     sleep(0.2)
                             else:
-                                self._raw_send.send(ack_packet)
+                                self._raw_send.send_packet(ack_packet)
                                 self._base.print_info('DHCP ACK to: ', client_mac_address,
                                                       ' requested ip: ', requested_ip)
                             # endregion
@@ -809,7 +809,7 @@ class DHCPv4Server:
                                                         sender_ip=arp_target_ip_address,
                                                         target_mac=arp_sender_mac_address,
                                                         target_ip=arp_sender_ip_address)
-                    self._raw_send.send(arp_reply)
+                    self._raw_send.send_packet(arp_reply)
                     self._base.print_info('ARP response to: ', arp_sender_mac_address,
                                           ' "', arp_target_ip_address + ' is at ' + self._your['mac-address'],
                                           '" (IPv4 address conflict)')

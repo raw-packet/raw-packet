@@ -136,7 +136,7 @@ class ArpSpoof:
                         sender_ip=gateway_ip_address,
                         target_mac='00:00:00:00:00:00',
                         target_ip=self._your['ipv4-address'])
-                    self._raw_send.send(packet=arp_request)
+                    self._raw_send.send_packet(packet=arp_request)
                     sleep(1)
             # endregion
     
@@ -171,7 +171,7 @@ class ArpSpoof:
                                                sender_ip=gateway_ip_address,
                                                target_mac='00:00:00:00:00:00',
                                                target_ip=random_ip)
-                    self._raw_send.send(arp_request)
+                    self._raw_send.send_packet(arp_request)
                     sleep(1)
             # endregion
     
@@ -189,7 +189,7 @@ class ArpSpoof:
                                             target_mac=self._target['mac-address'],
                                             target_ip=self._target['ipv4-address'])
                 while True:
-                    self._raw_send.send(arp_response)
+                    self._raw_send.send_packet(arp_response)
                     sleep(1)
             # endregion
 

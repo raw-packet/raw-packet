@@ -519,7 +519,7 @@ class DnsServer:
 
                 # region Send DNS answer packet
                 if dns_answer_packet is not None:
-                    self._raw_send.send(dns_answer_packet)
+                    self._raw_send.send_packet(dns_answer_packet)
                 # endregion
 
                 # region Print info message

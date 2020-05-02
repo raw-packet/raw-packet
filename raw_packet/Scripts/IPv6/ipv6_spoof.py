@@ -270,7 +270,7 @@ class IPv6Spoof:
 
             while True:
                 for spoof_packet in spoof_packets:
-                    self._raw_send.send(spoof_packet)
+                    self._raw_send.send_packet(spoof_packet)
                     sleep(0.25)
             # endregion
 

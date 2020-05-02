@@ -1,6 +1,6 @@
 # region Description
 """
-scanner.py: Scan local network
+icmpv6_scanner.py: ICMPv6 Scan local network
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -163,7 +163,7 @@ class ICMPv6Scan:
                                                                    ipv6_src=self._your['ipv6-link-address'],
                                                                    ipv6_dst='ff02::1',
                                                                    id=self._icmpv6_identifier)
-        self._raw_send.send(packet=request, count=self._retry_number, delay=0.1)
+        self._raw_send.send_packet(packet=request, count=self._retry_number, delay=0.1)
     # endregion
 
     # region Scanner
