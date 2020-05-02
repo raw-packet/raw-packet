@@ -266,7 +266,6 @@ def main() -> None:
         base.network_interface_selection(interface_name=args.interface,
                                          message='Please select a network interface for ' +
                                                  __script_name__ + ' from table: ')
-
     # endregion
     
     # region Start Arp Spoof

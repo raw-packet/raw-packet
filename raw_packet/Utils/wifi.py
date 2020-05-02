@@ -103,7 +103,7 @@ class WiFi:
 
     # region Constructor
     def __init__(self,
-                 wireless_interface,
+                 wireless_interface: str,
                  wifi_channel: Union[None, int] = None,
                  debug: bool = False) -> None:
         """
@@ -146,7 +146,7 @@ class WiFi:
             # Checking the ability to enable monitoring mode
             if self.debug_mode:
                 self._base.print_info('Enable monitor mode on wireless interface: ', str(self._interface))
-            assert self._enable_monitor_mode(), \
+            assert self.enable_monitor_mode(), \
                 'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
 
             # Create thread for reading pcap files
@@ -179,80 +179,6 @@ class WiFi:
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
             exit(1)
-    # endregion
-
-    # region Enable monitor mode on interface
-    def _enable_monitor_mode(self,
-                             wireless_interface: Union[None, str] = None) -> bool:
-        # Set wireless interface
-        if wireless_interface is None:
-            wireless_interface = self._interface
-
-        # Mac OS
-        if self._base.get_platform().startswith('Darwin'):
-            if self.debug_mode:
-                self._base.print_info('Disassociate wireless interface: ', str(wireless_interface))
-            run([self._airport_path + ' ' + wireless_interface + ' --disassociate'], shell=True)
-            return True
-
-        # Linux
-        elif self._base.get_platform().startswith('Linux'):
-            if self.debug_mode:
-                self._base.print_info('Stop service', 'network-manager')
-            run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
-            # self._base.kill_process_by_name(process_name='wpa_supplicant')
-            if self.debug_mode:
-                self._base.print_info('Run command: ', 'airmon-ng check kill')
-            run(['airmon-ng check kill'], shell=True, stdout=PIPE, stderr=STDOUT)
-            if self.debug_mode:
-                self._base.print_info('Get current mode for wireless interface: ', str(wireless_interface))
-            interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
-            interface_mode: str = interface_mode.stdout.decode('utf-8')
-            if 'Mode:Monitor' not in interface_mode:
-                self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
-                sleep(0.1)
-                run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
-                sleep(0.1)
-                run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
-                sleep(0.1)
-                run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
-                sleep(0.1)
-                if self.debug_mode:
-                    self._base.print_info('Check current mode for wireless interface: ', str(wireless_interface))
-                interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
-                interface_mode: str = interface_mode.stdout.decode('utf-8')
-                if 'Mode:Monitor' in interface_mode:
-                    return True
-                else:
-                    return False
-            else:
-                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
-                return True
-
-        # Windows
-        elif self._base.get_platform().startswith('Windows'):
-            wlanhelper: Popen = \
-                Popen('wlanhelper "' + wireless_interface + '" mode', shell=True, stdout=PIPE, stderr=PIPE)
-            wlanhelper_output, wlanhelper_error = wlanhelper.communicate()
-            assert wlanhelper_error == b'', 'Library Npcap not found. ' \
-                                            'Install Npcap: https://nmap.org/npcap/ and ' \
-                                            'Nmap: https://nmap.org/download.html'
-            if b'monitor' in wlanhelper_output:
-                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
-                return True
-            else:
-                wlanhelper: Popen = \
-                    Popen('wlanhelper "' + wireless_interface + '" mode monitor', shell=True, stdout=PIPE, stderr=PIPE)
-                wlanhelper_output, wlanhelper_error = wlanhelper.communicate()
-                if b'Success' in wlanhelper_output:
-                    return True
-                else:
-                    return False
-
-        # Other
-        else:
-            self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
-            return False
     # endregion
 
     # region Check interface support 5 GHz
@@ -1206,13 +1132,86 @@ class WiFi:
 
     # region Public methods
 
+    # region Enable monitor mode on interface
+    def enable_monitor_mode(self,
+                             wireless_interface: Union[None, str] = None) -> bool:
+        # Set wireless interface
+        if wireless_interface is None:
+            wireless_interface = self._interface
+
+        # Mac OS
+        if self._base.get_platform().startswith('Darwin'):
+            if self.debug_mode:
+                self._base.print_info('Disassociate wireless interface: ', str(wireless_interface))
+            run([self._airport_path + ' ' + wireless_interface + ' --disassociate'], shell=True)
+            return True
+
+        # Linux
+        elif self._base.get_platform().startswith('Linux'):
+            if self.debug_mode:
+                self._base.print_info('Stop service', 'network-manager')
+            run(['service network-manager stop'], shell=True, stdout=PIPE, stderr=STDOUT)
+            # self._base.kill_process_by_name(process_name='wpa_supplicant')
+            if self.debug_mode:
+                self._base.print_info('Run command: ', 'airmon-ng check kill')
+            run(['airmon-ng check kill'], shell=True, stdout=PIPE, stderr=STDOUT)
+            if self.debug_mode:
+                self._base.print_info('Get current mode for wireless interface: ', str(wireless_interface))
+            interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
+            interface_mode: str = interface_mode.stdout.decode('utf-8')
+            if 'Mode:Monitor' not in interface_mode:
+                self._base.print_info('Set monitor mode on wireless interface: ', wireless_interface)
+                sleep(0.1)
+                run(['ifconfig ' + wireless_interface + ' down'], shell=True, stdout=PIPE)
+                sleep(0.1)
+                run(['iwconfig ' + wireless_interface + ' mode monitor'], shell=True, stdout=PIPE)
+                sleep(0.1)
+                run(['ifconfig ' + wireless_interface + ' up'], shell=True, stdout=PIPE)
+                sleep(0.1)
+                if self.debug_mode:
+                    self._base.print_info('Check current mode for wireless interface: ', str(wireless_interface))
+                interface_mode: CompletedProcess = run(['iwconfig ' + wireless_interface], shell=True, stdout=PIPE)
+                interface_mode: str = interface_mode.stdout.decode('utf-8')
+                if 'Mode:Monitor' in interface_mode:
+                    return True
+                else:
+                    return False
+            else:
+                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
+                return True
+
+        # Windows
+        elif self._base.get_platform().startswith('Windows'):
+            wlanhelper: Popen = \
+                Popen('wlanhelper "' + wireless_interface + '" mode', shell=True, stdout=PIPE, stderr=PIPE)
+            wlanhelper_output, wlanhelper_error = wlanhelper.communicate()
+            assert wlanhelper_error == b'', 'Library Npcap not found. ' \
+                                            'Install Npcap: https://nmap.org/npcap/ and ' \
+                                            'Nmap: https://nmap.org/download.html'
+            if b'monitor' in wlanhelper_output:
+                self._base.print_info('Wireless interface: ', wireless_interface, ' already in mode monitor')
+                return True
+            else:
+                wlanhelper: Popen = \
+                    Popen('wlanhelper "' + wireless_interface + '" mode monitor', shell=True, stdout=PIPE, stderr=PIPE)
+                wlanhelper_output, wlanhelper_error = wlanhelper.communicate()
+                if b'Success' in wlanhelper_output:
+                    return True
+                else:
+                    return False
+
+        # Other
+        else:
+            self._base.print_error('This platform: ', self._base.get_platform(), ' is not supported')
+            return False
+    # endregion
+
     # region Validate WiFi channel
     def validate_wifi_channel(self, wifi_channel: int) -> bool:
         try:
             return True if wifi_channel in self.available_wifi_channels else False
         except IndexError:
             return False
-
     # endregion
 
     # region Resume scan WiFi channels and search AP ssids

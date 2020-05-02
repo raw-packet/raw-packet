@@ -15,7 +15,7 @@ from raw_packet.Utils.base import Base
 from raw_packet.Utils.wifi import WiFi
 from raw_packet.Utils.tm import ThreadManager
 from typing import List
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from typing import Dict, Union
 from collections import OrderedDict
 import npyscreen
@@ -31,6 +31,7 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
+__script_name__ = 'Cross platform WiFi attack tool (wat)'
 # endregion
 
 
@@ -515,7 +516,7 @@ class MainForm(npyscreen.FormBaseNew):
 def main():
 
     # region Init Raw-packet modules
-    base: Base = Base()
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin'])
     thread_manager: ThreadManager = ThreadManager(10)
     # endregion
 
@@ -525,8 +526,7 @@ def main():
 
     # region Parse script arguments
     script_description: str = \
-        base.get_banner() + '\n' + \
-        base.info_text('Cross platform WiFi attack tool (wat)') + '\n\n' + \
+        base.get_banner(__script_name__) + '\n' + \
         base.info_text('Ctrl-E') + ' Show Wireless access point information\n' + \
         base.info_text('Ctrl-D') + ' Send IEEE 802.11 deauth packets\n' + \
         base.info_text('Ctrl-D') + ' Switch WiFi channel\n' + \
@@ -534,29 +534,30 @@ def main():
         base.info_text('Ctrl-R') + ' Start scanner (switch between WiFi channels)\n' + \
         base.info_text('Ctrl-H') + ' Show help information\n' + \
         base.info_text('Ctrl-C') + ' Exit\n'
-    parser: ArgumentParser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
+    parser: ArgumentParser = ArgumentParser(description=script_description,
+                                            formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', help='Set wireless interface name for sniff packets', default=None)
     parser.add_argument('-c', '--channel', type=int, help='Set WiFi channel', default=None)
-    parser.add_argument('-d', '--debug', action='store_true', help='Minimal output')
+    parser.add_argument('-d', '--debug', action='store_true', help='Maximum output')
     args = parser.parse_args()
     # endregion
 
     # region Print banner
-    base.print_banner()
+    base.print_banner(__script_name__)
     # endregion
 
     try:
+
         # region Get wireless network interface
-        if args.interface is None:
-            base.print_warning('Please set a wireless network interface ...')
-        wireless_interface: str = base.network_interface_selection(interface_name=args.interface, only_wireless=True)
+        wireless_interface: str = \
+            base.network_interface_selection(interface_name=args.interface,
+                                             only_wireless=True,
+                                             message='Please select a network interface for ' +
+                                                     __script_name__ + ' from table: ')
         # endregion
 
         # region Init Raw-packet WiFi class
-        if args.channel is None:
-            wifi: WiFi = WiFi(wireless_interface=wireless_interface, debug=args.debug)
-        else:
-            wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel, debug=args.debug)
+        wifi: WiFi = WiFi(wireless_interface=wireless_interface, wifi_channel=args.channel, debug=args.debug)
         # endregion
 
         # region Start WiFi Sniffer
@@ -565,7 +566,8 @@ def main():
         # endregion
 
     except KeyboardInterrupt:
-        base.print_info('Exit ....')
+        base.print_info('Exit')
+        exit(0)
 
     except AssertionError as Error:
         base.print_error(Error.args[0])
