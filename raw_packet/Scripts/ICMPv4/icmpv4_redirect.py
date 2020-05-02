@@ -65,11 +65,11 @@ class ICMPv4Redirect:
               quit: bool = False):
         """
         Start ICMPv4 Redirect
-        :param gateway_ipv4_address: 
-        :param target_ipv4_address: 
-        :param target_mac_address: 
-        :param redirect_ipv4_addresses: 
-        :param quit: 
+        :param gateway_ipv4_address: Gateway IPv4 address (example: '192.168.0.254')
+        :param target_ipv4_address: Target IPv4 address (example: '192.168.0.1')
+        :param target_mac_address: Target MAC address (example: '12:34:56:78:90:ab')
+        :param redirect_ipv4_addresses: List of IPv4 address for redirect (example: ['1.1.1.1', '8.8.8.8'])
+        :param quit: Quit mode (default: False)
         :return: None
         """
         try:
