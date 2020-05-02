@@ -23,7 +23,7 @@ from raw_packet.Servers.dns_server import DnsServer
 from raw_packet.Servers.dhcpv4_server import DHCPv4Server
 from raw_packet.Servers.dhcpv6_server import DHCPv6Server
 
-from raw_packet.Scripts.Others.ncc import NetworkConflictCreator
+from raw_packet.Scripts.NCC.ncc import NetworkConflictCreator
 from raw_packet.Scripts.Apple.apple_dhcp_server import AppleDHCPServer
 from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof

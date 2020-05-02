@@ -45,15 +45,17 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'apple_arp_dos=raw_packet.Scripts.Apple.apple_arp_dos:main',
-            'apple_rogue_dhcp=raw_packet.Scripts.Apple.apple_rogue_dhcp:main',
+            'apple_dhcp_server=raw_packet.Scripts.Apple.apple_dhcp_server:main',
             'arp_scan=raw_packet.Scripts.ARP.arp_scan:main',
             'arp_spoof=raw_packet.Scripts.ARP.arp_spoof:main',
-            'dns_server=raw_packet.Scripts.DNS.dns_server:main',
             'dhcpv4_server=raw_packet.Scripts.DHCPv4.dhcpv4_server:main',
             'dhcpv6_server=raw_packet.Scripts.DHCPv6.dhcpv6_server:main',
+            'dns_server=raw_packet.Scripts.DNS.dns_server:main',
             'icmpv4_redirect=raw_packet.Scripts.ICMPv4.icmpv4_redirect:main',
             'ipv6_scan=raw_packet.Scripts.IPv6.ipv6_scan:main',
             'ipv6_spoof=raw_packet.Scripts.IPv6.ipv6_spoof:main',
+            'ncc=raw_packet.Scripts.NCC.ncc.py:main',
+            'nsc=raw_packet.Scripts.NSC.nsc.py:main',
             'wat=raw_packet.Scripts.WiFi.wat:main'
         ],
     },
