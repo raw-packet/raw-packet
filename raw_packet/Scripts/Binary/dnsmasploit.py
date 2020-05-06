@@ -1014,7 +1014,7 @@ def exploit():
         SOCK = socket(AF_PACKET, SOCK_RAW)
         SOCK.bind((current_network_interface, 0))
         SOCK.send(pkt)
-        print(Base.c_success + "Send exploit request to: [" + host + "]:547")
+        print(Base.c_success + "Send exploit request to: ["  + host + "]:547")
         SOCK.close()
     except:
         print(Base.c_error + "Do not send exploit request.")

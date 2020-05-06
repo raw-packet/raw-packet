@@ -31,7 +31,6 @@ from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof
 from prettytable import PrettyTable
 from os import path, makedirs, stat
 from shutil import copyfile, copytree
-import subprocess as sub
 from argparse import ArgumentParser, RawTextHelpFormatter
 from sys import exit, stdout
 from time import sleep
@@ -50,10 +49,6 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
-# endregion
-
-# region Set global variables
-aireply_stop: bool = False
 # endregion
 
 
@@ -89,8 +84,8 @@ def make_arp_spoof(network_interface: str = 'eth0',
 
     # Start ARP Spoofing (arp_spoof)
     arp_spoof: ArpSpoof = ArpSpoof(network_interface=network_interface)
-    arp_spoof.start(gateway_ip_address=gateway_ip_address,
-                    target_ip_address=ip_address,
+    arp_spoof.start(gateway_ipv4_address=gateway_ip_address,
+                    target_ipv4_address=ip_address,
                     target_mac_address=mac_address,
                     quit=True)
 
@@ -264,7 +259,7 @@ def requests_sniffer(source_mac_address: str = '12:34:56:78:90:ab'):
 
 
 # region WiFi deauth packets sender
-def deauth_packets_send(network_interface: str = 'eth0',
+def deauth_packets_send(network_interface: str = 'wlan1',
                         network_channel: str = '1',
                         network_bssid: str = '12:34:56:78:90:ab',
                         mac_address: str = '12:34:56:78:90:ac',
@@ -379,15 +374,20 @@ if __name__ == '__main__':
     try:
         # region Parse script arguments
         parser = ArgumentParser(description='MiTM Apple devices in local network', formatter_class=RawTextHelpFormatter)
-
         parser.add_argument('-T', '--technique', type=str, default=None,
-                            help='Set MiTM technique:\n1. ARP Spoofing\n2. Second DHCP ACK\n3. Predict next DHCP ' +
-                                 'transaction ID\n4. Rogue SLAAC/DHCPv6 server\n5. NA Spoofing (IPv6)\n' +
-                                 '6. RA Spoofing (IPv6)')
+                            help='Set MiTM technique:'
+                                 '\n1. ARP Spoofing'
+                                 '\n2. Second DHCP ACK'
+                                 '\n3. Predict next DHCP transaction ID'
+                                 '\n4. Rogue SLAAC/DHCPv6 server'
+                                 '\n5. NA Spoofing (IPv6)'
+                                 '\n6. RA Spoofing (IPv6)')
         parser.add_argument('-D', '--disconnect', type=str, default=None,
-                            help='Set device Disconnect technique:\n1. IPv4 network conflict detection\n' +
-                                 '2. Send WiFi deauthentication packets\n3. Do not disconnect device after MiTM')
-        parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for send DHCPACK packets')
+                            help='Set device Disconnect technique:'
+                                 '\n1. IPv4 network conflict detection'
+                                 '\n2. Send WiFi deauthentication packets'
+                                 '\n3. Do not disconnect device after MiTM')
+        parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for listen packets')
         parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
         parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)',
                             default=5)
