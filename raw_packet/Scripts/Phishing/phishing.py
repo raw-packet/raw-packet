@@ -12,7 +12,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.Phishing.phishing import Phishing
+from raw_packet.Servers.Phishing.phishing import PhishingServer
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 # endregion
 
@@ -36,15 +36,14 @@ def main() -> None:
     :return: None
     """
 
-    # region Init Raw-packet classes
+    # region Init Raw-packet Base class
     base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
-    phishing: Phishing = Phishing()
     # endregion
 
     # region Parse script arguments
     parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
                                             formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('-a', '--address', type=str, help='Set address for listen (default: \'0.0.0.0\')', default='0.0.0.0')
+    parser.add_argument('-a', '--address', type=str, help='Set address for listen (default: "0.0.0.0")', default='0.0.0.0')
     parser.add_argument('-p', '--port', type=int, help='Set port for listen (default: 80)', default=80)
     parser.add_argument('-s', '--site', type=str, help='Set site template "google" or "apple"', default='google')
     parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
@@ -58,7 +57,8 @@ def main() -> None:
 
     # region Start Phishing HTTP server
     try:
-        phishing.start(address=args.address, port=args.port, site=args.site, quiet=args.quiet)
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address=args.address, port=args.port, site=args.site, quiet=args.quiet)
 
     except KeyboardInterrupt:
         if not args.quiet:

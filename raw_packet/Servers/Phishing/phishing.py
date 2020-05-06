@@ -201,8 +201,8 @@ class _PhishingHTTPServer(HTTPServer):
 # endregion
 
 
-# region class Phishing
-class Phishing:
+# region class Phishing Server
+class PhishingServer:
     """
     Phishing HTTP server (phishing)
     """
