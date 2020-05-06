@@ -12,3 +12,4 @@ pycryptodomex>=3.9.7
 getmac>=0.8.2
 colorama>=0.4.3
 requests>=2.23.0
+user-agents>=2.1
