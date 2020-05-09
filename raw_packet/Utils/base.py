@@ -69,9 +69,14 @@ class Base:
     _network_interfaces_multicast_macs: Dict[str, List[str]] = \
         {'example-network-interface': ['33:33:00:00:00:02']}
 
-    _network_interfaces_settings: Dict[str, Dict[str, Union[None, str, List[str]]]] = \
+    _network_interfaces_settings: Dict[str, Dict[str, Union[None, bool, int, float, str, List[str]]]] = \
         {'example-network-interface': {
             'network-interface': 'example-network-interface',
+            'is-wireless': False,
+            'essid': 'AP',
+            'bssid': '12:34:56:78:90:ab',
+            'channel': 1,
+            'frequency': 2.4,
             'mac-address': '12:34:56:78:90:ab',
             'ipv4-address': '192.168.0.1',
             'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
@@ -682,6 +687,11 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: True)
         :return: Network interface settings dictionary
                  (example: {'network-interface': 'example-network-interface',
+                            'is-wireless': False,
+                            'essid': 'AP',
+                            'bssid': '12:34:56:78:90:ab',
+                            'channel': 1,
+                            'frequency': 2.4,
                             'mac-address': '12:34:56:78:90:ab',
                             'ipv4-address': '192.168.0.1',
                             'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
@@ -698,8 +708,16 @@ class Base:
                             'ipv6-gateway': 'fe80::1234:5678:8765:4321'})
         """
         if interface_name not in self._network_interfaces_settings.keys():
-            self._network_interfaces_settings[interface_name]: Dict[str, Union[None, str, List[str]]] = {
+            wireless_interface_settings: Dict[str, Union[None, int, float, str]] = \
+                self.get_wireless_interface_settings(interface_name=interface_name)
+            self._network_interfaces_settings[interface_name]: \
+                Dict[str, Union[None, bool, int, float, str, List[str]]] = {
                 'network-interface': interface_name,
+                'is-wireless': self.check_network_interface_is_wireless(interface_name=interface_name),
+                'essid': wireless_interface_settings['essid'],
+                'bssid': wireless_interface_settings['bssid'],
+                'channel': wireless_interface_settings['channel'],
+                'frequency': wireless_interface_settings['frequency'],
                 'mac-address': self.get_interface_mac_address(interface_name=interface_name,
                                                               exit_on_failure=False,
                                                               quiet=quiet),
@@ -749,6 +767,34 @@ class Base:
         except AssertionError as Error:
             self.print_error(Error.args[0])
             exit(1)
+
+    def get_wireless_interface_settings(self,
+                                        interface_name: str = 'wlan0') -> Dict[str, Union[None, int, float, str]]:
+        if interface_name in self._network_interfaces_settings.keys():
+            return {
+                'essid': self._network_interfaces_settings[interface_name]['essid'],
+                'bssid': self._network_interfaces_settings[interface_name]['bssid'],
+                'channel': self._network_interfaces_settings[interface_name]['channel'],
+                'frequency': self._network_interfaces_settings[interface_name]['frequency']
+            }
+        else:
+            result: Dict[str, Union[None, int, float, str]] = {
+                'essid': None,
+                'bssid': None,
+                'channel': None,
+                'frequency': None
+            }
+            if interface_name in self.list_of_wireless_network_interfaces():
+                if self.get_platform().startswith('Linux'):
+                    result['essid'] = sub.run(['iwgetid -r ' + interface_name],
+                                              shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
+                    result['bssid'] = sub.run(['iwgetid -a -r ' + interface_name],
+                                              shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
+                    result['channel'] = sub.run(['iwgetid -c -r ' + interface_name],
+                                                shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
+                    result['frequency'] = sub.run(['iwgetid -f -r ' + interface_name],
+                                                  shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
+            return result
 
     def get_interface_mac_address(self,
                                   interface_name: str = 'eth0',

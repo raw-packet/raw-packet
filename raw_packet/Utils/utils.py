@@ -288,7 +288,7 @@ class Utils:
                              first_value: int = 1,
                              last_value: int = 65535,
                              parameter_name: str = 'destination port') -> int:
-        assert first_value < value < last_value, \
+        assert first_value <= value <= last_value, \
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(str(value)) + \
             ' ' + parameter_name.capitalize() + ' must be in range: ' + \
             self._base.info_text(str(first_value) + ' - ' + str(last_value))

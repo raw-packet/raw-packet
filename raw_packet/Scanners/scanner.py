@@ -11,6 +11,7 @@ Copyright 2020, Raw-packet Project
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 # endregion
@@ -44,16 +45,70 @@ class Scanner:
 
     # region Variables
     base: Base = Base()
+    _utils: Utils = Utils()
     nmap_scan_result: str = current_path + '/nmap_scan.xml'
+
+    _your: Dict[str, Union[None, str]] = {'network-interface': None,
+                                          'mac-address': None,
+                                          'ipv4-address': None}
     # endregion
 
     # region Init
     def __init__(self, network_interface: str):
+        self._your = self.base.get_interface_settings(interface_name=network_interface,
+                                                      required_parameters=['mac-address',
+                                                                           'ipv4-address',
+                                                                           'first-ipv4-address',
+                                                                           'last-ipv4-address'])
         self.arp_scan: ArpScan = ArpScan(network_interface=network_interface)
         self.icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=network_interface)
         # if not self.base.check_installed_software('nmap'):
         #     self.base.print_error('Could not find program: ', 'nmap')
         #     exit(1)
+    # endregion
+
+    # region Get free IP addresses in local network
+    def get_free_ipv4_addresses(self,
+                                first_ipv4_address: Union[None, str] = None,
+                                last_ipv4_address: Union[None, str] = None,
+                                quiet: bool = False) -> List[str]:
+        free_ipv4_addresses: List[str] = list()
+
+        if first_ipv4_address is not None:
+            current_ipv4_address: str = \
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=first_ipv4_address,
+                                               is_local_ipv4_address=True,
+                                               parameter_name='first IPv4 address')
+        else:
+            current_ipv4_address: str = self._your['first-ipv4-address']
+
+        if last_ipv4_address is not None:
+            last_ipv4_address: str = \
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=last_ipv4_address,
+                                               is_local_ipv4_address=True,
+                                               parameter_name='last IPv4 address')
+        else:
+            last_ipv4_address: str = self._your['last-ipv4-address']
+
+        while self.base.ip_address_compare(current_ipv4_address, last_ipv4_address, 'le'):
+            free_ipv4_addresses.append(current_ipv4_address)
+            current_ipv4_address = self.base.ip_address_increment(current_ipv4_address)
+
+        if not quiet:
+            self.base.print_info('ARP scan on interface: ',
+                                 self._your['network-interface'],
+                                 ' and find free IPv4 addresses ...')
+        alive_ipv4_hosts = self.find_ip_in_local_network(network_interface=self._your['network-interface'])
+
+        for ipv4_address in alive_ipv4_hosts:
+            try:
+                free_ipv4_addresses.remove(ipv4_address)
+            except ValueError:
+                pass
+
+        return free_ipv4_addresses
     # endregion
 
     # region Apple device selection

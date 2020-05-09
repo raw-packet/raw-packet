@@ -61,7 +61,7 @@ class DHCPv4Server:
     
     _exit_on_success: bool = False
     _apple: bool = False
-    _quit: bool = True
+    _quiet: bool = True
     # endregion
 
     # region Init
@@ -108,7 +108,7 @@ class DHCPv4Server:
               send_broadcast_dhcp_response: bool = False,
               exit_on_success: bool = False,
               apple: bool = False,
-              quit: bool = False):
+              quiet: bool = False):
 
         # region Set variables
         self._lease_time = lease_time
@@ -118,7 +118,7 @@ class DHCPv4Server:
         self._send_broadcast_dhcp_response = send_broadcast_dhcp_response
         self._exit_on_success = exit_on_success
         self._apple = apple
-        self._quit = quit
+        self._quiet = quiet
         # endregion
 
         # region Get your network settings
@@ -140,9 +140,9 @@ class DHCPv4Server:
                 'Please set target MAC address' + \
                 ', for target IP address: ' + self._base.info_text(target_ipv4_address)
             self._target['ipv4-address'] = \
-                self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                     ipv4_address=target_ipv4_address,
-                                                     parameter_name='target IPv4 address')
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=target_ipv4_address,
+                                               parameter_name='target IPv4 address')
         # endregion
 
         # region Target IP is not set - get first and last offer IP
@@ -150,16 +150,16 @@ class DHCPv4Server:
             # Check first offer IP address
             if first_offer_ipv4_address is not None:
                 self._first_offer_ipv4_address = \
-                    self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                         ipv4_address=first_offer_ipv4_address,
-                                                         parameter_name='first offer IPv4 address')
+                    self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                                   ipv4_address=first_offer_ipv4_address,
+                                                   parameter_name='first offer IPv4 address')
 
             # Check last offer IP address
             if last_offer_ipv4_address is not None:
                 self._last_offer_ipv4_address = \
-                    self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                         ipv4_address=last_offer_ipv4_address,
-                                                         parameter_name='last offer IPv4 address')
+                    self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                                   ipv4_address=last_offer_ipv4_address,
+                                                   parameter_name='last offer IPv4 address')
         # endregion
 
         # endregion
@@ -172,9 +172,9 @@ class DHCPv4Server:
 
         if dhcp_server_ipv4_address is not None:
             self._dhcp_server_ipv4_address = \
-                self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                     ipv4_address=dhcp_server_ipv4_address,
-                                                     parameter_name='DHCPv4 server IPv4 address')
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=dhcp_server_ipv4_address,
+                                               parameter_name='DHCPv4 server IPv4 address')
         # endregion
 
         # region Set router, dns, tftp, wins IP address
@@ -182,9 +182,9 @@ class DHCPv4Server:
         # region Set router IP address
         if router_ipv4_address is not None:
             self._router_ipv4_address = \
-                self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                     ipv4_address=dhcp_server_ipv4_address,
-                                                     parameter_name='router IPv4 address')
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=dhcp_server_ipv4_address,
+                                               parameter_name='router IPv4 address')
         # endregion
 
         # region Set DNS server IP address
@@ -197,17 +197,17 @@ class DHCPv4Server:
         # region Set TFTP server IP address
         if tftp_server_ipv4_address is not None:
             self._tftp_server_ipv4_address = \
-                self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                     ipv4_address=tftp_server_ipv4_address,
-                                                     parameter_name='TFTP server IPv4 address')
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=tftp_server_ipv4_address,
+                                               parameter_name='TFTP server IPv4 address')
         # endregion
 
         # region Set WINS server IP address
         if wins_server_ipv4_address is not None:
             self._wins_server_ipv4_address = \
-                self._utils.check_local_ipv4_address(network_interface=self._your['network-interface'],
-                                                     ipv4_address=tftp_server_ipv4_address,
-                                                     parameter_name='WINS server IPv4 address')
+                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
+                                               ipv4_address=tftp_server_ipv4_address,
+                                               parameter_name='WINS server IPv4 address')
         # endregion
 
         # endregion
@@ -222,7 +222,7 @@ class DHCPv4Server:
         # endregion
 
         # region General output
-        if not self._quit:
+        if not self._quiet:
             self._base.print_info('Network interface: ', self._your['network-interface'])
             self._base.print_info('Your IP address: ', self._your['ipv4-address'])
             self._base.print_info('Your MAC address: ', self._your['mac-address'])
@@ -248,12 +248,15 @@ class DHCPv4Server:
         # region Add ip addresses in list with free ip addresses from first to last offer IP
         if self._target['ipv4-address'] is None:
             self._base.print_info('Create list with free IP addresses in your network ...')
-            self._get_free_ip_addresses()
+            self._free_ip_addresses = \
+                self._scanner.get_free_ipv4_addresses(first_ipv4_address=self._first_offer_ipv4_address,
+                                                      last_ipv4_address=last_offer_ipv4_address,
+                                                      quiet=self._quiet)
         # endregion
 
         # region Send DHCP discover packets in the background thread
         if self._send_dhcp_discover_packets:
-            if not self._quit:
+            if not self._quiet:
                 self._base.print_info('Start DHCP discover packets send in the background thread ...')
                 self._base.print_info('Delay between DHCP discover packets: ', str(self._discover_sender_delay))
             self._thread_manager.add_task(self._discover_sender)
@@ -297,27 +300,6 @@ class DHCPv4Server:
             self._clients[client_mac_address].update(client_info)
         else:
             self._clients[client_mac_address] = client_info
-    # endregion
-
-    # region Get free IP addresses in local network
-    def _get_free_ip_addresses(self) -> None:
-        # Get all IP addresses in range from first to last offer IP address
-        current_ip_address = self._first_offer_ipv4_address
-        while self._base.ip_address_compare(current_ip_address, self._last_offer_ipv4_address, 'le'):
-            self._free_ip_addresses.append(current_ip_address)
-            current_ip_address = self._base.ip_address_increment(current_ip_address)
-        
-        if not self._quit:
-            self._base.print_info('ARP scan on interface: ', 
-                                  self._your['network-interface'], 
-                                  ' and find free IPv4 addresses ...')
-        alive_hosts = self._scanner.find_ip_in_local_network(network_interface=self._your['network-interface'])
-    
-        for ip_address in alive_hosts:
-            try:
-                self._free_ip_addresses.remove(ip_address)
-            except ValueError:
-                pass
     # endregion
 
     # region Make DHCP offer packet

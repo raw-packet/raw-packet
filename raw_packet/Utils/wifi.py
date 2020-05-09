@@ -105,7 +105,8 @@ class WiFi:
     def __init__(self,
                  wireless_interface: str,
                  wifi_channel: Union[None, int] = None,
-                 debug: bool = False) -> None:
+                 debug: bool = False,
+                 start_scan: bool = True) -> None:
         """
         Constructor for WiFi class
         :param wireless_interface: Wireless interface name (example: 'wlan0')
@@ -150,31 +151,32 @@ class WiFi:
                 'Failed to enable monitor mode on wireless interface: ' + self._base.error_text(self._interface)
 
             # Create thread for reading pcap files
-            if self.debug_mode:
-                self._base.print_info('Create thread for read pcap files')
-            self._thread_manager.add_task(self._read_pcap_files)
-
-            # Set WiFi channel
-            if wifi_channel is not None:
+            if start_scan:
                 if self.debug_mode:
-                    self._base.print_info('Validate WiFi channel: ', str(wifi_channel))
-                assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
-                    'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
+                    self._base.print_info('Create thread for read pcap files')
+                self._thread_manager.add_task(self._read_pcap_files)
+
+                # Set WiFi channel
+                if wifi_channel is not None:
+                    if self.debug_mode:
+                        self._base.print_info('Validate WiFi channel: ', str(wifi_channel))
+                    assert self.validate_wifi_channel(wifi_channel=wifi_channel), \
+                        'Bad WiFi channel: ' + self._base.error_text(str(wifi_channel))
+                    if self.debug_mode:
+                        self._base.print_info('Set WiFi channel: ', str(wifi_channel))
+                    self._set_wifi_channel = wifi_channel
+                    self._switch_wifi_channel(channel=wifi_channel)
+
+                # Switching between WiFi channels
                 if self.debug_mode:
-                    self._base.print_info('Set WiFi channel: ', str(wifi_channel))
-                self._set_wifi_channel = wifi_channel
-                self._switch_wifi_channel(channel=wifi_channel)
+                    self._base.print_info('Create thread for scan WiFi SSID\'s and switch between WiFi channels:',
+                                          str(self.available_wifi_channels))
+                self._thread_manager.add_task(self._scan_ssids)
 
-            # Switching between WiFi channels
-            if self.debug_mode:
-                self._base.print_info('Create thread for scan WiFi SSID\'s and switch between WiFi channels:',
-                                      str(self.available_wifi_channels))
-            self._thread_manager.add_task(self._scan_ssids)
-
-            # Check sniffer start
-            if self.debug_mode:
-                self._base.print_info('Start sniffer')
-            assert self._start_sniffer(), 'Failed to start sniffer!'
+                # Check sniffer start
+                if self.debug_mode:
+                    self._base.print_info('Start sniffer')
+                assert self._start_sniffer(), 'Failed to start sniffer!'
 
         except AssertionError as Error:
             self._base.print_error(Error.args[0])
