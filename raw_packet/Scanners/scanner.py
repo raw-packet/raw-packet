@@ -11,7 +11,6 @@ Copyright 2020, Raw-packet Project
 
 # region Raw-packet modules
 from raw_packet.Utils.base import Base
-from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 # endregion
@@ -45,7 +44,6 @@ class Scanner:
 
     # region Variables
     base: Base = Base()
-    _utils: Utils = Utils()
     nmap_scan_result: str = current_path + '/nmap_scan.xml'
 
     _your: Dict[str, Union[None, str]] = {'network-interface': None,
@@ -75,20 +73,18 @@ class Scanner:
         free_ipv4_addresses: List[str] = list()
 
         if first_ipv4_address is not None:
-            current_ipv4_address: str = \
-                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
-                                               ipv4_address=first_ipv4_address,
-                                               is_local_ipv4_address=True,
-                                               parameter_name='first IPv4 address')
+            assert self.base.ip_address_in_range(ip_address=first_ipv4_address,
+                                                 first_ip_address=self._your['first-ipv4-address'],
+                                                 last_ip_address=self._your['last-ipv4-address'])
+            current_ipv4_address: str = first_ipv4_address
         else:
             current_ipv4_address: str = self._your['first-ipv4-address']
 
         if last_ipv4_address is not None:
-            last_ipv4_address: str = \
-                self._utils.check_ipv4_address(network_interface=self._your['network-interface'],
-                                               ipv4_address=last_ipv4_address,
-                                               is_local_ipv4_address=True,
-                                               parameter_name='last IPv4 address')
+            assert self.base.ip_address_in_range(ip_address=last_ipv4_address,
+                                                 first_ip_address=self._your['first-ipv4-address'],
+                                                 last_ip_address=self._your['last-ipv4-address'])
+            last_ipv4_address: str = last_ipv4_address
         else:
             last_ipv4_address: str = self._your['last-ipv4-address']
 

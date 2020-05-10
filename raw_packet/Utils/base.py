@@ -691,7 +691,6 @@ class Base:
                             'essid': 'AP',
                             'bssid': '12:34:56:78:90:ab',
                             'channel': 1,
-                            'frequency': 2.4,
                             'mac-address': '12:34:56:78:90:ab',
                             'ipv4-address': '192.168.0.1',
                             'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
@@ -717,7 +716,6 @@ class Base:
                 'essid': wireless_interface_settings['essid'],
                 'bssid': wireless_interface_settings['bssid'],
                 'channel': wireless_interface_settings['channel'],
-                'frequency': wireless_interface_settings['frequency'],
                 'mac-address': self.get_interface_mac_address(interface_name=interface_name,
                                                               exit_on_failure=False,
                                                               quiet=quiet),
@@ -769,31 +767,78 @@ class Base:
             exit(1)
 
     def get_wireless_interface_settings(self,
-                                        interface_name: str = 'wlan0') -> Dict[str, Union[None, int, float, str]]:
+                                        interface_name: str = 'wlan0') -> Dict[str, Union[None, int, str]]:
         if interface_name in self._network_interfaces_settings.keys():
             return {
                 'essid': self._network_interfaces_settings[interface_name]['essid'],
                 'bssid': self._network_interfaces_settings[interface_name]['bssid'],
-                'channel': self._network_interfaces_settings[interface_name]['channel'],
-                'frequency': self._network_interfaces_settings[interface_name]['frequency']
+                'channel': self._network_interfaces_settings[interface_name]['channel']
             }
         else:
-            result: Dict[str, Union[None, int, float, str]] = {
+            result: Dict[str, Union[None, int, str]] = {
                 'essid': None,
                 'bssid': None,
-                'channel': None,
-                'frequency': None
+                'channel': None
             }
             if interface_name in self.list_of_wireless_network_interfaces():
+
+                # region Linux
                 if self.get_platform().startswith('Linux'):
-                    result['essid'] = sub.run(['iwgetid -r ' + interface_name],
-                                              shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
-                    result['bssid'] = sub.run(['iwgetid -a -r ' + interface_name],
-                                              shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
-                    result['channel'] = sub.run(['iwgetid -c -r ' + interface_name],
-                                                shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
-                    result['frequency'] = sub.run(['iwgetid -f -r ' + interface_name],
-                                                  shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip()
+                    result['essid']: str = str(sub.run(['iwgetid -r ' + interface_name],
+                                                       shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                    result['bssid']: str = str(sub.run(['iwgetid -a -r ' + interface_name],
+                                                       shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                    result['channel']: int = int(sub.run(['iwgetid -c -r ' + interface_name],
+                                                         shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                # endregion
+
+                # region Windows
+                elif self.get_platform().startswith('Windows'):
+                    netsh_command: sub.Popen = \
+                        sub.Popen('netsh wlan show interfaces', shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+                    netsh_command_output, netsh_command_error = netsh_command.communicate()
+                    interfaces_info: str = netsh_command_output.decode('utf-8') + netsh_command_error.decode('utf-8')
+                    interfaces_info: List[str] = interfaces_info.splitlines()
+
+                    interface_settings: Dict[str, Dict[str, Union[None, int, str]]] = dict()
+                    current_interface: Union[None, str] = None
+
+                    for output_line in interfaces_info:
+
+                        if 'Name' in output_line:
+                            search_result = search(r'^ +Name +: (?P<interface_name>.*)$', output_line)
+                            if search_result is not None:
+                                current_interface = search_result.group('interface_name')
+                                interface_settings[current_interface]: Dict[str, Union[None, int, str]] = {
+                                    'essid': None,
+                                    'bssid': None,
+                                    'channel': None
+                                }
+
+                        if ' SSID' in output_line:
+                            search_result = search(r'^ +SSID +: (?P<essid>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['essid']: str = \
+                                    str(search_result.group('essid'))
+
+                        if ' BSSID' in output_line:
+                            search_result = search(r'^ +BSSID +: (?P<bssid>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['bssid']: str = \
+                                    str(search_result.group('bssid'))
+
+                        if ' Channel' in output_line:
+                            search_result = search(r'^ +Channel +: (?P<channel>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['channel']: int = \
+                                    int(search_result.group('channel'))
+
+                        if 'Hosted network status' in output_line:
+                            break
+
+                    result = interface_settings[interface_name]
+                # endregion
+
             return result
 
     def get_interface_mac_address(self,
