@@ -41,6 +41,7 @@ from typing import Dict, List, Union
 from paramiko import RSAKey, SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
 from colorama import init, Fore, Style
+from threading import Lock
 # endregion
 
 # region Authorship information
@@ -61,6 +62,8 @@ class Base:
     # region Set variables
     vendor_list: List[Dict[str, str]] = list()
     os_installed_packages_list = None
+
+    _lock: Lock = Lock()
     _windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
     _windows_adapters = None
 
@@ -187,10 +190,9 @@ class Base:
                 if color == 'green':
                     result_output_string += self.cSUCCESS
                 result_output_string += strings[index] + self.cEND
-        if self.get_platform().startswith('Windows'):
-            print(result_output_string)
-        else:
-            stdout.write(result_output_string + '\n')
+        self._lock.acquire()
+        print(result_output_string)
+        self._lock.release()
 
     def _color_text(self, color: str = 'blue', string: str = '') -> str:
         """
