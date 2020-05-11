@@ -380,6 +380,11 @@ class PhishingServer:
                                              quiet=quiet)
             phishing.serve_forever()
 
+        except OSError:
+            if not quiet:
+                self._base.print_error('Port: ', str(port), ' already listen!')
+            exit(1)
+
         except KeyboardInterrupt:
             if phishing is not None:
                 phishing.server_close()
