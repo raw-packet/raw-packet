@@ -239,7 +239,8 @@ class Utils:
                            network_interface: str,
                            ipv6_address: str,
                            is_local_ipv6_address: bool = True,
-                           parameter_name: str = 'target IPv6 address') -> str:
+                           parameter_name: str = 'target IPv6 address',
+                           check_your_ipv6_address: bool = True) -> str:
 
         example_ipv6_address: str = '2001:4860:4860::8888'
         if is_local_ipv6_address:
@@ -253,13 +254,14 @@ class Utils:
             network_interface_settings['ipv6-link-address'] = \
                 self._base.make_ipv6_link_address(mac_address=network_interface_settings['mac-address'])
 
-        assert ipv6_address != network_interface_settings['ipv6-link-address'], \
-            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
-            '; ' + parameter_name.capitalize() + ' is your link local IPv6 address!'
+        if check_your_ipv6_address:
+            assert ipv6_address != network_interface_settings['ipv6-link-address'], \
+                'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+                '; ' + parameter_name.capitalize() + ' is your link local IPv6 address!'
 
-        assert ipv6_address not in network_interface_settings['ipv6-global-addresses'], \
-            'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
-            '; ' + parameter_name.capitalize() + ' is your global IPv6 address!'
+            assert ipv6_address not in network_interface_settings['ipv6-global-addresses'], \
+                'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
+                '; ' + parameter_name.capitalize() + ' is your global IPv6 address!'
 
         assert self._base.ipv6_address_validation(ipv6_address), \
             'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \

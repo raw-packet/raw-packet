@@ -138,7 +138,8 @@ class DnsServer:
                     self._utils.check_ipv6_address(network_interface=self._your['network-interface'],
                                                    ipv6_address=_fake_ipv6_address,
                                                    is_local_ipv6_address=False,
-                                                   parameter_name='fake IPv6 address')
+                                                   parameter_name='fake IPv6 address',
+                                                   check_your_ipv6_address=False)
             # endregion
 
             # region Set success domains

