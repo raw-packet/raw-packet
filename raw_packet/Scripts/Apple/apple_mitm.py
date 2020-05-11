@@ -208,7 +208,7 @@ class AppleMitm:
     @staticmethod
     def _phishing_server(address: str = '0.0.0.0', port: int = 80, site='apple'):
         phishing_server: PhishingServer = PhishingServer()
-        phishing_server.start(address=address, port=port, site=site, quiet=False)
+        phishing_server.start(address=address, port=port, site=site, redirect='authentication.net', quiet=True)
     # endregion
 
     # region Requests sniffer PRN function
