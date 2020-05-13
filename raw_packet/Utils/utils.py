@@ -10,7 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.arp_scanner import ArpScan
-from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from typing import List, Dict, Union
 from prettytable import PrettyTable
 from re import search, IGNORECASE
@@ -45,7 +45,7 @@ class Utils:
                         exclude_ipv4_addresses: List[str] = []) -> Dict[str, str]:
 
         # region Variables
-        target: Dict[str, str] = {'mac-address': None, 'ipv6-address': None, 'vendor': None}
+        target: Dict[str, str] = {'mac-address': None, 'ipv4-address': None, 'vendor': None}
         arp_scan: ArpScan = ArpScan(network_interface=network_interface)
         # endregion
 
@@ -74,7 +74,11 @@ class Utils:
                         results_with_vendor.append(result)
                 results = results_with_vendor
 
+            assert len(results) != 0, \
+                'Could not found alive hosts on interface: ' + self._base.error_text(network_interface)
             if len(results) == 1:
+                if target_vendor is not None:
+                    assert target['vendor'] != target_vendor, ''
                 target['ipv4-address'] = results[0]['ip-address']
                 target['mac-address'] = results[0]['mac-address']
                 target['vendor'] = results[0]['vendor']
@@ -87,7 +91,7 @@ class Utils:
                     self._base.print_success('Found ', str(len(results)), ' alive hosts on interface: ',
                                              network_interface)
                 hosts_pretty_table: PrettyTable = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
-                                                               self._base.cINFO + 'IP address' + self._base.cEND,
+                                                               self._base.cINFO + 'IPv4 address' + self._base.cEND,
                                                                self._base.cINFO + 'MAC address' + self._base.cEND,
                                                                self._base.cINFO + 'Vendor' + self._base.cEND])
                 device_index: int = 1
@@ -151,7 +155,7 @@ class Utils:
 
         # region Variables
         target: Dict[str, str] = {'mac-address': None, 'ipv6-address': None, 'vendor': None}
-        scanner: Scanner = Scanner(network_interface=network_interface)
+        icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=network_interface)
         # endregion
 
         # region Target MAC address is Set
@@ -163,13 +167,64 @@ class Utils:
         # region Target IPv6 address not Set
         if target_ipv6_address is None:
             self._base.print_info('Search IPv6 alive hosts ....')
-            ipv6_devices = scanner.find_ipv6_devices(network_interface=network_interface, timeout=3, retry=3,
-                                                     exclude_ipv6_addresses=exclude_ipv6_addresses)
+            ipv6_devices = icmpv6_scan.scan(timeout=5, retry=5, target_mac_address=target['mac-address'],
+                                            check_vendor=True, exit_on_failure=False,
+                                            exclude_ipv6_addresses=exclude_ipv6_addresses)
+            if target_vendor is not None:
+                ipv6_devices_with_vendor: List[Dict[str, str]] = list()
+                for result in ipv6_devices:
+                    if search(target_vendor, result['vendor'], IGNORECASE):
+                        ipv6_devices_with_vendor.append(result)
+                ipv6_devices = ipv6_devices_with_vendor
+
+            if target_vendor is not None:
+                assert len(ipv6_devices) != 0, \
+                    'Could not found alive ' + str(target_vendor) + ' IPv6 devices on interface: ' + \
+                    self._base.error_text(network_interface)
+            else:
+                assert len(ipv6_devices) != 0, \
+                    'Could not found alive IPv6 devices on interface: ' + \
+                    self._base.error_text(network_interface)
+
             # Target IPv6 and MAC address is not set
             if target['mac-address'] is None:
-                target = scanner.ipv6_device_selection(ipv6_devices)
-                target['ipv6-address'] = target['ip-address']
-                target['mac-address'] = target['mac-address']
+                if target_vendor is not None:
+                    self._base.print_success('Found ', str(len(ipv6_devices)), ' ' + target_vendor.capitalize() +
+                                             ' devices on interface: ', network_interface)
+                else:
+                    self._base.print_success('Found ', str(len(ipv6_devices)), ' alive hosts on interface: ',
+                                             network_interface)
+                hosts_pretty_table: PrettyTable = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
+                                                               self._base.cINFO + 'IPv6 address' + self._base.cEND,
+                                                               self._base.cINFO + 'MAC address' + self._base.cEND,
+                                                               self._base.cINFO + 'Vendor' + self._base.cEND])
+                device_index: int = 1
+                for device in ipv6_devices:
+                    hosts_pretty_table.add_row([str(device_index), device['ip-address'],
+                                                device['mac-address'], device['vendor']])
+                    device_index += 1
+
+                print(hosts_pretty_table)
+                device_index -= 1
+                print(self._base.c_info + 'Select target from range (1-' + str(device_index) + '): ', end='')
+                current_device_index = input()
+
+                if not current_device_index.isdigit():
+                    self._base.print_error('Your input data: ' + str(current_device_index) + ' is not digit!')
+                    exit(1)
+
+                if any([int(current_device_index) < 1, int(current_device_index) > device_index]):
+                    self._base.print_error('Your number is not within range (1-' + str(device_index) + ')')
+                    exit(1)
+
+                current_device_index = int(current_device_index) - 1
+                device: Dict[str, str] = ipv6_devices[current_device_index]
+                target['ipv6-address'] = device['ip-address']
+                target['mac-address'] = device['mac-address']
+                target['vendor'] = device['vendor']
+                self._base.print_info('Your choose target: ',
+                                      target['ipv6-address'] + ' (' +
+                                      target['mac-address'] + ')')
                 return target
 
             # Target MAC address is set but target IPv6 is not set

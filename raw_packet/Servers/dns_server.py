@@ -84,7 +84,7 @@ class DnsServer:
               fake_ipv6_addresses: List[str] = [],
               fake_domains_regexp: List[str] = [],
               no_such_domains: List[str] = [],
-              listen_ipv6: bool = False,
+              listen_ipv6: bool = True,
               disable_ipv4: bool = False,
               success_domains: List[str] = [],
               config_file: Union[None, str] = None,

@@ -7,6 +7,10 @@ Copyright 2020, Raw-packet Project
 """
 # endregion
 
+# region Import
+from raw_packet.Utils.base import Base
+# endregion
+
 # region Authorship information
 __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2020, Raw-packet Project'
@@ -22,24 +26,34 @@ __status__ = 'Development'
 # region Main class - Variables
 class Variables:
 
-    test_network_interface: str = 'eth1'
-    test_wireless_listen_interface: str = 'wlan0'
-    test_wireless_deauth_interface: str = 'wlan1'
+    base: Base = Base(admin_only=False, available_platforms=['Linux', 'Darwin', 'Windows'])
+
+    if base.get_platform().startswith('Linux'):
+        test_network_interface: str = 'eth1'
+        test_wireless_listen_interface: str = 'wlan0'
+        test_wireless_deauth_interface: str = 'wlan1'
+
+    elif base.get_platform().startswith('Windows'):
+        test_network_interface: str = 'Wireless'
+        test_wireless_listen_interface: str = 'Wireless'
+        test_wireless_deauth_interface: str = 'Wi-Fi'
+
+    elif base.get_platform().startswith('Darwin'):
+        test_network_interface: str = 'en0'
+        test_wireless_listen_interface: str = 'en0'
+        test_wireless_deauth_interface: str = 'en0'
 
     ipv4_network_mask: str = '255.255.255.0'
-    ipv4_broadcast: str = '192.168.1.255'
-    ipv4_network: str = '192.168.1.0/24'
-    ipv4_first_address: str = '192.168.1.1'
-    ipv4_second_address: str = '192.168.1.2'
-    ipv4_penultimate_address: str = '192.168.1.253'
-    ipv4_last_address: str = '192.168.1.254'
+    ipv4_broadcast: str = '192.168.0.255'
+    ipv4_network: str = '192.168.0.0/24'
+    ipv4_first_address: str = '192.168.0.1'
+    ipv4_second_address: str = '192.168.0.2'
+    ipv4_penultimate_address: str = '192.168.0.253'
+    ipv4_last_address: str = '192.168.0.254'
 
     router_vendor: str = 'D-Link'
-    router_mac_address: str = '00:21:91:12:34:56'
-    router_ipv4_address: str = '192.168.1.254'
-    router_ipv6_link_address: str = 'fe80::a00:27ff:feae:6aaf'
-    router_ipv6_glob_address: str = 'fd06:46b2:4912::1'
-    router_root_username: str = 'root'
+    router_mac_address: str = 'c4:a8:1d:8a:f9:b0'
+    router_ipv4_address: str = '192.168.0.254'
 
     your_mac_address: str = '08:00:27:af:c6:44'
     your_ipv4_address: str = '192.168.1.2'

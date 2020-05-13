@@ -8,9 +8,9 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from sys import path
-from os.path import dirname, abspath
-import unittest
+from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+from raw_packet.Tests.Unit_tests.variables import Variables
+from unittest import TestCase
 # endregion
 
 # region Authorship information
@@ -26,17 +26,15 @@ __status__ = 'Development'
 
 
 # region Main class - NetworkTest
-class ICMPv6ScanTest(unittest.TestCase):
+class ICMPv6ScanTest(TestCase):
 
     # region Properties
-    path.append(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
-    from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
-    from raw_packet.Tests.Unit_tests.variables import Variables
-    icmpv6_scan: ICMPv6Scan = ICMPv6Scan()
+    variables: Variables = Variables()
+    icmpv6_scan: ICMPv6Scan = ICMPv6Scan(variables.test_network_interface)
     # endregion
 
     def test01_scan(self):
-        icmpv6_scan_results = self.icmpv6_scan.scan(network_interface=ICMPv6ScanTest.Variables.test_network_interface)
+        icmpv6_scan_results = self.icmpv6_scan.scan(timeout=1, retry=1)
         self.assertIsNotNone(icmpv6_scan_results)
         self.assertTrue(len(icmpv6_scan_results) > 0)
         find_router_mac: bool = False
