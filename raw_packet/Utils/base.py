@@ -8,8 +8,10 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from platform import system, release
-from sys import exit, stdout
+try:
+    from platform import system, release, linux_distribution
+except ImportError:
+    from platform import system, release
 try:
     from os import getuid
 except ImportError:
@@ -20,11 +22,11 @@ try:
 except ModuleNotFoundError:
     pass
 from random import choice, randint
+from socket import inet_ntoa
 try:
-    from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
-    from netifaces import gateways
+    from netifaces import interfaces, ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 except ModuleNotFoundError:
-    from socket import AF_INET, AF_INET6, gethostname, gethostbyname
+    from socket import AF_INET, AF_INET6
     from getmac import get_mac_address
     from ifaddr import get_adapters
 from netaddr import IPNetwork, IPAddress
@@ -60,7 +62,7 @@ __status__ = 'Development'
 class Base:
 
     # region Set variables
-    vendor_list: List[Dict[str, str]] = list()
+    vendors: Dict[str, str] = dict()
     os_installed_packages_list = None
 
     _lock: Lock = Lock()
@@ -280,8 +282,17 @@ class Base:
 
     # region Check platform and user functions
     def get_platform(self) -> str:
+        """
+        Get your platform
+        :return: Platform string (example: 'Windows 10' or 'Darwin 19.0.0' or 'Linux Ubuntu 18.04')
+        """
         if self._current_platform is None:
-            self._current_platform = str(system()) + ' ' + str(release())
+            linux_dist = linux_distribution()
+            try:
+                assert linux_dist[0] != '' and linux_dist[1] != '' and linux_dist[0] != system()
+                self._current_platform = str(system()) + ' ' + str(linux_dist[0]) + ' ' + str(linux_dist[1])
+            except AssertionError:
+                self._current_platform = str(system()) + ' ' + str(release())
         return self._current_platform
 
     def check_platform(self,
@@ -905,10 +916,6 @@ class Base:
             else:
                 return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
 
-        except NameError:
-            host_name = gethostname()
-            return gethostbyname(host_name)
-
         except ValueError:
             pass
 
@@ -1136,7 +1143,8 @@ class Base:
                 for adapter in self._windows_adapters:
                     for ip in adapter.ips:
                         if ip.nice_name == interface_name and ip.is_IPv4:
-                            return str(ip.network_prefix)
+                            bits = 0xffffffff ^ (1 << 32 - ip.network_prefix) - 1
+                            return str(inet_ntoa(pack('>I', bits)))
                 return None
             else:
                 return str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
@@ -1180,10 +1188,7 @@ class Base:
                                                        exit_code=exit_code,
                                                        quiet=quiet)
             ip = IPNetwork(ip_address + '/' + netmask)
-            if self.get_platform().startswith('Windows'):
-                return str(ip[0]) + '/' + netmask
-            else:
-                return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
+            return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
 
         except KeyError:
             pass
@@ -2102,34 +2107,36 @@ class Base:
             pass
         return name_servers_ip_addresses
 
-    def get_mac_prefixes(self, prefixes_filename: str = 'mac-prefixes.txt') -> List[Dict[str, str]]:
+    def get_mac_prefixes(self, prefixes_filename: str = 'mac-prefixes.txt') -> Dict[str, str]:
         """
         Get MAC address prefixes from file
         :param prefixes_filename: Name of file with MAC address prefixes (content example: 00:00:01\tXerox\tXerox Corporation)
         :return: MAC prefixes list (example: [{'prefix': '00:00:01', 'vendor': 'Xerox Corporation'}])
         """
-        assert len(self.vendor_list) == 0, 'Vendor list already exist!'
+        assert len(self.vendors) == 0, 'Vendor list already exist!'
         try:
             if not isfile(prefixes_filename):
                 prefixes_filename = join(dirname(abspath(__file__)), prefixes_filename)
                 assert isfile(prefixes_filename), \
                     'File with MAC addresses list: ' + self.error_text(prefixes_filename) + ' not found!'
-            with open(prefixes_filename, 'r') as mac_prefixes_descriptor:
-                for mac_and_vendor_string in mac_prefixes_descriptor.read().splitlines():
-                    mac_and_vendor_list = mac_and_vendor_string.split('\t')
+            with open(prefixes_filename, 'r', encoding='utf-8') as mac_prefixes_descriptor:
+                mac_and_vendor_string = 'begin'
+                while mac_and_vendor_string:
                     try:
-                        self.vendor_list.append({
-                            'prefix': mac_and_vendor_list[0],
-                            'vendor': mac_and_vendor_list[2]
-                        })
-                    except IndexError:
-                        self.vendor_list.append({
-                            'prefix': mac_and_vendor_list[0],
-                            'vendor': mac_and_vendor_list[1]
-                        })
+                        mac_and_vendor_string = mac_prefixes_descriptor.readline()[:-1]
+                        mac_and_vendor_list = mac_and_vendor_string.split('\t')
+                        if len(mac_and_vendor_list) > 1:
+                            try:
+                                self.vendors[mac_and_vendor_list[0]] = mac_and_vendor_list[2]
+                            except IndexError:
+                                self.vendors[mac_and_vendor_list[0]] = mac_and_vendor_list[1]
+                            finally:
+                                pass
+                    except UnicodeError:
+                        pass
         except AssertionError:
             pass
-        return self.vendor_list
+        return self.vendors
 
     def get_vendor_by_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:
         """
@@ -2137,15 +2144,14 @@ class Base:
         :param mac_address: MAC address of host (example: '01:23:45:67:89:0a')
         :return: Vendor string
         """
-        if len(self.vendor_list) == 0:
+        if len(self.vendors) == 0:
             self.get_mac_prefixes()
         if not self.mac_address_validation(mac_address):
             return 'Unknown vendor'
         mac_address: str = mac_address.upper()
-        for vendor_dictionary in self.vendor_list:
-            if len(vendor_dictionary['prefix']) == 8:
-                if vendor_dictionary['prefix'] in mac_address:
-                    return vendor_dictionary['vendor']
+        for vendor_mac_prefix in self.vendors.keys():
+            if mac_address.startswith(vendor_mac_prefix):
+                return self.vendors[vendor_mac_prefix]
         return 'Unknown vendor'
 
     def macos_encode_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:

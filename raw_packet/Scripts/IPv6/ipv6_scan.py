@@ -13,6 +13,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+from raw_packet.Scanners.icmpv6_router_search import ICMPv6RouterSearch
 from argparse import ArgumentParser
 from prettytable import PrettyTable
 from typing import Union, Dict, List
@@ -60,6 +61,7 @@ def main():
     your_mac_address: str = base.get_interface_mac_address(current_network_interface)
     your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=current_network_interface)
+    router_search: ICMPv6RouterSearch = ICMPv6RouterSearch(network_interface=current_network_interface)
     # endregion
 
     # region Set Target MAC address
@@ -81,8 +83,8 @@ def main():
 
     # region Search IPv6 router
     if args.router_search:
-        router_info: Dict[str, Union[int, str]] = icmpv6_scan.search_router(timeout=args.timeout, retry=args.retry,
-                                                                            exit_on_failure=True)
+        router_info: Dict[str, Union[int, str]] = router_search.search(timeout=args.timeout, retry=args.retry,
+                                                                       exit_on_failure=True)
         base.print_success("Found IPv6 router:")
         base.print_info("Router IPv6 link local address: ", router_info['router_ipv6_address'])
         if 'dns-server' in router_info.keys():

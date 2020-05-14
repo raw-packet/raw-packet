@@ -35,6 +35,55 @@ class Utils:
     _base: Base = Base()
     # endregion
 
+    # region Get free IPv4 addresses on interface
+    def get_free_ipv4_addresses(self,
+                                network_interface: str,
+                                first_ipv4_address: Union[None, str] = None,
+                                last_ipv4_address: Union[None, str] = None,
+                                quiet: bool = False) -> List[str]:
+        your = self._base.get_interface_settings(interface_name=network_interface,
+                                                 required_parameters=['mac-address',
+                                                                      'ipv4-address',
+                                                                      'first-ipv4-address',
+                                                                      'last-ipv4-address'])
+        arp_scan: ArpScan = ArpScan(network_interface=network_interface)
+        free_ipv4_addresses: List[str] = list()
+
+        if first_ipv4_address is not None:
+            current_ipv4_address: str = self.check_ipv4_address(network_interface=network_interface,
+                                                                ipv4_address=first_ipv4_address,
+                                                                is_local_ipv4_address=True,
+                                                                parameter_name='first IPv4 address')
+        else:
+            current_ipv4_address: str = your['first-ipv4-address']
+
+        if last_ipv4_address is not None:
+            last_ipv4_address: str = self.check_ipv4_address(network_interface=network_interface,
+                                                             ipv4_address=last_ipv4_address,
+                                                             is_local_ipv4_address=True,
+                                                             parameter_name='last IPv4 address')
+        else:
+            last_ipv4_address: str = your['last-ipv4-address']
+
+        while self._base.ip_address_compare(current_ipv4_address, last_ipv4_address, 'le'):
+            free_ipv4_addresses.append(current_ipv4_address)
+            current_ipv4_address = self._base.ip_address_increment(current_ipv4_address)
+
+        if not quiet:
+            self._base.print_info('Find free IPv4 addresses on interface: ', your['network-interface'])
+        alive_hosts = arp_scan.scan(timeout=5, retry=5, check_vendor=False,
+                                    exclude_ip_addresses=[your['ipv4-address']],
+                                    exit_on_failure=False, show_scan_percentage=False)
+
+        for alive_host in alive_hosts:
+            try:
+                free_ipv4_addresses.remove(alive_host['ip-address'])
+            except ValueError:
+                pass
+
+        return free_ipv4_addresses
+    # endregion
+
     # region Set Target MAC- and IPv4-address
     def set_ipv4_target(self,
                         network_interface: str,

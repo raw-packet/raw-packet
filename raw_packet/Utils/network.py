@@ -5790,7 +5790,6 @@ class RawSend:
 class RawSniff:
 
     # region variables
-    sniff_socket: Union[None, socket] = None
     protocols: Union[None, List[str]] = None
     prn: Union[None, Any] = None
     filters: Union[None, Dict[str, Union[str, Dict[str, Union[int, str, List[int]]]]]] = None
@@ -5828,36 +5827,28 @@ class RawSniff:
         self.filters = filters
         # endregion
 
+        # region Start sniffing
         try:
-            # region Create RAW socket for sniffing
-            try:
-                self.sniff_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
-            except NameError:
-                sniff(iface=network_interface, store=False, prn=self._scapy_prn,
-                      filter=scapy_filter, lfilter=scapy_lfilter)
-            except KeyboardInterrupt:
-                self.Base.print_info('Exit')
-                exit(0)
-            # endregion
-
-            # region Start sniffing from RAW socket
-            if self.sniff_socket is not None:
-                while True:
-                    try:
-                        packets: Tuple[bytes, Any] = self.sniff_socket.recvfrom(65535)
-                        assert packets[1][0] == network_interface, 'Bad network interface!'
-                        packet = packets[0]
-                        self._analyze_packet(packet=packet)
-                    except AssertionError:
-                        pass
-                    except KeyboardInterrupt:
-                        self.Base.print_info('Exit')
-                        exit(0)
-            # endregion
-
+            sniff_socket = socket(AF_PACKET, SOCK_RAW, htons(0x0003))
+            while True:
+                try:
+                    packets: Tuple[bytes, Any] = sniff_socket.recvfrom(65535)
+                    assert packets[1][0] == network_interface, 'Bad network interface!'
+                    packet = packets[0]
+                    self._analyze_packet(packet=packet)
+                except AssertionError:
+                    pass
+                except KeyboardInterrupt:
+                    sniff_socket.close()
+                    self.Base.print_info('Exit')
+                    exit(0)
+        except NameError:
+            sniff(iface=network_interface, store=False, prn=self._scapy_prn,
+                  filter=scapy_filter, lfilter=scapy_lfilter)
         except KeyboardInterrupt:
             self.Base.print_info('Exit')
             exit(0)
+        # endregion
 
     # endregion
 
@@ -6373,12 +6364,6 @@ class RawSniff:
             pass
         # endregion
 
-    # endregion
-
-    # region Destructor
-    def __del__(self):
-        if self.sniff_socket is not None:
-            self.sniff_socket.close()
     # endregion
 
 # endregion

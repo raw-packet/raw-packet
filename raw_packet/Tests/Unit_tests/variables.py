@@ -9,6 +9,7 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from collections import namedtuple
 # endregion
 
 # region Authorship information
@@ -28,51 +29,87 @@ class Variables:
 
     base: Base = Base(admin_only=False, available_platforms=['Linux', 'Darwin', 'Windows'])
 
-    if base.get_platform().startswith('Linux'):
-        test_network_interface: str = 'eth1'
-        test_wireless_listen_interface: str = 'wlan0'
-        test_wireless_deauth_interface: str = 'wlan1'
+    Settings = namedtuple('Settings', 'network_interface, vendor, platform, mac_address, ipv4_address, '
+                                      'ipv6_link_address, ipv6_global_address, port')
 
-    elif base.get_platform().startswith('Windows'):
-        test_network_interface: str = 'Wireless'
-        test_wireless_listen_interface: str = 'Wireless'
-        test_wireless_deauth_interface: str = 'Wi-Fi'
+    IPv4 = namedtuple('IPv4', 'network_mask, broadcast, network, first_address, '
+                              'second_address, penultimate_address, last_address')
+
+    kali: Settings = Settings(network_interface='eth0',
+                              vendor='Dell',
+                              platform='Linux Kali GNU/Linux 2019.4',
+                              mac_address='00:06:5b:00:00:00',
+                              ipv4_address='192.168.1.100',
+                              ipv6_link_address='fe80::1e52:e6c2:78fc:82a7',
+                              ipv6_global_address='fd06:46b2:4912::100',
+                              port=22)
+
+    macos: Settings = Settings(network_interface='en0',
+                               vendor='Apple',
+                               platform='Darwin 19.0.0',
+                               mac_address='00:03:93:11:11:11',
+                               ipv4_address='192.168.1.101',
+                               ipv6_link_address='fe80::8a5:f12c:742d:df5f',
+                               ipv6_global_address='fd06:46b2:4912::101',
+                               port=22)
+
+    windows: Settings = Settings(network_interface='Internal',
+                                 vendor='Intel',
+                                 platform='Windows 10',
+                                 mac_address='00:02:b3:22:22:22',
+                                 ipv4_address='192.168.1.102',
+                                 ipv6_link_address='fe80::981:d7f:38d7:91a2',
+                                 ipv6_global_address='fd06:46b2:4912::102',
+                                 port=22)
+
+    ubuntu: Settings = Settings(network_interface='enp0s3',
+                                vendor='Next',
+                                platform='Linux Ubuntu 18.04',
+                                mac_address='00:00:0f:33:33:33',
+                                ipv4_address='192.168.1.103',
+                                ipv6_link_address='fe80::d208:c1a7:c669:4788',
+                                ipv6_global_address='fd06:46b2:4912::103',
+                                port=22)
+
+    router: Settings = Settings(network_interface='br-lan',
+                                vendor='Cisco Systems',
+                                platform='Openwrt',
+                                mac_address='00:00:0c:ff:ff:ff',
+                                ipv4_address='192.168.1.254',
+                                ipv6_link_address='fe80::200:cff:feff:ffff',
+                                ipv6_global_address='fd06:46b2:4912::1',
+                                port=22)
+
+    bad: Settings = Settings(network_interface='wlan123',
+                             vendor='Unknown vendor',
+                             platform='Unknown platform',
+                             mac_address='12:34:56:78:90:abc',
+                             ipv4_address='192.168.0.1234',
+                             ipv6_link_address='fe80:::123',
+                             ipv6_global_address='fd06:46b2:4912:::123',
+                             port=123456)
+
+    ipv4: IPv4 = IPv4(network_mask='255.255.255.0',
+                      broadcast='192.168.1.255',
+                      network='192.168.1.0/24',
+                      first_address='192.168.1.1',
+                      second_address='192.168.1.2',
+                      penultimate_address='192.168.1.253',
+                      last_address='192.168.1.254')
+
+    target: Settings = ubuntu
+
+    if base.get_platform().startswith('Linux'):
+        if 'Kali' in base.get_platform():
+            your: Settings = kali
+        elif 'Ubuntu' in base.get_platform():
+            your: Settings = ubuntu
+            target: Settings = macos
 
     elif base.get_platform().startswith('Darwin'):
-        test_network_interface: str = 'en0'
-        test_wireless_listen_interface: str = 'en0'
-        test_wireless_deauth_interface: str = 'en0'
+        your: Settings = macos
 
-    ipv4_network_mask: str = '255.255.255.0'
-    ipv4_broadcast: str = '192.168.0.255'
-    ipv4_network: str = '192.168.0.0/24'
-    ipv4_first_address: str = '192.168.0.1'
-    ipv4_second_address: str = '192.168.0.2'
-    ipv4_penultimate_address: str = '192.168.0.253'
-    ipv4_last_address: str = '192.168.0.254'
-
-    router_vendor: str = 'D-Link'
-    router_mac_address: str = 'c4:a8:1d:8a:f9:b0'
-    router_ipv4_address: str = '192.168.0.254'
-
-    your_mac_address: str = '08:00:27:af:c6:44'
-    your_ipv4_address: str = '192.168.1.2'
-    your_ipv6_link_address: str = 'fe80::a00:27ff:feaf:c644'
-    your_ipv6_glob_address: str = 'fd06:46b2:4912::66f'
-
-    apple_device_mac_address: str = '00:03:93:12:34:56'
-    apple_device_ipv4_address: str = '192.168.1.3'
-    apple_device_new_ipv4_address: str = '192.168.1.111'
-    apple_device_ipv6_link_address: str = 'fe80::1016:45cc:5037:e16d'
-    apple_device_ipv6_glob_address: str = 'fd00::123'
-    apple_device_username: str = 'admin'
-    apple_device_root_username: str = 'root'
-    apple_device_network_interface: str = 'en0'
-
-    bad_network_interface: str = 'wlan123'
-    bad_mac_address: str = '12:34:56:78:90:abc'
-    bad_ipv4_address: str = '192.168.0.1234'
-    bad_ipv6_address: str = 'fd00:::123'
-    bad_port: str = '1234567'
+    elif base.get_platform().startswith('Windows'):
+        your: Settings = windows
 
 # endregion

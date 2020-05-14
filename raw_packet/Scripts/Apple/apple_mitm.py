@@ -17,7 +17,7 @@ from raw_packet.Utils.tm import ThreadManager
 from raw_packet.Utils.wifi import WiFi
 from raw_packet.Utils.network import RawSniff
 
-from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.nmap_scanner import Scanner
 from raw_packet.Scanners.arp_scanner import ArpScan
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 

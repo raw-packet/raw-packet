@@ -11,7 +11,7 @@ Copyright 2020, Raw-packet Project
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.tm import ThreadManager
-from raw_packet.Scanners.scanner import Scanner
+from raw_packet.Scanners.nmap_scanner import Scanner
 from raw_packet.Utils.network import RawSniff, RawSend, RawEthernet, RawARP, RawDHCPv4
 from typing import List, Union, Dict, Any
 from random import randint
