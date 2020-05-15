@@ -32,28 +32,24 @@ __status__ = 'Production'
 __script_name__ = 'ARP Scanner (arp_scan)'
 # endregion
 
+# region Init Raw-packet Base class
+base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
+# endregion
 
-# region Main function
-def main(args) -> None:
+
+# region Scan function
+def scan(interface: Union[None, str] = None,
+         target_ip: Union[None, str] = None,
+         timeout: int = 5,
+         retry: int = 5):
     """
-    Start ARP Scanner (arp_scan)
+    ARP scan
+    :param interface: Network interface name for ARP scanner
+    :param target_ip: Target IPv4 address
+    :param timeout: Timeout (default=5)
+    :param retry: Number of retry packets (default=5)
     :return: None
     """
-
-    # region Init Raw-packet Base class
-    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
-    # endregion
-
-    # region Parse script arguments
-    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
-                                            formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
-    parser.add_argument('-t', '--target_ip', type=str, help='Set target IPv4 address', default=None)
-    parser.add_argument('--timeout', type=int, help='Set timeout (default=5)', default=5)
-    parser.add_argument('--retry', type=int, help='Set number of retry (default=5)', default=5)
-    args = parser.parse_args(args)
-    # endregion
-
     # region Print banner
     base.print_banner(__script_name__)
     # endregion
@@ -61,7 +57,7 @@ def main(args) -> None:
     try:
         # region Get your network interface settings
         current_network_interface: str = \
-            base.network_interface_selection(interface_name=args.interface,
+            base.network_interface_selection(interface_name=interface,
                                              message='Please select a network interface for ' +
                                                      __script_name__ + ' from table: ')
         current_network_interface_settings: Dict[str, Union[None, str, List[str]]] = \
@@ -73,10 +69,10 @@ def main(args) -> None:
         # endregion
 
         # region Target IP is set
-        if args.target_ip is not None:
+        if target_ip is not None:
             utils: Utils = Utils()
             utils.check_ipv4_address(network_interface=current_network_interface,
-                                     ipv4_address=args.target_ip,
+                                     ipv4_address=target_ip,
                                      is_local_ipv4_address=True,
                                      parameter_name='target IPv4 address')
         # endregion
@@ -87,19 +83,19 @@ def main(args) -> None:
         base.print_info('Your MAC address: ', current_network_interface_settings['mac-address'])
 
         # If target IP address is set print target IP, else print first and last IP
-        if args.target_ip is not None:
-            base.print_info('Target IP: ', args.target_ip)
+        if target_ip is not None:
+            base.print_info('Target IP: ', target_ip)
         else:
             base.print_info('First IP: ', current_network_interface_settings['first-ipv4-address'])
             base.print_info('Last IP: ', current_network_interface_settings['last-ipv4-address'])
-        base.print_info('Timeout: ', str(args.timeout) + ' sec.')
-        base.print_info('Retry: ', str(args.retry))
+        base.print_info('Timeout: ', str(timeout) + ' sec.')
+        base.print_info('Retry: ', str(retry))
         # endregion
 
         # region Start scanner
         arp_scan: ArpScan = ArpScan(network_interface=current_network_interface)
-        results: List[Dict[str, str]] = arp_scan.scan(timeout=args.timeout, retry=args.retry,
-                                                      target_ip_address=args.target_ip,
+        results: List[Dict[str, str]] = arp_scan.scan(timeout=timeout, retry=retry,
+                                                      target_ip_address=target_ip,
                                                       check_vendor=True, exclude_ip_addresses=None,
                                                       exit_on_failure=False, show_scan_percentage=True)
         # endregion
@@ -108,7 +104,10 @@ def main(args) -> None:
         assert len(results) != 0, \
             'Could not find devices in local network on interface: ' + base.error_text(current_network_interface)
 
-        base.print_success('Found ', str(len(results)), ' alive hosts on interface: ', current_network_interface)
+        if target_ip is None:
+            base.print_success('Found ', str(len(results)), ' alive hosts on interface: ', current_network_interface)
+        else:
+            base.print_success('Found target: ', target_ip)
         pretty_table = PrettyTable([base.cINFO + 'Index' + base.cEND,
                                     base.cINFO + 'IP address' + base.cEND,
                                     base.cINFO + 'MAC address' + base.cEND,
@@ -130,7 +129,34 @@ def main(args) -> None:
 # endregion
 
 
+# region Main function
+def main() -> None:
+    """
+    Start ARP Scanner (arp_scan)
+    :return: None
+    """
+
+    # region Parse script arguments
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
+    parser.add_argument('-t', '--target_ip', type=str, help='Set target IPv4 address', default=None)
+    parser.add_argument('--timeout', type=int, help='Set timeout (default=5)', default=5)
+    parser.add_argument('--retry', type=int, help='Set number of retry packets (default=5)', default=5)
+    args = parser.parse_args()
+    # endregion
+
+    # region Scan
+    scan(interface=args.interface,
+         target_ip=args.target_ip,
+         timeout=args.timeout,
+         retry=args.retry)
+    # endregion
+
+# endregion
+
+
 # region Call Main function
 if __name__ == "__main__":
-    main(args=argv[1:])
+    main()
 # endregion
