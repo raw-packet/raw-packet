@@ -10,6 +10,7 @@ Copyright 2020, Raw-packet Project
 # region Import
 from raw_packet.Utils.base import Base
 from collections import namedtuple
+from tempfile import gettempdir
 # endregion
 
 # region Authorship information
@@ -100,6 +101,8 @@ class Variables:
     target: Settings = ubuntu
 
     if base.get_platform().startswith('Linux'):
+        tshark_executable: str = 'tshark'
+        temp_directory: str = gettempdir()
         if 'Kali' in base.get_platform():
             your: Settings = kali
         elif 'Ubuntu' in base.get_platform():
@@ -107,9 +110,13 @@ class Variables:
             target: Settings = macos
 
     elif base.get_platform().startswith('Darwin'):
+        tshark_executable: str = 'tshark'
+        temp_directory: str = '/tmp/'
         your: Settings = macos
 
     elif base.get_platform().startswith('Windows'):
+        tshark_executable: str = '"C:\\Program Files\\Wireshark\\tshark.exe"'
+        temp_directory: str = gettempdir()
         your: Settings = windows
 
 # endregion

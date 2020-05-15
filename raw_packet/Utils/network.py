@@ -1326,8 +1326,9 @@ class RawIPv6:
             pass
 
         except OSError:
-            error_text += ' Bad number of octets: ' + self.base.error_text(str(octets)) + \
-                          ' example: ' + self.base.info_text('1')
+            error_text += \
+                ' Bad number of octets: ' + self.base.error_text(str(octets)) + \
+                ' example: ' + self.base.info_text('1')
 
         if not quiet:
             self.base.print_error(error_text)

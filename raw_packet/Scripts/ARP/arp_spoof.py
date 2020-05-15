@@ -67,7 +67,7 @@ class ArpSpoof:
               ipv6_multicast: bool = False,
               broadcast: bool = False,
               requests: bool = False,
-              quit: bool = False) -> None:
+              quiet: bool = False) -> None:
         """
         Start ARP Spoofing
         :param gateway_ipv4_address: Gateway IPv4 address (example: '192.168.0.254')
@@ -80,7 +80,7 @@ class ArpSpoof:
         :param broadcast: Send only ARP replies/requests to broadcast MAC address
                           to spoof ARP table in all hosts in local network (default: False)
         :param requests: Send only ARP requests to spoof ARP table in target host (default: False)
-        :param quit: Quit mode (default: False)
+        :param quiet: Quit mode (default: False)
         :return: None
         """
         try:
@@ -100,7 +100,7 @@ class ArpSpoof:
             # endregion
     
             # region General output
-            if not quit:
+            if not quiet:
                 self._base.print_info('Network interface: ', self._your['network-interface'])
                 self._base.print_info('Gateway IPv4 address: ', gateway_ipv4_address)
                 self._base.print_info('Your IPv4 address: ', self._your['ipv4-address'])
@@ -164,7 +164,7 @@ class ArpSpoof:
                                                        target_ipv4_address=target_ipv4_address,
                                                        target_mac_address=target_mac_address,
                                                        exclude_ipv4_addresses=[gateway_ipv4_address])
-            if not quit:
+            if not quiet:
                 self._base.print_success('Target IPv4 address: ', self._target['ipv4-address'])
                 self._base.print_success('Target MAC address: ', self._target['mac-address'])
                 if self._target['vendor'] is not None:
@@ -214,12 +214,12 @@ class ArpSpoof:
             # endregion
 
         except KeyboardInterrupt:
-            if not quit:
+            if not quiet:
                 self._base.print_info('Exit')
             exit(0)
 
         except AssertionError as Error:
-            if not quit:
+            if not quiet:
                 self._base.print_error(Error.args[0])
             exit(1)
     # endregion
@@ -278,7 +278,7 @@ def main() -> None:
                         ipv6_multicast=args.ipv6_multicast,
                         broadcast=args.broadcast,
                         requests=args.requests,
-                        quit=args.quiet)
+                        quiet=args.quiet)
 
     except KeyboardInterrupt:
         if not args.quiet:

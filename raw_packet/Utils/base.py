@@ -1750,16 +1750,18 @@ class Base:
                 exit(exit_code)
             return None
 
-    @staticmethod
-    def kill_process(process_pid: int) -> bool:
+    def kill_process(self, process_pid: int) -> bool:
         """
         Kill process by ID
         :param process_pid: Process ID integer
         :return: True if kill process or False if not
         """
         try:
-            process = ps.Process(process_pid)
-            process.terminate()
+            if self.get_platform().startswith('Windows'):
+                sub.check_output('taskkill /F /PID ' + str(process_pid), shell=True)
+            else:
+                process = ps.Process(process_pid)
+                process.terminate()
             return True
         except ps.NoSuchProcess:
             return False
@@ -1770,13 +1772,17 @@ class Base:
         :param process_name: Process name string (default: apache2)
         :return: True if kill process or False if not
         """
-        process_pid = self.get_process_pid(process_name)
-        if process_pid != -1:
-            while (self.get_process_pid(process_name) != -1):
-                self.kill_process(process_pid)
+        if self.get_platform().startswith('Windows'):
+            sub.check_output('taskkill /F /IM ' + process_name, shell=True)
             return True
         else:
-            return False
+            process_pid = self.get_process_pid(process_name)
+            if process_pid != -1:
+                while (self.get_process_pid(process_name) != -1):
+                    self.kill_process(process_pid)
+                return True
+            else:
+                return False
 
     def kill_processes_by_listen_port(self,
                                       listen_port: int = 80,
