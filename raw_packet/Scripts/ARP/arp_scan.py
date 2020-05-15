@@ -17,6 +17,7 @@ from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from prettytable import PrettyTable
 from typing import List, Dict, Union
+from sys import argv
 # endregion
 
 # region Authorship information
@@ -33,7 +34,7 @@ __script_name__ = 'ARP Scanner (arp_scan)'
 
 
 # region Main function
-def main() -> None:
+def main(args) -> None:
     """
     Start ARP Scanner (arp_scan)
     :return: None
@@ -47,10 +48,10 @@ def main() -> None:
     parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
                                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner', default=None)
-    parser.add_argument('-t', '--target_ip', type=str, help='Set target IP address', default=None)
+    parser.add_argument('-t', '--target_ip', type=str, help='Set target IPv4 address', default=None)
     parser.add_argument('--timeout', type=int, help='Set timeout (default=5)', default=5)
     parser.add_argument('--retry', type=int, help='Set number of retry (default=5)', default=5)
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     # endregion
 
     # region Print banner
@@ -131,5 +132,5 @@ def main() -> None:
 
 # region Call Main function
 if __name__ == "__main__":
-    main()
+    main(args=argv[1:])
 # endregion
