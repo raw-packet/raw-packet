@@ -58,7 +58,7 @@ class DHCPv6Server:
     
     _disable_dhcpv6: bool = False
     _exit_on_success: bool = False
-    _quit: bool = True
+    _quiet: bool = True
     # endregion
 
     # region Init
@@ -81,7 +81,7 @@ class DHCPv6Server:
               domain_search: str = 'domain.local',
               disable_dhcpv6: bool = False,
               exit_on_success: bool = False,
-              quit: bool = False) -> None:
+              quiet: bool = False) -> None:
 
         # region Set variables
         self._ipv6_prefix: str = ipv6_prefix
@@ -89,7 +89,7 @@ class DHCPv6Server:
         self._disable_dhcpv6 = disable_dhcpv6
         self._domain_search = domain_search
         self._exit_on_success = exit_on_success
-        self._quit = quit
+        self._quiet = quiet
         # endregion
 
         # region Set target MAC and IPv6 address, if target IP is not set - get first and last suffix IPv6 address
@@ -144,7 +144,7 @@ class DHCPv6Server:
         # endregion
 
         # region General output
-        if not self._quit:
+        if not self._quiet:
             self._base.print_info('Network interface: ', self._your['network-interface'])
             self._base.print_info('Your MAC address: ', self._your['mac-address'])
             self._base.print_info('Your link local IPv6 address: ', self._your['ipv6-link-address'])
@@ -205,11 +205,11 @@ class DHCPv6Server:
         self._base.add_multicast_mac_address(interface_name=self._your['network-interface'],
                                              multicast_mac_address='33:33:00:00:00:02',
                                              exit_on_failure=False,
-                                             quiet=self._quit)
+                                             quiet=self._quiet)
         self._base.add_multicast_mac_address(interface_name=self._your['network-interface'],
                                              multicast_mac_address='33:33:00:01:00:02',
                                              exit_on_failure=False,
-                                             quiet=self._quit)
+                                             quiet=self._quiet)
     # endregion
 
     # region Add client info in global self._clients dictionary

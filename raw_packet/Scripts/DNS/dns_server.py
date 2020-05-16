@@ -104,15 +104,15 @@ def main() -> None:
             base.get_interface_settings(interface_name=current_network_interface,
                                         required_parameters=['mac-address',
                                                              'ipv4-address'])
+        if current_network_interface_settings['ipv6-link-address'] is None:
+            current_network_interface_settings['ipv6-link-address'] = \
+                base.make_ipv6_link_address(current_network_interface_settings['mac-address'])
         # endregion
 
         # region General output
         base.print_info('Network interface: ', current_network_interface_settings['network-interface'])
         base.print_info('Your IPv4 address: ', current_network_interface_settings['ipv4-address'])
-        if current_network_interface_settings['ipv6-link-address'] is None:
-            base.print_info('Your IPv6 address: ', base.make_ipv6_link_address(current_network_interface_settings['mac-address']))
-        else:
-            base.print_info('Your IPv6 address: ', current_network_interface_settings['ipv6-link-address'])
+        base.print_info('Your IPv6 address: ', current_network_interface_settings['ipv6-link-address'])
         base.print_info('Your MAC address: ', current_network_interface_settings['mac-address'])
         # endregion
 

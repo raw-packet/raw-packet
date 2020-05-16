@@ -32,32 +32,20 @@ __script_name__ = 'SLAAC/DHCPv6 server (dhcpv6_server)'
 # region Main function
 def main():
 
-    # region Raw-packet modules
-    base: Base = Base()
-    # endregion
-
-    # region Check user and platform
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    # region Init Raw-packet classes
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments
-    script_description: str = \
-        base.get_banner() + '\n' + \
-        ' ' * (int((55 - len(__script_name__)) / 2)) + \
-        base.info_text(__script_name__) + '\n\n'
-    parser = ArgumentParser(description=script_description, formatter_class=RawDescriptionHelpFormatter)
-
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', help='Set interface name for send reply packets')
     parser.add_argument('-p', '--prefix', type=str, help='Set network prefix', default='fde4:8dba:82e1:ffff::/64')
-
     parser.add_argument('-f', '--first_suffix', type=int, help='Set first suffix client IPv6 for offering', default=2)
     parser.add_argument('-l', '--last_suffix', type=int, help='Set last suffix client IPv6 for offering', default=65534)
-
     parser.add_argument('-t', '--target_mac', type=str, help='Set target MAC address', default=None)
     parser.add_argument('-T', '--target_ipv6', type=str, help='Set client Global IPv6 address with MAC --target_mac',
                         default=None)
-
     parser.add_argument('-D', '--disable_dhcpv6', action='store_true', help='Do not use DHCPv6 protocol')
     parser.add_argument('-d', '--dns', type=str, help='Set recursive DNS IPv6 address', default=None)
     parser.add_argument('-s', '--dns_search', type=str, help='Set DNS search domain', default='domain.local')
@@ -68,13 +56,14 @@ def main():
 
     # region Print banner if argument quit is not set
     if not args.quiet:
-        base.print_banner()
+        base.print_banner(__script_name__)
     # endregion
 
     # region Get your network settings
-    if args.interface is None:
-        base.print_warning('Please set a network interface for sniffing DHCPv4 requests ...')
-    current_network_interface = base.network_interface_selection(args.interface)
+    current_network_interface: str = \
+        base.network_interface_selection(interface_name=args.interface,
+                                         message='Please select a network interface for ' +
+                                                 __script_name__ + ' from table: ')
     # endregion
 
     try:
@@ -87,7 +76,7 @@ def main():
                             ipv6_prefix=args.prefix,
                             domain_search=args.dns_search,
                             disable_dhcpv6=args.disable_dhcpv6,
-                            quit=args.quiet)
+                            quiet=args.quiet)
 
     except KeyboardInterrupt:
         base.print_info('Exit ....')

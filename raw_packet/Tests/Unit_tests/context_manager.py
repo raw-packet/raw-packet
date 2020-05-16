@@ -25,6 +25,7 @@ __status__ = 'Development'
 # endregion
 
 
+# region Class ContextManager
 class ContextManager:
 
     @contextmanager
@@ -36,3 +37,4 @@ class ContextManager:
             yield sys.stdout, sys.stderr
         finally:
             sys.stdout, sys.stderr = old_out, old_err
+# endregion

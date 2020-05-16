@@ -1,1 +1,2 @@
-raw_packet/Utils/Phishing_domains/* linguist-vendored
+raw_packet/Servers/Phishing/apple/* linguist-vendored
+raw_packet/Servers/Phishing/google/* linguist-vendored

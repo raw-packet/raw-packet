@@ -14,6 +14,7 @@ Copyright 2020, Raw-packet Project
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+from raw_packet.Scanners.icmpv6_router_search import ICMPv6RouterSearch
 from raw_packet.Utils.network import RawICMPv6, RawSend
 from argparse import ArgumentParser, RawTextHelpFormatter
 from time import sleep
@@ -56,36 +57,12 @@ class IPv6Spoof:
         :param network_interface: Network interface name
         """
         self._your = self._base.get_interface_settings(interface_name=network_interface,
-                                                       required_parameters=['mac-address',
-                                                                            'ipv6-link-address'])
+                                                       required_parameters=['mac-address'])
+        if self._your['ipv6-link-address'] is None:
+            self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac-address'])
         self._raw_send: RawSend = RawSend(network_interface=network_interface)
         self._icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=network_interface)
-    # endregion
-
-    # region Check IPv6 address
-    def _check_ipv6_address(self, 
-                            ipv6_address: str, 
-                            parameter_name: str = 'gateway IPv6 address') -> str:
-        
-        assert self._base.ipv6_address_validation(ipv6_address), \
-            'Bad ' + parameter_name.capitalize() + ': ' + \
-            self._base.error_text(ipv6_address) + \
-            '; Failed to validate ipv6 address!'
-        
-        assert str(ipv6_address).startswith('fe80::'), \
-            'Bad ' + parameter_name.capitalize() + ': ' + \
-            self._base.error_text(ipv6_address) + \
-            '; ' + parameter_name.capitalize() + \
-            ' must be starts with: ' + \
-            self._base.info_text('fe80::')
-        
-        assert ipv6_address != self._your['ipv6-link-address'], \
-            'Bad ' + parameter_name.capitalize() + ': ' + \
-            self._base.error_text(ipv6_address) + \
-            '; ' + parameter_name.capitalize() + \
-            ' is your Link local IPv6 address!'
-        
-        return ipv6_address
+        self._icmpv6_router_search: ICMPv6RouterSearch = ICMPv6RouterSearch(network_interface=network_interface)
     # endregion
 
     # region Start IPv6 Spoofing
@@ -109,7 +86,32 @@ class IPv6Spoof:
             retrans_timer: int = 2000
             advertisement_interval: int = 2000
             # endregion
-            
+
+            # region Set technique
+            technique_pretty_table: PrettyTable = PrettyTable([self._base.info_text('Index'),
+                                                               self._base.info_text('ICMPv6 MiTM technique')])
+            for technique_key in self._techniques.keys():
+                technique_pretty_table.add_row([str(technique_key), self._techniques[technique_key]])
+
+            if technique is None:
+                self._base.print_info('ICMPv6 MiTM technique list:')
+                print(technique_pretty_table)
+                print(self._base.c_info + 'Select ICMPv6 MiTM technique index from range (1 - ' +
+                      str(len(self._techniques.keys())) + '): ', end='')
+                current_technique_index: str = input()
+                assert current_technique_index.isdigit(), \
+                    'ICMPv6 MiTM technique index is not digit!'
+                current_technique_index: int = int(current_technique_index)
+                assert not any([current_technique_index < 1, current_technique_index > len(self._techniques.keys())]), \
+                    'ICMPv6 MiTM technique index is not within range (1 - ' + str(len(self._techniques.keys())) + ')'
+                self._technique_index = current_technique_index
+
+            else:
+                assert int(technique) == 1 or int(technique) == 2, \
+                    'Bad technique index, technique must be: \n' + str(technique_pretty_table)
+                self._technique_index = int(technique)
+            # endregion
+
             # region Check gateway_ipv6_address and dns_ipv6_address
 
             # region Gateway IPv6 address not Set
@@ -118,7 +120,7 @@ class IPv6Spoof:
             if gateway_ipv6_address is None:
                 self._base.print_info('Search IPv6 Gateway and DNS server ....')
                 router_advertisement_data: Union[None, Dict[str, Union[int, str]]] = \
-                    self._icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
+                    self._icmpv6_router_search.search(timeout=5, retry=3, exit_on_failure=False)
 
                 # region Find IPv6 router
                 if router_advertisement_data is not None:
@@ -148,7 +150,12 @@ class IPv6Spoof:
 
             # region Gateway IPv6 address is Set
             if gateway_ipv6_address is not None:
-                gateway_ipv6_address = self._check_ipv6_address(gateway_ipv6_address, 'Gateway IPv6 address')
+                gateway_ipv6_address = \
+                    self._utils.check_ipv6_address(network_interface=self._your['network-interface'],
+                                                   ipv6_address=gateway_ipv6_address,
+                                                   is_local_ipv6_address=True,
+                                                   parameter_name='Gateway IPv6 address',
+                                                   check_your_ipv6_address=False)
             # endregion
 
             # region DNS IPv6 address not Set
@@ -158,7 +165,12 @@ class IPv6Spoof:
 
             # region DNS IPv6 address is Set
             if dns_ipv6_address is not None:
-                dns_ipv6_address = self._check_ipv6_address(dns_ipv6_address, 'DNS server IPv6 address')
+                dns_ipv6_address = \
+                    self._utils.check_ipv6_address(network_interface=self._your['network-interface'],
+                                                   ipv6_address=dns_ipv6_address,
+                                                   is_local_ipv6_address=False,
+                                                   parameter_name='DNS server IPv6 address',
+                                                   check_your_ipv6_address=False)
             # endregion
 
             # region Print Gateway and DNS server information
@@ -176,31 +188,6 @@ class IPv6Spoof:
             self._base.print_success('Retrans timer (ms): ', str(retrans_timer))
             # endregion
 
-            # endregion
-
-            # region Set technique
-            technique_pretty_table: PrettyTable = PrettyTable([self._base.info_text('Index'),
-                                                               self._base.info_text('ICMPv6 MiTM technique')])
-            for technique_key in self._techniques.keys():
-                technique_pretty_table.add_row([str(technique_key), self._techniques[technique_key]])
-
-            if technique is None:
-                self._base.print_info('ICMPv6 MiTM technique list:')
-                print(technique_pretty_table)
-                print(self._base.c_info + 'Select ICMPv6 MiTM technique index from range (1 - ' +
-                      str(len(self._techniques.keys())) + '): ', end='')
-                current_technique_index: str = input()
-                assert current_technique_index.isdigit(), \
-                    'ICMPv6 MiTM technique index is not digit!'
-                current_technique_index: int = int(current_technique_index)
-                assert not any([current_technique_index < 1, current_technique_index > len(self._techniques.keys())]), \
-                    'ICMPv6 MiTM technique index is not within range (1 - ' + str(len(self._techniques.keys())) + ')'
-                self._technique_index = current_technique_index
-
-            else:
-                assert int(technique) == 1 or int(technique) == 2, \
-                    'Bad technique index, technique must be: \n' + str(technique_pretty_table)
-                self._technique_index = int(technique)
             # endregion
 
             # region Set target
@@ -292,20 +279,12 @@ class IPv6Spoof:
 def main():
 
     # region Import Raw-packet classes
-    base: Base = Base()
-    # endregion
-
-    # region Check user, platform and create threads
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     # endregion
 
     # region Parse script arguments
-    script_description: str = \
-        base.get_banner() + '\n' + \
-        ' ' * (int((55 - len(__script_name__)) / 2)) + \
-        base.info_text(__script_name__) + '\n\n'
-    parser = ArgumentParser(description=script_description, formatter_class=RawTextHelpFormatter)
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawTextHelpFormatter)
     parser.add_argument('-T', '--technique', type=int, default=None,
                         help='Set ICMPv6 MiTM technique (example: 1)' +
                              '\n1. ICMPv6 RA (Router Advertisement) Spoofing' +
@@ -324,13 +303,14 @@ def main():
 
     # region Print banner if argument quit is not set
     if not args.quiet:
-        base.print_banner()
+        base.print_banner(__script_name__)
     # endregion
 
     # region Get your network settings
-    if args.interface is None:
-        base.print_warning('Please set a network interface for IPv6 Spoofing ...')
-    current_network_interface: str = base.network_interface_selection(args.interface)
+    current_network_interface: str = \
+        base.network_interface_selection(interface_name=args.interface,
+                                         message='Please select a network interface for ' +
+                                                 __script_name__ + ' from table: ')
     # endregion
 
     try:

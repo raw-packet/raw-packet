@@ -11,7 +11,6 @@ Copyright 2020, Raw-packet Project
 from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.tm import ThreadManager
-from raw_packet.Scanners.nmap_scanner import Scanner
 from raw_packet.Utils.network import RawSniff, RawSend, RawEthernet, RawARP, RawDHCPv4
 from typing import List, Union, Dict, Any
 from random import randint
@@ -84,7 +83,6 @@ class DHCPv4Server:
         self._wins_server_ipv4_address: str = self._your['ipv4-address']
         self._router_ipv4_address: str = self._your['ipv4-address']
         self._raw_send: RawSend = RawSend(network_interface=network_interface)
-        self._scanner: Scanner = Scanner(network_interface=network_interface)
     # endregion
     
     # region Start DHCPv4 server
@@ -249,9 +247,10 @@ class DHCPv4Server:
         if self._target['ipv4-address'] is None:
             self._base.print_info('Create list with free IP addresses in your network ...')
             self._free_ip_addresses = \
-                self._scanner.get_free_ipv4_addresses(first_ipv4_address=self._first_offer_ipv4_address,
-                                                      last_ipv4_address=last_offer_ipv4_address,
-                                                      quiet=self._quiet)
+                self._utils.get_free_ipv4_addresses(network_interface=self._your['network-interface'],
+                                                    first_ipv4_address=self._first_offer_ipv4_address,
+                                                    last_ipv4_address=last_offer_ipv4_address,
+                                                    quiet=self._quiet)
         # endregion
 
         # region Send DHCP discover packets in the background thread

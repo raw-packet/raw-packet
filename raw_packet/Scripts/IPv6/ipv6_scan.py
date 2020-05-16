@@ -3,7 +3,7 @@
 
 # region Description
 """
-icmpv6_scan.py: ICMPv6 scan local network
+icmpv6_scan.py: ICMPv6 scan (icmpv6_scan)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -12,9 +12,10 @@ Copyright 2020, Raw-packet Project
 
 # region Import
 from raw_packet.Utils.base import Base
+from raw_packet.Utils.utils import Utils
 from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
 from raw_packet.Scanners.icmpv6_router_search import ICMPv6RouterSearch
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from prettytable import PrettyTable
 from typing import Union, Dict, List
 # endregion
@@ -28,6 +29,7 @@ __version__ = '0.2.1'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
+__script_name__ = 'ICMPv6 scan (icmpv6_scan)'
 # endregion
 
 
@@ -35,31 +37,34 @@ __status__ = 'Development'
 def main():
 
     # region Init Raw-packet classes
-    base: Base = Base()
-    # endregion
-
-    # region Check user, platform and print banner
-    base.check_user()
-    base.check_platform(available_platforms=['Linux', 'Darwin', 'Windows'])
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
+    utils: Utils = Utils()
     # endregion
 
     # region Parse script arguments
-    parser: ArgumentParser = ArgumentParser(description='ICMPv6 scanner script')
+    parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
+                                            formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-i', '--interface', type=str, help='Set interface name for ARP scanner')
     parser.add_argument('-m', '--target_mac', type=str, help='Set target MAC address', default=None)
-    parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=3)', default=3)
-    parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=3)', default=3)
+    parser.add_argument('-t', '--timeout', type=int, help='Set timeout (default=5)', default=5)
+    parser.add_argument('-r', '--retry', type=int, help='Set number of retry (default=5)', default=5)
     parser.add_argument('-s', '--router_search', action='store_true', help='Search router IPv6 link local address')
     args = parser.parse_args()
     base.print_banner()
     # endregion
 
     # region Get your network settings
-    if args.interface is None:
-        base.print_warning("Please set a network interface for sniffing ICMPv6 responses ...")
-    current_network_interface: str = base.network_interface_selection(args.interface)
-    your_mac_address: str = base.get_interface_mac_address(current_network_interface)
-    your_ipv6_link_address: str = base.get_interface_ipv6_link_address(current_network_interface)
+    current_network_interface: str = \
+        base.network_interface_selection(interface_name=args.interface,
+                                         message='Please select a network interface for ' +
+                                                 __script_name__ + ' from table: ')
+    current_network_interface_settings: Dict[str, Union[None, str, List[str]]] = \
+        base.get_interface_settings(interface_name=current_network_interface,
+                                    required_parameters=['mac-address',
+                                                         'ipv4-address'])
+    if current_network_interface_settings['ipv6-link-address'] is None:
+        current_network_interface_settings['ipv6-link-address'] = \
+            base.make_ipv6_link_address(current_network_interface_settings['mac-address'])
     icmpv6_scan: ICMPv6Scan = ICMPv6Scan(network_interface=current_network_interface)
     router_search: ICMPv6RouterSearch = ICMPv6RouterSearch(network_interface=current_network_interface)
     # endregion
@@ -67,14 +72,14 @@ def main():
     # region Set Target MAC address
     target_mac_address: Union[None, str] = None
     if args.target_mac is not None:
-        base.mac_address_validation(args.target_mac, True)
-        target_mac_address: str = str(args.target_mac).lower()
+        target_mac_address: str = utils.check_mac_address(mac_address=args.target_mac,
+                                                          parameter_name='target MAC address')
     # endregion
 
     # region General output
     base.print_info("Network interface: ", current_network_interface)
-    base.print_info("Your IPv6 address: ", your_ipv6_link_address)
-    base.print_info("Your MAC address: ", your_mac_address)
+    base.print_info("Your IPv6 address: ", current_network_interface_settings['ipv6-link-address'])
+    base.print_info("Your MAC address: ", current_network_interface_settings['mac-address'])
     if target_mac_address is not None:
         base.print_info("Target MAC address: ", target_mac_address)
     base.print_info("Timeout: ", str(args.timeout) + " sec.")
@@ -89,12 +94,16 @@ def main():
         base.print_info("Router IPv6 link local address: ", router_info['router_ipv6_address'])
         if 'dns-server' in router_info.keys():
             base.print_info("DNS server IPv6 address: ", str(router_info['dns-server']))
-        base.print_info("Router MAC address: ", router_info['router_mac_address'])
+        if 'router_mac_address' in router_info.keys():
+            base.print_info("Router MAC address: ", router_info['router_mac_address'])
         if 'vendor' in router_info.keys():
             base.print_info("Router vendor: ", router_info['vendor'])
-        base.print_info("Router lifetime (s): ", str(router_info['router-lifetime']))
-        base.print_info("Reachable time (ms): ", str(router_info['reachable-time']))
-        base.print_info("Retrans timer (ms): ", str(router_info['retrans-timer']))
+        if 'router-lifetime' in router_info.keys():
+            base.print_info("Router lifetime (s): ", str(router_info['router-lifetime']))
+        if 'reachable-time' in router_info.keys():
+            base.print_info("Reachable time (ms): ", str(router_info['reachable-time']))
+        if 'retrans-timer' in router_info.keys():
+            base.print_info("Retrans timer (ms): ", str(router_info['retrans-timer']))
         if 'prefix' in router_info.keys():
             base.print_info("Prefix: ", str(router_info['prefix']))
         if 'mtu' in router_info.keys():

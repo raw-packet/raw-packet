@@ -67,8 +67,7 @@ class DnsServer:
                                                                             'ipv4-address'])
         self._raw_send: RawSend = RawSend(network_interface=network_interface)
 
-        if self._base.get_platform().startswith('Linux') or self._base.get_platform().startswith('Darwin'):
-            # Iptables drop output ICMP and ICMPv6 destination-unreachable packets
+        if self._base.get_platform().startswith('Linux'):
             run('iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP', shell=True)
             run('ip6tables -I OUTPUT -p ipv6-icmp --icmpv6-type destination-unreachable -j DROP', shell=True)
     # endregion
