@@ -348,6 +348,7 @@ class PhishingServer:
         :param quiet: Quiet mode
         :return: None
         """
+        self._base.print_info('Wait HTTP requests ...')
         phishing: Union[None, _MultiThreadedPhishingServer] = None
         try:
             if self._base.get_platform().startswith('Windows'):

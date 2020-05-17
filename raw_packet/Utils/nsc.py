@@ -13,7 +13,6 @@ from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawSend, RawARP, RawICMPv4, RawICMPv6, RawDHCPv4, RawDHCPv6
 from os.path import join
-from os import remove
 from typing import Union, Dict, List
 from paramiko import RSAKey
 from pathlib import Path
@@ -383,14 +382,15 @@ class NetworkSecurityCheck:
             
             # region Set dumpcap command
             if test_os == 'linux' or test_os == 'macos':
-                start_dumpcap_command: str = 'dumpcap -i "' + test_interface + \
-                                             '" -w __pcap_file__ ' \
-                                             '-f "stp or ether src ' + your_mac_address + \
-                                             '" >/dev/null 2>&1'
+                dumpcap_command: str = 'dumpcap'
             else:
-                start_dumpcap_command: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe" -i "' + test_interface + \
-                                             '" -w "__pcap_file__" ' \
-                                             '-f "stp or ether src ' + your_mac_address + '"'
+                dumpcap_command: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
+
+            start_dumpcap_command: str = \
+                dumpcap_command + \
+                ' -i "' + test_interface + '"' + \
+                ' -w "__pcap_file__"' + \
+                ' -f "stp or ether src ' + your_mac_address + '"'
             # endregion
             
             # region Remote dump traffic
@@ -403,6 +403,13 @@ class NetworkSecurityCheck:
                     remote_pcap_file = '/tmp/spoofing.pcap'
                     start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', remote_pcap_file)
                     start_dumpcap_retry: int = 1
+                    self._base.exec_command_over_ssh(command=start_dumpcap_command,
+                                                     ssh_user=ssh_user,
+                                                     ssh_password=ssh_password,
+                                                     ssh_pkey=ssh_private_key,
+                                                     ssh_host=test_ipv4_address,
+                                                     need_output=False)
+                    sleep(1)
                     while self._base.exec_command_over_ssh(command='pgrep dumpcap',
                                                            ssh_user=ssh_user,
                                                            ssh_password=ssh_password,
@@ -416,7 +423,7 @@ class NetworkSecurityCheck:
                                                          need_output=False)
                         sleep(1)
                         start_dumpcap_retry += 1
-                        if start_dumpcap_retry == 5:
+                        if start_dumpcap_retry == 10:
                             self._base.print_error('Failed to start dumpcap on test host: ', test_ipv4_address)
                             exit(1)
                 # endregion
