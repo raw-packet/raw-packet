@@ -372,7 +372,7 @@ class Utils:
             '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv6_address)
 
         if is_local_ipv6_address:
-            assert not str(ipv6_address).startswith('fe80::'), \
+            assert str(ipv6_address).startswith('fe80::'), \
                 'Bad ' + parameter_name.capitalize() + ': ' + self._base.error_text(ipv6_address) + \
                 '; example ' + parameter_name.capitalize() + ': ' + self._base.info_text(example_ipv6_address)
 
