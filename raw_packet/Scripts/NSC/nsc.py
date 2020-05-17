@@ -46,7 +46,7 @@ def main() -> None:
     # region Parse script arguments
     parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
                                             formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('-s', '--send_interface', help='Set interface name for send packets', default=None)
+    parser.add_argument('-i', '--send_interface', help='Set interface name for send packets', default=None)
     parser.add_argument('-l', '--listen_interface', help='Set interface name for listen packets', default=None)
     parser.add_argument('-n', '--test_host_interface', help='Set test host network interface for listen packets',
                         default=None)

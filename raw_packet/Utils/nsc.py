@@ -451,7 +451,7 @@ class NetworkSecurityCheck:
                 if not quiet:
                     self._base.print_info('Start dumpcap on listen interface: ', listen_network_interface)
                 start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', local_pcap_file)
-                Popen(start_dumpcap_command, shell=True, stdout=PIPE, stderr=STDOUT)
+                Popen(start_dumpcap_command, shell=True, stdout=PIPE, stderr=PIPE)
             # endregion
             
             start_time = time()
