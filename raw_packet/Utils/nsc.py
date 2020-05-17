@@ -13,6 +13,7 @@ from raw_packet.Utils.base import Base
 from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawSend, RawARP, RawICMPv4, RawICMPv6, RawDHCPv4, RawDHCPv6
 from os.path import join
+from os import remove
 from typing import Union, Dict, List
 from paramiko import RSAKey
 from pathlib import Path
@@ -378,7 +379,7 @@ class NetworkSecurityCheck:
                 self._base.print_info('Gateway MAC address: ', gateway_mac_address)
             # endregion
 
-            # region Start dump traffic
+            # region Start dumpcap
             
             # region Set dumpcap command
             if test_os == 'linux' or test_os == 'macos':
@@ -455,6 +456,7 @@ class NetworkSecurityCheck:
             
             start_time = time()
             sleep(3)
+
             # endregion
 
             # region Send ARP packets
@@ -763,6 +765,7 @@ class NetworkSecurityCheck:
             sniff_dhcpv6_reply_packets: bool = False
 
             packets = rdpcap(local_pcap_file)
+            remove(local_pcap_file)
             # endregion
 
             # region Analyze packets
