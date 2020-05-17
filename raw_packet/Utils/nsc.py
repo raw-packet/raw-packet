@@ -122,7 +122,8 @@ class NetworkSecurityCheck:
         ssh_password: Union[None, str] = None
         ssh_private_key: Union[None, RSAKey] = None
 
-        windows_temp_directory: Union[None, str] = None
+        local_pcap_file: Union[None, str] = None
+        remote_pcap_file: Union[None, str] = None
         # endregion
 
         try:
@@ -154,15 +155,15 @@ class NetworkSecurityCheck:
             your_ipv4_network: str = send_network_interface_settings['ipv4-network']
             # endregion
 
-            # region Set pcap_file variable
+            # region Set local_pcap_file variable
             if your_platform.startswith('Windows'):
                 local_temp_directory: bytes = check_output('echo %temp%', shell=True)
                 local_temp_directory: str = local_temp_directory.decode().splitlines()[0]
-                pcap_file: str = join(local_temp_directory, 'spoofing.pcap')
+                local_pcap_file: str = join(local_temp_directory, 'spoofing.pcap')
             else:
-                pcap_file: str = '/tmp/spoofing.pcap'
-            if isfile(pcap_file):
-                remove(pcap_file)
+                local_pcap_file: str = '/tmp/spoofing.pcap'
+            if isfile(local_pcap_file):
+                remove(local_pcap_file)
             # endregion
 
             # region Check gateway IP and MAC address
@@ -204,35 +205,34 @@ class NetworkSecurityCheck:
                             break
                 # endregion
 
-                # region Found network interface with IP address in test network
-                if listen_network_interface is not None:
-                    while test_ipv4_address is None:
-                        print(self._base.c_info + 'Use network interface: ' +
-                              self._base.info_text(listen_network_interface + ' (' +
-                                                   test_interface_ipv4_address + ')') +
-                              ' for listen traffic [Yes|No]: ', end='')
-                        use_listen_interface = input()
-                        if use_listen_interface == 'No' or use_listen_interface == 'N':
-                            while True:
-                                print(self._base.c_info + 'Please set test host IP address for SSH connect: ')
-                                test_ipv4_address = input()
-                                if self._base.ip_address_in_network(test_ipv4_address, your_ipv4_network):
-                                    break
-                                else:
-                                    self._base.print_error('Test host IP address: ',
-                                                           test_ipv4_address, ' not in network: ' +
-                                                           self._base.info_text(your_ipv4_network))
-                        elif use_listen_interface == 'Yes' or use_listen_interface == 'Y':
-                            break
-                        else:
-                            self._base.print_error('Unknown answer: ', use_listen_interface, 
-                                                   ' please use answer "Yes" or "No"')
-                # endregion
-
                 # region Not found network interface with IP address in test network
                 # set test host IP address for SSH connection
-                else:
-                    assert False, 'Please set test host IP address: ' + self._base.error_text('\'-t\', \'--test_host\'')
+                assert listen_network_interface is not None, \
+                    'Please set test host IP address!'
+                # endregion
+
+                # region Found network interface with IP address in test network
+                while test_ipv4_address is None:
+                    print(self._base.c_info + 'Use network interface: ' +
+                          self._base.info_text(listen_network_interface + ' (' +
+                                               test_interface_ipv4_address + ')') +
+                          ' for listen traffic [Yes|No]: ', end='')
+                    use_listen_interface = input()
+                    if use_listen_interface == 'No' or use_listen_interface == 'N':
+                        while True:
+                            print(self._base.c_info + 'Please set test host IP address for SSH connect: ')
+                            test_ipv4_address = input()
+                            if self._base.ip_address_in_network(test_ipv4_address, your_ipv4_network):
+                                break
+                            else:
+                                self._base.print_error('Test host IP address: ',
+                                                       test_ipv4_address, ' not in network: ' +
+                                                       self._base.info_text(your_ipv4_network))
+                    elif use_listen_interface == 'Yes' or use_listen_interface == 'Y':
+                        break
+                    else:
+                        self._base.print_error('Unknown answer: ', use_listen_interface,
+                                               ' please use answer "Yes" or "No"')
                 # endregion
 
             # endregion
@@ -378,43 +378,49 @@ class NetworkSecurityCheck:
                 self._base.print_info('Gateway MAC address: ', gateway_mac_address)
             # endregion
 
-            # region Start tshark
+            # region Start dump traffic
+            
+            # region Set dumpcap command
             if test_os == 'linux' or test_os == 'macos':
-                start_tshark_command: str = 'tshark -i "' + test_interface + \
-                                            '" -w "/tmp/spoofing.pcap" ' \
-                                            '-f "stp or ether src ' + your_mac_address + '" >/dev/null 2>&1'
+                start_dumpcap_command: str = 'dumpcap -i "' + test_interface + \
+                                             '" -w __pcap_file__ ' \
+                                             '-f "stp or ether src ' + your_mac_address + \
+                                             '" >/dev/null 2>&1'
             else:
-                start_tshark_command: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe" -i "' + test_interface + \
-                                            '" -w "%temp%\\spoofing.pcap" ' \
-                                            '-f "stp or ether src ' + your_mac_address + '"'
+                start_dumpcap_command: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe" -i "' + test_interface + \
+                                             '" -w "__pcap_file__" ' \
+                                             '-f "stp or ether src ' + your_mac_address + '"'
+            # endregion
+            
+            # region Remote dump traffic
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Start tshark on test host: ', test_ipv4_address)
-                self._base.exec_command_over_ssh(command=start_tshark_command,
-                                                 ssh_user=ssh_user,
-                                                 ssh_password=ssh_password,
-                                                 ssh_pkey=ssh_private_key,
-                                                 ssh_host=test_ipv4_address,
-                                                 need_output=False)
+                    self._base.print_info('Start dumpcap on test host: ', test_ipv4_address)
 
+                # region Linux or MacOS
                 if test_os == 'linux' or test_os == 'macos':
-                    start_tshark_retry: int = 1
-                    while self._base.exec_command_over_ssh(command='pgrep tshark',
+                    remote_pcap_file = '/tmp/spoofing.pcap'
+                    start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', remote_pcap_file)
+                    start_dumpcap_retry: int = 1
+                    while self._base.exec_command_over_ssh(command='pgrep dumpcap',
                                                            ssh_user=ssh_user,
                                                            ssh_password=ssh_password,
                                                            ssh_pkey=ssh_private_key,
                                                            ssh_host=test_ipv4_address) == '':
-                        self._base.exec_command_over_ssh(command=start_tshark_command,
+                        self._base.exec_command_over_ssh(command=start_dumpcap_command,
                                                          ssh_user=ssh_user,
                                                          ssh_password=ssh_password,
                                                          ssh_pkey=ssh_private_key,
                                                          ssh_host=test_ipv4_address,
                                                          need_output=False)
                         sleep(1)
-                        start_tshark_retry += 1
-                        if start_tshark_retry == 5:
-                            self._base.print_error('Failed to start tshark on test host: ', test_ipv4_address)
+                        start_dumpcap_retry += 1
+                        if start_dumpcap_retry == 5:
+                            self._base.print_error('Failed to start dumpcap on test host: ', test_ipv4_address)
                             exit(1)
+                # endregion
+                
+                # region Windows
                 else:
                     windows_temp_directory = self._base.exec_command_over_ssh(command='echo %temp%',
                                                                               ssh_user=ssh_user,
@@ -427,15 +433,26 @@ class NetworkSecurityCheck:
                         windows_temp_directory = windows_temp_directory[:-1]
                     if windows_temp_directory.endswith('\r'):
                         windows_temp_directory = windows_temp_directory[:-1]
+                    remote_pcap_file = windows_temp_directory + '\\spoofing.pcap'
+                    start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', remote_pcap_file)
+                    self._base.exec_command_over_ssh(command=start_dumpcap_command,
+                                                     ssh_user=ssh_user,
+                                                     ssh_password=ssh_password,
+                                                     ssh_pkey=ssh_private_key,
+                                                     ssh_host=test_ipv4_address,
+                                                     need_output=False)
+                # endregion
+                
+            # endregion
+            
+            # region Local dump traffic
             else:
-                if isfile(pcap_file):
-                    remove(pcap_file)
                 if not quiet:
-                    self._base.print_info('Start tshark on listen interface: ', listen_network_interface)
-                if test_os == 'linux' or test_os == 'macos':
-                    Popen([start_tshark_command], shell=True, stdout=PIPE, stderr=STDOUT)
-                else:
-                    Popen(start_tshark_command, shell=True, stdout=PIPE, stderr=STDOUT)
+                    self._base.print_info('Start dumpcap on listen interface: ', listen_network_interface)
+                start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', local_pcap_file)
+                Popen(start_dumpcap_command, shell=True, stdout=PIPE, stderr=STDOUT)
+            # endregion
+            
             start_time = time()
             sleep(3)
             # endregion
@@ -655,7 +672,7 @@ class NetworkSecurityCheck:
 
             # endregion
 
-            # region Stop tshark
+            # region Stop dumpcap
             while int(time() - start_time) < listen_time:
                 stdout.write('\r')
                 if listen_time - int(time() - start_time) > 1:
@@ -667,13 +684,13 @@ class NetworkSecurityCheck:
                 sleep(1)
 
             if test_os == 'linux' or test_os == 'macos':
-                stop_tshark_command: str = 'pkill tshark >/dev/null 2>&1'
+                stop_dumpcap_command: str = 'pkill dumpcap >/dev/null 2>&1'
             else:
-                stop_tshark_command: str = 'taskkill /IM "dumpcap.exe" /F'
+                stop_dumpcap_command: str = 'taskkill /IM "dumpcap.exe" /F'
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Stop tshark on test host: ', test_ipv4_address)
-                self._base.exec_command_over_ssh(command=stop_tshark_command,
+                    self._base.print_info('Stop dumpcap on test host: ', test_ipv4_address)
+                self._base.exec_command_over_ssh(command=stop_dumpcap_command,
                                                  ssh_user=ssh_user,
                                                  ssh_password=ssh_password,
                                                  ssh_pkey=ssh_private_key,
@@ -681,36 +698,45 @@ class NetworkSecurityCheck:
                                                  need_output=False)
             else:
                 if not quiet:
-                    self._base.print_info('Stop tshark on listen interface: ', listen_network_interface)
+                    self._base.print_info('Stop dumpcap on listen interface: ', listen_network_interface)
                 if test_os == 'linux' or test_os == 'macos':
-                    run([stop_tshark_command], shell=True)
+                    run([stop_dumpcap_command], shell=True)
                 else:
-                    check_output(stop_tshark_command, shell=True)
+                    check_output(stop_dumpcap_command, shell=True)
             # endregion
 
             # region Download and analyze pcap file from test host
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Download pcap file with test traffic over SSH to: ', pcap_file)
-                if test_os == 'windows':
-                    self._base.download_file_over_ssh(remote_path=windows_temp_directory + '\spoofing.pcap',
-                                                      local_path=pcap_file,
-                                                      ssh_user=ssh_user,
-                                                      ssh_password=ssh_password,
-                                                      ssh_pkey=ssh_private_key,
-                                                      ssh_host=test_ipv4_address)
+                    self._base.print_info('Download remote pcap file: ', remote_pcap_file,
+                                          ' with test traffic over SSH to: ', local_pcap_file)
+                self._base.download_file_over_ssh(remote_path=remote_pcap_file,
+                                                  local_path=local_pcap_file,
+                                                  ssh_user=ssh_user,
+                                                  ssh_password=ssh_password,
+                                                  ssh_pkey=ssh_private_key,
+                                                  ssh_host=test_ipv4_address)
+                assert isfile(local_pcap_file), \
+                    'Can not download remote pcap file: ' + self._base.error_text(remote_pcap_file) + \
+                    ' with test traffic over SSH!'
+                if test_os == 'linux' or test_os == 'macos':
+                    self._base.exec_command_over_ssh(command='rm -f ' + remote_pcap_file,
+                                                     ssh_user=ssh_user,
+                                                     ssh_password=ssh_password,
+                                                     ssh_pkey=ssh_private_key,
+                                                     ssh_host=test_ipv4_address,
+                                                     need_output=False)
                 else:
-                    self._base.download_file_over_ssh(remote_path=pcap_file,
-                                                      local_path=pcap_file,
-                                                      ssh_user=ssh_user,
-                                                      ssh_password=ssh_password,
-                                                      ssh_pkey=ssh_private_key,
-                                                      ssh_host=test_ipv4_address)
-                assert isfile(pcap_file), \
-                    'Can not download pcap file: ' + self._base.error_text(pcap_file) + ' with test traffic over SSH'
+                    self._base.exec_command_over_ssh(command='del /f "' + remote_pcap_file + '"',
+                                                     ssh_user=ssh_user,
+                                                     ssh_password=ssh_password,
+                                                     ssh_pkey=ssh_private_key,
+                                                     ssh_host=test_ipv4_address,
+                                                     need_output=False)
             else:
-                assert isfile(pcap_file), \
-                    'Not found pcap file: ' + self._base.error_text(pcap_file) + ' with test traffic'
+                assert isfile(local_pcap_file), \
+                    'Not found local pcap file: ' + self._base.error_text(local_pcap_file) + \
+                    ' with test traffic!'
             # endregion
 
             # region Analyze pcap file from test host
@@ -736,7 +762,7 @@ class NetworkSecurityCheck:
             sniff_dhcpv6_request_packets: bool = False
             sniff_dhcpv6_reply_packets: bool = False
 
-            packets = rdpcap(pcap_file)
+            packets = rdpcap(local_pcap_file)
             # endregion
 
             # region Analyze packets
@@ -958,6 +984,7 @@ class NetworkSecurityCheck:
                                     packet[DHCP6_Reply].msgtype == 7 and \
                                     packet[DHCP6_Reply].trid == dhcpv6_transactions['reply']:
                                 sniff_dhcpv6_reply_packets = True
+
             # endregion
 
             # endregion
