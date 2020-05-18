@@ -74,7 +74,7 @@ class IPv6Spoof:
               dns_ipv6_address: Union[None, str] = None,
               dns_domain_search: str = 'domain.local',
               ipv6_prefix: str = 'fde4:8dba:82e1:ffff::/64',
-              quit: bool = False):
+              quiet: bool = False):
         try:
             
             # region Variables
@@ -201,7 +201,7 @@ class IPv6Spoof:
                 '; Target IPv6 address is gateway link local IPv6 address!'
 
             # Print Target IPv6- and MAC-address
-            if not quit:
+            if not quiet:
                 self._base.print_success('Target IPv6 address: ', self._target['ipv6-address'])
                 self._base.print_success('Target MAC address: ', self._target['mac-address'])
                 if self._target['vendor'] is not None:
@@ -262,12 +262,12 @@ class IPv6Spoof:
             # endregion
 
         except KeyboardInterrupt:
-            if not quit:
+            if not quiet:
                 self._base.print_info('Exit')
             exit(0)
 
         except AssertionError as Error:
-            if not quit:
+            if not quiet:
                 self._base.print_error(Error.args[0])
             exit(1)
     # endregion
@@ -301,7 +301,7 @@ def main():
     args = parser.parse_args()
     # endregion
 
-    # region Print banner if argument quit is not set
+    # region Print banner if argument quiet is not set
     if not args.quiet:
         base.print_banner(__script_name__)
     # endregion
@@ -322,7 +322,7 @@ def main():
                          dns_ipv6_address=args.dns_ip,
                          dns_domain_search=args.dns_domain_search,
                          ipv6_prefix=args.ipv6_prefix,
-                         quit=args.quiet)
+                         quiet=args.quiet)
 
     except KeyboardInterrupt:
         base.print_info('Exit')

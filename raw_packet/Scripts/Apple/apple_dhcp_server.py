@@ -54,7 +54,7 @@ class AppleDHCPServer:
     _print_possible_mitm: bool = False
     _print_success_mitm: bool = False
     _broadcast: bool = False
-    _quit: bool = False
+    _quiet: bool = False
     # endregion
 
     # region Init
@@ -76,13 +76,13 @@ class AppleDHCPServer:
               target_ip_address: str,
               target_mac_address: str,
               broadcast: bool = False,
-              quit: bool = False):
+              quiet: bool = False):
 
         try:
 
             # region Set variables
             self._broadcast = broadcast
-            self._quit = quit
+            self._quiet = quiet
             # endregion
 
             # region Check target MAC and IPv4 address
@@ -97,7 +97,7 @@ class AppleDHCPServer:
             # endregion
 
             # region Start Sniffer
-            if not self._quit:
+            if not self._quiet:
                 self._base.print_info('Waiting for a ARP or DHCPv4 requests from: ', self._target['mac-address'])
             self._sniff.start(protocols=['ARP', 'IPv4', 'UDP', 'DHCPv4'], prn=self._reply,
                               filters={'Ethernet': {'source': self._target['mac-address']},
@@ -110,12 +110,12 @@ class AppleDHCPServer:
             # endregion
 
         except AssertionError as Error:
-            if not self._quit:
+            if not self._quiet:
                 self._base.print_error(Error.args[0])
             exit(1)
 
         except KeyboardInterrupt:
-            if not self._quit:
+            if not self._quiet:
                 self._base.print_info('Exit')
             exit(0)
 
@@ -317,7 +317,7 @@ def main() -> None:
         apple_dhcp_server.start(target_ip_address=args.target_ip,
                                 target_mac_address=args.target_mac,
                                 broadcast=args.broadcast,
-                                quit=args.quiet)
+                                quiet=args.quiet)
 
     except KeyboardInterrupt:
         if not args.quiet:
