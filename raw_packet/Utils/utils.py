@@ -91,7 +91,8 @@ class Utils:
                         target_mac_address: Union[None, str] = None,
                         target_vendor: Union[None, str] = None,
                         target_ipv4_address_required: bool = False,
-                        exclude_ipv4_addresses: List[str] = []) -> Dict[str, str]:
+                        exclude_ipv4_addresses: List[str] = [],
+                        quiet: bool = False) -> Dict[str, str]:
 
         # region Variables
         target: Dict[str, str] = {'mac-address': None, 'ipv4-address': None, 'vendor': None}
@@ -109,12 +110,24 @@ class Utils:
         # region Target IPv4 address not Set
         else:
             assert not target_ipv4_address_required, 'Please set target IPv4 address!'
-            self._base.print_info('Start ARP scan ...')
+            if not quiet:
+                self._base.print_info('Start ARP scan ...')
             results: List[Dict[str, str]] = arp_scan.scan(timeout=3, retry=3,
                                                           target_ip_address=None, check_vendor=True,
                                                           exclude_ip_addresses=exclude_ipv4_addresses,
                                                           exit_on_failure=True,
-                                                          show_scan_percentage=True)
+                                                          show_scan_percentage=not quiet)
+            if target_mac_address is not None:
+                target['mac-address'] = self.check_mac_address(mac_address=target_mac_address,
+                                                               parameter_name='target MAC address')
+                for result in results:
+                    if result['mac-address'] == target['mac-address']:
+                        target['ipv4-address'] = result['ip-address']
+                        target['vendor'] = result['vendor']
+                        break
+                assert target['ipv4-address'] is not None, \
+                    'Could no found alive host with MAC address: ' + self._base.error_text(target['mac-address'])
+                return target
 
             if target_vendor is not None:
                 results_with_vendor: List[Dict[str, str]] = list()
@@ -126,8 +139,6 @@ class Utils:
             assert len(results) != 0, \
                 'Could not found alive hosts on interface: ' + self._base.error_text(network_interface)
             if len(results) == 1:
-                if target_vendor is not None:
-                    assert target['vendor'] != target_vendor, ''
                 target['ipv4-address'] = results[0]['ip-address']
                 target['mac-address'] = results[0]['mac-address']
                 target['vendor'] = results[0]['vendor']

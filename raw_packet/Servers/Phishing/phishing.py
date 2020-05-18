@@ -16,6 +16,7 @@ from json import loads, decoder
 from user_agents import parse as user_agent_parse
 from os.path import abspath, dirname, isdir, isfile, join
 from os import listdir
+from socket import AF_INET6
 # endregion
 
 # region Authorship information
@@ -293,8 +294,8 @@ class _PhishingHTTPRequestHandler(BaseHTTPRequestHandler):
 # endregion
 
 
-# region Phishing HTTP Server
-class _PhishingHTTPServer(HTTPServer):
+# region Phishing HTTP Server IPv4
+class _PhishingHTTPServerIPv4(HTTPServer):
     def __init__(self,
                  server_address: Tuple[str, int],
                  RequestHandlerClass: Callable[..., BaseHTTPRequestHandler],
@@ -314,8 +315,39 @@ class _PhishingHTTPServer(HTTPServer):
 # endregion
 
 
-# region Multi Threaded Phishing Server
-class _MultiThreadedPhishingServer(ThreadingMixIn, _PhishingHTTPServer):
+# region Phishing HTTP Server IPv6
+class _PhishingHTTPServerIPv6(HTTPServer):
+    address_family = AF_INET6
+
+    def __init__(self,
+                 server_address: Tuple[str, int],
+                 RequestHandlerClass: Callable[..., BaseHTTPRequestHandler],
+                 base_instance: Base,
+                 site_path: str,
+                 site_domain: Union[None, str] = None,
+                 quiet: bool = False):
+        super().__init__(server_address, RequestHandlerClass)
+        self.site_path: str = site_path
+        self.site_domain: str = site_domain
+        self.base: Base = base_instance
+        self.quiet: bool = quiet
+        if self.base.get_platform().startswith('Windows'):
+            self.separator: str = '\\'
+        else:
+            self.separator: str = '/'
+# endregion
+
+
+# region Multi Threaded Phishing Server IPv4
+class _MultiThreadedPhishingServerIPv4(ThreadingMixIn, _PhishingHTTPServerIPv4):
+    """
+    Handle requests in a separate thread.
+    """
+# endregion
+
+
+# region Multi Threaded Phishing Server IPv6
+class _MultiThreadedPhishingServerIPv6(ThreadingMixIn, _PhishingHTTPServerIPv6):
     """
     Handle requests in a separate thread.
     """
@@ -348,8 +380,11 @@ class PhishingServer:
         :param quiet: Quiet mode
         :return: None
         """
-        self._base.print_info('Wait HTTP requests ...')
-        phishing: Union[None, _MultiThreadedPhishingServer] = None
+        if '::' in address:
+            self._base.print_info('Wait IPv6 HTTP requests ...')
+        else:
+            self._base.print_info('Wait IPv4 HTTP requests ...')
+        phishing: Union[None, _MultiThreadedPhishingServerIPv4, _MultiThreadedPhishingServerIPv6] = None
         try:
             if self._base.get_platform().startswith('Windows'):
                 separator: str = '\\'
@@ -372,13 +407,22 @@ class PhishingServer:
                     'Could not found site template: ' + self._base.error_text(site) + \
                     ' in templates directory: ' + self._base.info_text(current_path)
 
-            phishing = \
-                _MultiThreadedPhishingServer(server_address=(address, port),
-                                             RequestHandlerClass=_PhishingHTTPRequestHandler,
-                                             base_instance=self._base,
-                                             site_path=site_path,
-                                             site_domain=redirect,
-                                             quiet=quiet)
+            if '::' in address:
+                phishing = \
+                    _MultiThreadedPhishingServerIPv6(server_address=(address, port),
+                                                     RequestHandlerClass=_PhishingHTTPRequestHandler,
+                                                     base_instance=self._base,
+                                                     site_path=site_path,
+                                                     site_domain=redirect,
+                                                     quiet=quiet)
+            else:
+                phishing = \
+                    _MultiThreadedPhishingServerIPv4(server_address=(address, port),
+                                                     RequestHandlerClass=_PhishingHTTPRequestHandler,
+                                                     base_instance=self._base,
+                                                     site_path=site_path,
+                                                     site_domain=redirect,
+                                                     quiet=quiet)
             phishing.serve_forever()
 
         except OSError:

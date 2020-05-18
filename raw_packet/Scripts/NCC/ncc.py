@@ -158,7 +158,6 @@ class NetworkConflictCreator:
                             sleep(3)
                             current_number_of_packets += 1
                 # endregion
-
             # endregion
 
         except KeyboardInterrupt:
@@ -215,6 +214,7 @@ class NetworkConflictCreator:
 
                 if packet['DHCPv4'][53] == 3:
                     if 50 in packet['DHCPv4'].keys():
+                        self._target['ipv4-address'] = str(packet['DHCPv4'][50])
                         self._base.print_success('DHCPv4 Request from: ', packet['Ethernet']['source'],
                                                  ' requested ip: ', str(packet['DHCPv4'][50]))
 
@@ -233,9 +233,7 @@ class NetworkConflictCreator:
     def _sniff_start(self):
         try:
             if self._target['ipv4-address'] is not None:
-                self._base.print_info('Sniff ARP or DHCPv4 requests from: ',
-                                      str(self._target['ipv4-address']) + ' (' +
-                                      str(self._target['mac-address']) + ')')
+                self._base.print_info('Sniff ARP or DHCPv4 requests from: ', str(self._target['mac-address']))
                 self._sniff.start(protocols=['ARP', 'IPv4', 'UDP', 'DHCPv4'], prn=self._reply,
                                   filters={'Ethernet': {'source': self._target['mac-address']},
                                            'UDP': {'source-port': 68, 'destination-port': 67}},
