@@ -87,6 +87,11 @@ class IPv6Spoof:
             advertisement_interval: int = 2000
             # endregion
 
+            # region Set prefix
+            if ipv6_prefix is not None:
+                prefix = ipv6_prefix
+            # endregion
+
             # region Set technique
             technique_pretty_table: PrettyTable = PrettyTable([self._base.info_text('Index'),
                                                                self._base.info_text('ICMPv6 MiTM technique')])

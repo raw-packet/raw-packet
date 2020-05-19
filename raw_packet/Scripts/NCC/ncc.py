@@ -161,7 +161,7 @@ class NetworkConflictCreator:
             # endregion
 
         except KeyboardInterrupt:
-            self._base.print_info('Exit')
+            self._base.print_info('Exit NCC')
             exit(0)
 
         except AssertionError as Error:
@@ -210,7 +210,7 @@ class NetworkConflictCreator:
                                              ' IPv4 address conflict detected!')
                     if self._exit_on_success:
                         self._make_conflict = True
-                        raise KeyboardInterrupt
+                        exit(0)
 
                 if packet['DHCPv4'][53] == 3:
                     if 50 in packet['DHCPv4'].keys():
@@ -219,7 +219,7 @@ class NetworkConflictCreator:
                                                  ' requested ip: ', str(packet['DHCPv4'][50]))
 
         except KeyboardInterrupt:
-            raise KeyboardInterrupt
+            exit(0)
 
         except KeyError:
             pass
@@ -247,7 +247,7 @@ class NetworkConflictCreator:
                                   network_interface=self._your['network-interface'],
                                   scapy_filter='arp or (udp and (port 67 or 68))')
         except KeyboardInterrupt:
-            raise KeyboardInterrupt
+            exit(0)
     # endregion
 
 # endregion
@@ -304,7 +304,7 @@ def main() -> None:
 
     except KeyboardInterrupt:
         if not args.quiet:
-            base.print_info('Exit')
+            base.print_info('Exit NCC')
         exit(0)
 
     except AssertionError as Error:

