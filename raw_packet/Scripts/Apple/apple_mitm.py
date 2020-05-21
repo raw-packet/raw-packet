@@ -189,7 +189,7 @@ class AppleMitm:
                                                       self._disconnect_techniques[_technique_index]])
                 print(_disconnect_pretty_table)
                 print(self._base.c_info + 'Set Disconnect technique index from range (1 - ' +
-                      str(len(self._disconnect_techniques)) + '): ')
+                      str(len(self._disconnect_techniques)) + '): ', end='')
                 _test_technique = input()
                 assert _test_technique.isdigit(), \
                     'Disconnect technique index is not digit!'
