@@ -16,7 +16,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.2.1'
+__version__ = '0.2.1.dev5'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -49,6 +49,7 @@ setup(
         "Operating System :: MacOS",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
@@ -56,11 +57,25 @@ setup(
         "Topic :: Security"
     ],
     install_requires=[
-        "netifaces", "ipaddress", "netaddr", "scapy", 
-        "psutil", "prettytable", "distro", "xmltodict",
-        "paramiko", "npyscreen", "pycryptodomex", "getmac",
-        "colorama", "requests", "user-agents"
+        "ipaddress>=1.0.23",
+        "netaddr>=0.7.19",
+        "scapy>=2.4.3",
+        "psutil>=5.7.0",
+        "prettytable>=0.7.2",
+        "distro>=1.5.0",
+        "xmltodict>=0.12.0",
+        "paramiko>=2.7.1",
+        "npyscreen>=4.10.5",
+        "pycryptodomex>=3.9.7",
+        "getmac>=0.8.2",
+        "colorama>=0.4.3",
+        "requests>=2.23.0",
+        "user-agents>=2.1"
     ],
+    extras_require={
+        ':sys_platform=="darwin"': ['netifaces>=0.10.9'],
+        ':sys_platform=="linux"': ['netifaces>=0.10.9']
+    },
     entry_points={
         'console_scripts': [
             'apple_arp_dos=raw_packet.Scripts.Apple.apple_arp_dos:main',
@@ -80,7 +95,7 @@ setup(
             'wat=raw_packet.Scripts.WiFi.wat:main'
         ],
     },
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     include_package_data=True,
 )
 # endregion
