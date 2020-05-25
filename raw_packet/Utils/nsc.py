@@ -14,7 +14,7 @@ from raw_packet.Utils.utils import Utils
 from raw_packet.Utils.network import RawSend, RawARP, RawICMPv4, RawICMPv6, RawDHCPv4, RawDHCPv6
 from os.path import join
 from typing import Union, Dict, List
-from paramiko import RSAKey
+from paramiko import RSAKey, SSHException
 from pathlib import Path
 from os.path import isfile
 from os import remove
@@ -273,10 +273,20 @@ class NetworkSecurityCheck:
                     default_ssh_private_key_file: str = join(str(Path.home()), '.ssh', 'id_rsa')
                     assert isfile(default_ssh_private_key_file), \
                         'Could not found private SSH key: ' + self._base.error_text(default_ssh_private_key_file)
-                    ssh_private_key = RSAKey.from_private_key_file(default_ssh_private_key_file)
+                    try:
+                        ssh_private_key = RSAKey.from_private_key_file(default_ssh_private_key_file)
+                    except SSHException as Error:
+                        self._base.print_error('Paramiko SSH exception: ', Error.args[0])
+                        self._base.print_error('Private SSH key file: ', default_ssh_private_key_file)
+                        exit(2)
 
                 if test_host_ssh_pkey is not None:
-                    ssh_private_key = RSAKey.from_private_key_file(test_host_ssh_pkey)
+                    try:
+                        ssh_private_key = RSAKey.from_private_key_file(test_host_ssh_pkey)
+                    except SSHException as Error:
+                        self._base.print_error('Paramiko SSH exception: ', Error.args[0])
+                        self._base.print_error('Private SSH key file: ', test_host_ssh_pkey)
+                        exit(2)
 
                 assert ssh_private_key is not None or ssh_password is not None, \
                     'Password and private key file for SSH is None!' + \
@@ -391,6 +401,9 @@ class NetworkSecurityCheck:
                 ' -i "' + test_interface + '"' + \
                 ' -w "__pcap_file__"' + \
                 ' -f "stp or ether src ' + your_mac_address + '"'
+
+            if test_os == 'linux' or test_os == 'macos':
+                start_dumpcap_command = start_dumpcap_command + ' >/dev/null 2>&1'
             # endregion
             
             # region Remote dump traffic
@@ -402,30 +415,30 @@ class NetworkSecurityCheck:
                 if test_os == 'linux' or test_os == 'macos':
                     remote_pcap_file = '/tmp/spoofing.pcap'
                     start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', remote_pcap_file)
-                    start_dumpcap_retry: int = 1
                     self._base.exec_command_over_ssh(command=start_dumpcap_command,
                                                      ssh_user=ssh_user,
                                                      ssh_password=ssh_password,
                                                      ssh_pkey=ssh_private_key,
                                                      ssh_host=test_ipv4_address,
                                                      need_output=False)
-                    sleep(1)
-                    while self._base.exec_command_over_ssh(command='pgrep dumpcap',
-                                                           ssh_user=ssh_user,
-                                                           ssh_password=ssh_password,
-                                                           ssh_pkey=ssh_private_key,
-                                                           ssh_host=test_ipv4_address) == '':
-                        self._base.exec_command_over_ssh(command=start_dumpcap_command,
-                                                         ssh_user=ssh_user,
-                                                         ssh_password=ssh_password,
-                                                         ssh_pkey=ssh_private_key,
-                                                         ssh_host=test_ipv4_address,
-                                                         need_output=False)
-                        sleep(1)
-                        start_dumpcap_retry += 1
-                        if start_dumpcap_retry == 10:
-                            self._base.print_error('Failed to start dumpcap on test host: ', test_ipv4_address)
-                            exit(1)
+                    # sleep(1)
+                    # start_dumpcap_retry: int = 1
+                    # while self._base.exec_command_over_ssh(command='pgrep dumpcap',
+                    #                                        ssh_user=ssh_user,
+                    #                                        ssh_password=ssh_password,
+                    #                                        ssh_pkey=ssh_private_key,
+                    #                                        ssh_host=test_ipv4_address) == '':
+                    #     self._base.exec_command_over_ssh(command=start_dumpcap_command,
+                    #                                      ssh_user=ssh_user,
+                    #                                      ssh_password=ssh_password,
+                    #                                      ssh_pkey=ssh_private_key,
+                    #                                      ssh_host=test_ipv4_address,
+                    #                                      need_output=False)
+                    #     sleep(1)
+                    #     start_dumpcap_retry += 1
+                    #     if start_dumpcap_retry == 10:
+                    #         self._base.print_error('Failed to start dumpcap on test host: ', test_ipv4_address)
+                    #         exit(1)
                 # endregion
                 
                 # region Windows
@@ -729,7 +742,7 @@ class NetworkSecurityCheck:
                     'Can not download remote pcap file: ' + self._base.error_text(remote_pcap_file) + \
                     ' with test traffic over SSH!'
                 if test_os == 'linux' or test_os == 'macos':
-                    self._base.exec_command_over_ssh(command='rm -f ' + remote_pcap_file,
+                    self._base.exec_command_over_ssh(command='rm -f "' + remote_pcap_file + '"',
                                                      ssh_user=ssh_user,
                                                      ssh_password=ssh_password,
                                                      ssh_pkey=ssh_private_key,

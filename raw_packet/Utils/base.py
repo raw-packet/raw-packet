@@ -41,7 +41,7 @@ import socket as sock
 from distro import linux_distribution
 from prettytable import PrettyTable
 from typing import Dict, List, Union
-from paramiko import RSAKey, SSHClient, AutoAddPolicy
+from paramiko import RSAKey, SSHClient, AutoAddPolicy, SSHException
 from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
 from colorama import init, Fore, Style
 from threading import Lock
@@ -2196,6 +2196,9 @@ class Base:
         except AuthenticationException:
             self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
 
+        except SSHException as Error:
+            self.print_error('SSH Exception: ', Error.args[0])
+
         if exit_on_failure:
             exit(1)
         if need_output:
@@ -2247,6 +2250,9 @@ class Base:
 
         except AuthenticationException:
             self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
+
+        except SSHException as Error:
+            self.print_error('SSH Exception: ', Error.args[0])
 
         except FileNotFoundError:
             self.print_error('Not found remote file: ', remote_path)

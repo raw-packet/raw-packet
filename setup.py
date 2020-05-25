@@ -16,7 +16,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.2.1.dev6'
+__version__ = '0.2.1.dev11'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -57,24 +57,24 @@ setup(
         "Topic :: Security"
     ],
     install_requires=[
-        "ipaddress>=1.0.23",
-        "netaddr>=0.7.19",
-        "scapy>=2.4.3",
-        "psutil>=5.7.0",
-        "prettytable>=0.7.2",
-        "distro>=1.5.0",
-        "xmltodict>=0.12.0",
-        "paramiko>=2.7.1",
-        "npyscreen>=4.10.5",
-        "pycryptodomex>=3.9.7",
-        "getmac>=0.8.2",
-        "colorama>=0.4.3",
-        "requests>=2.23.0",
-        "user-agents>=2.1"
+        "ipaddress",
+        "netaddr",
+        "scapy",
+        "psutil",
+        "prettytable",
+        "distro",
+        "xmltodict",
+        "paramiko",
+        "npyscreen",
+        "pycryptodomex",
+        "getmac",
+        "colorama",
+        "requests",
+        "user-agents",
     ],
     extras_require={
-        ':sys_platform=="darwin"': ['netifaces>=0.10.9'],
-        ':sys_platform=="linux"': ['netifaces>=0.10.9']
+        ':sys_platform=="darwin"': ['netifaces'],
+        ':sys_platform=="linux"': ['netifaces']
     },
     entry_points={
         'console_scripts': [
@@ -89,8 +89,8 @@ setup(
             'icmpv4_redirect=raw_packet.Scripts.ICMPv4.icmpv4_redirect:main',
             'ipv6_scan=raw_packet.Scripts.IPv6.ipv6_scan:main',
             'ipv6_spoof=raw_packet.Scripts.IPv6.ipv6_spoof:main',
-            'ncc=raw_packet.Scripts.NCC.ncc.py:main',
-            'nsc=raw_packet.Scripts.NSC.nsc.py:main',
+            'ncc=raw_packet.Scripts.NCC.ncc:main',
+            'nsc=raw_packet.Scripts.NSC.nsc:main',
             'phishing=raw_packet.Scripts.Phishing.phishing:main',
             'wat=raw_packet.Scripts.WiFi.wat:main'
         ],

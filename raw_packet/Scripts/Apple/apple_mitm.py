@@ -744,6 +744,10 @@ def main():
     args = parser.parse_args()
     # endregion
 
+    # region Print banner
+    base.print_banner(__script_name__)
+    # endregion
+
     # region Start Apple MiTM
     try:
         apple_mitm: AppleMitm = AppleMitm()

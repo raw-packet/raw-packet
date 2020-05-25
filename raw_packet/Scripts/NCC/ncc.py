@@ -214,7 +214,9 @@ class NetworkConflictCreator:
 
                 if packet['DHCPv4'][53] == 3:
                     if 50 in packet['DHCPv4'].keys():
-                        self._target['ipv4-address'] = str(packet['DHCPv4'][50])
+                        if 'client-mac-address' in packet['DHCPv4'].keys():
+                            if packet['DHCPv4']['client-mac-address'] == self._target['mac-address']:
+                                self._target['ipv4-address'] = str(packet['DHCPv4'][50])
                         self._base.print_success('DHCPv4 Request from: ', packet['Ethernet']['source'],
                                                  ' requested ip: ', str(packet['DHCPv4'][50]))
 
