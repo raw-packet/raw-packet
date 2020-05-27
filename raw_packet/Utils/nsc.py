@@ -391,16 +391,25 @@ class NetworkSecurityCheck:
             # region Start dumpcap
             
             # region Set dumpcap command
-            if test_os == 'linux' or test_os == 'macos':
-                dumpcap_command: str = 'dumpcap'
+            if test_os == 'linux':
+                dumpcap_command = 'tcpdump'
+            elif test_os == 'macos':
+                dumpcap_command = 'dumpcap'
             else:
-                dumpcap_command: str = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
+                dumpcap_command = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
 
-            start_dumpcap_command: str = \
-                dumpcap_command + \
-                ' -i "' + test_interface + '"' + \
-                ' -w "__pcap_file__"' + \
-                ' -f "stp or ether src ' + your_mac_address + '"'
+            if test_os == 'macos' or test_os == 'windows':
+                start_dumpcap_command: str = \
+                        dumpcap_command + \
+                        ' -i "' + test_interface + '"' + \
+                        ' -w "__pcap_file__"' + \
+                        ' -f "stp or ether src ' + your_mac_address + '"'
+            else:
+                start_dumpcap_command: str = \
+                    dumpcap_command + \
+                    ' -i "' + test_interface + '"' + \
+                    ' -w "__pcap_file__"' + \
+                    ' stp or ether src ' + your_mac_address
 
             if test_os == 'linux' or test_os == 'macos':
                 start_dumpcap_command = start_dumpcap_command + ' >/dev/null 2>&1'
@@ -409,7 +418,7 @@ class NetworkSecurityCheck:
             # region Remote dump traffic
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Start dumpcap on test host: ', test_ipv4_address)
+                    self._base.print_info('Dump traffic on test host: ', test_ipv4_address)
 
                 # region Linux or MacOS
                 if test_os == 'linux' or test_os == 'macos':
@@ -469,7 +478,7 @@ class NetworkSecurityCheck:
             # region Local dump traffic
             else:
                 if not quiet:
-                    self._base.print_info('Start dumpcap on listen interface: ', listen_network_interface)
+                    self._base.print_info('Dump traffic on listen interface: ', listen_network_interface)
                 start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', local_pcap_file)
                 Popen(start_dumpcap_command, shell=True, stdout=PIPE, stderr=PIPE)
             # endregion
