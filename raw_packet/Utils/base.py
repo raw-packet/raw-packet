@@ -1,6 +1,6 @@
 # region Description
 """
-test_base.py: Base class for Raw-packet project
+base.py: Base class for Raw-packet project (base)
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -8,8 +8,11 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from platform import system, release
-from sys import exit, stdout
+from raw_packet.Utils.vendors import vendors_dictionary
+try:
+    from platform import system, release, linux_distribution
+except ImportError:
+    from platform import system, release
 try:
     from os import getuid
 except ImportError:
@@ -20,11 +23,11 @@ try:
 except ModuleNotFoundError:
     pass
 from random import choice, randint
+from socket import inet_ntoa
 try:
-    from netifaces import interfaces, ifaddresses, AF_LINK, AF_INET, AF_INET6
-    from netifaces import gateways
+    from netifaces import interfaces, ifaddresses, gateways, AF_LINK, AF_INET, AF_INET6
 except ModuleNotFoundError:
-    from socket import AF_INET, AF_INET6, gethostname, gethostbyname
+    from socket import AF_INET, AF_INET6
     from getmac import get_mac_address
     from ifaddr import get_adapters
 from netaddr import IPNetwork, IPAddress
@@ -38,9 +41,10 @@ import socket as sock
 from distro import linux_distribution
 from prettytable import PrettyTable
 from typing import Dict, List, Union
-from paramiko import RSAKey, SSHClient, AutoAddPolicy
+from paramiko import RSAKey, SSHClient, AutoAddPolicy, SSHException
 from paramiko.ssh_exception import NoValidConnectionsError, AuthenticationException
 from colorama import init, Fore, Style
+from threading import Lock
 # endregion
 
 # region Authorship information
@@ -59,20 +63,60 @@ __status__ = 'Development'
 class Base:
 
     # region Set variables
-    vendor_list: List[Dict[str, str]] = list()
+    vendors: Dict[str, str] = vendors_dictionary
     os_installed_packages_list = None
-    windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
-    windows_adapters = None
+
+    _lock: Lock = Lock()
+    _windows_mac_address_regex = compile(r'([0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2})')
+    _windows_adapters = None
+
+    _current_platform: Union[None, str] = None
+
+    _network_interfaces_multicast_macs: Dict[str, List[str]] = \
+        {'example-network-interface': ['33:33:00:00:00:02']}
+
+    _network_interfaces_settings: Dict[str, Dict[str, Union[None, bool, int, float, str, List[str]]]] = \
+        {'example-network-interface': {
+            'network-interface': 'example-network-interface',
+            'is-wireless': False,
+            'essid': 'AP',
+            'bssid': '12:34:56:78:90:ab',
+            'channel': 1,
+            'frequency': 2.4,
+            'mac-address': '12:34:56:78:90:ab',
+            'ipv4-address': '192.168.0.1',
+            'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
+            'ipv6-global-address': '2001:4860:4860::8888',
+            'ipv6-global-addresses': ['2001:4860:4860::8888', '2001:4860:4860::8844'],
+            'ipv4-netmask': '255.255.255.0',
+            'ipv4-network': '192.168.0.0/24',
+            'first-ipv4-address': '192.168.0.1',
+            'second-ipv4-address': '192.168.0.2',
+            'penultimate-ipv4-address': '192.168.0.253',
+            'last-ipv4-address': '192.168.0.254',
+            'ipv4-broadcast': '192.168.0.255',
+            'ipv4-gateway': '192.168.0.254',
+            'ipv6-gateway': 'fe80::1234:5678:8765:4321'
+        }}
     # endregion
 
     # region Init
-    def __init__(self) -> None:
+    def __init__(self,
+                 admin_only: bool = True,
+                 available_platforms: List[str] = ['Linux', 'Darwin', 'Windows']) -> None:
         """
-        Init string variables
+        Init
         """
+        # Check user is admin/root
+        if admin_only:
+            self.check_user()
 
+        # Check platform
+        self.check_platform(available_platforms=available_platforms)
+
+        # If current platform is Windows get network interfaces settings
         if self.get_platform().startswith('Windows'):
-            self.windows_adapters = get_adapters()
+            self._windows_adapters = get_adapters()
             init(convert=True)
 
         self.cINFO: str = Style.BRIGHT + Fore.BLUE
@@ -89,15 +133,16 @@ class Base:
         self.lowercase_letters: str = 'abcdefghijklmnopqrstuvwxyz'
         self.uppercase_letters: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         self.digits: str = '0123456789'
+
     # endregion
 
     # region Output functions
-    def get_banner(self) -> str:
+    def get_banner(self, script_name: Union[None, str] = None) -> str:
         """
         Get string of colored banner
         :return: String of colored banner
         """
-        return \
+        banner: str = \
             self.cSUCCESS + \
             "                                          _        _   \n" + \
             " _ __ __ ___      __     _ __   __ _  ___| | _____| |_ \n" + \
@@ -107,13 +152,16 @@ class Base:
             "                        |_|                      v" + __version__ + "\n" + \
             self.cEND + self.cWARNING + \
             "             https://raw-packet.github.io/\r\n" + self.cEND
+        if script_name is not None:
+            banner += '\n' + ' ' * (int((55 - len(script_name)) / 2)) + self.cINFO + script_name + self.cEND + '\n'
+        return banner
 
-    def print_banner(self) -> None:
+    def print_banner(self, script_name: Union[None, str] = None) -> None:
         """
         Print colored banner in console
         :return: None
         """
-        print(self.get_banner())
+        print(self.get_banner(script_name))
 
     def _color_print(self, color: str = 'blue', *strings: str) -> None:
         """
@@ -146,10 +194,9 @@ class Base:
                 if color == 'green':
                     result_output_string += self.cSUCCESS
                 result_output_string += strings[index] + self.cEND
-        if self.get_platform().startswith('Windows'):
-            print(result_output_string)
-        else:
-            stdout.write(result_output_string + '\n')
+        self._lock.acquire()
+        print(result_output_string)
+        self._lock.release()
 
     def _color_text(self, color: str = 'blue', string: str = '') -> str:
         """
@@ -236,29 +283,42 @@ class Base:
     # endregion
 
     # region Check platform and user functions
-    @staticmethod
-    def get_platform() -> str:
-        return str(system()) + ' ' + str(release())
+    def get_platform(self) -> str:
+        """
+        Get your platform
+        :return: Platform string (example: 'Windows 10' or 'Darwin 19.0.0' or 'Linux Ubuntu 18.04')
+        """
+        if self._current_platform is None:
+            linux_dist = linux_distribution()
+            try:
+                assert linux_dist[0] != '' and linux_dist[1] != '' and linux_dist[0] != system()
+                self._current_platform = str(system()) + ' ' + str(linux_dist[0]) + ' ' + str(linux_dist[1])
+            except AssertionError:
+                self._current_platform = str(system()) + ' ' + str(release())
+        return self._current_platform
 
-    @staticmethod
-    def check_platform(exit_on_failure: bool = True,
+    def check_platform(self,
+                       available_platforms: List[str] = ['Linux', 'Darwin', 'Windows'],
+                       exit_on_failure: bool = True,
                        exit_code: int = 1,
                        quiet: bool = False) -> bool:
         """
         Check Python version and OS
+        :param available_platforms: Available Platforms list (example: ['Linux', 'Darwin', 'Windows'])
         :param exit_on_failure: Exit in case of error (default: False)
         :param exit_code: Set exit code integer (default: 1)
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if OS is Linux or False if not
         """
-        if system() != 'Linux':
-            if not quiet:
-                print('This script can run only in Linux platform!')
-                print('Your platform: ' + str(system()) + ' ' + str(release()) + ' not supported!')
-            if exit_on_failure:
-                exit(exit_code)
-            return False
-        return True
+        for available_platform in available_platforms:
+            if available_platform in self.get_platform():
+                return True
+        if not quiet:
+            print('This script can run only on: ' + ' and '.join(available_platforms))
+            print('Your platform: ' + self.get_platform() + ' not supported!')
+        if exit_on_failure:
+            exit(exit_code)
+        return False
 
     @staticmethod
     def check_user(exit_on_failure: bool = True,
@@ -387,7 +447,7 @@ class Base:
         """
         if self.get_platform().startswith('Windows'):
             result_list: List[str] = list()
-            for adapter in self.windows_adapters:
+            for adapter in self._windows_adapters:
                 for ip in adapter.ips:
                     if ip.nice_name not in result_list:
                         result_list.append(ip.nice_name)
@@ -454,12 +514,14 @@ class Base:
     def network_interface_selection(self,
                                     interface_name: Union[None, str] = None,
                                     exclude_interface: Union[None, str] = None,
-                                    only_wireless: bool = False) -> str:
+                                    only_wireless: bool = False,
+                                    message: Union[None, str] = None) -> str:
         """
         Select network interface
         :param interface_name: Network interface name (example: 'eth0'; default: None)
         :param exclude_interface: Exclude network interface from list of interfaces (example: 'eth1'; default: None)
         :param only_wireless: Select network interface only from wireless interfaces (default: False)
+        :param message: Print message before select network interface from table (example: 'Select network interface from table: ')
         :return: Network interface name (example: 'eth0')
         """
         network_interface_index: int = 1
@@ -472,6 +534,7 @@ class Base:
 
         if interface_name is not None:
             if interface_name in available_network_interfaces:
+                self.get_interface_settings(interface_name=interface_name, required_parameters=[], quiet=True)
                 return interface_name
             else:
                 if not only_wireless:
@@ -484,44 +547,45 @@ class Base:
                 available_network_interfaces.remove('lo')
 
             if len(available_network_interfaces) > 1:
-                if not only_wireless:
-                    self.print_info('Your interface list:')
-                else:
-                    self.print_info('Your wireless interface list:')
+                if message is not None:
+                    self.print_warning(message)
 
                 interfaces_pretty_table = PrettyTable([self.info_text('Index'),
                                                        self.info_text('Interface name'),
                                                        self.info_text('MAC address'),
                                                        self.info_text('IPv4 address'),
-                                                       self.info_text('IPv6 address')])
+                                                       self.info_text('IPv6 link address')])
 
                 for network_interface in available_network_interfaces:
+                    network_interface_settings = self.get_interface_settings(interface_name=network_interface,
+                                                                             required_parameters=[], quiet=True)
+
                     network_interface_mac_address: Union[None, str] = \
-                        self.get_interface_mac_address(network_interface, exit_on_failure=False, quiet=True)
+                        network_interface_settings['mac-address']
                     if network_interface_mac_address is None:
                         network_interface_mac_address = 'None'
 
                     network_interface_ipv4_address: Union[None, str] = \
-                        self.get_interface_ip_address(network_interface, exit_on_failure=False, quiet=True)
+                        network_interface_settings['ipv4-address']
                     if network_interface_ipv4_address is None:
                         network_interface_ipv4_address = 'None'
 
-                    network_interface_ipv6_address: Union[None, str] = \
-                        self.get_interface_ipv6_link_address(network_interface, exit_on_failure=False, quiet=True)
-                    if network_interface_ipv6_address is None:
-                        network_interface_ipv6_address = 'None'
+                    network_interface_ipv6_link_address: Union[None, str] = \
+                        network_interface_settings['ipv6-link-address']
+                    if network_interface_ipv6_link_address is None:
+                        network_interface_ipv6_link_address = 'None'
 
                     interfaces_pretty_table.add_row([str(network_interface_index),
                                                      network_interface,
                                                      network_interface_mac_address,
                                                      network_interface_ipv4_address,
-                                                     network_interface_ipv6_address])
+                                                     network_interface_ipv6_link_address])
                     network_interface_index += 1
 
                 print(interfaces_pretty_table)
 
                 network_interface_index -= 1
-                print(self.c_warning + 'Set network interface from range (1-' +
+                print(self.c_warning + 'Select network interface from range (1-' +
                       str(network_interface_index) + '): ', end='')
                 current_network_interface_index = input()
 
@@ -550,6 +614,8 @@ class Base:
                 return current_network_interface
 
             if len(available_network_interfaces) == 1:
+                self.get_interface_settings(interface_name=available_network_interfaces[0],
+                                            required_parameters=[], quiet=True)
                 if not only_wireless:
                     self.print_info('You have only one network interface: ', available_network_interfaces[0])
                 else:
@@ -627,56 +693,168 @@ class Base:
 
     def get_interface_settings(self,
                                interface_name: str = 'eth0',
-                               exit_on_failure: bool = False,
-                               quiet: bool = False) -> Dict[str, Union[None, str, List[str]]]:
+                               required_parameters: List[str] = ['mac-address'],
+                               quiet: bool = True) -> Dict[str, Union[None, str, List[str]]]:
         """
         Get network interface settings
         :param interface_name: Network interface name (default: 'eth0')
-        :param exit_on_failure: Exit in case of error (default: False)
-        :param quiet: Quiet mode, if True no console output (default: False)
-        :return: Network interface settings (example: {})
+        :param required_parameters: Required Network interface parameters list (default: ['mac-address'])
+        :param quiet: Quiet mode, if True no console output (default: True)
+        :return: Network interface settings dictionary
+                 (example: {'network-interface': 'example-network-interface',
+                            'is-wireless': False,
+                            'essid': 'AP',
+                            'bssid': '12:34:56:78:90:ab',
+                            'channel': 1,
+                            'mac-address': '12:34:56:78:90:ab',
+                            'ipv4-address': '192.168.0.1',
+                            'ipv6-link-address': 'fe80::1234:5678:90ab:cdef',
+                            'ipv6-global-address': '2001:4860:4860::8888',
+                            'ipv6-global-addresses': ['2001:4860:4860::8888', '2001:4860:4860::8844'],
+                            'ipv4-netmask': '255.255.255.0',
+                            'ipv4-network': '192.168.0.0/24',
+                            'first-ipv4-address': '192.168.0.1',
+                            'second-ipv4-address': '192.168.0.2',
+                            'penultimate-ipv4-address': '192.168.0.253',
+                            'last-ipv4-address': '192.168.0.254',
+                            'ipv4-broadcast': '192.168.0.255',
+                            'ipv4-gateway': '192.168.0.254',
+                            'ipv6-gateway': 'fe80::1234:5678:8765:4321'})
         """
-        return {
-            'Interface name': interface_name,
-            'MAC address': self.get_interface_mac_address(interface_name=interface_name,
-                                                          exit_on_failure=exit_on_failure,
-                                                          quiet=quiet),
-            'IPv4 address': self.get_interface_ip_address(interface_name=interface_name,
-                                                          exit_on_failure=exit_on_failure,
-                                                          quiet=quiet),
-            'IPv6 link local address': self.get_interface_ipv6_link_address(interface_name=interface_name,
-                                                                            exit_on_failure=exit_on_failure,
-                                                                            quiet=quiet),
-            'IPv6 global address': self.get_interface_ipv6_glob_address(interface_name=interface_name),
-            'IPv6 global addresses': self.get_interface_ipv6_glob_addresses(interface_name=interface_name),
-            'IPv4 netmask': self.get_interface_netmask(interface_name=interface_name,
-                                                       exit_on_failure=exit_on_failure,
-                                                       quiet=quiet),
-            'IPv4 network': self.get_interface_network(interface_name=interface_name,
-                                                       exit_on_failure=exit_on_failure,
-                                                       quiet=quiet),
-            'First IPv4 address': self.get_first_ip_on_interface(interface_name=interface_name,
-                                                                 exit_on_failure=exit_on_failure,
-                                                                 quiet=quiet),
-            'Second IPv4 address': self.get_second_ip_on_interface(interface_name=interface_name,
-                                                                   exit_on_failure=exit_on_failure,
-                                                                   quiet=quiet),
-            'Penultimate IPv4 address': self.get_penultimate_ip_on_interface(interface_name=interface_name,
-                                                                             exit_on_failure=exit_on_failure,
-                                                                             quiet=quiet),
-            'Last IPv4 address': self.get_last_ip_on_interface(interface_name=interface_name,
-                                                               exit_on_failure=exit_on_failure,
-                                                               quiet=quiet),
-            'IPv4 broadcast': self.get_interface_broadcast(interface_name=interface_name,
-                                                           exit_on_failure=exit_on_failure,
+        if interface_name not in self._network_interfaces_settings.keys():
+            wireless_interface_settings: Dict[str, Union[None, int, float, str]] = \
+                self.get_wireless_interface_settings(interface_name=interface_name)
+            self._network_interfaces_settings[interface_name]: \
+                Dict[str, Union[None, bool, int, float, str, List[str]]] = {
+                'network-interface': interface_name,
+                'is-wireless': self.check_network_interface_is_wireless(interface_name=interface_name),
+                'essid': wireless_interface_settings['essid'],
+                'bssid': wireless_interface_settings['bssid'],
+                'channel': wireless_interface_settings['channel'],
+                'mac-address': self.get_interface_mac_address(interface_name=interface_name,
+                                                              exit_on_failure=False,
+                                                              quiet=quiet),
+                'ipv4-address': self.get_interface_ip_address(interface_name=interface_name,
+                                                              exit_on_failure=False,
+                                                              quiet=quiet),
+                'ipv6-link-address': self.get_interface_ipv6_link_address(interface_name=interface_name,
+                                                                          exit_on_failure=False,
+                                                                          quiet=quiet),
+                'ipv6-global-address': self.get_interface_ipv6_glob_address(interface_name=interface_name),
+                'ipv6-global-addresses': self.get_interface_ipv6_glob_addresses(interface_name=interface_name),
+                'ipv4-netmask': self.get_interface_netmask(interface_name=interface_name,
+                                                           exit_on_failure=False,
                                                            quiet=quiet),
-            'IPv4 gateway': self.get_interface_ipv4_gateway(interface_name=interface_name,
-                                                            exit_on_failure=exit_on_failure,
-                                                            quiet=quiet),
-            'IPv6 gateway': self.get_interface_ipv6_gateway(interface_name=interface_name,
-                                                            exit_on_failure=exit_on_failure,
-                                                            quiet=quiet)
-        }
+                'ipv4-network': self.get_interface_network(interface_name=interface_name,
+                                                           exit_on_failure=False,
+                                                           quiet=quiet),
+                'first-ipv4-address': self.get_first_ip_on_interface(interface_name=interface_name,
+                                                                     exit_on_failure=False,
+                                                                     quiet=quiet),
+                'second-ipv4-address': self.get_second_ip_on_interface(interface_name=interface_name,
+                                                                       exit_on_failure=False,
+                                                                       quiet=quiet),
+                'penultimate-ipv4-address': self.get_penultimate_ip_on_interface(interface_name=interface_name,
+                                                                                 exit_on_failure=False,
+                                                                                 quiet=quiet),
+                'last-ipv4-address': self.get_last_ip_on_interface(interface_name=interface_name,
+                                                                   exit_on_failure=False,
+                                                                   quiet=quiet),
+                'ipv4-broadcast': self.get_interface_broadcast(interface_name=interface_name,
+                                                               exit_on_failure=False,
+                                                               quiet=quiet),
+                'ipv4-gateway': self.get_interface_ipv4_gateway(interface_name=interface_name,
+                                                                exit_on_failure=False,
+                                                                quiet=quiet),
+                'ipv6-gateway': self.get_interface_ipv6_gateway(interface_name=interface_name,
+                                                                exit_on_failure=False,
+                                                                quiet=quiet)}
+        try:
+            for required_parameter in required_parameters:
+                if required_parameter in self._network_interfaces_settings[interface_name].keys():
+                    assert self._network_interfaces_settings[interface_name][required_parameter] is not None, \
+                        'Network interface: ' + self.error_text(interface_name) + \
+                        ' does not have: ' + self.error_text(required_parameter)
+            return self._network_interfaces_settings[interface_name]
+
+        except AssertionError as Error:
+            self.print_error(Error.args[0])
+            exit(1)
+
+    def get_wireless_interface_settings(self,
+                                        interface_name: str = 'wlan0') -> Dict[str, Union[None, int, str]]:
+        if interface_name in self._network_interfaces_settings.keys():
+            return {
+                'essid': self._network_interfaces_settings[interface_name]['essid'],
+                'bssid': self._network_interfaces_settings[interface_name]['bssid'],
+                'channel': self._network_interfaces_settings[interface_name]['channel']
+            }
+        else:
+            result: Dict[str, Union[None, int, str]] = {
+                'essid': None,
+                'bssid': None,
+                'channel': None
+            }
+            if interface_name in self.list_of_wireless_network_interfaces():
+
+                # region Linux
+                if self.get_platform().startswith('Linux'):
+                    result['essid']: str = str(sub.run(['iwgetid -r ' + interface_name],
+                                                       shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                    result['bssid']: str = str(sub.run(['iwgetid -a -r ' + interface_name],
+                                                       shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                    result['channel']: int = int(sub.run(['iwgetid -c -r ' + interface_name],
+                                                         shell=True, stdout=sub.PIPE).stdout.decode('utf-8').rstrip())
+                # endregion
+
+                # region Windows
+                elif self.get_platform().startswith('Windows'):
+                    netsh_command: sub.Popen = \
+                        sub.Popen('netsh wlan show interfaces', shell=True, stdout=sub.PIPE, stderr=sub.PIPE)
+                    netsh_command_output, netsh_command_error = netsh_command.communicate()
+                    interfaces_info: str = netsh_command_output.decode('utf-8') + netsh_command_error.decode('utf-8')
+                    interfaces_info: List[str] = interfaces_info.splitlines()
+
+                    interface_settings: Dict[str, Dict[str, Union[None, int, str]]] = dict()
+                    current_interface: Union[None, str] = None
+
+                    for output_line in interfaces_info:
+
+                        if 'Name' in output_line:
+                            search_result = search(r'^ +Name +: (?P<interface_name>.*)$', output_line)
+                            if search_result is not None:
+                                current_interface = search_result.group('interface_name')
+                                interface_settings[current_interface]: Dict[str, Union[None, int, str]] = {
+                                    'essid': None,
+                                    'bssid': None,
+                                    'channel': None
+                                }
+
+                        if ' SSID' in output_line:
+                            search_result = search(r'^ +SSID +: (?P<essid>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['essid']: str = \
+                                    str(search_result.group('essid'))
+
+                        if ' BSSID' in output_line:
+                            search_result = search(r'^ +BSSID +: (?P<bssid>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['bssid']: str = \
+                                    str(search_result.group('bssid'))
+
+                        if ' Channel' in output_line:
+                            search_result = search(r'^ +Channel +: (?P<channel>.*)$', output_line)
+                            if search_result is not None:
+                                interface_settings[current_interface]['channel']: int = \
+                                    int(search_result.group('channel'))
+
+                        if 'Hosted network status' in output_line:
+                            break
+
+                    result = interface_settings[interface_name]
+                # endregion
+
+            return result
 
     def get_interface_mac_address(self,
                                   interface_name: str = 'eth0',
@@ -691,6 +869,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: MAC address string (example: '01:23:45:67:89:0a') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['mac-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['mac-address']
+
         try:
             return str(ifaddresses(interface_name)[AF_LINK][0]['addr'])
 
@@ -722,19 +904,19 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv4-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv4-address']
+
         try:
             if self.get_platform().startswith('Windows'):
-                for adapter in self.windows_adapters:
+                for adapter in self._windows_adapters:
                     for ip in adapter.ips:
                         if ip.nice_name == interface_name and ip.is_IPv4:
                             return ip.ip
                 return None
             else:
                 return str(ifaddresses(interface_name)[AF_INET][0]['addr'])
-
-        except NameError:
-            host_name = gethostname()
-            return gethostbyname(host_name)
 
         except ValueError:
             pass
@@ -766,7 +948,7 @@ class Base:
         try:
             if self.get_platform().startswith('Windows'):
                 ipv6_addresses: List[str] = list()
-                for adapter in self.windows_adapters:
+                for adapter in self._windows_adapters:
                     for ip in adapter.ips:
                         if ip.nice_name == interface_name and ip.is_IPv6:
                             ipv6_addresses.append(ip.ip[0])
@@ -808,6 +990,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 link local address string (example: 'fe80::1') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv6-link-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv6-link-address']
+
         if interface_name == 'lo':
             return '::1'
         for address_index in range(0, 10, 1):
@@ -835,6 +1021,10 @@ class Base:
         :param interface_name: Network interface name (default: 'eth0')
         :return: IPv6 global address string (example: 'fd00::1') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv6-global-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv6-global-address']
+
         address_index: int = 0
         ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
                                                                          address_index=address_index,
@@ -859,6 +1049,10 @@ class Base:
         :param interface_name: Network interface name (default: 'eth0')
         :return: IPv6 global addresses list (example: ['fd00::1', 'fd00::2'])
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv6-global-addresses'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv6-global-addresses']
+
         ipv6_addresses: List[str] = list()
         address_index: int = 0
         ipv6_address: Union[None, str] = self.get_interface_ipv6_address(interface_name=interface_name,
@@ -901,9 +1095,23 @@ class Base:
             parts.insert(4, 'fe')
             parts[0] = '%x' % (int(parts[0], 16) ^ 2)
             ipv6_parts: List[str] = list()
+            ipv6_parts_clear: List[str] = list()
+
             for index in range(0, len(parts), 2):
                 ipv6_parts.append(''.join(parts[index:index + 2]))
-            return 'fe80::%s' % (':'.join(ipv6_parts))
+
+            for ipv6_part in ipv6_parts:
+                if ipv6_part.startswith('0'):
+                    ipv6_part = ipv6_part[1:]
+                    if ipv6_part.startswith('0'):
+                        ipv6_part = ipv6_part[1:]
+                        if ipv6_part.startswith('0'):
+                            ipv6_part = ipv6_part[1:]
+                            if ipv6_part.startswith('0'):
+                                ipv6_part = ':'
+                ipv6_parts_clear.append(ipv6_part)
+
+            return 'fe80::%s' % (':'.join(ipv6_parts_clear))
 
         except AssertionError as Error:
             error_text = Error.args[0]
@@ -928,12 +1136,17 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: Network interface mask string (example: '255.255.255.0') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv4-netmask'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv4-netmask']
+
         try:
             if self.get_platform().startswith('Windows'):
-                for adapter in self.windows_adapters:
+                for adapter in self._windows_adapters:
                     for ip in adapter.ips:
                         if ip.nice_name == interface_name and ip.is_IPv4:
-                            return str(ip.network_prefix)
+                            bits = 0xffffffff ^ (1 << 32 - ip.network_prefix) - 1
+                            return str(inet_ntoa(pack('>I', bits)))
                 return None
             else:
                 return str(ifaddresses(interface_name)[AF_INET][0]['netmask'])
@@ -963,6 +1176,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 network string (example: '192.168.1.0/24') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv4-network'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv4-network']
+
         try:
             netmask = self.get_interface_netmask(interface_name=interface_name,
                                                  exit_on_failure=exit_on_failure,
@@ -973,10 +1190,7 @@ class Base:
                                                        exit_code=exit_code,
                                                        quiet=quiet)
             ip = IPNetwork(ip_address + '/' + netmask)
-            if self.get_platform().startswith('Windows'):
-                return str(ip[0]) + '/' + netmask
-            else:
-                return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
+            return str(ip[0]) + '/' + str(IPAddress(netmask).netmask_bits())
 
         except KeyError:
             pass
@@ -1043,6 +1257,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.1') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['first-ipv4-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['first-ipv4-address']
+
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=1,
                                                  exit_on_failure=exit_on_failure,
@@ -1062,6 +1280,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.2') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['second-ipv4-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['second-ipv4-address']
+
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=2,
                                                  exit_on_failure=exit_on_failure,
@@ -1081,6 +1303,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.253') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['penultimate-ipv4-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['penultimate-ipv4-address']
+
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=-3,
                                                  exit_on_failure=exit_on_failure,
@@ -1100,6 +1326,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.254') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['last-ipv4-address'] is not None:
+                return self._network_interfaces_settings[interface_name]['last-ipv4-address']
+
         return self.get_ip_on_interface_by_index(interface_name=interface_name,
                                                  index=-2,
                                                  exit_on_failure=exit_on_failure,
@@ -1154,20 +1384,15 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.255') or None in case of error
         """
-        try:
-            return str(ifaddresses(interface_name)[AF_INET][0]['broadcast'])
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv4-broadcast'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv4-broadcast']
 
-        except KeyError:
-            pass
-
-        except ValueError:
-            pass
-
-        if not quiet:
-            self.print_error('Network interface: ', interface_name, ' does not have broadcast address!')
-        if exit_on_failure:
-            exit(exit_code)
-        return None
+        return self.get_ip_on_interface_by_index(interface_name=interface_name,
+                                                 index=-1,
+                                                 exit_on_failure=exit_on_failure,
+                                                 exit_code=exit_code,
+                                                 quiet=quiet)
 
     def get_interface_gateway(self,
                               interface_name: str = 'eth0',
@@ -1247,6 +1472,10 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv4 address string (example: '192.168.1.254') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv4-gateway'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv4-gateway']
+
         return self.get_interface_gateway(interface_name=interface_name,
                                           network_type=AF_INET,
                                           exit_on_failure=exit_on_failure,
@@ -1266,12 +1495,81 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: IPv6 address string (example: 'fd00::1') or None in case of error
         """
+        if interface_name in self._network_interfaces_settings.keys():
+            if self._network_interfaces_settings[interface_name]['ipv6-gateway'] is not None:
+                return self._network_interfaces_settings[interface_name]['ipv6-gateway']
+
         return self.get_interface_gateway(interface_name=interface_name,
                                           network_type=AF_INET6,
                                           exit_on_failure=exit_on_failure,
                                           exit_code=exit_code,
                                           quiet=quiet)
 
+    def add_multicast_mac_address(self,
+                                  interface_name: str = 'eth0',
+                                  multicast_mac_address: str = '33:33:00:00:00:02',
+                                  exit_on_failure: bool = True,
+                                  exit_code: int = 24,
+                                  quiet: bool = False) -> bool:
+        """
+        Add Multicast MAC address on network interface
+        :param interface_name: Network interface name (default: 'eth0')
+        :param multicast_mac_address: Multicast MAC address (example: '33:33:00:00:00:02')
+        :param exit_on_failure: Exit in case of error (default: False)
+        :param exit_code: Set exit code integer (default: 24)
+        :param quiet: Quiet mode, if True no console output (default: False)
+        :return: True if success or False if error
+        """
+        if interface_name in self._network_interfaces_multicast_macs.keys():
+            if multicast_mac_address in self._network_interfaces_multicast_macs[interface_name]:
+                return True
+        else:
+            self._network_interfaces_multicast_macs[interface_name]: List[str] = list()
+
+        try:
+            # region Windows
+            if self.get_platform().startswith('Windows'):
+                pass
+            # endregion
+
+            # region MacOS
+            elif self.get_platform().startswith('Darwin'):
+                self._network_interfaces_multicast_macs[interface_name].append(multicast_mac_address)
+                return True
+            # endregion
+
+            # region Linux
+            elif self.get_platform().startswith('Linux'):
+                mcast_addresses = sub.run(['ip maddress show ' + interface_name],
+                                          shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                mcast_addresses = mcast_addresses.stdout.decode('utf-8')
+
+                if multicast_mac_address in mcast_addresses:
+                    self._network_interfaces_multicast_macs[interface_name].append(multicast_mac_address)
+                else:
+                    add_mcast_address = sub.run(['ip maddress add ' + multicast_mac_address + ' dev ' + interface_name],
+                                                shell=True, stdout=sub.PIPE, stderr=sub.STDOUT)
+                    add_mcast_address = add_mcast_address.stdout.decode('utf-8')
+                    assert add_mcast_address == '', \
+                        'Could not add milticast MAC address: ' + self.error_text(multicast_mac_address) + \
+                        ' on interface: ' + self.error_text(interface_name)
+                    self._network_interfaces_multicast_macs[interface_name].append(multicast_mac_address)
+                    if not quiet:
+                        self.print_info('Add milticast MAC address: ', multicast_mac_address,
+                                        ' on interface: ', interface_name)
+                return True
+            # endregion
+
+            else:
+                assert False, 'Your platform: ' + self.error_text(self.get_platform()) + ' is not supported!'
+
+        except AssertionError as Error:
+            if not quiet:
+                self.print_error(Error.args[0])
+            if exit_on_failure:
+                exit(exit_code)
+
+        return False
     # endregion
 
     # region Check installed software
@@ -1454,16 +1752,18 @@ class Base:
                 exit(exit_code)
             return None
 
-    @staticmethod
-    def kill_process(process_pid: int) -> bool:
+    def kill_process(self, process_pid: int) -> bool:
         """
         Kill process by ID
         :param process_pid: Process ID integer
         :return: True if kill process or False if not
         """
         try:
-            process = ps.Process(process_pid)
-            process.terminate()
+            if self.get_platform().startswith('Windows'):
+                sub.check_output('taskkill /F /PID ' + str(process_pid), shell=True)
+            else:
+                process = ps.Process(process_pid)
+                process.terminate()
             return True
         except ps.NoSuchProcess:
             return False
@@ -1474,13 +1774,17 @@ class Base:
         :param process_name: Process name string (default: apache2)
         :return: True if kill process or False if not
         """
-        process_pid = self.get_process_pid(process_name)
-        if process_pid != -1:
-            while (self.get_process_pid(process_name) != -1):
-                self.kill_process(process_pid)
+        if self.get_platform().startswith('Windows'):
+            sub.check_output('taskkill /F /IM ' + process_name, shell=True)
             return True
         else:
-            return False
+            process_pid = self.get_process_pid(process_name)
+            if process_pid != -1:
+                while (self.get_process_pid(process_name) != -1):
+                    self.kill_process(process_pid)
+                return True
+            else:
+                return False
 
     def kill_processes_by_listen_port(self,
                                       listen_port: int = 80,
@@ -1811,50 +2115,18 @@ class Base:
             pass
         return name_servers_ip_addresses
 
-    def get_mac_prefixes(self, prefixes_filename: str = 'mac-prefixes.txt') -> List[Dict[str, str]]:
-        """
-        Get MAC address prefixes from file
-        :param prefixes_filename: Name of file with MAC address prefixes (content example: 00:00:01\tXerox\tXerox Corporation)
-        :return: MAC prefixes list (example: [{'prefix': '00:00:01', 'vendor': 'Xerox Corporation'}])
-        """
-        assert len(self.vendor_list) == 0, 'Vendor list already exist!'
-        try:
-            if not isfile(prefixes_filename):
-                prefixes_filename = join(dirname(abspath(__file__)), prefixes_filename)
-                assert isfile(prefixes_filename), \
-                    'File with MAC addresses list: ' + self.error_text(prefixes_filename) + ' not found!'
-            with open(prefixes_filename, 'r') as mac_prefixes_descriptor:
-                for mac_and_vendor_string in mac_prefixes_descriptor.read().splitlines():
-                    mac_and_vendor_list = mac_and_vendor_string.split('\t')
-                    try:
-                        self.vendor_list.append({
-                            'prefix': mac_and_vendor_list[0],
-                            'vendor': mac_and_vendor_list[2]
-                        })
-                    except IndexError:
-                        self.vendor_list.append({
-                            'prefix': mac_and_vendor_list[0],
-                            'vendor': mac_and_vendor_list[1]
-                        })
-        except AssertionError:
-            pass
-        return self.vendor_list
-
     def get_vendor_by_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:
         """
         Get vendor of host by MAC address
         :param mac_address: MAC address of host (example: '01:23:45:67:89:0a')
         :return: Vendor string
         """
-        if len(self.vendor_list) == 0:
-            self.get_mac_prefixes()
         if not self.mac_address_validation(mac_address):
             return 'Unknown vendor'
         mac_address: str = mac_address.upper()
-        for vendor_dictionary in self.vendor_list:
-            if len(vendor_dictionary['prefix']) == 8:
-                if vendor_dictionary['prefix'] in mac_address:
-                    return vendor_dictionary['vendor']
+        for vendor_mac_prefix in self.vendors.keys():
+            if mac_address.startswith(vendor_mac_prefix):
+                return self.vendors[vendor_mac_prefix]
         return 'Unknown vendor'
 
     def macos_encode_mac_address(self, mac_address: str = '01:23:45:67:89:0a') -> str:
@@ -1924,6 +2196,9 @@ class Base:
         except AuthenticationException:
             self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
 
+        except SSHException as Error:
+            self.print_error('SSH Exception: ', Error.args[0])
+
         if exit_on_failure:
             exit(1)
         if need_output:
@@ -1975,6 +2250,9 @@ class Base:
 
         except AuthenticationException:
             self.print_error('SSH authentication error: ', ssh_user + '@' + ssh_host)
+
+        except SSHException as Error:
+            self.print_error('SSH Exception: ', Error.args[0])
 
         except FileNotFoundError:
             self.print_error('Not found remote file: ', remote_path)

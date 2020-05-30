@@ -67,4 +67,12 @@ class ThreadManager(object):
         :return: None
         """
         self._threads.join()
+
+    def close(self):
+        """
+        Close all threads
+        :return: None
+        """
+        self._threads.task_done()
+
 # endregion

@@ -8,10 +8,10 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
-from os.path import dirname, abspath
-from sys import path
-from subprocess import run, PIPE
-import unittest
+from raw_packet.Tests.Unit_tests.variables import Variables
+from raw_packet.Tests.Unit_tests.context_manager import ContextManager
+from raw_packet.Scripts.ARP.arp_scan import scan as arp_scan
+from unittest import TestCase
 # endregion
 
 # region Authorship information
@@ -27,44 +27,61 @@ __status__ = 'Development'
 
 
 # region Main class - ScriptArpScanTest
-class ScriptArpScanTest(unittest.TestCase):
+class ScriptArpScanTest(TestCase):
 
     # region Properties
-    root_path = dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
-    path.append(root_path)
-    from raw_packet.Tests.Unit_tests.variables import Variables
+    variables: Variables = Variables()
+    context_manager: ContextManager = ContextManager()
     # endregion
 
     def test01_main(self):
-        arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' +
-                        ScriptArpScanTest.Variables.test_network_interface], shell=True, stdout=PIPE)
-        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
+        with self.context_manager.captured_output() as (out, err):
+            arp_scan(interface=self.variables.your.network_interface)
+        arp_scan_output: str = out.getvalue()
         print(arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.router_ipv4_address, arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.router_mac_address, arp_scan_output)
+        self.assertIn(self.variables.router.ipv4_address, arp_scan_output)
+        self.assertIn(self.variables.router.mac_address, arp_scan_output)
+        self.assertIn(self.variables.router.vendor, arp_scan_output)
+        self.assertIn(self.variables.target.ipv4_address, arp_scan_output)
+        self.assertIn(self.variables.target.mac_address, arp_scan_output)
+        self.assertIn(self.variables.target.vendor, arp_scan_output)
 
     def test02_main_bad_interface(self):
-        arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
-                        ScriptArpScanTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
-        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                arp_scan(interface=self.variables.bad.network_interface)
+        arp_scan_output: str = out.getvalue()
         print(arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.bad_network_interface, arp_scan_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.network_interface, arp_scan_output)
 
     def test03_main_target_ip(self):
-        arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
-                        ScriptArpScanTest.Variables.test_network_interface + ' -T ' + 
-                        ScriptArpScanTest.Variables.router_ipv4_address], shell=True, stdout=PIPE)
-        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
+        with self.context_manager.captured_output() as (out, err):
+            arp_scan(interface=self.variables.your.network_interface,
+                     target_ip=self.variables.router.ipv4_address)
+        arp_scan_output: str = out.getvalue()
         print(arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.router_ipv4_address, arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.router_mac_address, arp_scan_output)
+        self.assertIn(self.variables.router.ipv4_address, arp_scan_output)
+        self.assertIn(self.variables.router.mac_address, arp_scan_output)
+        self.assertIn(self.variables.router.vendor, arp_scan_output)
+
+        with self.context_manager.captured_output() as (out, err):
+            arp_scan(interface=self.variables.your.network_interface,
+                     target_ip=self.variables.target.ipv4_address)
+        arp_scan_output: str = out.getvalue()
+        print(arp_scan_output)
+        self.assertIn(self.variables.target.ipv4_address, arp_scan_output)
+        self.assertIn(self.variables.target.mac_address, arp_scan_output)
+        self.assertIn(self.variables.target.vendor, arp_scan_output)
 
     def test04_main_bad_target_ip(self):
-        arp_scan = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_scan.py -i ' + 
-                        ScriptArpScanTest.Variables.test_network_interface + ' -T ' + 
-                        ScriptArpScanTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_scan_output: str = arp_scan.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                arp_scan(interface=self.variables.your.network_interface,
+                         target_ip=self.variables.bad.ipv4_address)
+        arp_scan_output: str = out.getvalue()
         print(arp_scan_output)
-        self.assertIn(ScriptArpScanTest.Variables.bad_ipv4_address, arp_scan_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.ipv4_address, arp_scan_output)
 
 # endregion

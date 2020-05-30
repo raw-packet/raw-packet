@@ -8,15 +8,20 @@ Copyright 2020, Raw-packet Project
 # endregion
 
 # region Import
+from raw_packet.Utils.base import Base
+from raw_packet.Tests.Unit_tests.variables import Variables
+from raw_packet.Tests.Unit_tests.context_manager import ContextManager
+from raw_packet.Utils.tm import ThreadManager
+from raw_packet.Scripts.ARP.arp_spoof import ArpSpoof
 from sys import path
-from os.path import dirname, abspath, isfile
+from os.path import dirname, abspath, isfile, join
 from os import remove, kill
 from signal import SIGTERM
 from time import sleep
-from subprocess import run, PIPE, Popen
+from subprocess import run, PIPE, Popen, STDOUT
 from scapy.all import rdpcap, ARP
 from typing import IO
-import unittest
+from unittest import TestCase
 # endregion
 
 # region Authorship information
@@ -32,36 +37,40 @@ __status__ = 'Development'
 
 
 # region Main class - ScriptArpScanTest
-class ScriptArpSpoofTest(unittest.TestCase):
+class ScriptArpSpoofTest(TestCase):
 
     # region Properties
-    root_path = dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__)))))))
-    path.append(root_path)
-    from raw_packet.Utils.base import Base
-    from raw_packet.Tests.Unit_tests.variables import Variables
-    base: Base = Base()
-    tshark_pcap_filename: str = '/tmp/arp_spoof_test.pcap'
+    variables: Variables = Variables()
+    base: Base = Base(admin_only=True, available_platforms=['Linux', 'Darwin', 'Windows'])
+    context_manager: ContextManager = ContextManager()
+    thread_manager: ThreadManager = ThreadManager(10)
+    tshark_pcap_filename: str = join(variables.temp_directory, 'arp_spoof_test.pcap')
     # endregion
 
     def test01_main_responses(self):
+        if isfile(self.tshark_pcap_filename):
+            remove(self.tshark_pcap_filename)
         find_spoof_packet: bool = False
-        arp_spoof_command: str = 'python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' + \
-                                 ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' + \
-                                 ScriptArpSpoofTest.Variables.apple_device_ipv4_address
-        Popen(arp_spoof_command, shell=True)
-        tshark_command: str = 'tshark -i ' + ScriptArpSpoofTest.Variables.test_network_interface + \
-                              ' -f "ether src ' + ScriptArpSpoofTest.Variables.your_mac_address + \
-                              ' and ether dst ' + ScriptArpSpoofTest.Variables.apple_device_mac_address + \
-                              ' and arp" -B 65535 -w ' + self.tshark_pcap_filename + \
-                              ' 1>/dev/null 2>&1'
-        Popen(tshark_command, shell=True)
+        arp_spoof: ArpSpoof = ArpSpoof(network_interface=self.variables.your.network_interface)
+        self.thread_manager.add_task(arp_spoof.start, self.variables.router.ipv4_address,
+                                     self.variables.target.ipv4_address, self.variables.target.mac_address,
+                                     False, False, False, False, False)
+        command = self.variables.tshark_executable + \
+                  ' -i "' + self.variables.your.network_interface + \
+                  '" -f "ether src ' + self.variables.your.mac_address + \
+                  ' and ether dst ' + self.variables.target.mac_address + \
+                  ' and arp" -B 65535 -w "' + self.tshark_pcap_filename + '"'
+        if self.base.get_platform().startswith('Darwin'):
+            Popen([command], shell=True, stdout=PIPE, stderr=STDOUT)
+        else:
+            Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
         sleep(5)
-        while self.base.get_process_pid('/arp_spoof.py') != -1:
-            kill(self.base.get_process_pid('/arp_spoof.py'), SIGTERM)
-            sleep(0.5)
-        while self.base.get_process_pid('tshark') != -1:
-            kill(self.base.get_process_pid('tshark'), SIGTERM)
-            sleep(0.5)
+        self.thread_manager.close()
+        if self.base.get_platform().startswith('Windows'):
+            self.base.kill_process_by_name(process_name='tshark.exe')
+        else:
+            self.base.kill_process_by_name(process_name='tshark')
+        self.assertTrue(isfile(self.tshark_pcap_filename))
         try:
             packets = rdpcap(self.tshark_pcap_filename)
             for packet in packets:
@@ -72,14 +81,16 @@ class ScriptArpSpoofTest(unittest.TestCase):
                     self.base.print_info('ARP target MAC: ', arp_packet.hwdst)
                     self.base.print_info('ARP sender IP: ', arp_packet.psrc)
                     self.base.print_info('ARP target IP: ', arp_packet.pdst)
-                    if arp_packet.hwsrc == ScriptArpSpoofTest.Variables.your_mac_address and \
-                            arp_packet.hwdst == ScriptArpSpoofTest.Variables.apple_device_mac_address and \
-                            arp_packet.psrc == ScriptArpSpoofTest.Variables.router_ipv4_address and \
-                            arp_packet.pdst == ScriptArpSpoofTest.Variables.apple_device_ipv4_address and \
+                    if arp_packet.hwsrc == self.variables.your.mac_address and \
+                            arp_packet.hwdst == self.variables.target.mac_address and \
+                            arp_packet.psrc == self.variables.router.ipv4_address and \
+                            arp_packet.pdst == self.variables.target.ipv4_address and \
                             arp_packet.op == 2:
                         find_spoof_packet = True
                         break
         except ValueError:
+            pass
+        except FileNotFoundError:
             pass
         if isfile(self.tshark_pcap_filename):
             remove(self.tshark_pcap_filename)
@@ -87,23 +98,26 @@ class ScriptArpSpoofTest(unittest.TestCase):
 
     def test02_main_requests(self):
         find_spoof_packet: bool = False
-        arp_spoof_command: str = 'python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' + \
-                                 ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' + \
-                                 ScriptArpSpoofTest.Variables.apple_device_ipv4_address + ' -r'
-        Popen(arp_spoof_command, shell=True)
-        tshark_command: str = 'tshark -i ' + ScriptArpSpoofTest.Variables.test_network_interface + \
-                              ' -f "ether src ' + ScriptArpSpoofTest.Variables.your_mac_address + \
-                              ' and ether dst ' + ScriptArpSpoofTest.Variables.apple_device_mac_address + \
-                              ' and arp" -B 65535 -w ' + self.tshark_pcap_filename + \
-                              ' 1>/dev/null 2>&1'
-        Popen(tshark_command, shell=True)
+        arp_spoof: ArpSpoof = ArpSpoof(network_interface=self.variables.your.network_interface)
+        self.thread_manager.add_task(arp_spoof.start, self.variables.router.ipv4_address,
+                                     self.variables.target.ipv4_address, self.variables.target.mac_address,
+                                     False, False, False, True, False)
+        command = self.variables.tshark_executable + \
+                  ' -i "' + self.variables.your.network_interface + \
+                  '" -f "ether src ' + self.variables.your.mac_address + \
+                  ' and ether dst ' + self.variables.target.mac_address + \
+                  ' and arp" -B 65535 -w "' + self.tshark_pcap_filename + '"'
+        if self.base.get_platform().startswith('Darwin'):
+            Popen([command], shell=True, stdout=PIPE, stderr=STDOUT)
+        else:
+            Popen(command, shell=True, stdout=PIPE, stderr=STDOUT)
         sleep(5)
-        while self.base.get_process_pid('/arp_spoof.py') != -1:
-            kill(self.base.get_process_pid('/arp_spoof.py'), SIGTERM)
-            sleep(0.5)
-        while self.base.get_process_pid('tshark') != -1:
-            kill(self.base.get_process_pid('tshark'), SIGTERM)
-            sleep(0.5)
+        self.thread_manager.close()
+        if self.base.get_platform().startswith('Windows'):
+            self.base.kill_process_by_name(process_name='tshark.exe')
+        else:
+            self.base.kill_process_by_name(process_name='tshark')
+        self.assertTrue(isfile(self.tshark_pcap_filename))
         try:
             packets = rdpcap(self.tshark_pcap_filename)
             for packet in packets:
@@ -114,48 +128,60 @@ class ScriptArpSpoofTest(unittest.TestCase):
                     self.base.print_info('ARP target MAC: ', arp_packet.hwdst)
                     self.base.print_info('ARP sender IP: ', arp_packet.psrc)
                     self.base.print_info('ARP target IP: ', arp_packet.pdst)
-                    if arp_packet.hwsrc == ScriptArpSpoofTest.Variables.your_mac_address and \
+                    if arp_packet.hwsrc == self.variables.your.mac_address and \
                             arp_packet.hwdst == '00:00:00:00:00:00' and \
-                            arp_packet.psrc == ScriptArpSpoofTest.Variables.router_ipv4_address and \
+                            arp_packet.psrc == self.variables.router.ipv4_address and \
                             arp_packet.op == 1:
                         find_spoof_packet = True
                         break
         except ValueError:
+            pass
+        except FileNotFoundError:
             pass
         if isfile(self.tshark_pcap_filename):
             remove(self.tshark_pcap_filename)
         self.assertTrue(find_spoof_packet)
 
     def test03_main_bad_interface(self):
-        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                         ScriptArpSpoofTest.Variables.bad_network_interface], shell=True, stdout=PIPE)
-        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                ArpSpoof(network_interface=self.variables.bad.network_interface)
+        arp_spoof_output: str = out.getvalue()
         print(arp_spoof_output)
-        self.assertIn(ScriptArpSpoofTest.Variables.bad_network_interface, arp_spoof_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.network_interface, arp_spoof_output)
 
     def test04_main_bad_gateway_ip(self):
-        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                         ScriptArpSpoofTest.Variables.test_network_interface + ' -g ' +
-                         ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                arp_spoof: ArpSpoof = ArpSpoof(network_interface=self.variables.your.network_interface)
+                arp_spoof.start(gateway_ipv4_address=self.variables.bad.ipv4_address)
+        arp_spoof_output: str = out.getvalue()
         print(arp_spoof_output)
-        self.assertIn(ScriptArpSpoofTest.Variables.bad_ipv4_address, arp_spoof_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.ipv4_address, arp_spoof_output)
 
     def test05_main_bad_target_ip(self):
-        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                         ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
-                         ScriptArpSpoofTest.Variables.bad_ipv4_address], shell=True, stdout=PIPE)
-        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                arp_spoof: ArpSpoof = ArpSpoof(network_interface=self.variables.your.network_interface)
+                arp_spoof.start(gateway_ipv4_address=self.variables.router.ipv4_address,
+                                target_ipv4_address=self.variables.bad.ipv4_address)
+        arp_spoof_output: str = out.getvalue()
         print(arp_spoof_output)
-        self.assertIn(ScriptArpSpoofTest.Variables.bad_ipv4_address, arp_spoof_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.ipv4_address, arp_spoof_output)
 
     def test06_main_bad_target_mac(self):
-        arp_spoof = run(['python3 ' + self.root_path + '/Scripts/ARP/arp_spoof.py -i ' +
-                         ScriptArpSpoofTest.Variables.test_network_interface + ' -t ' +
-                         ScriptArpSpoofTest.Variables.apple_device_ipv4_address + ' -m ' +
-                         ScriptArpSpoofTest.Variables.bad_mac_address], shell=True, stdout=PIPE)
-        arp_spoof_output: str = arp_spoof.stdout.decode('utf-8')
+        with self.assertRaises(SystemExit) as result:
+            with self.context_manager.captured_output() as (out, err):
+                arp_spoof: ArpSpoof = ArpSpoof(network_interface=self.variables.your.network_interface)
+                arp_spoof.start(gateway_ipv4_address=self.variables.router.ipv4_address,
+                                target_ipv4_address=self.variables.target.ipv4_address,
+                                target_mac_address=self.variables.bad.mac_address)
+        arp_spoof_output: str = out.getvalue()
         print(arp_spoof_output)
-        self.assertIn(ScriptArpSpoofTest.Variables.bad_mac_address, arp_spoof_output)
+        self.assertEqual(result.exception.code, 1)
+        self.assertIn(self.variables.bad.mac_address, arp_spoof_output)
 
 # endregion

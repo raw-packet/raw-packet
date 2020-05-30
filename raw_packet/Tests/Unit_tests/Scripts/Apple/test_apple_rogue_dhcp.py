@@ -1,6 +1,6 @@
 # region Description
 """
-test_apple_rogue_dhcp.py: Unit tests for Raw-packet script: apple_rogue_dhcp.py
+test_apple_rogue_dhcp.py: Unit tests for Raw-packet script: apple_dhcp_server.py
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
@@ -44,8 +44,8 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
     # endregion
 
     def kill_test_process(self) -> None:
-        while self.base.get_process_pid('/apple_rogue_dhcp.py') != -1:
-            kill(self.base.get_process_pid('/apple_rogue_dhcp.py'), SIGTERM)
+        while self.base.get_process_pid('/apple_dhcp_server.py') != -1:
+            kill(self.base.get_process_pid('/apple_dhcp_server.py'), SIGTERM)
             sleep(0.1)
 
     @staticmethod
@@ -65,7 +65,7 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
                 response = system("ping -c 1 " + ScriptAppleRogueDhcpTest.Variables.apple_device_ipv4_address)
 
     def test01_start_without_params(self):
-        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py'],
+        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_dhcp_server.py'],
                            stdout=PIPE, stderr=STDOUT, shell=True)
         mitm_process_stdout: str = mitm_process.stdout.decode('utf-8')
         print(mitm_process_stdout)
@@ -74,7 +74,7 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
         self.assertIn('--target_new_ip', mitm_process_stdout)
 
     def test02_start_without_target_new_ip(self):
-        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py --target_mac ' +
+        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_dhcp_server.py --target_mac ' +
                             ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address],
                            stdout=PIPE, stderr=STDOUT, shell=True)
         mitm_process_stdout: str = mitm_process.stdout.decode('utf-8')
@@ -83,7 +83,7 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
         self.assertIn('--target_new_ip', mitm_process_stdout)
 
     def test03_start_without_target_mac(self):
-        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py --target_new_ip ' +
+        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_dhcp_server.py --target_new_ip ' +
                             ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address],
                            stdout=PIPE, stderr=STDOUT, shell=True)
         mitm_process_stdout: str = mitm_process.stdout.decode('utf-8')
@@ -92,7 +92,7 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
         self.assertIn('--target_mac', mitm_process_stdout)
 
     def test04_main_bad_interface(self):
-        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' +
+        mitm_process = run(['python3 ' + self.root_path + '/Scripts/Apple/apple_dhcp_server.py --interface ' +
                             ScriptAppleRogueDhcpTest.Variables.bad_network_interface + ' --target_mac ' +
                             ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address + ' --target_new_ip ' +
                             ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address],
@@ -107,7 +107,7 @@ class ScriptAppleRogueDhcpTest(unittest.TestCase):
              ScriptAppleRogueDhcpTest.Variables.test_network_interface + ' --target_mac ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address + ' --target_ip ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_ipv4_address + ' --quiet'], shell=True)
-        run(['python3 ' + self.root_path + '/Scripts/Apple/apple_rogue_dhcp.py --interface ' +
+        run(['python3 ' + self.root_path + '/Scripts/Apple/apple_dhcp_server.py --interface ' +
              ScriptAppleRogueDhcpTest.Variables.test_network_interface + ' --target_mac ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_mac_address + ' --target_new_ip ' +
              ScriptAppleRogueDhcpTest.Variables.apple_device_new_ipv4_address + ' --quiet'], shell=True)

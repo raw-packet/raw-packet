@@ -3,7 +3,7 @@
 
 # region Description
 """
-scanner.py: Scan local network
+nmap_scanner.py: Scan local network
 Author: Vladimir Ivanov
 License: MIT
 Copyright 2020, Raw-packet Project
