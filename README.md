@@ -237,7 +237,7 @@ optional arguments:
 
 ---
 
-## Script: [apple_dhcp_server.py](https://github.com/raw-packet/raw-packet/blob/master/raw_packet/Scripts/Apple/apple_dhcp_server.py)
+## Script: [apple_dhcp_server](https://github.com/raw-packet/raw-packet/blob/master/raw_packet/Scripts/Apple/apple_dhcp_server.py)
 
 Rogue DHCPv4 server for Apple device with predict next DHCPv4 transaction ID
 
