@@ -597,7 +597,7 @@ optional arguments:
 ### Sample script output:
 ![ipv6_scan output](https://raw-packet.github.io/static/images/screenshots/ipv6_scan_screenshot.png)
 
-### Search IPv6 router
+### Search IPv6 router:
 ![ipv6_router_search output](https://raw-packet.github.io/static/images/screenshots/ipv6_scan_router_search_screenshot.png)
 
 ---
