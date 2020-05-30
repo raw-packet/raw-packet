@@ -178,6 +178,9 @@ class NetworkSecurityCheck:
                     self._base.get_interface_gateway(interface_name=send_network_interface,
                                                      exit_on_failure=True)
             scan_gateway_mac_address: str = get_mac_address(ip=gateway_ipv4_address, network_request=True)
+            # scan_gateway_mac_address: str = arp_scan.get_mac_address(target_ip_address=gateway_ipv4_address,
+            #                                                          exit_on_failure=True,
+            #                                                          show_scan_percentage=False)
             if gateway_mac_address is not None:
                 self._utils.check_mac_address(mac_address=gateway_mac_address,
                                               parameter_name='gateway MAC address')
@@ -253,6 +256,9 @@ class NetworkSecurityCheck:
                                                            is_local_ipv4_address=True,
                                                            parameter_name='test host IPv4 address')
                     scan_test_mac_address: str = get_mac_address(ip=test_ipv4_address, network_request=True)
+                    # scan_test_mac_address: str = arp_scan.get_mac_address(target_ip_address=test_ipv4_address,
+                    #                                                       exit_on_failure=True,
+                    #                                                       show_scan_percentage=False)
                     if test_host_mac_address is not None:
                         self._utils.check_mac_address(mac_address=test_host_mac_address,
                                                       parameter_name='test host MAC address')
@@ -388,66 +394,51 @@ class NetworkSecurityCheck:
                 self._base.print_info('Gateway MAC address: ', gateway_mac_address)
             # endregion
 
-            # region Start dumpcap
+            # region Start dump traffic
             
-            # region Set dumpcap command
-            if test_os == 'linux':
+            # region Set dump traffic command
+            if test_os == 'linux' or test_os == 'macos':
                 dumpcap_command = 'tcpdump'
-            elif test_os == 'macos':
-                dumpcap_command = 'dumpcap'
-            else:
-                dumpcap_command = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
-
-            if test_os == 'macos' or test_os == 'windows':
-                start_dumpcap_command: str = \
-                        dumpcap_command + \
-                        ' -i "' + test_interface + '"' + \
-                        ' -w "__pcap_file__"' + \
-                        ' -f "stp or ether src ' + your_mac_address + '"'
-            else:
                 start_dumpcap_command: str = \
                     dumpcap_command + \
                     ' -i "' + test_interface + '"' + \
                     ' -w "__pcap_file__"' + \
-                    ' stp or ether src ' + your_mac_address
-
-            if test_os == 'linux' or test_os == 'macos':
-                start_dumpcap_command = start_dumpcap_command + ' >/dev/null 2>&1'
+                    ' "stp or ether src ' + your_mac_address + '" >/dev/null 2>&1'
+            else:
+                dumpcap_command = '"C:\\Program Files\\Wireshark\\dumpcap.exe"'
+                start_dumpcap_command: str = \
+                    dumpcap_command + \
+                    ' -i "' + test_interface + '"' + \
+                    ' -w "__pcap_file__"' + \
+                    ' -f "stp or ether src ' + your_mac_address + '"'
             # endregion
             
             # region Remote dump traffic
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Dump traffic on test host: ', test_ipv4_address)
+                    self._base.print_info('Start dump traffic on test host: ', test_ipv4_address)
 
                 # region Linux or MacOS
                 if test_os == 'linux' or test_os == 'macos':
                     remote_pcap_file = '/tmp/spoofing.pcap'
                     start_dumpcap_command = start_dumpcap_command.replace('__pcap_file__', remote_pcap_file)
-                    self._base.exec_command_over_ssh(command=start_dumpcap_command,
-                                                     ssh_user=ssh_user,
-                                                     ssh_password=ssh_password,
-                                                     ssh_pkey=ssh_private_key,
-                                                     ssh_host=test_ipv4_address,
-                                                     need_output=False)
-                    # sleep(1)
-                    # start_dumpcap_retry: int = 1
-                    # while self._base.exec_command_over_ssh(command='pgrep dumpcap',
-                    #                                        ssh_user=ssh_user,
-                    #                                        ssh_password=ssh_password,
-                    #                                        ssh_pkey=ssh_private_key,
-                    #                                        ssh_host=test_ipv4_address) == '':
-                    #     self._base.exec_command_over_ssh(command=start_dumpcap_command,
-                    #                                      ssh_user=ssh_user,
-                    #                                      ssh_password=ssh_password,
-                    #                                      ssh_pkey=ssh_private_key,
-                    #                                      ssh_host=test_ipv4_address,
-                    #                                      need_output=False)
-                    #     sleep(1)
-                    #     start_dumpcap_retry += 1
-                    #     if start_dumpcap_retry == 10:
-                    #         self._base.print_error('Failed to start dumpcap on test host: ', test_ipv4_address)
-                    #         exit(1)
+                    start_dumpcap_retry: int = 1
+                    while self._base.exec_command_over_ssh(command='pgrep ' + dumpcap_command,
+                                                           ssh_user=ssh_user,
+                                                           ssh_password=ssh_password,
+                                                           ssh_pkey=ssh_private_key,
+                                                           ssh_host=test_ipv4_address) == '':
+                        self._base.exec_command_over_ssh(command=start_dumpcap_command,
+                                                         ssh_user=ssh_user,
+                                                         ssh_password=ssh_password,
+                                                         ssh_pkey=ssh_private_key,
+                                                         ssh_host=test_ipv4_address,
+                                                         need_output=False)
+                        sleep(1)
+                        start_dumpcap_retry += 1
+                        if start_dumpcap_retry == 5:
+                            self._base.print_error('Failed to start dump traffic on test host: ', test_ipv4_address)
+                            exit(1)
                 # endregion
                 
                 # region Windows
@@ -607,7 +598,7 @@ class NetworkSecurityCheck:
             # region Make ICMPv6 Router Advertisement packet
             ra_packet: bytes = \
                 self._icmpv6.make_router_advertisement_packet(ethernet_src_mac=your_mac_address,
-                                                              ethernet_dst_mac='33:33:00:00:00:01',
+                                                              ethernet_dst_mac=test_mac_address,
                                                               ipv6_src=gateway_ipv6_address,
                                                               ipv6_dst='ff02::1',
                                                               dns_address=your_ipv6_address,
@@ -703,7 +694,9 @@ class NetworkSecurityCheck:
 
             # endregion
 
-            # region Stop dumpcap
+            # region Stop dump traffic
+
+            # region Wait
             while int(time() - start_time) < listen_time:
                 stdout.write('\r')
                 if listen_time - int(time() - start_time) > 1:
@@ -713,14 +706,16 @@ class NetworkSecurityCheck:
                     stdout.write('')
                 stdout.flush()
                 sleep(1)
+            # endregion
 
             if test_os == 'linux' or test_os == 'macos':
-                stop_dumpcap_command: str = 'pkill dumpcap >/dev/null 2>&1'
+                stop_dumpcap_command: str = 'pkill tcpdump >/dev/null 2>&1'
             else:
                 stop_dumpcap_command: str = 'taskkill /IM "dumpcap.exe" /F'
+
             if ssh_user is not None:
                 if not quiet:
-                    self._base.print_info('Stop dumpcap on test host: ', test_ipv4_address)
+                    self._base.print_info('Stop dump traffic on test host: ', test_ipv4_address)
                 self._base.exec_command_over_ssh(command=stop_dumpcap_command,
                                                  ssh_user=ssh_user,
                                                  ssh_password=ssh_password,
@@ -729,7 +724,7 @@ class NetworkSecurityCheck:
                                                  need_output=False)
             else:
                 if not quiet:
-                    self._base.print_info('Stop dumpcap on listen interface: ', listen_network_interface)
+                    self._base.print_info('Stop dump traffic on listen interface: ', listen_network_interface)
                 if test_os == 'linux' or test_os == 'macos':
                     run([stop_dumpcap_command], shell=True)
                 else:
@@ -947,7 +942,7 @@ class NetworkSecurityCheck:
 
                     if packet.haslayer(ICMPv6ND_RA):
                         if packet[Ether].src == your_mac_address and \
-                                packet[Ether].dst == '33:33:00:00:00:01' and \
+                                packet[Ether].dst == test_mac_address and \
                                 packet[IPv6].src == gateway_ipv6_address and \
                                 packet[IPv6].dst == 'ff02::1' and \
                                 packet[ICMPv6ND_RA].type == 134:
