@@ -16,7 +16,7 @@ __author__ = 'Vladimir Ivanov'
 __copyright__ = 'Copyright 2020, Raw-packet Project'
 __credits__ = ['']
 __license__ = 'MIT'
-__version__ = '0.2.1.dev24'
+__version__ = '0.2.1.dev25'
 __maintainer__ = 'Vladimir Ivanov'
 __email__ = 'ivanov.vladimir.mail@gmail.com'
 __status__ = 'Development'
@@ -31,8 +31,7 @@ setup(
     version=__version__,
     author=__author__,
     author_email=__email__,
-    description="This project implements network protocols such as Ethernet ARP IPv4 UDP TCP DHCPv4 ICMPv4 "
-                "IPv6 DHCPv6 ICMPv6 DNS MDNS on raw socket.",
+    description="Raw-packet Project",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://raw-packet.github.io/",
