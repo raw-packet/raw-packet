@@ -477,12 +477,18 @@ payload = ''
 if args.command is not None:
     payload = args.command
 else:
-    if args.payload == 'bind_awk': payload = bind_awk
-    elif args.payload == 'reverse_awk': payload = reverse_awk
-    elif args.payload == 'reverse_bash': payload = reverse_bash
-    elif args.payload == 'reverse_php': payload = reverse_php
-    elif args.payload == 'reverse_nc': payload = reverse_nc
-    elif args.payload == 'reverse_nce': payload = reverse_nce
+    if args.payload == 'bind_awk':
+        payload = bind_awk
+    elif args.payload == 'reverse_awk':
+        payload = reverse_awk
+    elif args.payload == 'reverse_bash':
+        payload = reverse_bash
+    elif args.payload == 'reverse_php':
+        payload = reverse_php
+    elif args.payload == 'reverse_nc':
+        payload = reverse_nc
+    elif args.payload == 'reverse_nce':
+        payload = reverse_nce
     else:
         Base.print_error('Bad payload: ', args.version,
                          '; allow only bind_awk, reverse_awk, reverse_bash, reverse_php, reverse_nc, reverse_nce!')
