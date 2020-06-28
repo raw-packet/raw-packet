@@ -156,9 +156,7 @@ class DHCPv4Fuzz:
         for option in testing.DHCPv4.options:
             dhcpv4_packet += option
         dhcpv4_packet += pack('B', 255)  # 255 - End of DHCPv4 options
-
-        # Add padding bytes in end of DHCPv4 packet
-        dhcpv4_packet += b''.join(pack('B', 0) for _ in range(padding))
+        dhcpv4_packet += b''.join(pack('B', 0) for _ in range(padding))  # Add padding bytes in end of DHCPv4 packet
 
         eth_header: bytes = \
             self._eth.make_header(source_mac=testing.EthernetHeader.source_address,
@@ -217,9 +215,10 @@ class DHCPv4Fuzz:
                 self._remote_test.dhcp_client_over_ssh()
     # endregion
 
-    # region Start spoofing
+    # region Start fuzzing
     def start(self,
               target_ip: str,
+              target_new_ip: str,
               target_mac: str,
               target_os: str,
               target_iface: str,
@@ -232,6 +231,7 @@ class DHCPv4Fuzz:
 
         # region Set variables
         self._target.ipv4_address = target_ip
+        self._target.new_ipv4_address = target_new_ip
         self._target.mac_address = target_mac
         self._target.os = target_os
         self._target.network_interface = target_iface
@@ -512,18 +512,20 @@ class DHCPv4Fuzz:
         if all_tests:
             # Long list
             ipv4_source_addresses: List[str] = [
-                self._your.ipv4_address,  # Your MAC address
-                self._gateway.ipv4_address,  # Gateway MAC address
-                self._target.ipv4_address,  # Target MAC address
-                '0.0.0.0',  # Empty MAC address
-                '255.255.255.255'  # Broadcast MAC address
+                self._your.ipv4_address,  # Your IPv4 address
+                self._gateway.ipv4_address,  # Gateway IPv4 address
+                self._target.ipv4_address,  # Target IPv4 address
+                self._target.new_ipv4_address,  # Target new IPv4 address
+                '0.0.0.0',  # Empty IPv4 address
+                '255.255.255.255'  # Broadcast IPv4 address
             ]
             ipv4_destination_addresses: List[str] = [
-                self._your.ipv4_address,  # Your MAC address
-                self._gateway.ipv4_address,  # Gateway MAC address
-                self._target.ipv4_address,  # Target MAC address
-                '0.0.0.0',  # Empty MAC address
-                '255.255.255.255'  # Broadcast MAC address
+                self._your.ipv4_address,  # Your IPv4 address
+                self._gateway.ipv4_address,  # Gateway IPv4 address
+                self._target.ipv4_address,  # Target IPv4 address
+                self._target.new_ipv4_address,  # Target new IPv4 address
+                '0.0.0.0',  # Empty IPv4 address
+                '255.255.255.255'  # Broadcast IPv4 address
             ]
         else:
             # Short list
@@ -673,6 +675,39 @@ class DHCPv4Fuzz:
             ]
         # endregion
 
+        # region BOOTP client mac addresses
+        if all_tests:
+            # Long list
+            bootp_client_macs: List[str] = [
+                self._target.mac_address,  # Target MAC address
+                '00:00:00:00:00:00',  # Empty MAC address
+                'ff:ff:ff:ff:ff:ff',  # Broadcast MAC address
+            ]
+        else:
+            # Short list
+            bootp_client_macs: List[str] = [
+                self._target.mac_address,  # Target MAC address
+            ]
+        # endregion
+
+        # region BOOTP client IP addresses
+        if all_tests:
+            # Long list
+            bootp_client_ips: List[str] = [
+                self._your.ipv4_address,  # Your IPv4 address
+                self._gateway.ipv4_address,  # Gateway IPv4 address
+                self._target.ipv4_address,  # Target IPv4 address
+                self._target.new_ipv4_address,  # Target new IPv4 address
+                '0.0.0.0',  # Empty IPv4 address
+                '255.255.255.255'  # Broadcast IPv4 address
+            ]
+        else:
+            # Short list
+            bootp_client_ips: List[str] = [
+                '0.0.0.0',  # Empty IPv4 address
+            ]
+        # endregion
+
         # region DHCPv4 options
         if all_tests:
             # Long list
@@ -719,6 +754,8 @@ class DHCPv4Fuzz:
         self._base.print_info('BOOTP hops: ', str(bootp_hops))
         self._base.print_info('BOOTP seconds: ', str(bootp_seconds))
         self._base.print_info('BOOTP flags: ', str(bootp_flags))
+        self._base.print_info('BOOTP client IPv4 addresses: ', str(bootp_client_ips))
+        self._base.print_info('BOOTP client mac addresses: ', str(bootp_client_macs))
         self._base.print_info('BOOTP server host names: ', str(bootp_server_names))
         self._base.print_info('BOOTP boot file names: ', str(bootp_boot_names))
         self._base.print_info('BOOTP magic cookies: ', str(bootp_magic_cookies))
@@ -804,51 +841,65 @@ class DHCPv4Fuzz:
                             for bootp_hop in bootp_hops:
                                 for bootp_second in bootp_seconds:
                                     for bootp_flag in bootp_flags:
-                                        for bootp_server_name in bootp_server_names:
-                                            for bootp_boot_name in bootp_boot_names:
-                                                for bootp_magic_cookie in bootp_magic_cookies:
+                                        for bootp_client_ip in bootp_client_ips:
+                                            for bootp_client_mac in bootp_client_macs:
+                                                for bootp_server_name in bootp_server_names:
+                                                    for bootp_boot_name in bootp_boot_names:
+                                                        for bootp_magic_cookie in bootp_magic_cookies:
 
-                                                    params = self.TestParameters()
-                                                    params.EthernetHeader = \
-                                                        self.TestParameters.EthernetHeader()
-                                                    params.IPv4Header = \
-                                                        self.TestParameters.IPv4Header()
-                                                    params.UDPHeader = \
-                                                        self.TestParameters.UDPHeader()
-                                                    params.BOOTPHeader = \
-                                                        self.TestParameters.BOOTPHeader()
+                                                            params = self.TestParameters()
+                                                            params.EthernetHeader = \
+                                                                self.TestParameters.EthernetHeader()
+                                                            params.IPv4Header = \
+                                                                self.TestParameters.IPv4Header()
+                                                            params.UDPHeader = \
+                                                                self.TestParameters.UDPHeader()
+                                                            params.BOOTPHeader = \
+                                                                self.TestParameters.BOOTPHeader()
 
-                                                    params.EthernetHeader.source_address = \
-                                                        eth.EthernetHeader.source_address
-                                                    params.EthernetHeader.destination_address = \
-                                                        eth.EthernetHeader.destination_address
-                                                    params.EthernetHeader.type = \
-                                                        eth.EthernetHeader.type
+                                                            params.EthernetHeader.source_address = \
+                                                                eth.EthernetHeader.source_address
+                                                            params.EthernetHeader.destination_address = \
+                                                                eth.EthernetHeader.destination_address
+                                                            params.EthernetHeader.type = \
+                                                                eth.EthernetHeader.type
 
-                                                    params.IPv4Header.ttl = \
-                                                        ipv4.IPv4Header.ttl
-                                                    params.IPv4Header.source_address = \
-                                                        ipv4.IPv4Header.source_address
-                                                    params.IPv4Header.destination_address = \
-                                                        ipv4.IPv4Header.destination_address
-                                                    params.IPv4Header.protocol = \
-                                                        ipv4.IPv4Header.protocol
+                                                            params.IPv4Header.ttl = \
+                                                                ipv4.IPv4Header.ttl
+                                                            params.IPv4Header.source_address = \
+                                                                ipv4.IPv4Header.source_address
+                                                            params.IPv4Header.destination_address = \
+                                                                ipv4.IPv4Header.destination_address
+                                                            params.IPv4Header.protocol = \
+                                                                ipv4.IPv4Header.protocol
 
-                                                    params.UDPHeader.source_port = \
-                                                        udp.UDPHeader.source_port
-                                                    params.UDPHeader.destination_port = \
-                                                        udp.UDPHeader.destination_port
+                                                            params.UDPHeader.source_port = \
+                                                                udp.UDPHeader.source_port
+                                                            params.UDPHeader.destination_port = \
+                                                                udp.UDPHeader.destination_port
 
-                                                    params.BOOTPHeader.message_type = bootp_message_type
-                                                    params.BOOTPHeader.hardware_type = bootp_hardware_type
-                                                    params.BOOTPHeader.hops = bootp_hop
-                                                    params.BOOTPHeader.seconds_elapsed = bootp_second
-                                                    params.BOOTPHeader.bootp_flags = bootp_flag
-                                                    params.BOOTPHeader.server_host_name = bootp_server_name
-                                                    params.BOOTPHeader.bootp_file_name = bootp_boot_name
-                                                    params.BOOTPHeader.magic_cookie = bootp_magic_cookie
+                                                            params.BOOTPHeader.message_type = \
+                                                                bootp_message_type
+                                                            params.BOOTPHeader.hardware_type = \
+                                                                bootp_hardware_type
+                                                            params.BOOTPHeader.hops = \
+                                                                bootp_hop
+                                                            params.BOOTPHeader.seconds_elapsed = \
+                                                                bootp_second
+                                                            params.BOOTPHeader.bootp_flags = \
+                                                                bootp_flag
+                                                            params.BOOTPHeader.client_ip = \
+                                                                bootp_client_ip
+                                                            params.BOOTPHeader.client_mac = \
+                                                                bootp_client_mac
+                                                            params.BOOTPHeader.server_host_name = \
+                                                                bootp_server_name
+                                                            params.BOOTPHeader.bootp_file_name = \
+                                                                bootp_boot_name
+                                                            params.BOOTPHeader.magic_cookie = \
+                                                                bootp_magic_cookie
 
-                                                    bootp_params.append(params)
+                                                            bootp_params.append(params)
         # endregion
 
         # region DHCPv4
@@ -860,7 +911,6 @@ class DHCPv4Fuzz:
 
                             dhcpv4_options_bytes: List[bytes] = list()
                             for key, value in dhcpv4_options.items():
-                                # print(str(key) + ' -> ' + str(value))
                                 dhcpv4_options_bytes.append(pack('!2B', key, len(value)) + value)
 
                             params = self.TestParameters()
@@ -896,14 +946,26 @@ class DHCPv4Fuzz:
                             params.UDPHeader.destination_port = \
                                 udp.UDPHeader.destination_port
 
-                            params.BOOTPHeader.message_type = bootp.BOOTPHeader.message_type
-                            params.BOOTPHeader.hardware_type = bootp.BOOTPHeader.hardware_type
-                            params.BOOTPHeader.hops = bootp.BOOTPHeader.hops
-                            params.BOOTPHeader.seconds_elapsed = bootp.BOOTPHeader.seconds_elapsed
-                            params.BOOTPHeader.bootp_flags = bootp.BOOTPHeader.bootp_flags
-                            params.BOOTPHeader.server_host_name = bootp.BOOTPHeader.server_host_name
-                            params.BOOTPHeader.bootp_file_name = bootp.BOOTPHeader.bootp_file_name
-                            params.BOOTPHeader.magic_cookie = bootp.BOOTPHeader.magic_cookie
+                            params.BOOTPHeader.message_type = \
+                                bootp.BOOTPHeader.message_type
+                            params.BOOTPHeader.hardware_type = \
+                                bootp.BOOTPHeader.hardware_type
+                            params.BOOTPHeader.hops = \
+                                bootp.BOOTPHeader.hops
+                            params.BOOTPHeader.seconds_elapsed = \
+                                bootp.BOOTPHeader.seconds_elapsed
+                            params.BOOTPHeader.bootp_flags = \
+                                bootp.BOOTPHeader.bootp_flags
+                            params.BOOTPHeader.client_ip = \
+                                bootp.BOOTPHeader.client_ip
+                            params.BOOTPHeader.client_mac = \
+                                bootp.BOOTPHeader.client_mac
+                            params.BOOTPHeader.server_host_name = \
+                                bootp.BOOTPHeader.server_host_name
+                            params.BOOTPHeader.bootp_file_name = \
+                                bootp.BOOTPHeader.bootp_file_name
+                            params.BOOTPHeader.magic_cookie = \
+                                bootp.BOOTPHeader.magic_cookie
 
                             self._test_parameters.append(params)
         # endregion
@@ -963,6 +1025,7 @@ def main():
     parser: ArgumentParser = ArgumentParser(description='ICMPv4 fuzzing script')
     parser.add_argument('-i', '--interface', help='Set interface name for send ARP packets', default=None)
     parser.add_argument('-T', '--target_ip', help='Set target IP address', required=True)
+    parser.add_argument('-N', '--target_new_ip', help='Set target new IP address', required=True)
     parser.add_argument('-t', '--target_mac', help='Set target MAC address', required=True)
     parser.add_argument('-o', '--target_os', help='Set target OS (MacOS, Linux, Windows)', default='MacOS')
     parser.add_argument('-I', '--target_iface', help='Set target Network interface', default='en0')

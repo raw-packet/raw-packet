@@ -44,6 +44,7 @@ class RemoteTest:
         network_interface: Union[None, str] = None
         mac_address: Union[None, str] = None
         ipv4_address: Union[None, str] = None
+        new_ipv4_address: Union[None, str] = None
         ipv6_address: Union[None, str] = None
         os: Union[None, str] = None
         ssh_user: Union[None, str] = None
