@@ -17,7 +17,6 @@ from raw_packet.Scanners.arp_scanner import ArpScan
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from prettytable import PrettyTable
 from typing import List, Dict, Union
-from sys import argv
 # endregion
 
 # region Authorship information

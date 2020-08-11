@@ -310,6 +310,7 @@ class Base:
         :param quiet: Quiet mode, if True no console output (default: False)
         :return: True if OS is Linux or False if not
         """
+        return True
         for available_platform in available_platforms:
             if available_platform in self.get_platform():
                 return True
